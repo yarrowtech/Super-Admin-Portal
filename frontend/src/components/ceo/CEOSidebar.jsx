@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 const CEOSidebar = () => {
   return (
@@ -8,17 +8,19 @@ const CEOSidebar = () => {
           <div className="flex items-center gap-3">
             <div
               className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
-              data-alt="A portrait of the CEO, Dr. Evelyn Reed"
+              data-alt="A portrait of a senior executive"
               style={{
                 backgroundImage:
-                  'url("https://lh3.googleusercontent.com/aida-public/AB6AXuA6TmQIdW2UOLyWz79w5pAAMyKfnl5ydwJK-9XmP_wAMwNT_4GDOxUL0XEVLlU8gN8QAAOaloIWOn_YZ_Us6rA-wKBcqTQmwdzSSmmhHzeEsVKzuCUoO4O5SaasOi-ktyW-_MxW0N_0xuWUfH5TLZfyz0Scae_RG3rYvDjuN5jc1DIfYfcrp74IodOHBF4TH943uHqFK6thq1clcTKvYBHFD0YtGdmX_0QktyvUt8HDclFg09DgMD1K5z_PxqnxdDg5PFI-URI1nXu-")',
+                  'url("https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80")',
               }}
             ></div>
             <div className="flex flex-col">
               <h1 className="text-base font-medium leading-normal text-neutral-800 dark:text-neutral-100">
-                Raffale Mantosh 
+                Raphael Mantosh
               </h1>
-              <p className="text-sm font-normal leading-normal text-neutral-600 dark:text-neutral-400">CEO</p>
+              <p className="text-sm font-normal leading-normal text-neutral-600 dark:text-neutral-400">
+                CEO
+              </p>
             </div>
           </div>
           <nav className="flex flex-col gap-2 mt-4">
@@ -33,35 +35,55 @@ const CEOSidebar = () => {
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">gavel</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">Law</p>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                Law
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">groups</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">HR</p>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                HR
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-              <span className="material-symbols-outlined">laptop_chromebook</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">IT</p>
+              <span className="material-symbols-outlined">
+                laptop_chromebook
+              </span>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                IT
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-              <span className="material-symbols-outlined">account_balance_wallet</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">A/C & Finance</p>
+              <span className="material-symbols-outlined">
+                account_balance_wallet
+              </span>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                A/C & Finance
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">dvr</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">System Operator</p>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                System Operator
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">science</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">Research</p>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                Research
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">trending_up</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">A/C Sales & Growth</p>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                A/C Sales & Growth
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">campaign</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">Media</p>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                Media
+              </p>
             </div>
           </nav>
         </div>
@@ -72,7 +94,9 @@ const CEOSidebar = () => {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">settings</span>
-              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">Settings</p>
+              <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+                Settings
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 text-red-600 dark:text-red-400 cursor-pointer">
               <span className="material-symbols-outlined">logout</span>

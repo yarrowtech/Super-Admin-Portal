@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Workflows Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col">
+<div class="flex h-full w-full flex-row">
+<nav class="flex h-screen w-64 flex-col border-r border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-background-dark">
+<div class="mb-8 flex items-center gap-3 px-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+<span class="material-symbols-outlined text-2xl">shield_person</span>
+</div>
+<h1 class="text-lg font-bold text-gray-900 dark:text-white">Admin Portal</h1>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">group</span>
+<p class="text-sm font-medium">Departments</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">security</span>
+<p class="text-sm font-medium">Security</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<p class="text-sm font-medium">Reports</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2 text-primary dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+<p class="text-sm font-medium">Workflows</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</a>
+</div>
+</div>
+<div class="mt-auto flex flex-col gap-4">
+<div class="h-px bg-gray-200 dark:bg-gray-800"></div>
+<div class="flex items-center gap-3 px-3">
+<div class="aspect-square size-10 rounded-full bg-cover bg-center bg-no-repeat" data-alt="Super admin user avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBlwTbXxX_gusMJUuoYiAKFGh1ykCPSt3peQiV-LdD8nUCldy0gxiYxa2hRQfpzWpyI8cnmLc7fl3AGLjbSK4CLJZ4Sk7rox0rftFXlqDofE4fS2PSvFVpdmC2ZVA3C0iPhDapjarMWqA9gtN08i3PsWiP4AkCYXSUi0JF9HavtsBjAsYqld4RfSJ097fvunVl8DZP0qbN2c5dgsf__WkhoFk6HnJQi6FqrK8MxWQkKP6v2D6r47bXy8DhuQCpJEY15IFEE6bgFlr25");'></div>
+<div class="flex flex-col">
+<h1 class="text-sm font-medium text-[#111318] dark:text-white">Super Admin</h1>
+<p class="text-xs text-[#616f89] dark:text-gray-400">admin@example.com</p>
+</div>
+</div>
+</div>
+</nav>
+<main class="flex-1 overflow-y-auto">
+<div class="p-8">
+<header class="mb-8 flex flex-wrap items-center justify-between gap-4">
+<div class="flex flex-col gap-1">
+<h1 class="text-4xl font-black leading-tight tracking-[-0.033em] text-[#111318] dark:text-white">Workflows Management</h1>
+<p class="text-base text-gray-600 dark:text-gray-400">Monitor, create, and manage all automated workflows.</p>
+</div>
+<div class="flex flex-grow items-center justify-end gap-4 md:flex-grow-0">
+<button class="flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white hover:bg-primary/90">
+<span class="material-symbols-outlined">add</span>
+<span>Create Workflow</span>
+</button>
+</div>
+</header>
+<div class="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+<thead class="bg-gray-50 dark:bg-gray-800">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400" scope="col">Workflow Name</th>
+<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400" scope="col">Status</th>
+<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400" scope="col">Last Run</th>
+<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400" scope="col">Trigger</th>
+<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400" scope="col">Created By</th>
+<th class="relative px-6 py-3" scope="col">
+<span class="sr-only">Actions</span>
+</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-900">
+<tr>
+<td class="whitespace-nowrap px-6 py-4">
+<div class="font-medium text-gray-900 dark:text-white">Payment Processing</div>
+<div class="text-sm text-gray-500 dark:text-gray-400">Handles all incoming and outgoing payments.</div>
+</td>
+<td class="whitespace-nowrap px-6 py-4">
+<span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
+<span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+Active
+</span>
+</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">2024-05-20 14:30 UTC</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">On new invoice</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Admin</td>
+<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+<div class="flex items-center justify-end gap-4">
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">history</span>
+</button>
+<button class="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="whitespace-nowrap px-6 py-4">
+<div class="font-medium text-gray-900 dark:text-white">User Onboarding</div>
+<div class="text-sm text-gray-500 dark:text-gray-400">Sends welcome emails and sets up new accounts.</div>
+</td>
+<td class="whitespace-nowrap px-6 py-4">
+<span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
+<span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+Active
+</span>
+</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">2024-05-20 11:15 UTC</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">On user signup</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Jane Doe</td>
+<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+<div class="flex items-center justify-end gap-4">
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">history</span>
+</button>
+<button class="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="whitespace-nowrap px-6 py-4">
+<div class="font-medium text-gray-900 dark:text-white">Hiring Approvals</div>
+<div class="text-sm text-gray-500 dark:text-gray-400">Multi-step approval for new job requisitions.</div>
+</td>
+<td class="whitespace-nowrap px-6 py-4">
+<span class="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
+<span class="h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
+Paused
+</span>
+</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">2024-05-18 09:00 UTC</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Manual trigger</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Admin</td>
+<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+<div class="flex items-center justify-end gap-4">
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">history</span>
+</button>
+<button class="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="whitespace-nowrap px-6 py-4">
+<div class="font-medium text-gray-900 dark:text-white">Content Deployment</div>
+<div class="text-sm text-gray-500 dark:text-gray-400">Automates pushing new content to production.</div>
+</td>
+<td class="whitespace-nowrap px-6 py-4">
+<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800 dark:bg-red-900 dark:text-red-300">
+<span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+Error
+</span>
+</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">2024-05-19 16:45 UTC</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">On content approval</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">System</td>
+<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+<div class="flex items-center justify-end gap-4">
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">history</span>
+</button>
+<button class="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="whitespace-nowrap px-6 py-4">
+<div class="font-medium text-gray-900 dark:text-white">Weekly Report Generation</div>
+<div class="text-sm text-gray-500 dark:text-gray-400">Generates and emails weekly performance reports.</div>
+</td>
+<td class="whitespace-nowrap px-6 py-4">
+<span class="inline-flex items-center gap-1.5 rounded-full bg-gray-200 px-2 py-1 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+<span class="h-1.5 w-1.5 rounded-full bg-gray-500"></span>
+Disabled
+</span>
+</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">2024-05-17 08:00 UTC</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Scheduled (Weekly)</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">John Smith</td>
+<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+<div class="flex items-center justify-end gap-4">
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary">
+<span class="material-symbols-outlined text-xl">history</span>
+</button>
+<button class="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Manager Dashboard with Reports</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "green-500": "#7ED321",
+              "red-500": "#D0021B",
+              "gray-100": "#f0f2f4",
+              "gray-200": "#dbdfe6",
+              "gray-400": "#a1aab8",
+              "gray-600": "#616f89",
+              "gray-800": "#111318",
+              "white": "#ffffff",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="relative flex min-h-screen w-full">
+<aside class="flex w-64 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/20">
+<div class="flex h-full min-h-[700px] flex-col justify-between p-4">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 p-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Manager's profile picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC0NyPTg6QnGCd6bzahKXvW46dMD1lNfA6X1S32qTZUncNY2RHoZso_crxkUid-qUOnXTPDD6Ccnu_OxR-mOryUr8iUkAXX8sDkFZVq-13kCqal55UCl9oxbkSdJDZuvPTU58zA51yJ-SdljQlsmDOKpf6BC0x_ziY7ylYopUR2N9AJfoMojwIWulwTme9skA2VGi9mrQzahcmnEMRx1mMW69GK9i92zZHgfwRD8ULc-bRTn9wl5NsG0O9hNTa3RLtdtWWMu_N0G4Gj");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-800 dark:text-white text-base font-medium leading-normal">Alex Chen</h1>
+<p class="text-gray-600 dark:text-gray-400 text-sm font-normal leading-normal">Project Manager</p>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">dashboard</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">inventory_2</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Products</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">group</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Team</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">assessment</span>
+<p class="text-primary text-sm font-bold leading-normal">Reports</p>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90">
+<span class="truncate">New Project</span>
+</button>
+<div class="flex flex-col gap-1 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">settings</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">logout</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Log Out</p>
+</a>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto">
+<div class="p-8">
+<div class="flex flex-wrap justify-between gap-4 items-center mb-8">
+<div class="flex min-w-72 flex-col gap-1">
+<p class="text-gray-800 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">Reports Dashboard</p>
+<p class="text-gray-600 dark:text-gray-400 text-base font-normal leading-normal">Track progress and make data-driven decisions.</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined text-base">tune</span>
+<span class="truncate">Customize View</span>
+</button>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-primary/90">
+<span class="material-symbols-outlined text-base">download</span>
+<span class="truncate">Export Reports</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col gap-8">
+<div class="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+<h2 class="text-gray-800 dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em] mb-4">Quick Access Reports</h2>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<a class="flex flex-col items-start gap-3 p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/80 border border-gray-200 dark:border-gray-800/50" href="#">
+<span class="material-symbols-outlined text-primary text-3xl">summarize</span>
+<div class="flex flex-col">
+<p class="text-gray-800 dark:text-white text-base font-semibold leading-normal">Performance Summary</p>
+<p class="text-gray-600 dark:text-gray-400 text-sm">Monthly overview of KPIs</p>
+</div>
+</a>
+<a class="flex flex-col items-start gap-3 p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/80 border border-gray-200 dark:border-gray-800/50" href="#">
+<span class="material-symbols-outlined text-primary text-3xl">bar_chart_4_bars</span>
+<p class="text-gray-800 dark:text-white text-base font-semibold leading-normal">Project Status</p>
+<p class="text-gray-600 dark:text-gray-400 text-sm">Real-time project health</p>
+</a>
+<a class="flex flex-col items-start gap-3 p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/80 border border-gray-200 dark:border-gray-800/50" href="#">
+<span class="material-symbols-outlined text-primary text-3xl">groups</span>
+<p class="text-gray-800 dark:text-white text-base font-semibold leading-normal">Team Productivity</p>
+<p class="text-gray-600 dark:text-gray-400 text-sm">Individual &amp; team output</p>
+</a>
+<a class="flex flex-col items-start gap-3 p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/80 border border-gray-200 dark:border-gray-800/50" href="#">
+<span class="material-symbols-outlined text-primary text-3xl">monitoring</span>
+<p class="text-gray-800 dark:text-white text-base font-semibold leading-normal">Financial Overview</p>
+<p class="text-gray-600 dark:text-gray-400 text-sm">Budget vs. actuals</p>
+</a>
+</div>
+</div>
+<div class="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex justify-between items-center px-6 pt-5 pb-3">
+<h2 class="text-gray-800 dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em]">All Reports</h2>
+<div class="relative min-w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+<input class="w-full pl-10 pr-4 py-2 text-sm border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-800/50 focus:ring-primary focus:border-primary text-gray-800 dark:text-white dark:placeholder-gray-400" placeholder="Search reports..." type="text"/>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="border-b border-gray-200 dark:border-gray-800">
+<tr>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400">Report Name</th>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400">Category</th>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400">Last Generated</th>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400 text-right">Actions</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-gray-200 dark:border-gray-800 last:border-b-0 hover:bg-gray-100/50 dark:hover:bg-gray-900/20">
+<td class="p-4 px-6 text-gray-800 dark:text-white text-sm font-medium">Q3 Sales Performance</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Financial</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-01</td>
+<td class="p-4 px-6 flex justify-end gap-2">
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">visibility</span>View</button>
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">download</span>Download</button>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 last:border-b-0 hover:bg-gray-100/50 dark:hover:bg-gray-900/20">
+<td class="p-4 px-6 text-gray-800 dark:text-white text-sm font-medium">Alpha Project Sprint #5 Summary</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Project Status</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-25</td>
+<td class="p-4 px-6 flex justify-end gap-2">
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">visibility</span>View</button>
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">download</span>Download</button>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 last:border-b-0 hover:bg-gray-100/50 dark:hover:bg-gray-900/20">
+<td class="p-4 px-6 text-gray-800 dark:text-white text-sm font-medium">Weekly Team Productivity Analysis</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Team Performance</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-27</td>
+<td class="p-4 px-6 flex justify-end gap-2">
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">visibility</span>View</button>
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">download</span>Download</button>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 last:border-b-0 hover:bg-gray-100/50 dark:hover:bg-gray-900/20">
+<td class="p-4 px-6 text-gray-800 dark:text-white text-sm font-medium">Marketing Campaign ROI</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Financial</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-09-30</td>
+<td class="p-4 px-6 flex justify-end gap-2">
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">visibility</span>View</button>
+<button class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-white"><span class="material-symbols-outlined text-sm">download</span>Download</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

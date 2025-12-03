@@ -1,14 +1,11 @@
 import React from 'react';
 import ManagerSidebar from './ManagerSidebar';
-import ManagerDashboard from './ManagerDashboard';
 
-const ManagerPortal = () => {
+const ManagerPortal = ({ children }) => {
   return (
-    <div className="relative flex min-h-screen w-full bg-background-light dark:bg-background-dark font-display">
+    <div className="relative flex min-h-screen w-full bg-background-light font-display text-neutral-800 dark:bg-background-dark dark:text-neutral-100">
       <ManagerSidebar />
-      <div className="ml-64 flex-1">
-        <ManagerDashboard />
-      </div>
+      <div className="ml-64 flex-1 overflow-x-hidden">{children}</div>
     </div>
   );
 };

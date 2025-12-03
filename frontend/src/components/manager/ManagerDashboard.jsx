@@ -6,7 +6,7 @@ const ManagerDashboard = () => {
       <div className="p-8">
         <div className="flex flex-wrap justify-between gap-4 items-center mb-8">
           <div className="flex min-w-72 flex-col gap-1">
-            <p className="text-gray-800 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">Welcome back, Alex!</p>
+            <p className="text-gray-800 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">Welcome back, Sangeet!</p>
             <p className="text-gray-600 dark:text-gray-400 text-base font-normal leading-normal">Here's your performance summary for this week.</p>
           </div>
           <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -63,8 +63,8 @@ const ManagerDashboard = () => {
                   <tbody>
                     <tr className="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
                       <td className="p-4 px-6 text-gray-800 dark:text-white text-sm">Vacation Request</td>
-                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Olivia Martin</td>
-                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-28</td>
+                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Boby Peter</td>
+                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2025-10-28</td>
                       <td className="p-4 px-6 flex justify-end gap-2">
                         <button className="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
                         <button className="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
@@ -72,8 +72,8 @@ const ManagerDashboard = () => {
                     </tr>
                     <tr className="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
                       <td className="p-4 px-6 text-gray-800 dark:text-white text-sm">Budget Approval Q4</td>
-                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Liam Garcia</td>
-                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-27</td>
+                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Nandini Biswas</td>
+                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2025-10-27</td>
                       <td className="p-4 px-6 flex justify-end gap-2">
                         <button className="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
                         <button className="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
@@ -81,8 +81,8 @@ const ManagerDashboard = () => {
                     </tr>
                     <tr className="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
                       <td className="p-4 px-6 text-gray-800 dark:text-white text-sm">Content Review</td>
-                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Sophia Williams</td>
-                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-26</td>
+                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Anshika Pathak</td>
+                      <td className="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">202-10-26</td>
                       <td className="p-4 px-6 flex justify-end gap-2">
                         <button className="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
                         <button className="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>

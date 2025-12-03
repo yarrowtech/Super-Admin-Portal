@@ -1,78 +1,68 @@
 import React from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+
+const navItems = [
+  { label: 'Dashboard', icon: 'dashboard', path: '/admin/dashboard' },
+  { label: 'User Management', icon: 'group', path: '/admin/users' },
+  { label: 'Departments', icon: 'corporate_fare', path: '/admin/departments' },
+  { label: 'Security', icon: 'security', path: '/admin/security' },
+  { label: 'Reports', icon: 'bar_chart', path: '/admin/reports' },
+  { label: 'Workflows', icon: 'account_tree', path: '/admin/workflows' },
+];
 
 const AdminSidebar = () => {
+  const location = useLocation();
+
   return (
-    <nav className="fixed left-0 top-0 h-screen w-64 flex-col border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-background-dark p-4 z-10 flex">
+    <aside className="fixed left-0 top-0 z-20 flex h-screen w-64 flex-col border-r border-neutral-200 bg-white p-4 text-neutral-800 dark:border-neutral-800 dark:bg-background-dark dark:text-neutral-100">
       <div className="mb-8 flex items-center gap-3 px-3">
-        <div
-          className="aspect-square size-10 rounded-full bg-cover bg-center bg-no-repeat"
-          data-alt="Super admin user avatar"
-          style={{
-            backgroundImage:
-              'url("https://lh3.googleusercontent.com/aida-public/AB6AXuB_HFSbNHCmNgTeKZAiFk2MqdSEqd36bsfGVXM1jMm4u-rmgBnoBDcVJpkRH2VlN__XL8gTeUCSNaWwJKRI1aQWTzEJFlZwOsBOty_vqThHZd_iMdGC6uv-at2zgu8HswCT2SKDxAFdEANBncCJPPnVF1JdJE9LC2WD9x9fHsLvY8x4J6_F_lwFafZnDp-dxW2kdcZUMybmvUNwjVpPxdbp4V3asAgzpdG_97qVGZe72iXV5Qth5NM66WFVrkCjZS88_sYOYcCBphv1")',
-          }}
-        ></div>
-        <div className="flex flex-col">
-          <h1 className="text-sm font-medium text-neutral-800 dark:text-neutral-100">Super Admin</h1>
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">admin@example.com</p>
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+          <span className="material-symbols-outlined text-2xl">shield_person</span>
+        </div>
+        <div>
+          <p className="text-lg font-bold leading-tight">Admin Portal</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Control Center</p>
         </div>
       </div>
-      
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2 text-primary">
-            <span className="material-symbols-outlined">dashboard</span>
-            <p className="text-sm font-medium">Dashboard</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">group</span>
-            <p className="text-sm font-medium">User Management</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">domain</span>
-            <p className="text-sm font-medium">Departments</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">folder_managed</span>
-            <p className="text-sm font-medium">Content</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">bar_chart</span>
-            <p className="text-sm font-medium">Analytics</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">security</span>
-            <p className="text-sm font-medium">Security</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">account_tree</span>
-            <p className="text-sm font-medium">Workflows</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">lab_profile</span>
-            <p className="text-sm font-medium">Reports</p>
-          </div>
-        </div>
+      <nav className="flex flex-col gap-2">
+        {navItems.map((item) => {
+          const isActive = location.pathname.startsWith(item.path);
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                isActive
+                  ? 'bg-primary/10 text-primary font-semibold'
+                  : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+              }`}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+              >
+                {item.icon}
+              </span>
+              {item.label}
+            </NavLink>
+          );
+        })}
+      </nav>
+      <div className="mt-auto flex flex-col gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800">
+          <span className="material-symbols-outlined">settings</span>
+          Settings
+        </button>
+        <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800">
+          <span className="material-symbols-outlined">help</span>
+          Support
+        </button>
+        <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800">
+          <span className="material-symbols-outlined">logout</span>
+          Logout
+        </button>
       </div>
-      
-      <div className="mt-auto flex flex-col gap-4">
-        <div className="h-px bg-neutral-200 dark:bg-neutral-800"></div>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">settings</span>
-            <p className="text-sm font-medium">Settings</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">help</span>
-            <p className="text-sm font-medium">Support</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-            <span className="material-symbols-outlined">logout</span>
-            <p className="text-sm font-medium">Logout</p>
-          </div>
-        </div>
-      </div>
-    </nav>
+    </aside>
   );
 };
 

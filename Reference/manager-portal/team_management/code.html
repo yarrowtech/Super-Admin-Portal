@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Team Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#135bec",
+            "background-light": "#f6f6f8",
+            "background-dark": "#101622",
+          },
+          fontFamily: {
+            "display": ["Manrope"]
+          },
+          borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+</head>
+<body class="font-display">
+<div class="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark group/design-root overflow-x-hidden">
+<div class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="flex w-64 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-background-dark p-4">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="User avatar with a gradient background" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBFsR7AhAap0HrgMtbYhUpZHgtuUb7xaxFrOQ7V6CeSF8ZEeiZzT55ZjlvcisBKZTkWFEde2W7dfOJA4iCXSdSHfnRuU6iXdedSGvphMLF7wzmiEMTJHxiB3xFowfDToIvm_RVWJY4Cj9tE47xiBuUNVQRpn8WSuRN4Ddxqf041UzW3lAJ2YtH12NqI6QTIrv3af0bgDRRlZhYC_5-54V5vkz6eXiKlBe5qKpPhDfHUUHoTDGw9A-mTF0GuRqn5oz496VAkkDBEJxLS");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-900 dark:text-white text-base font-medium leading-normal">Super Admin</h1>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal leading-normal">admin@example.com</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined text-gray-900 dark:text-white">dashboard</span>
+<p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined text-gray-900 dark:text-white">folder_open</span>
+<p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Projects</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">groups</span>
+<p class="text-primary text-sm font-medium leading-normal">Team Management</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined text-gray-900 dark:text-white">settings</span>
+<p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Settings</p>
+</a>
+</nav>
+</div>
+<div class="mt-auto flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined text-gray-900 dark:text-white">help</span>
+<p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Help Center</p>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 p-8 grid grid-cols-3 gap-8">
+<div class="col-span-3 lg:col-span-2 flex flex-col gap-6">
+<!-- PageHeading -->
+<div class="flex flex-wrap justify-between items-center gap-4">
+<div class="flex flex-col gap-2">
+<p class="text-gray-900 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">Team Management</p>
+<p class="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">Organize and manage teams across different departments.</p>
+</div>
+<button class="flex items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90">
+<span class="material-symbols-outlined text-lg">add</span>
+<span class="truncate">Create New Team</span>
+</button>
+</div>
+<!-- Search and Filters -->
+<div class="flex flex-col sm:flex-row gap-4">
+<!-- SearchBar -->
+<div class="flex-grow">
+<label class="flex flex-col w-full">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-12">
+<div class="text-gray-500 dark:text-gray-400 flex bg-white dark:bg-background-dark/50 items-center justify-center pl-4 rounded-l-lg border border-gray-200 dark:border-gray-700 border-r-0">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-200 dark:border-gray-700 bg-white dark:bg-background-dark/50 h-full placeholder:text-gray-500 dark:placeholder:text-gray-400 px-4 border-l-0 text-base font-normal leading-normal" placeholder="Search by team name..." value=""/>
+</div>
+</label>
+</div>
+<!-- Chips/Filters -->
+<div class="flex items-center gap-3">
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-white dark:bg-background-dark/50 border border-gray-200 dark:border-gray-700 px-4 hover:bg-gray-50 dark:hover:bg-gray-800">
+<p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Department</p>
+<span class="material-symbols-outlined text-gray-900 dark:text-white">expand_more</span>
+</button>
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-white dark:bg-background-dark/50 border border-gray-200 dark:border-gray-700 px-4 hover:bg-gray-50 dark:hover:bg-gray-800">
+<p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Sort by Name</p>
+<span class="material-symbols-outlined text-gray-900 dark:text-white">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Table -->
+<div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-background-dark/50">
+<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+<thead class="bg-gray-50 dark:bg-background-dark">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">Team Name</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">Department</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">Members</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">Team Lead</th>
+<th class="relative px-6 py-3" scope="col"><span class="sr-only">Actions</span></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Alpha Squad</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">Engineering</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">8</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8" data-alt="Avatar of Sarah Lee" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC99v5BTBcnSTXxtGGFAdjPdYyxRwlEz8pbeqF30N_NuO-nAxSLNuyv5SoVML85mWiOUkbZjzPZZOpjYXBApsFBVgqiUW_CUgwn85ha5kA31KJ1lmKQQw-xn3tv1MmcH0NpMeOeQBduRP2ipFwP9HJzo6joUckAmhil0kOs5zeNjJ_4O1Gk3c4cq6ivUTeHSQl8ZHdNov_AQ7EmqmqHGS_Vltd6CcEey4XG9MHgZU2crZQSfi5qIX--j1rIKjL2Sv4YKGyBUbiZze6F");'></div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<div class="flex items-center gap-4">
+<button class="text-primary hover:text-primary/80">Edit</button>
+<button class="text-red-600 hover:text-red-500">Delete</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Design Mavericks</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">Design</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">5</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8" data-alt="Avatar of Michael Chen" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCMdELkF8D_86oQJW6MEqhc5XDhGng4bNgMX98BQNJicFdNzbvIWz14zbsH5KF1PszAYaM9XhFTgCQRb9qdkCmyAiI5vEw7ffzCDJXjmAyh5Hbt9r7LqlEsS70YtYOxBSwnsYzU0jpQ0JFBKnoWUW7BoZaqWIoO9Vj_Ewsv7LPFTRW3SHYJCMpA1zQIao5pzXrs6ZutUaBcgUy91Al5drk8udnOeUF_O2OrM8Y744Uuyy3KOmtIa2qUkWflX8Y1uypHLXHysB0NCT3f");'></div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<div class="flex items-center gap-4">
+<button class="text-primary hover:text-primary/80">Edit</button>
+<button class="text-red-600 hover:text-red-500">Delete</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">QA Legends</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">Quality Assurance</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">6</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8" data-alt="Avatar of Emily Rodriguez" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAv90Dv0ngG_fdukdx2lpCe_foDFKmgMxFOgwME4ya8YQmELcfKoYZf936q8aipwS14skpG72wJWGcbj0zlpSvLhE2cIcFvWBva-7mlNNa_pMe3OJYw7mB5kiBafxGKpGH8UrJAM0s5OZacFpogEld224iipbKP4QopfA_npNzN9bwsV0yVll53LVhacW1edRw3xYgN-ja03GIReY61NW4rV8w2S938-gYVI0qoK2e04ixyDFZOuCwXaVnTU_9hpEKA2jyPK2J6OVd1");'></div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<div class="flex items-center gap-4">
+<button class="text-primary hover:text-primary/80">Edit</button>
+<button class="text-red-600 hover:text-red-500">Delete</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Marketing Gurus</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">Marketing</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">7</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8" data-alt="Avatar of David Kim" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAkY6NpuCw7-UonpdrQglvbr2oBDsft4gBPRz46WJPtuKItznV7nM1CMhWuI8qNOi5LFvurZigEJ0TBFUSP-0K5Aq9522ID8bHhRl9lU6ASPq_Mt1NxIarxOpsQsZ-rp1BfqkletZSk3HtIGFPVQtlRpGP8U7sqX3mVeSNjFO8CrKouOd5lTrX_s60Swjs0-FMogG_gLGmk6RXCMC72sZTYJCuZgd1qQdtANn70kaaLpWe27vxXqqFkBpkZd3sXJd_4CWbHd9FQVXUW");'></div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<div class="flex items-center gap-4">
+<button class="text-primary hover:text-primary/80">Edit</button>
+<button class="text-red-600 hover:text-red-500">Delete</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Right Side Contextual Panel -->
+<aside class="col-span-3 lg:col-span-1 bg-white dark:bg-background-dark/50 rounded-lg border border-gray-200 dark:border-gray-700 self-start p-6">
+<div class="flex flex-col gap-6">
+<!-- Header -->
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-2">
+<h2 class="text-xl font-bold text-gray-900 dark:text-white">Team Details</h2>
+<p class="text-sm text-gray-500 dark:text-gray-400">Design Mavericks</p>
+</div>
+<button class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+<!-- Tabs -->
+<div class="border-b border-gray-200 dark:border-gray-700">
+<nav aria-label="Tabs" class="-mb-px flex gap-6">
+<a aria-current="page" class="shrink-0 border-b-2 border-primary px-1 pb-4 text-sm font-medium text-primary" href="#">Members</a>
+<a class="shrink-0 border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-200" href="#">Projects</a>
+<a class="shrink-0 border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-200" href="#">Settings</a>
+</nav>
+</div>
+<!-- Member List -->
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-gray-500 dark:text-gray-400">5 Members</p>
+<button class="text-sm font-medium text-primary hover:text-primary/80">Add Member</button>
+</div>
+<ul class="space-y-4">
+<li class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Avatar of Michael Chen" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAcuG83NWsWV7yT6wAoSeEt4yHopdjhOYB-LBqVMjt_60fUaB1AMV_HKXHgBPV8mfLVRt9sJJThhJBm4IKAkqQB9ZiROn7xYCxw6xwlgiKgznbod_8VlwNvKTjxDSMtwwF5vH4Yc-ZINrvAW423r7n6H7q7hLwL4eB2Q37OAAa8hZojVYoolu6dHa5z-h8dar6IjQkJot2-1Cf56HRxj5L5RWkaI_MyBSMyYm4hhgHn0zsf6Xx6BpFhTq0_jR4RnONqrnc_umCuc6QK");'></div>
+<div class="flex-1">
+<p class="text-sm font-medium text-gray-900 dark:text-white">Michael Chen</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">Team Lead</p>
+</div>
+</li>
+<li class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Avatar of Jessica Wu" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDSTtx8Yq1F42VT51YV19qbsaV8F1v4e8UqbEmxkSW7e8vwHCKMxQmKh6EjYilNXt9L6WyObjU0ZCYWusYh8R55Oe_8PO9t77sheoUuKHldwBvwz1bNZOlv-NyiDOzCaBRYwQTaIlxgZfgA8H5tZleg7fwktwPsdixV6LCjxUSrVUugPjTSQWjhQgISlRD0LojJI3wksBXFuCh884i_gjIDim_0oulNDhdpPDypCbmSL5OxvA-uGP6rT6P5UVg3T9bKBzEv1Y8zt-aL");'></div>
+<div class="flex-1">
+<p class="text-sm font-medium text-gray-900 dark:text-white">Jessica Wu</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">Product Designer</p>
+</div>
+</li>
+<li class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Avatar of Brian Clark" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB-bvSlyvicLEHJLuvYP0l1fs4eWjm8rCRq8Tm_x8qzJu3VBz1wl3Y92kGFiTNfZhth6Y8TFGkygAEDi21DBuJmrKaXLlKZv6CZmw-onAY-sKbU6MtSsOPx9NzvJuA0F-Z4cJjoG2tmTDqK_V84m07DHWvjT2XrwmOvtUonKzdzJx7nhhMRkNLSzmxppaPaUpKE-nXg5ww06l6YYkOgXTtY75h44NNESk1QMvVujBWHXc0VH2FSpxl0lqWi2N30UJIc0xEtY9i9ZlBp");'></div>
+<div class="flex-1">
+<p class="text-sm font-medium text-gray-900 dark:text-white">Brian Clark</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">UX Researcher</p>
+</div>
+</li>
+<li class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Avatar of Olivia Martinez" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDyBltgGvbPNmRr2qEv5J9YbeoDvxU0oAn4wXC6ryP7oJyFqNaKCxh0agXYNj9VKIVfgUDQjG6lFRXFSbVEBt-NReclrYBI9Q4sZ613fYd56N9rGmn38ftLrtTkk9WID__1GQ3IzFBRZ9A1cTrPC4h6wwYX7Pakk7zlokUIu0fu-yndi91V93eG-x0r9UlGrHoBya6y4Ukx4WXEzV-xXs5a0vqKcWrQZciwi6HmD0k7uyf4bokAUp0Z1icUO4pr0n-sEHzQTiI1A9Mn");'></div>
+<div class="flex-1">
+<p class="text-sm font-medium text-gray-900 dark:text-white">Olivia Martinez</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">UI/UX Designer</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</aside>
+</main>
+</div>
+</div>
+</body></html>

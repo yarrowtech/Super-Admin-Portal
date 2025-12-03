@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Integration &amp; Automation Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "surface-light": "#ffffff",
+              "surface-dark": "#182131",
+              "text-primary-light": "#111318",
+              "text-primary-dark": "#f0f2f4",
+              "text-secondary-light": "#616f89",
+              "text-secondary-dark": "#a0aec0",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-primary-light dark:text-text-primary-dark">
+<div class="relative flex min-h-screen w-full">
+<!-- SideNavBar -->
+<aside class="flex h-screen flex-col justify-between border-r border-gray-200 dark:border-gray-700 bg-surface-light dark:bg-surface-dark p-4 w-64 sticky top-0">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Admin portal logo with abstract shapes" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDc3SuN5jKIYp0jPQpXFYsKJgZHlA6d2gikBe7Rrzp4s33lCLV7P9OKPhgTFJlcFzAYPXYEouRhgA7wq9ljsSLTT1-mi0xOcbgtACI4DTCAgxvr1vXnjpqSlKXQhSrhWxdXVTwVe1jHjAhY8m77aqCC5gKT9xOv5eIq0mgnujEMyf8z2lMty6I3pKr0UT8DKlzr2PwppSCXJznJwDsjBJwTrsEust2VJnHG3r48y1hJ3i_JzOHVkQk-msFRelzZlWd7c4L4mzSc4XAL");'></div>
+<div class="flex flex-col">
+<h1 class="text-text-primary-light dark:text-text-primary-dark text-base font-medium leading-normal">Admin Portal</h1>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-normal leading-normal">Super Admin</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary" href="#">
+<span class="material-symbols-outlined fill">trending_up</span>
+<p class="text-sm font-medium leading-normal">AI Forecasting</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">pie_chart</span>
+<p class="text-sm font-medium leading-normal">AI Analytics</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<p class="text-sm font-medium leading-normal">Business Automation</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">description</span>
+<p class="text-sm font-medium leading-normal">Document Intelligence</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">sync_alt</span>
+<p class="text-sm font-medium leading-normal">AI Reconciliation</p>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium leading-normal">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">logout</span>
+<p class="text-sm font-medium leading-normal">Logout</p>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 p-8">
+<div class="max-w-4xl mx-auto">
+<!-- PageHeading -->
+<div class="flex flex-wrap justify-between gap-3 mb-8">
+<div class="flex min-w-72 flex-col gap-2">
+<p class="text-text-primary-light dark:text-text-primary-dark text-4xl font-black leading-tight tracking-[-0.033em]">AI Integration &amp; Automation Settings</p>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-base font-normal leading-normal">Manage and configure all AI-driven features and automation workflows across the platform.</p>
+</div>
+</div>
+<!-- SectionHeader -->
+<h2 class="text-text-primary-light dark:text-text-primary-dark text-[22px] font-bold leading-tight tracking-[-0.015em] pb-3 pt-5 border-b border-gray-200 dark:border-gray-700 mb-6">AI Forecasting</h2>
+<!-- Cards section -->
+<div class="flex flex-col gap-8">
+<!-- Card 1 -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+<div class="p-6">
+<div class="flex w-full min-w-72 grow flex-col items-stretch justify-center gap-2">
+<p class="text-text-primary-light dark:text-text-primary-dark text-lg font-bold leading-tight tracking-[-0.015em]">Budget Forecasting</p>
+<div class="flex flex-col gap-1">
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-base font-normal leading-normal">Enable AI to project future budget requirements based on historical data.</p>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-base font-normal leading-normal">Uses the 'Predictive Spending v2.1' model.</p>
+</div>
+</div>
+</div>
+<div class="border-t border-gray-200 dark:border-gray-700 bg-background-light/50 dark:bg-background-dark/50">
+<div class="flex items-center gap-4 px-6 min-h-16 justify-between">
+<div class="flex items-center gap-4">
+<div class="text-text-primary-light dark:text-text-primary-dark flex items-center justify-center rounded-lg shrink-0 size-10">
+<span class="material-symbols-outlined">toggle_on</span>
+</div>
+<p class="text-text-primary-light dark:text-text-primary-dark text-base font-medium leading-normal flex-1 truncate">Enable Budget Forecasting</p>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-primary p-0.5 has-[:checked]:justify-end">
+<div class="h-full w-[27px] rounded-full bg-white transition-transform transform translate-x-[20px]" style="box-shadow: rgba(0, 0, 0, 0.15) 0px 3px 8px, rgba(0, 0, 0, 0.06) 0px 3px 1px;"></div>
+<input checked="" class="invisible absolute" type="checkbox"/>
+</label>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+<div class="p-6">
+<div class="flex w-full min-w-72 grow flex-col items-stretch justify-center gap-2">
+<p class="text-text-primary-light dark:text-text-primary-dark text-lg font-bold leading-tight tracking-[-0.015em]">Predictive Expenses &amp; Income</p>
+<div class="flex flex-col gap-1">
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-base font-normal leading-normal">Forecast upcoming expenses and predict income streams to optimize cash flow management.</p>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-base font-normal leading-normal">Uses the 'Cash Flow v3.0' model.</p>
+</div>
+</div>
+</div>
+<div class="border-t border-gray-200 dark:border-gray-700 bg-background-light/50 dark:bg-background-dark/50 divide-y divide-gray-200 dark:divide-gray-700">
+<div class="flex items-center gap-4 px-6 min-h-16 justify-between">
+<div class="flex items-center gap-4">
+<div class="text-text-primary-light dark:text-text-primary-dark flex items-center justify-center rounded-lg shrink-0 size-10">
+<span class="material-symbols-outlined">request_quote</span>
+</div>
+<p class="text-text-primary-light dark:text-text-primary-dark text-base font-medium leading-normal flex-1 truncate">Predictive Expenses</p>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-gray-200 dark:bg-gray-700 p-0.5 has-[:checked]:justify-end has-[:checked]:bg-primary">
+<div class="h-full w-[27px] rounded-full bg-white transition-transform" style="box-shadow: rgba(0, 0, 0, 0.15) 0px 3px 8px, rgba(0, 0, 0, 0.06) 0px 3px 1px;"></div>
+<input class="invisible absolute" type="checkbox"/>
+</label>
+</div>
+</div>
+<div class="flex items-center gap-4 px-6 min-h-16 justify-between">
+<div class="flex items-center gap-4">
+<div class="text-text-primary-light dark:text-text-primary-dark flex items-center justify-center rounded-lg shrink-0 size-10">
+<span class="material-symbols-outlined">paid</span>
+</div>
+<p class="text-text-primary-light dark:text-text-primary-dark text-base font-medium leading-normal flex-1 truncate">Income Prediction</p>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-primary p-0.5 has-[:checked]:justify-end">
+<div class="h-full w-[27px] rounded-full bg-white transition-transform transform translate-x-[20px]" style="box-shadow: rgba(0, 0, 0, 0.15) 0px 3px 8px, rgba(0, 0, 0, 0.06) 0px 3px 1px;"></div>
+<input checked="" class="invisible absolute" type="checkbox"/>
+</label>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Action Bar -->
+<div class="sticky bottom-0 mt-8 py-4 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm">
+<div class="flex justify-end gap-3 max-w-4xl mx-auto">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-gray-200 dark:bg-gray-700 text-text-primary-light dark:text-text-primary-dark text-sm font-bold leading-normal tracking-[0.015em]">
+<span class="truncate">Reset</span>
+</button>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
+<span class="truncate">Save Changes</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

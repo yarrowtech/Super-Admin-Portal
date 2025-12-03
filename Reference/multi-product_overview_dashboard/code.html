@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Multi-Product Overview Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "deep-blue": "#0A2540",
+              "teal": "#00C49F",
+              "purple": "#8884d8",
+              "light-gray": "#F6F9FC",
+              "border-gray": "#E0E6EB",
+              "text-gray": "#334D6E",
+              "status-red": "#FF4D4F",
+              "status-amber": "#FAAD14",
+              "status-green": "#52C41A"
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-text-gray dark:text-gray-300">
+<div class="relative flex h-auto min-h-screen w-full flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-border-gray dark:border-gray-700 bg-white dark:bg-background-dark px-6 md:px-10 py-3 sticky top-0 z-10">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-deep-blue dark:text-white">
+<span class="material-symbols-outlined text-3xl">widgets</span>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em]">Admin Portal</h2>
+</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="text-sm font-semibold text-primary" href="#">Dashboard</a>
+<a class="text-sm font-medium text-text-gray dark:text-gray-300 hover:text-primary dark:hover:text-primary" href="#">Users</a>
+<a class="text-sm font-medium text-text-gray dark:text-gray-300 hover:text-primary dark:hover:text-primary" href="#">Products</a>
+<a class="text-sm font-medium text-text-gray dark:text-gray-300 hover:text-primary dark:hover:text-primary" href="#">Settings</a>
+</div>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<label class="relative hidden md:block max-w-xs w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">search</span>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-text-gray dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 border-border-gray dark:border-gray-700 bg-light-gray dark:bg-gray-800 h-10 placeholder:text-gray-500 pl-10 pr-4 text-sm font-normal leading-normal" placeholder="Search..." value=""/>
+</label>
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 w-10 bg-light-gray dark:bg-gray-800 text-text-gray dark:text-gray-300">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="User avatar image" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA9hIVhQ5VjZY4Mw_gyD-Cv9lxmur4boeblIP5iHBmBBTGFathhV2ksQC6yhv_aBM--r1ZBXeeeHMBGwn6A2FtvJ_AxczBpLEvh_7h9ERT9wmOyew6KZ-zu4E9BdWIkG77v_zTBgIPjaMurxori6Gf9sOlhpJ_2bUiiROiBlBme5omSDi_nRBUj7UxTi7WKtC40k3ZxhAOjVp2l_cmBB3ga9CpSwFJzN_UU4D2Teo9gIndlu_z7sL7pEt8ODOFip3S8ZkmtMUla9Ctp");'></div>
+</div>
+</header>
+<main class="flex-1 p-6 md:p-10">
+<div class="mx-auto max-w-7xl">
+<!-- Page Heading -->
+<div class="flex flex-wrap justify-between items-center gap-4 mb-8">
+<div class="flex flex-col gap-1">
+<p class="text-deep-blue dark:text-white text-3xl font-black leading-tight tracking-tight">Multi-Product Overview</p>
+<p class="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">Central dashboard for managing EEC, EHC, ERMS, and EFNB.</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 border border-border-gray pl-4 pr-3 text-text-gray dark:text-gray-300">
+<p class="text-sm font-medium leading-normal">Last 30 Days</p>
+<span class="material-symbols-outlined text-lg">expand_more</span>
+</button>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
+<span class="truncate">Manage Products</span>
+</button>
+</div>
+</div>
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<div class="flex flex-col gap-2 rounded-xl p-6 border border-border-gray dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+<p class="text-text-gray dark:text-gray-300 text-base font-medium leading-normal">EEC Total Revenue</p>
+<p class="text-deep-blue dark:text-white tracking-light text-3xl font-bold leading-tight">$450,234</p>
+<p class="text-status-green text-sm font-medium leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-base">trending_up</span>+2.5%</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 border border-border-gray dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+<p class="text-text-gray dark:text-gray-300 text-base font-medium leading-normal">EHC Active Users</p>
+<p class="text-deep-blue dark:text-white tracking-light text-3xl font-bold leading-tight">1,204</p>
+<p class="text-status-green text-sm font-medium leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-base">trending_up</span>+1.2%</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 border border-border-gray dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+<p class="text-text-gray dark:text-gray-300 text-base font-medium leading-normal">ERMS Open Tickets</p>
+<p class="text-deep-blue dark:text-white tracking-light text-3xl font-bold leading-tight">8</p>
+<p class="text-status-green text-sm font-medium leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-base">trending_up</span>+5.0%</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 border border-border-gray dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+<p class="text-text-gray dark:text-gray-300 text-base font-medium leading-normal">EFNB Transactions</p>
+<p class="text-deep-blue dark:text-white tracking-light text-3xl font-bold leading-tight">23,598</p>
+<p class="text-status-red text-sm font-medium leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-base">trending_down</span>-0.8%</p>
+</div>
+</div>
+<!-- Charts and Alerts Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Charts Column -->
+<div class="lg:col-span-2 flex flex-col gap-6">
+<!-- Revenue by Product -->
+<div class="rounded-xl border border-border-gray dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-6">
+<h3 class="text-lg font-bold text-deep-blue dark:text-white mb-4">Revenue by Product</h3>
+<div class="h-64 md:h-80 w-full flex items-center justify-center">
+<!-- Donut Chart Placeholder -->
+<div class="relative w-48 h-48 md:w-64 md:h-64">
+<svg class="w-full h-full" viewbox="0 0 36 36">
+<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#E0E6EB" stroke-width="3"></path>
+<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831" fill="none" stroke="#00C49F" stroke-dasharray="80, 100" stroke-linecap="round" stroke-width="3"></path>
+<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831" fill="none" stroke="#8884d8" stroke-dasharray="50, 100" stroke-dashoffset="-80" stroke-linecap="round" stroke-width="3"></path>
+<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831" fill="none" stroke="#135bec" stroke-dasharray="20, 100" stroke-dashoffset="-130" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-xs text-gray-500 dark:text-gray-400">Total Revenue</span>
+<span class="text-2xl md:text-3xl font-bold text-deep-blue dark:text-white">$1.2M</span>
+</div>
+</div>
+</div>
+</div>
+<!-- User Allocation -->
+<div class="rounded-xl border border-border-gray dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-6">
+<h3 class="text-lg font-bold text-deep-blue dark:text-white mb-4">User Allocation by Product</h3>
+<div class="space-y-4">
+<div class="flex items-center gap-4">
+<p class="w-12 text-sm font-medium text-text-gray dark:text-gray-300">EEC</p>
+<div class="h-2 flex-1 bg-light-gray dark:bg-gray-700 rounded-full"><div class="bg-teal h-full rounded-full" style="width: 20%;"></div></div>
+</div>
+<div class="flex items-center gap-4">
+<p class="w-12 text-sm font-medium text-text-gray dark:text-gray-300">EHC</p>
+<div class="h-2 flex-1 bg-light-gray dark:bg-gray-700 rounded-full"><div class="bg-purple h-full rounded-full" style="width: 80%;"></div></div>
+</div>
+<div class="flex items-center gap-4">
+<p class="w-12 text-sm font-medium text-text-gray dark:text-gray-300">ERMS</p>
+<div class="h-2 flex-1 bg-light-gray dark:bg-gray-700 rounded-full"><div class="bg-primary h-full rounded-full" style="width: 70%;"></div></div>
+</div>
+<div class="flex items-center gap-4">
+<p class="w-12 text-sm font-medium text-text-gray dark:text-gray-300">EFNB</p>
+<div class="h-2 flex-1 bg-light-gray dark:bg-gray-700 rounded-full"><div class="bg-status-amber h-full rounded-full" style="width: 45%;"></div></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Alerts & Notifications Column -->
+<div class="lg:col-span-1">
+<div class="rounded-xl border border-border-gray dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+<div class="flex border-b border-border-gray dark:border-gray-700">
+<button class="flex-1 p-4 text-sm font-bold text-primary border-b-2 border-primary">Critical Alerts (3)</button>
+<button class="flex-1 p-4 text-sm font-medium text-text-gray dark:text-gray-400">Notifications</button>
+</div>
+<div class="p-6 space-y-5">
+<div class="flex items-start gap-4">
+<div class="w-8 h-8 rounded-full bg-status-red/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-status-red text-xl">error</span>
+</div>
+<div>
+<p class="font-bold text-sm text-deep-blue dark:text-white">ERMS: API Connection Failure</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">Unable to sync data with external service. Retry in 15 mins.</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-8 h-8 rounded-full bg-status-red/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-status-red text-xl">error</span>
+</div>
+<div>
+<p class="font-bold text-sm text-deep-blue dark:text-white">EHC: Database Usage High</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">Database is at 92% capacity. Please scale up.</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-8 h-8 rounded-full bg-status-amber/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-status-amber text-xl">warning</span>
+</div>
+<div>
+<p class="font-bold text-sm text-deep-blue dark:text-white">EFNB: Certificate Expiring</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">SSL certificate for payment gateway expires in 3 days.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

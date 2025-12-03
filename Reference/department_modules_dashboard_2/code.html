@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Department Modules Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200">
+<div class="relative flex min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="flex h-full grow">
+<aside class="flex flex-col w-64 bg-white dark:bg-background-dark border-r border-gray-200 dark:border-gray-800 p-4 shrink-0">
+<div class="flex items-center gap-3 px-3 py-2">
+<div class="size-8 text-primary">
+<svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M12.0799 24L4 19.2479L9.95537 8.75216L18.04 13.4961L18.0446 4H29.9554L29.96 13.4961L38.0446 8.75216L44 19.2479L35.92 24L44 28.7521L38.0446 39.2479L29.96 34.5039L29.9554 44H18.0446L18.04 34.5039L9.95537 39.2479L4 28.7521L12.0799 24Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-lg font-bold tracking-[-0.015em] text-gray-900 dark:text-white">Admin Portal</h2>
+</div>
+<div class="flex flex-col justify-between flex-1 mt-6">
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">group</span>
+<p class="text-sm font-medium">Users</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<p class="text-sm font-medium">Products</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20 dark:text-white" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">corporate_fare</span>
+<p class="text-sm font-bold">Department Modules</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">psychology</span>
+<p class="text-sm font-medium">AI Engine</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+<p class="text-sm font-medium">Workflows</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</a>
+</div>
+<div class="flex items-center gap-3 p-3 border-t border-gray-200 dark:border-gray-800">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Avatar of a super admin" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBhvgUFtsITpn8aWCY0s-5llDkrSlyK4Z_WVERhJSv_7UBO2PtSI5AZX5JfHVM89XQpLKSDF2u-o-vvxt3X28m7UL9HAE6VIFY8yom3OwHaxGiWbYjXG1nl01YjC2W40ozHQGO1BPpHPzeQQPCK7dm7aZ4WlUOLlsj4HhlVrf2vo31rlPczWDUnJBF8kfift0jtAkeIpcYMzWDHKRmYxSOrhjVF2pX4PUTYI0SbNnm9317MKr9Y2s6HCbmzSWpLPbg5OhgXUxZ2IFqs");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-900 dark:text-white text-sm font-medium">Super Admin</h1>
+<p class="text-gray-500 dark:text-gray-400 text-xs">admin@project.com</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-gray-200 dark:border-gray-800 px-10 py-3 bg-white dark:bg-background-dark">
+<div class="flex items-center gap-8 w-full">
+<label class="flex flex-col min-w-40 h-10 w-full max-w-sm">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-gray-500 dark:text-gray-400 flex bg-background-light dark:bg-gray-800 items-center justify-center pl-4 rounded-l-lg">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-0 border-none bg-background-light dark:bg-gray-800 h-full placeholder:text-gray-500 dark:placeholder:text-gray-400 px-4 rounded-l-none border-l-0 pl-2 text-sm" placeholder="Search users, modules, products..." value=""/>
+</div>
+</label>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 w-10 bg-background-light dark:bg-gray-800 text-gray-600 dark:text-gray-300 gap-2 text-sm font-bold leading-normal tracking-[0.015em] min-w-0">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Avatar of a super admin" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBiOpZdmUC12kVvbLrqVZTFhjPfUXJBQvg8p-1mDZtUt5_fEdTTA0-2H3wluIgTOMLk2AJCQvaaoMHvEKSyFHjFbnC-WyYQj9KiCbiKw_FwelSjpOwgHy72p5gXuQJaROTzi8xYCPIrjVdFzO4WdyNzCp6ph_5yusVUCMK68cP6Lz5fUBJ04EUFgzBXmHMYdcS_e0T95hipygPoq_7_gQnOSYWKtaxVEPacwYaXcP61u-tmQt3FLYQ0yyhLxKNjOUkzr_LCpHikAEab");'></div>
+</div>
+</header>
+<div class="flex-1 p-10 overflow-auto">
+<div class="flex flex-wrap justify-between gap-3 items-center">
+<h1 class="text-gray-900 dark:text-white text-3xl font-bold leading-tight tracking-tight min-w-72">Department Modules</h1>
+<button class="flex items-center justify-center gap-2 h-10 px-5 bg-primary text-white rounded-lg text-sm font-bold">
+<span class="material-symbols-outlined">add</span>
+<span>Add New Module</span>
+</button>
+</div>
+<div class="flex justify-between gap-2 py-4 mt-4 border-b border-gray-200 dark:border-gray-800">
+<div class="flex gap-1">
+<button class="p-2 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary dark:text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+</button>
+<button class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined">list</span>
+</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-red-100 dark:bg-red-900/50 p-2 rounded-lg">
+<span class="material-symbols-outlined text-red-600 dark:text-red-400">gavel</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">Law</p>
+</div>
+<div class="flex gap-4">
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Contracts</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">5</p>
+</div>
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Compliance</p>
+<p class="text-red-600 dark:text-red-400 text-2xl font-bold">2</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Contract Management</a>
+<a class="hover:text-primary" href="#">Compliance Dashboard</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-lg">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400">groups</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">HR</p>
+</div>
+<div class="flex gap-4">
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Applicants</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">42</p>
+</div>
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Positions</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">12</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Applicant Tracking</a>
+<a class="hover:text-primary" href="#">Payroll</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg">
+<span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400">devices</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">IT</p>
+</div>
+<div class="flex gap-4">
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Tickets</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">23</p>
+</div>
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">System Status</p>
+<p class="text-green-600 dark:text-green-400 text-2xl font-bold">OK</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Helpdesk</a>
+<a class="hover:text-primary" href="#">Asset Management</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-green-100 dark:bg-green-900/50 p-2 rounded-lg">
+<span class="material-symbols-outlined text-green-600 dark:text-green-400">account_balance</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">A/C &amp; Finance</p>
+</div>
+<div class="flex gap-4">
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Budget</p>
+<p class="text-green-600 dark:text-green-400 text-2xl font-bold">+3%</p>
+</div>
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Invoices</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">8</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Budgeting</a>
+<a class="hover:text-primary" href="#">Expense Reports</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
+<span class="material-symbols-outlined text-gray-600 dark:text-gray-400">dns</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">System Operator</p>
+</div>
+<div class="flex gap-4">
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Uptime</p>
+<p class="text-green-600 dark:text-green-400 text-2xl font-bold">99.9%</p>
+</div>
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Alerts</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">0</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Server Monitoring</a>
+<a class="hover:text-primary" href="#">Access Logs</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-purple-100 dark:bg-purple-900/50 p-2 rounded-lg">
+<span class="material-symbols-outlined text-purple-600 dark:text-purple-400">science</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">Research</p>
+</div>
+<div class="flex gap-4">
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Projects</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">7</p>
+</div>
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Reports</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">14</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Active Projects</a>
+<a class="hover:text-primary" href="#">Knowledge Base</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-cyan-100 dark:bg-cyan-900/50 p-2 rounded-lg">
+<span class="material-symbols-outlined text-cyan-600 dark:text-cyan-400">campaign</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">Media</p>
+</div>
+<div class="flex gap-4">
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Campaigns</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">3</p>
+</div>
+<div>
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Assets</p>
+<p class="text-gray-900 dark:text-white text-2xl font-bold">128</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Ad Campaigns</a>
+<a class="hover:text-primary" href="#">Asset Library</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-orange-100 dark:bg-orange-900/50 p-2 rounded-lg">
+<span class="material-symbols-outlined text-orange-600 dark:text-orange-400">hub</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base font-bold">Research Operator</p>
+</div>
+<div class="flex gap-4">
+<div class="flex-1">
+<p class="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold tracking-wider">Sub-Teams</p>
+<div class="flex flex-wrap gap-2 mt-2">
+<span class="text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded-full">Alpha</span>
+<span class="text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded-full">Beta</span>
+<span class="text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded-full">Gamma</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="hover:text-primary" href="#">Team Dashboards</a>
+<a class="hover:text-primary" href="#">Resource Allocation</a>
+</div>
+<button class="mt-2 text-center w-full bg-background-light dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm py-2 rounded-lg">View Module</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

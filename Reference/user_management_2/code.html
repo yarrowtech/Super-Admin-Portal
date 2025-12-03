@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>System Operator Module</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#4A90E2",
+            "background-light": "#F4F7FA",
+            "background-dark": "#101622",
+          },
+          fontFamily: {
+            "display": ["Manrope", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col">
+<div class="flex h-full grow flex-row">
+<aside class="flex h-screen min-h-[700px] w-64 flex-col justify-between border-r border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sticky top-0">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 px-3">
+<div class="bg-primary flex items-center justify-center rounded-lg size-10">
+<span class="material-symbols-outlined text-white text-2xl">shield_person</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-base font-medium text-[#111318] dark:text-gray-200">Super Admin</h1>
+<p class="text-sm font-normal text-[#616f89] dark:text-gray-400">admin@project.com</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 pt-4">
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">group</span>
+<p class="text-sm font-medium">User Management</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2 text-primary dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">lan</span>
+<p class="text-sm font-medium">System Operator</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">folder</span>
+<p class="text-sm font-medium">Projects</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">lab_profile</span>
+<p class="text-sm font-medium">Reports</p>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">help</span>
+<p class="text-sm font-medium">Support</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">logout</span>
+<p class="text-sm font-medium">Logout</p>
+</a>
+</div>
+</aside>
+<main class="flex-1 p-8">
+<div class="mx-auto flex w-full max-w-7xl flex-col gap-6">
+<div class="flex flex-wrap items-center justify-between gap-4">
+<h1 class="text-4xl font-black tracking-[-0.033em] text-[#111318] dark:text-white">System Operator Module</h1>
+<button class="flex h-10 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-4 text-sm font-bold text-white">
+<span class="material-symbols-outlined text-base">add</span>
+<span class="truncate">Schedule New Task</span>
+</button>
+</div>
+<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+<div class="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+<div class="flex items-center justify-between">
+<h3 class="text-base font-medium text-gray-600 dark:text-gray-300">Overall Health</h3>
+<span class="material-symbols-outlined text-green-500">check_circle</span>
+</div>
+<p class="mt-2 text-3xl font-bold text-gray-800 dark:text-white">99.9% Uptime</p>
+<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">All systems operational</p>
+</div>
+<div class="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+<div class="flex items-center justify-between">
+<h3 class="text-base font-medium text-gray-600 dark:text-gray-300">Server Status</h3>
+<span class="material-symbols-outlined text-green-500">dns</span>
+</div>
+<p class="mt-2 text-3xl font-bold text-gray-800 dark:text-white">24 / 24</p>
+<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Servers online</p>
+</div>
+<div class="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+<div class="flex items-center justify-between">
+<h3 class="text-base font-medium text-gray-600 dark:text-gray-300">Database Load</h3>
+<span class="material-symbols-outlined text-blue-500">database</span>
+</div>
+<p class="mt-2 text-3xl font-bold text-gray-800 dark:text-white">32%</p>
+<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Normal operating load</p>
+</div>
+<div class="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+<div class="flex items-center justify-between">
+<h3 class="text-base font-medium text-gray-600 dark:text-gray-300">Open Incidents</h3>
+<span class="material-symbols-outlined text-yellow-500">warning</span>
+</div>
+<p class="mt-2 text-3xl font-bold text-gray-800 dark:text-white">3</p>
+<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">2 minor, 1 major</p>
+</div>
+</div>
+<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+<div class="lg:col-span-2 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+<h3 class="border-b border-gray-200 p-4 text-lg font-medium text-gray-800 dark:border-gray-700 dark:text-white">Active Incidents</h3>
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-gray-50 dark:bg-gray-700/50">
+<tr>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">ID</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Description</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Severity</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Status</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+<tr>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">#INC-0123</td>
+<td class="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">API Gateway 502 Errors</td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900 dark:text-red-300">Major</span></td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">Investigating</span></td>
+<td class="px-4 py-3"><button class="text-primary text-sm font-medium hover:underline">View</button></td>
+</tr>
+<tr>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">#INC-0122</td>
+<td class="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">DB Replication Lag</td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Minor</span></td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">Resolved</span></td>
+<td class="px-4 py-3"><button class="text-primary text-sm font-medium hover:underline">View</button></td>
+</tr>
+<tr>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">#INC-0121</td>
+<td class="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">High Network Latency</td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Minor</span></td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">Monitoring</span></td>
+<td class="px-4 py-3"><button class="text-primary text-sm font-medium hover:underline">View</button></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="flex flex-col gap-6">
+<div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+<h3 class="text-lg font-medium text-gray-800 dark:text-white">System Tools</h3>
+<div class="mt-4 flex flex-col gap-3">
+<a class="flex items-center gap-3 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined text-primary">analytics</span>
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Performance Analytics</span>
+</a>
+<a class="flex items-center gap-3 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined text-primary">description</span>
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">System Logs</span>
+</a>
+<a class="flex items-center gap-3 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined text-primary">router</span>
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Network Oversight</span>
+</a>
+<a class="flex items-center gap-3 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined text-primary">storage</span>
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Database Management</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+<h3 class="border-b border-gray-200 p-4 text-lg font-medium text-gray-800 dark:border-gray-700 dark:text-white">Scheduled Tasks</h3>
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-gray-50 dark:bg-gray-700/50">
+<tr>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Task Name</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Schedule</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Last Run</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Status</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+<tr>
+<td class="px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-200">Daily System Backup</td>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">Every day at 2:00 AM</td>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">2023-10-27 02:00 AM</td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">Success</span></td>
+<td class="px-4 py-3">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">play_arrow</span></button>
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-200">Log Archiving</td>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">Every Sunday at 4:00 AM</td>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">2023-10-22 04:00 AM</td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">Success</span></td>
+<td class="px-4 py-3">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">play_arrow</span></button>
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-200">Security Patch Scan</td>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">Every 6 hours</td>
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">2023-10-27 12:00 PM</td>
+<td class="px-4 py-3"><span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">Running</span></td>
+<td class="px-4 py-3">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">play_arrow</span></button>
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

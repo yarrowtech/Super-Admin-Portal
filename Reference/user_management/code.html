@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>User Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#4A90E2",
+            "background-light": "#F4F7FA",
+            "background-dark": "#101622",
+          },
+          fontFamily: {
+            "display": ["Manrope", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col">
+<div class="flex h-full grow flex-row">
+<!-- SideNavBar -->
+<aside class="flex h-screen min-h-[700px] w-64 flex-col justify-between border-r border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sticky top-0">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 px-3">
+<div class="bg-primary flex items-center justify-center rounded-lg size-10">
+<span class="material-symbols-outlined text-white text-2xl">shield_person</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-base font-medium text-[#111318] dark:text-gray-200">Super Admin</h1>
+<p class="text-sm font-normal text-[#616f89] dark:text-gray-400">admin@project.com</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 pt-4">
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2 text-primary dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+<p class="text-sm font-medium">User Management</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">folder</span>
+<p class="text-sm font-medium">Projects</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">lab_profile</span>
+<p class="text-sm font-medium">Reports</p>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">help</span>
+<p class="text-sm font-medium">Support</p>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined">logout</span>
+<p class="text-sm font-medium">Logout</p>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 p-8">
+<div class="mx-auto flex w-full max-w-7xl flex-col gap-6">
+<!-- PageHeading -->
+<div class="flex flex-wrap items-center justify-between gap-4">
+<h1 class="text-4xl font-black tracking-[-0.033em] text-[#111318] dark:text-white">User Management</h1>
+<button class="flex h-10 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-4 text-sm font-bold text-white">
+<span class="material-symbols-outlined text-base">add</span>
+<span class="truncate">Add New User</span>
+</button>
+</div>
+<!-- Toolbar & Table Container -->
+<div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+<!-- ToolBar -->
+<div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 p-4 dark:border-gray-700">
+<div class="relative flex-1 min-w-[200px]">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+<input class="h-10 w-full rounded-lg border-gray-300 pl-10 pr-4 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:placeholder-gray-500" placeholder="Search by name or email..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<select class="h-10 rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
+<option>All Roles</option>
+<option>Admin</option>
+<option>Editor</option>
+<option>Viewer</option>
+</select>
+<select class="h-10 rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
+<option>All Statuses</option>
+<option>Active</option>
+<option>Inactive</option>
+<option>Pending</option>
+</select>
+</div>
+</div>
+<!-- Table -->
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-gray-50 dark:bg-gray-700/50">
+<tr>
+<th class="w-12 px-4 py-3 text-center">
+<input class="size-4 cursor-pointer rounded border-gray-300 bg-transparent text-primary focus:ring-primary/50 dark:border-gray-600" type="checkbox"/>
+</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">User</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Role</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Status</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Last Login</th>
+<th class="px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+<tr>
+<td class="h-20 w-12 px-4 py-2 text-center">
+<input class="size-4 cursor-pointer rounded border-gray-300 bg-transparent text-primary focus:ring-primary/50 dark:border-gray-600" type="checkbox"/>
+</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-3">
+<div class="aspect-square size-10 rounded-full bg-cover bg-center bg-no-repeat" data-alt="User avatar for Alex Johnson" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDXeSqB5SZA-XCda0sQlh7P4PrjdIjiRilI2B3oI2G5CaP29woj1aJuDHNO10o0teBPHTuCcE06UsrQnwIp3DQ5JdqlkCb-h9JAxr2SfIU9k2gb6AVmC-Rl_WsZk7CMu8t7HPwddFNHSCGzs9m0CCWAb8I9ClNO7sq2KS1my7tm-o0wBruDtI5DRstnHz6Gl4wuhE4x7x3DP3lpJo34Hpdgg7aqUkvZUjB2sl-YoOdLdDk1tnYBHOm6yJF5mHcucxK9IwdLE455V65W");'></div>
+<div>
+<p class="font-medium text-gray-800 dark:text-gray-200">Alex Johnson</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">alex.j@example.com</p>
+</div>
+</div>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">Admin</td>
+<td class="h-20 px-4 py-2">
+<span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">Active</span>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">2023-10-26 10:00 AM</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+<button class="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-500"><span class="material-symbols-outlined text-xl">delete</span></button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="h-20 w-12 px-4 py-2 text-center">
+<input class="size-4 cursor-pointer rounded border-gray-300 bg-transparent text-primary focus:ring-primary/50 dark:border-gray-600" type="checkbox"/>
+</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-3">
+<div class="aspect-square size-10 rounded-full bg-cover bg-center bg-no-repeat" data-alt="User avatar for Maria Garcia" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAn8RyzT9uzX3ZUiYbNa3oG4dT6vuYWM8Xcw4OQKEP81jVjQu2QDxzO-PzHj64C_qW7IAVqTNoya2A-CsEDDEDUpOWD2AN4FmAt3hsrrS_h-WSVNB7MTHk-vdH8sZVv624ifE19nqibOd0Wjc2pqAlg1-sIju_i4arZ9QKO7i4jpg5Lua24aSWAJx_WICb_VH3-4MSyd3PdOpX0cUSTarafH_LJ3P342V3XtJt2Iam_svMEx7G0F80vQgHkI-BFMyycM-gWvgkQSZSr");'></div>
+<div>
+<p class="font-medium text-gray-800 dark:text-gray-200">Maria Garcia</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">maria.g@example.com</p>
+</div>
+</div>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">Editor</td>
+<td class="h-20 px-4 py-2">
+<span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">Active</span>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">2023-10-25 03:15 PM</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+<button class="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-500"><span class="material-symbols-outlined text-xl">delete</span></button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="h-20 w-12 px-4 py-2 text-center">
+<input class="size-4 cursor-pointer rounded border-gray-300 bg-transparent text-primary focus:ring-primary/50 dark:border-gray-600" type="checkbox"/>
+</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-3">
+<div class="aspect-square size-10 rounded-full bg-cover bg-center bg-no-repeat" data-alt="User avatar for Sam Williams" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDMK4-YjWBtEvfx4tYGr0CxaOkwua7GNHv9X6d9uAWA_KbPE3cs1sWsE59cngDFPP4Giy78KuEWG6mJfnJMJ9My1SfIAWVygLNWgm4vcdnR0ll_ueCOmU6HJGyzZFKr5B3w__84Q0imuX7DBPmHvNG3mBbFukuuOIp42QN4zary63VkttnJKW_USLvLZBY427TWrhXQpXxXMuf8Q7bo5tVYWrxjehzAJ5Ors_mMHgFB01KtDm0VNhr6RdpNA0cZ4JAWWgX_X71oM0IL");'></div>
+<div>
+<p class="font-medium text-gray-800 dark:text-gray-200">Sam Williams</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">sam.w@example.com</p>
+</div>
+</div>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">Viewer</td>
+<td class="h-20 px-4 py-2">
+<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900 dark:text-red-300">Inactive</span>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">2023-09-12 11:30 AM</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+<button class="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-500"><span class="material-symbols-outlined text-xl">delete</span></button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="h-20 w-12 px-4 py-2 text-center">
+<input class="size-4 cursor-pointer rounded border-gray-300 bg-transparent text-primary focus:ring-primary/50 dark:border-gray-600" type="checkbox"/>
+</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-3">
+<div class="aspect-square size-10 rounded-full bg-cover bg-center bg-no-repeat" data-alt="User avatar for Chris Lee" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBLKrrxmlMc0-sQLoJATR99UllKF_oYKrLfbr82QuRv_SAlUCScfmlnf_0OAF1eVDzBnzRtvEnZEZ0vV7swsVE0WAzj-OznuDgSryws5P4jrLzXlzRbUW9DcaGYcnwdNuqRZf_NfnO3ImSJxYbu2ubX-EYamVY4-DVM5L85fkvd9nq5l7pKqZfB1b4wONcbvqFFidrsRA8gYnnSyuoBn6TjtWTS9N6EmXYtkFGfimaQU8_LRaKFiEd67hGNskOLxnJweGH98TqQcWIw");'></div>
+<div>
+<p class="font-medium text-gray-800 dark:text-gray-200">Chris Lee</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">chris.l@example.com</p>
+</div>
+</div>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">Editor</td>
+<td class="h-20 px-4 py-2">
+<span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">Active</span>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">2023-10-26 09:45 AM</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+<button class="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-500"><span class="material-symbols-outlined text-xl">delete</span></button>
+</div>
+</td>
+</tr>
+<tr>
+<td class="h-20 w-12 px-4 py-2 text-center">
+<input class="size-4 cursor-pointer rounded border-gray-300 bg-transparent text-primary focus:ring-primary/50 dark:border-gray-600" type="checkbox"/>
+</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-3">
+<div class="aspect-square size-10 rounded-full bg-cover bg-center bg-no-repeat" data-alt="User avatar for Patricia Brown" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAEiqrTCVHqQ2mmojuzZIQXHhiuF_JQr5bKyF1sbQ1dxBgN8X8uupeNXFOfH7laeVMayMMnRUmCMEkbp_haOa47F3yi7jUSIBh1aXyDQCatXi9ZR1Y-WLREj3b1LCuqzjdLMhVcuxfs4KY72FHm807Sy9cGpy3477VwPB62nCXzRVYAlsoweYb-EwwY7pGEGjkwP_w8H_iTpMyamV8T1_9icCSrNWGCGcjT5M18g318CYbrQB9TcC98Wt8eWqgPqskRgYkZzEZl3ODv");'></div>
+<div>
+<p class="font-medium text-gray-800 dark:text-gray-200">Patricia Brown</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">patricia.b@example.com</p>
+</div>
+</div>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">Admin</td>
+<td class="h-20 px-4 py-2">
+<span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Pending</span>
+</td>
+<td class="h-20 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">Never</td>
+<td class="h-20 px-4 py-2">
+<div class="flex items-center gap-2">
+<button class="p-2 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary"><span class="material-symbols-outlined text-xl">edit</span></button>
+<button class="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-500"><span class="material-symbols-outlined text-xl">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="flex items-center justify-between border-t border-gray-200 p-4 dark:border-gray-700">
+<p class="text-sm text-gray-600 dark:text-gray-400">
+                Showing <span class="font-medium">1</span> to <span class="font-medium">5</span> of <span class="font-medium">57</span> results
+              </p>
+<div class="flex items-center justify-center">
+<a class="flex size-9 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined text-xl text-gray-600 dark:text-gray-400">chevron_left</span>
+</a>
+<a class="flex size-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white" href="#">1</a>
+<a class="flex size-9 items-center justify-center rounded-lg text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">2</a>
+<a class="flex size-9 items-center justify-center rounded-lg text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">3</a>
+<span class="flex size-9 items-center justify-center text-sm text-gray-600 dark:text-gray-400">...</span>
+<a class="flex size-9 items-center justify-center rounded-lg text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" href="#">12</a>
+<a class="flex size-9 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" href="#">
+<span class="material-symbols-outlined text-xl text-gray-600 dark:text-gray-400">chevron_right</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

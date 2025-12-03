@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Portal Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "card-light": "#ffffff",
+              "card-dark": "#1b2330",
+              "text-light-primary": "#111318",
+              "text-dark-primary": "#ffffff",
+              "text-light-secondary": "#616f89",
+              "text-dark-secondary": "#a0aec0",
+              "border-light": "#dbdfe6",
+              "border-dark": "#3a4453",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings:
+        'FILL' 0,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 24
+      }
+      .material-symbols-outlined.fill {
+        font-variation-settings: 'FILL' 1;
+      }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col">
+<div class="flex h-full grow flex-row">
+<!-- SideNavBar -->
+<aside class="flex w-64 flex-col border-r border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-4">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Abstract placeholder image" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCBxn3cW1QtqIUq90klFcORJ2eRviu7cGzan5w4SeVRAehJyb7meK3v8AClx9DPLmENLUS6Hj1tSJXuIdorxMXTVbSfh8ghW_xmSdLo65Fv_m07LgGbxmKvdKl5ygbzG4PrEZbeTS8TlE-MkjVqzhENkOVDDhzELIyfgJdspbI2C3ZhGi5Q_S5Qe1pkgUw1F7dHN5vpvYbf7XK1g8g3HyjVTUqQhTZCibeLZSTyhx1XyLclEIEuk14GdKGCIAdmHNTMtb9LBKbsBJPo");'></div>
+<div class="flex flex-col">
+<h1 class="text-text-light-primary dark:text-text-dark-primary text-base font-bold leading-normal">Admin Portal</h1>
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-normal leading-normal">Super Administrator</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined fill text-primary">settings</span>
+<p class="text-primary text-sm font-bold leading-normal">General</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5" href="#">
+<span class="material-symbols-outlined text-text-light-primary dark:text-text-dark-primary">palette</span>
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal">Appearance</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5" href="#">
+<span class="material-symbols-outlined text-text-light-primary dark:text-text-dark-primary">group</span>
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal">Users &amp; Access</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5" href="#">
+<span class="material-symbols-outlined text-text-light-primary dark:text-text-dark-primary">link</span>
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal">Integrations</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5" href="#">
+<span class="material-symbols-outlined text-text-light-primary dark:text-text-dark-primary">notifications</span>
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal">Notifications</p>
+</a>
+</nav>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 p-8">
+<div class="mx-auto max-w-4xl">
+<!-- PageHeading -->
+<div class="flex flex-wrap items-center justify-between gap-4">
+<div class="flex flex-col gap-1">
+<!-- Breadcrumbs -->
+<div class="flex flex-wrap items-center gap-2">
+<a class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium leading-normal hover:text-primary" href="#">Settings</a>
+<span class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium leading-normal">/</span>
+<span class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal">General</span>
+</div>
+<h1 class="text-text-light-primary dark:text-text-dark-primary text-4xl font-black leading-tight tracking-[-0.033em]">General Settings</h1>
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-base font-normal leading-normal">Configure portal-wide preferences and general options.</p>
+</div>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90">
+<span class="truncate">Save Changes</span>
+</button>
+</div>
+<!-- Settings Sections -->
+<div class="mt-8 flex flex-col gap-8">
+<!-- Portal Details Card -->
+<div class="rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark">
+<div class="border-b border-border-light dark:border-border-dark p-5">
+<h2 class="text-text-light-primary dark:text-text-dark-primary text-lg font-bold leading-tight tracking-[-0.015em]">Portal Details</h2>
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm">Update your portal's name and URL.</p>
+</div>
+<div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+<label class="flex flex-col col-span-1">
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal pb-2">Portal Name</p>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-text-light-primary dark:text-text-dark-primary focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark focus:border-primary/50 h-11 placeholder:text-text-light-secondary px-3.5 text-sm font-normal leading-normal" value="Acme Inc. Admin Portal"/>
+</label>
+<label class="flex flex-col col-span-1">
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal pb-2">Portal URL</p>
+<div class="flex items-center rounded-lg border border-border-light dark:border-border-dark focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary/50">
+<span class="bg-gray-100 dark:bg-gray-800 text-text-light-secondary dark:text-text-dark-secondary text-sm px-3.5 h-11 flex items-center border-r border-border-light dark:border-border-dark rounded-l-lg">acme.portal.com/</span>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden text-text-light-primary dark:text-text-dark-primary focus:outline-0 ring-0 border-0 bg-background-light dark:bg-background-dark h-11 placeholder:text-text-light-secondary px-3.5 text-sm font-normal leading-normal rounded-r-lg" value="dashboard"/>
+</div>
+</label>
+</div>
+</div>
+<!-- Localization Card -->
+<div class="rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark">
+<div class="border-b border-border-light dark:border-border-dark p-5">
+<h2 class="text-text-light-primary dark:text-text-dark-primary text-lg font-bold leading-tight tracking-[-0.015em]">Localization</h2>
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm">Set the default language and timezone for your portal.</p>
+</div>
+<div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+<label class="flex flex-col col-span-1">
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal pb-2">Default Language</p>
+<select class="form-select flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-text-light-primary dark:text-text-dark-primary focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark focus:border-primary/50 h-11 placeholder:text-text-light-secondary px-3.5 text-sm font-normal leading-normal">
+<option>English (United States)</option>
+<option>Spanish</option>
+<option>French</option>
+</select>
+</label>
+<label class="flex flex-col col-span-1">
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal pb-2">Timezone</p>
+<select class="form-select flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-text-light-primary dark:text-text-dark-primary focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark focus:border-primary/50 h-11 placeholder:text-text-light-secondary px-3.5 text-sm font-normal leading-normal">
+<option>(GMT-08:00) Pacific Time</option>
+<option>(GMT-05:00) Eastern Time</option>
+<option>(GMT+00:00) Greenwich Mean Time</option>
+</select>
+</label>
+</div>
+</div>
+<!-- Support Card -->
+<div class="rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark">
+<div class="border-b border-border-light dark:border-border-dark p-5">
+<h2 class="text-text-light-primary dark:text-text-dark-primary text-lg font-bold leading-tight tracking-[-0.015em]">Support Information</h2>
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm">This contact information will be displayed to users who need help.</p>
+</div>
+<div class="p-5">
+<label class="flex flex-col max-w-sm">
+<p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium leading-normal pb-2">Support Email</p>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-text-light-primary dark:text-text-dark-primary focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark focus:border-primary/50 h-11 placeholder:text-text-light-secondary px-3.5 text-sm font-normal leading-normal" type="email" value="support@acme.com"/>
+</label>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

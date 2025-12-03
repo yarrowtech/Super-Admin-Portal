@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Financial Dashboards Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings:
+        'FILL' 0,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 24
+      }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col">
+<div class="flex h-full grow">
+<!-- SideNavBar -->
+<aside class="flex h-screen min-w-[256px] max-w-[256px] flex-col justify-between bg-white dark:bg-[#111318] p-4 border-r border-gray-200 dark:border-gray-800 sticky top-0">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 px-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Admin portal logo with abstract shapes" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCq7Zc_qi77GkOhkNaMFPYneXpLZeRXS516h8PfQ0R3OLQsau4LqXRPst9q1Pm9g6COGjdgrqN_obVXWKK7Gs55LLmN7Vbm46Z6veW-GQFGJSsUrKXJY3MVAxzIWlpiQSmcGYveJAc2yT_hw_hE0tb1OS9ZBdgx4tSZqatWckXF6ZcQWeRIGabTCEIW2CflJnpClfZX_zM8mAbzg0r0zGGG8nhQ7AVhAB32aWEp7CTeLaEUWlGLneh4e4YrRw8h41oH2lQo8szlDl9Z");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-900 dark:text-white text-base font-medium leading-normal">Admin Portal</h1>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal">Super Admin</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1 mt-4">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-gray-500 dark:text-white">home</span>
+<p class="text-sm font-medium leading-normal">Home</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 dark:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-primary dark:text-white" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<p class="text-primary dark:text-white text-sm font-bold leading-normal">Dashboards</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-gray-500 dark:text-white">group</span>
+<p class="text-sm font-medium leading-normal">User Management</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-gray-500 dark:text-white">qr_code_2</span>
+<p class="text-sm font-medium leading-normal">Product Control</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-gray-500 dark:text-white">account_tree</span>
+<p class="text-sm font-medium leading-normal">Workflows</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-gray-500 dark:text-white">link</span>
+<p class="text-sm font-medium leading-normal">Connections</p>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-2">
+<button class="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
+<span class="truncate">New Project</span>
+</button>
+<nav class="flex flex-col gap-1 mt-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-gray-500 dark:text-white">settings</span>
+<p class="text-sm font-medium leading-normal">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282e39]" href="#">
+<span class="material-symbols-outlined text-gray-500 dark:text-white">help</span>
+<p class="text-sm font-medium leading-normal">Help</p>
+</a>
+</nav>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 p-8">
+<div class="max-w-7xl mx-auto">
+<!-- PageHeading -->
+<div class="flex flex-wrap items-center justify-between gap-4">
+<div class="flex min-w-72 flex-col gap-2">
+<h1 class="text-gray-900 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">Financial Dashboards Center</h1>
+<p class="text-gray-500 dark:text-[#9da6b9] text-base font-normal leading-normal">Access various AI-backed financial dashboards.</p>
+</div>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-gray-200 dark:bg-[#282e39] text-gray-900 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-gray-300 dark:hover:bg-[#3a4251]">
+<span class="truncate">Create New Dashboard</span>
+</button>
+</div>
+<div class="mt-8 flex flex-wrap items-center justify-between gap-4">
+<!-- SearchBar -->
+<div class="flex-1 min-w-[300px]">
+<label class="flex flex-col h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-gray-400 dark:text-[#9da6b9] flex bg-white dark:bg-[#282e39] items-center justify-center pl-4 rounded-l-lg border border-r-0 border-gray-200 dark:border-gray-700">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary focus:ring-inset border border-l-0 border-gray-200 dark:border-gray-700 bg-white dark:bg-[#282e39] h-full placeholder:text-gray-400 dark:placeholder:text-[#9da6b9] px-4 text-base font-normal leading-normal" placeholder="Find a dashboard by name..." value=""/>
+</div>
+</label>
+</div>
+<!-- Chips -->
+<div class="flex items-center gap-3 overflow-x-auto">
+<div class="flex h-10 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-lg bg-primary/10 dark:bg-primary/20 px-4">
+<p class="text-primary dark:text-primary-300 text-sm font-medium leading-normal">All</p>
+</div>
+<div class="flex h-10 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-lg bg-gray-200 dark:bg-[#282e39] px-4 hover:bg-gray-300 dark:hover:bg-[#3a4251]">
+<p class="text-gray-800 dark:text-white text-sm font-medium leading-normal">Liquidity</p>
+</div>
+<div class="flex h-10 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-lg bg-gray-200 dark:bg-[#282e39] px-4 hover:bg-gray-300 dark:hover:bg-[#3a4251]">
+<p class="text-gray-800 dark:text-white text-sm font-medium leading-normal">Profitability</p>
+</div>
+<div class="flex h-10 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-lg bg-gray-200 dark:bg-[#282e39] px-4 hover:bg-gray-300 dark:hover:bg-[#3a4251]">
+<p class="text-gray-800 dark:text-white text-sm font-medium leading-normal">Performance</p>
+</div>
+</div>
+</div>
+<!-- ImageGrid -->
+<div class="mt-8 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+<div class="flex flex-col gap-3 pb-3 bg-white dark:bg-[#111318] p-4 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg" data-alt="A line chart showing liquidity trends over time." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAwSGn3_PzgbkJjZurgNlIv0VZox8axd3vj5YF8yF3EoO4vkJbiVjaSkNoHDTFvpEHcjfQBD1pF8h3yOjQ3SYMrY99QXJLwOndpkhTZ0NJFkqvRaI751nnPbfvqQVe6SCCkGTx_ippqxls8XfnRLjSF7IVma7G-Y9kwrwHGmLcvNKoI5bZhFAvNZB6K04mvDpiB3EmycC4qZI1IE2H5m_nlfCa8MyL-iORTvEuUv2wn9A3WVITeXMd9tUg2Svu_Bi14nDg9i6rdwr7d");'></div>
+<div>
+<p class="text-gray-900 dark:text-white text-base font-bold leading-normal">Cash Management</p>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal mt-1">Overview of liquidity, ratios, and expenses.</p>
+<div class="flex items-center gap-2 mt-3">
+<span class="material-symbols-outlined text-yellow-500 text-lg" style="font-variation-settings: 'FILL' 1;">star</span>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal">Favorite</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-3 pb-3 bg-white dark:bg-[#111318] p-4 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg" data-alt="A bar chart comparing direct costs vs revenue over several quarters." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDHuy-vfwAb5cVEPgzkWZIG8dIl9iajE_-YSDccP0vHDiv57GZ4Y7i5lCyiXJR4Nx3bSx50QwzHXog8z6eVAu5A2G9rebJfWxEMNtMuub9sgnt_2icNzRCWztMXkz3eq-gBfQ7qtEHd6uEFjTQqF3pYxobWW2D8wpUUZTIrG9mMvbAPYBiQnrUk4323bl6OWMSQ_WI26iip2S1cQjH0DNQnW6XW-IRonAOw2a2DLBuapuTD1SNS8qCn3nFXAl02MrImT2TOSn7a1hBG");'></div>
+<div>
+<div class="flex items-center justify-between">
+<p class="text-gray-900 dark:text-white text-base font-bold leading-normal">Profit &amp; Loss</p>
+<div class="flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded-full">
+<span class="material-symbols-outlined text-blue-500 dark:text-blue-400 text-sm">auto_awesome</span>
+<p class="text-blue-600 dark:text-blue-300 text-xs font-medium">AI Insights</p>
+</div>
+</div>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal mt-1">Analysis of revenue vs. costs and profit margins.</p>
+<div class="flex items-center gap-2 mt-3">
+<span class="material-symbols-outlined text-gray-400 dark:text-gray-600 text-lg">star_outline</span>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal">Add to Favorites</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-3 pb-3 bg-white dark:bg-[#111318] p-4 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg" data-alt="A dashboard with several KPI widgets for sales goals and cash flow." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDF3KwJtCYcNVe8fL4Qn7fGQk1HIkLfMxkMuDdD_zZE3JiMhNMlh4soRLGtWKl4hKXN9f-66nn40u-7xDnq84HO1tGaxdcsZ-7LtAewcLn4lRF2rcEJsO7lJkgxXSKVwHq-5ixPmoHJj-Fg38ot2KqBlTmio-BcpWDfZ2EhtPgyPvK0GHYoum7kp64VFemmiC1L27XhIXA2h8xUraB6U7bY95f5y1lQJzk-2fqtF4IpPvdI_l7CnlsIn0Dxi9VOTgqKiIbaVajZob3S");'></div>
+<div>
+<p class="text-gray-900 dark:text-white text-base font-bold leading-normal">CFO Dashboard</p>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal mt-1">High-level view of sales goals and cash flow.</p>
+<div class="flex items-center gap-2 mt-3">
+<span class="material-symbols-outlined text-yellow-500 text-lg" style="font-variation-settings: 'FILL' 1;">star</span>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal">Favorite</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-3 pb-3 bg-white dark:bg-[#111318] p-4 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg" data-alt="A pie chart showing capital structure and debt-to-equity ratios." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDkFGde5zdLIldtCsHI8H1LuLYyeGhcJpzDf1FmoIV--KPaAkQl8y2i46b1gcIiJIe9rmCUyZhITCe7WHSZcjvgfgChPjVnl9iV3LAE6jEQsyGwLH6nbjrAeFWRV4Y4pJZdjvYPvPnCXViwyuVVBNpmNihRfF45QYMMwV7huI2eSdvNXhTBJrw5c7RT1VZVqjw4aPuM21dPGKu0rk4-8_mrRvHihEn6uo46yKabNWx3wrEkuWdtyqGpf9N6dZBxOhTDQqrf7MX37Xm8");'></div>
+<div>
+<p class="text-gray-900 dark:text-white text-base font-bold leading-normal">Financial Performance</p>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal mt-1">Insights into capital structure and debt ratios.</p>
+<div class="flex items-center gap-2 mt-3">
+<span class="material-symbols-outlined text-gray-400 dark:text-gray-600 text-lg">star_outline</span>
+<p class="text-gray-500 dark:text-[#9da6b9] text-sm font-normal leading-normal">Add to Favorites</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

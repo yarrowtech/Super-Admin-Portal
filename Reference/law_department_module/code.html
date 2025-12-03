@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Law Department Module</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="font-display">
+<div class="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark group/design-root overflow-x-hidden">
+<div class="flex flex-row min-h-screen">
+<!-- SideNavBar -->
+<div class="flex h-full min-h-screen flex-col justify-between bg-white dark:bg-gray-900/50 p-4 border-r border-gray-200 dark:border-gray-800 w-64">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 px-3 py-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="User profile picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCDk9Mo5z32fzwOvspfgE2EyJ_zsR58QLuUg1s3JEJw_q91qHkGX63_DFbVliYMc9iF0A3SYh6bnzqvq5gZmsMpLWkrZGfA5KTAWtrtJFXryNkjayb-ie8hDUi60x4UusnFWQ5s0TvUVqn1inB0qjSJtZjn8N-nBJFKsqI0JX1Atqy1uUu3wzg7yOelkrxNxU4M1Sih7vXHI_kW9YG4aNLFnDzsKg7qXOQxEL_VYJ_NLUyOL6je6leLuISLT5byPem2XBCP5Tf4dEGO");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-900 dark:text-white text-base font-medium leading-normal">Project Admin</h1>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal leading-normal">Super Administrator</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 mt-4">
+<div class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">dashboard</span>
+<p class="text-sm font-medium leading-normal">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined font-bold">gavel</span>
+<p class="text-sm font-bold leading-normal">Law Department</p>
+</div>
+<div class="flex flex-col pl-6 gap-2">
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary text-white">
+<span class="material-symbols-outlined">description</span>
+<p class="text-sm font-medium leading-normal">Agreements</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+<span class="material-symbols-outlined">shield</span>
+<p class="text-sm font-medium leading-normal">Privacy Policy</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+<span class="material-symbols-outlined">copyright</span>
+<p class="text-sm font-medium leading-normal">Copyright</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+<span class="material-symbols-outlined">code_blocks</span>
+<p class="text-sm font-medium leading-normal">Design Documents</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+<span class="material-symbols-outlined">security</span>
+<p class="text-sm font-medium leading-normal">Dispute/Fraud</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+<span class="material-symbols-outlined">palette</span>
+<p class="text-sm font-medium leading-normal">Brand Guidelines</p>
+</div>
+</div>
+</div>
+</div>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2">
+<span class="material-symbols-outlined">add_circle</span>
+<span class="truncate">Add New Document</span>
+</button>
+</div>
+<!-- Main Content -->
+<main class="flex-1 p-8">
+<div class="w-full">
+<!-- PageHeading -->
+<div class="flex flex-wrap justify-between items-center gap-3 pb-4">
+<div class="flex min-w-72 flex-col gap-2">
+<p class="text-gray-900 dark:text-white text-3xl font-black leading-tight tracking-[-0.033em]">Law Department</p>
+<p class="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">Manage all legal documents, cases, and guidelines.</p>
+</div>
+<!-- SearchBar -->
+<div class="flex-grow max-w-lg">
+<label class="flex flex-col min-w-40 h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-gray-500 dark:text-gray-400 flex border-none bg-white dark:bg-gray-800 items-center justify-center pl-4 rounded-l-lg border-r-0">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border-none bg-white dark:bg-gray-800 h-full placeholder:text-gray-500 dark:placeholder:text-gray-400 px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal" placeholder="Search across all legal sections..." value=""/>
+</div>
+</label>
+</div>
+</div>
+<!-- Breadcrumbs -->
+<div class="flex flex-wrap gap-2 py-4">
+<a class="text-gray-500 dark:text-gray-400 text-sm font-medium leading-normal hover:text-primary dark:hover:text-primary" href="#">Home</a>
+<span class="text-gray-500 dark:text-gray-400 text-sm font-medium leading-normal">/</span>
+<a class="text-gray-500 dark:text-gray-400 text-sm font-medium leading-normal hover:text-primary dark:hover:text-primary" href="#">Law Department</a>
+<span class="text-gray-500 dark:text-gray-400 text-sm font-medium leading-normal">/</span>
+<span class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Agreements</span>
+</div>
+<!-- Tabs -->
+<div class="pb-3 border-b border-gray-200 dark:border-gray-700">
+<div class="flex gap-8">
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">End User</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-primary text-primary pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">B2B</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">B2C</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">Third Parties</p>
+</a>
+</div>
+</div>
+<!-- Data Table -->
+<div class="mt-6 bg-white dark:bg-gray-900/50 rounded-xl shadow-sm overflow-hidden">
+<div class="p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-800">
+<h3 class="text-lg font-bold text-gray-900 dark:text-white">B2B Agreements</h3>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+<span class="material-symbols-outlined text-base">filter_list</span>
+                                Filter
+                             </button>
+<button class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+<span class="material-symbols-outlined text-base">swap_vert</span>
+                                Sort
+                             </button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+<thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-800">
+<tr>
+<th class="p-4" scope="col">
+<div class="flex items-center">
+<input class="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" id="checkbox-all" type="checkbox"/>
+<label class="sr-only" for="checkbox-all">checkbox</label>
+</div>
+</th>
+<th class="px-6 py-3" scope="col">Document Name</th>
+<th class="px-6 py-3" scope="col">Version</th>
+<th class="px-6 py-3" scope="col">Status</th>
+<th class="px-6 py-3" scope="col">Last Modified</th>
+<th class="px-6 py-3" scope="col">Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="bg-white dark:bg-gray-900/50 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="w-4 p-4">
+<div class="flex items-center">
+<input class="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" type="checkbox"/>
+</div>
+</td>
+<th class="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap" scope="row">Master Service Agreement</th>
+<td class="px-6 py-4">v3.2</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-xs font-medium px-2.5 py-0.5 rounded-full">Active</span>
+</td>
+<td class="px-6 py-4">2024-05-10</td>
+<td class="px-6 py-4">
+<a class="font-medium text-primary hover:underline" href="#">
+<span class="material-symbols-outlined">more_vert</span>
+</a>
+</td>
+</tr>
+<tr class="bg-white dark:bg-gray-900/50 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="w-4 p-4">
+<div class="flex items-center">
+<input class="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" type="checkbox"/>
+</div>
+</td>
+<th class="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap" scope="row">Non-Disclosure Agreement</th>
+<td class="px-6 py-4">v1.5</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-xs font-medium px-2.5 py-0.5 rounded-full">In Review</span>
+</td>
+<td class="px-6 py-4">2024-05-21</td>
+<td class="px-6 py-4">
+<a class="font-medium text-primary hover:underline" href="#">
+<span class="material-symbols-outlined">more_vert</span>
+</a>
+</td>
+</tr>
+<tr class="bg-white dark:bg-gray-900/50 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="w-4 p-4">
+<div class="flex items-center">
+<input class="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" type="checkbox"/>
+</div>
+</td>
+<th class="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap" scope="row">Partnership Agreement Template</th>
+<td class="px-6 py-4">v2.0</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 text-xs font-medium px-2.5 py-0.5 rounded-full">Draft</span>
+</td>
+<td class="px-6 py-4">2024-04-18</td>
+<td class="px-6 py-4">
+<a class="font-medium text-primary hover:underline" href="#">
+<span class="material-symbols-outlined">more_vert</span>
+</a>
+</td>
+</tr>
+<tr class="bg-white dark:bg-gray-900/50 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="w-4 p-4">
+<div class="flex items-center">
+<input class="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" type="checkbox"/>
+</div>
+</td>
+<th class="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap" scope="row">Vendor Agreement - Expired</th>
+<td class="px-6 py-4">v1.0</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 text-xs font-medium px-2.5 py-0.5 rounded-full">Archived</span>
+</td>
+<td class="px-6 py-4">2023-12-31</td>
+<td class="px-6 py-4">
+<a class="font-medium text-primary hover:underline" href="#">
+<span class="material-symbols-outlined">more_vert</span>
+</a>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

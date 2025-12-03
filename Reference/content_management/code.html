@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Content Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "surface-light": "#ffffff",
+              "surface-dark": "#1a2230",
+              "text-light": "#111318",
+              "text-dark": "#f0f2f4",
+              "text-muted-light": "#616f89",
+              "text-muted-dark": "#94a3b8",
+              "border-light": "#dbdfe6",
+              "border-dark": "#334155",
+            },
+            fontFamily: {
+              "display": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 24px;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark">
+<div class="relative flex min-h-screen w-full">
+<!-- SideNavBar -->
+<aside class="flex w-64 flex-col bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark p-4">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Admin portal logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD2h_7o08PNV58AUh2h9x2b-8VzCwqvcdSW2Vo4gDzi4kqGWoSGbGmBqVD_q8vF2iOtunOxXxjiP7_NoDnIOny0mJZLFyL1Zi31UnAQt9ahv7BnqrAJvXLBAIX8JPHC4a5duLFbfCNE3n49gGLo2FYS1tUAZfd9v6e3fjCtaLCBJNtngFc7ETIVTKc_CdcVMCHcus_BNbchT3DbL0NQ7ZxEGQfZA4EweEXKuWQqBwqPhUlqfkkZ41jkpIjCCIWX5xyjphXaFVt0uJJo");'></div>
+<div class="flex flex-col">
+<h1 class="text-text-light dark:text-text-dark text-base font-medium leading-normal">Admin Portal</h1>
+<p class="text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Super Admin</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-3 py-2 text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary rounded-lg" href="#">
+<span class="material-symbols-outlined">group</span>
+<p class="text-sm font-medium leading-normal">Users</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary" href="#">
+<span class="material-symbols-outlined fill">article</span>
+<p class="text-sm font-medium leading-normal">Content Management</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium leading-normal">Settings</p>
+</a>
+</nav>
+</div>
+<div class="mt-auto">
+<a class="flex items-center gap-3 px-3 py-2 text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary rounded-lg" href="#">
+<span class="material-symbols-outlined">logout</span>
+<p class="text-sm font-medium leading-normal">Logout</p>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col p-8">
+<div class="w-full max-w-7xl mx-auto">
+<!-- PageHeading -->
+<div class="flex flex-wrap justify-between items-center gap-4">
+<div class="flex flex-col gap-1">
+<p class="text-text-light dark:text-text-dark text-3xl font-bold leading-tight">Content Management</p>
+<p class="text-text-muted-light dark:text-text-muted-dark text-base font-normal leading-normal">Manage articles, images, and other data entries.</p>
+</div>
+<button class="flex items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
+<span class="material-symbols-outlined" style="font-size: 20px;">add_circle</span>
+<span class="truncate">Create New</span>
+</button>
+</div>
+<!-- Search and Filters -->
+<div class="mt-8 flex flex-wrap items-center gap-4">
+<!-- SearchBar -->
+<div class="flex-grow">
+<label class="flex flex-col min-w-40 h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-text-muted-light dark:text-text-muted-dark flex border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark items-center justify-center pl-4 rounded-l-lg border-r-0">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-text-light dark:text-text-dark focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary/50 h-full placeholder:text-text-muted-light dark:placeholder:text-text-muted-dark px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal" placeholder="Search content..." value=""/>
+</div>
+</label>
+</div>
+<!-- Chips -->
+<div class="flex gap-3 items-center">
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark pl-4 pr-3 hover:border-primary/50">
+<p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">Content Type</p>
+<span class="material-symbols-outlined text-text-muted-light dark:text-text-muted-dark" style="font-size: 20px;">expand_more</span>
+</button>
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark pl-4 pr-3 hover:border-primary/50">
+<p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">Status</p>
+<span class="material-symbols-outlined text-text-muted-light dark:text-text-muted-dark" style="font-size: 20px;">expand_more</span>
+</button>
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark pl-4 pr-3 hover:border-primary/50">
+<p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">Author</p>
+<span class="material-symbols-outlined text-text-muted-light dark:text-text-muted-dark" style="font-size: 20px;">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Table -->
+<div class="mt-6 @container">
+<div class="flex overflow-hidden rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark">
+<table class="flex-1">
+<thead>
+<tr class="bg-background-light dark:bg-background-dark border-b border-border-light dark:border-border-dark">
+<th class="w-2/5 px-4 py-3 text-left text-text-muted-light dark:text-text-muted-dark text-xs font-medium uppercase tracking-wider">Title</th>
+<th class="w-1/5 px-4 py-3 text-left text-text-muted-light dark:text-text-muted-dark text-xs font-medium uppercase tracking-wider">Type</th>
+<th class="w-1/5 px-4 py-3 text-left text-text-muted-light dark:text-text-muted-dark text-xs font-medium uppercase tracking-wider">Status</th>
+<th class="w-1/5 px-4 py-3 text-left text-text-muted-light dark:text-text-muted-dark text-xs font-medium uppercase tracking-wider">Author</th>
+<th class="w-1/5 px-4 py-3 text-left text-text-muted-light dark:text-text-muted-dark text-xs font-medium uppercase tracking-wider">Last Modified</th>
+<th class="w-auto px-4 py-3 text-left text-text-muted-light dark:text-text-muted-dark text-xs font-medium uppercase tracking-wider">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-light dark:divide-border-dark">
+<tr class="hover:bg-primary/5">
+<td class="h-[72px] px-4 py-2 w-2/5 text-text-light dark:text-text-dark text-sm font-medium leading-normal">Blog Post: The Future of AI</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Article</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-sm font-normal leading-normal">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Published</span>
+</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Jane Doe</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">2 hours ago</td>
+<td class="h-[72px] px-4 py-2 w-auto text-sm font-bold leading-normal">
+<button class="text-primary hover:underline">Edit</button>
+</td>
+</tr>
+<tr class="hover:bg-primary/5">
+<td class="h-[72px] px-4 py-2 w-2/5 text-text-light dark:text-text-dark text-sm font-medium leading-normal">Homepage Banner Image</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Image</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-sm font-normal leading-normal">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Draft</span>
+</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Admin User</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">1 day ago</td>
+<td class="h-[72px] px-4 py-2 w-auto text-sm font-bold leading-normal">
+<button class="text-primary hover:underline">Edit</button>
+</td>
+</tr>
+<tr class="hover:bg-primary/5">
+<td class="h-[72px] px-4 py-2 w-2/5 text-text-light dark:text-text-dark text-sm font-medium leading-normal">Q4 Product Update</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Article</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-sm font-normal leading-normal">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Published</span>
+</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">John Smith</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">3 days ago</td>
+<td class="h-[72px] px-4 py-2 w-auto text-sm font-bold leading-normal">
+<button class="text-primary hover:underline">Edit</button>
+</td>
+</tr>
+<tr class="hover:bg-primary/5">
+<td class="h-[72px] px-4 py-2 w-2/5 text-text-light dark:text-text-dark text-sm font-medium leading-normal">New User Onboarding Guide</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Data Entry</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-sm font-normal leading-normal">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Archived</span>
+</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Jane Doe</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">1 week ago</td>
+<td class="h-[72px] px-4 py-2 w-auto text-sm font-bold leading-normal">
+<button class="text-primary hover:underline">Edit</button>
+</td>
+</tr>
+<tr class="hover:bg-primary/5">
+<td class="h-[72px] px-4 py-2 w-2/5 text-text-light dark:text-text-dark text-sm font-medium leading-normal">About Us Page Content</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Data Entry</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-sm font-normal leading-normal">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Draft</span>
+</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Admin User</td>
+<td class="h-[72px] px-4 py-2 w-1/5 text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">2 weeks ago</td>
+<td class="h-[72px] px-4 py-2 w-auto text-sm font-bold leading-normal">
+<button class="text-primary hover:underline">Edit</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Pagination -->
+<div class="mt-6 flex items-center justify-between">
+<p class="text-sm text-text-muted-light dark:text-text-muted-dark">Showing <span class="font-medium">1</span> to <span class="font-medium">5</span> of <span class="font-medium">20</span> results</p>
+<div class="flex items-center gap-2">
+<button class="flex items-center justify-center h-9 w-9 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary">
+<span class="material-symbols-outlined" style="font-size: 20px;">chevron_left</span>
+</button>
+<button class="flex items-center justify-center h-9 w-9 rounded-lg border border-primary text-primary bg-primary/10">1</button>
+<button class="flex items-center justify-center h-9 w-9 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary">2</button>
+<button class="flex items-center justify-center h-9 w-9 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary">3</button>
+<span class="text-text-muted-light dark:text-text-muted-dark">...</span>
+<button class="flex items-center justify-center h-9 w-9 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary">8</button>
+<button class="flex items-center justify-center h-9 w-9 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-muted-light dark:text-text-muted-dark hover:bg-primary/10 hover:text-primary">
+<span class="material-symbols-outlined" style="font-size: 20px;">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

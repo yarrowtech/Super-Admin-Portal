@@ -7,6 +7,7 @@ import FinancePortal from './components/finance/FinancePortal';
 import AdminPortal from './components/admin/AdminPortal';
 import CEOPortal from './components/ceo/CEOPortal';
 import ManagerPortal from './components/manager/ManagerPortal';
+import NotFound from './components/404/NotFound';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -86,6 +87,7 @@ function App() {
           } 
         />
         <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );

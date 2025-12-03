@@ -8,116 +8,111 @@ const Login = ({ onLogin }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Simple role-based login - in real app, this would call an API
     if (email && password) {
-      let userRole = 'hr'; // default
-      
-      // Role determination based on email domain or specific emails
-      if (email.includes('ceo@') || email.includes('chief@') || email.toLowerCase().includes('ceo') || email.toLowerCase().includes('chief')) {
+      let userRole = 'hr';
+      if (email.toLowerCase().includes('ceo')) {
         userRole = 'ceo';
-      } else if (email.includes('admin@') || email.includes('superadmin@') || email.toLowerCase().includes('admin')) {
+      } else if (email.toLowerCase().includes('admin')) {
         userRole = 'admin';
-      } else if (email.includes('manager@') || email.toLowerCase().includes('manager') || email.toLowerCase().includes('project')) {
+      } else if (email.toLowerCase().includes('manager')) {
         userRole = 'manager';
-      } else if (email.includes('it@') || email.includes('tech@') || email.toLowerCase().includes('it')) {
+      } else if (email.toLowerCase().includes('it')) {
         userRole = 'it';
-      } else if (email.includes('hr@') || email.toLowerCase().includes('hr')) {
-        userRole = 'hr';
-      } else if (email.includes('finance@') || email.includes('accounting@') || email.toLowerCase().includes('finance') || email.toLowerCase().includes('cfo')) {
+      } else if (email.toLowerCase().includes('finance')) {
         userRole = 'finance';
+      } else if (email.toLowerCase().includes('hr')) {
+        userRole = 'hr';
       }
-      
-      console.log('Login successful:', { email, password, rememberMe, role: userRole });
+
       onLogin(userRole);
-    } else {
-      alert('Please enter both email and password');
     }
   };
 
   return (
-    <div className="relative flex h-auto min-h-screen w-full flex-col font-display text-[#111318] dark:text-white overflow-x-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-background-dark dark:via-gray-900 dark:to-slate-900"></div>
-      <div className="relative layout-container flex h-full grow flex-col">
-        <main className="flex min-h-screen w-full items-center justify-center p-4 md:p-8">
-          <div className="flex w-full max-w-lg flex-col items-center">
-            <div className="flex flex-col items-center gap-4 mb-10 text-center">
-              <div className="flex items-center justify-center w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-full">
-                <span className="material-symbols-outlined text-primary text-4xl">
-                  admin_panel_settings
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-[#111318] dark:text-white tracking-tight text-3xl sm:text-4xl font-bold">Admin Portal</p>
-                <p className="text-[#616f89] dark:text-gray-400 text-base font-normal">Securely access your dashboard.</p>
-              </div>
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-background-light px-4 py-8 font-display text-text-light dark:bg-background-dark dark:text-text-dark">
+      <div className="absolute -top-1/4 -right-1/4 h-1/2 w-1/2 rounded-full bg-indigo-500/5 dark:bg-indigo-500/10 blur-3xl"></div>
+      <div className="absolute -bottom-1/4 -left-1/4 h-1/2 w-1/2 rounded-full bg-sky-500/5 dark:bg-sky-500/10 blur-3xl"></div>
+      <div className="relative z-10 grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 shadow-2xl shadow-slate-200/80 backdrop-blur-xl dark:border-slate-800/80 dark:bg-card-dark/70 dark:shadow-black/60 md:grid-cols-2">
+        <div className="hidden items-center justify-center bg-slate-50 p-8 dark:bg-slate-900/50 md:flex">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-400 text-white shadow-lg shadow-primary/30">
+              <span className="material-symbols-outlined text-5xl">security</span>
             </div>
-            <div className="w-full bg-white dark:bg-gray-800/50 p-8 sm:p-10 rounded-xl shadow-2xl shadow-slate-200/50 dark:shadow-black/20 backdrop-blur-sm border border-slate-200/50 dark:border-gray-700/50">
-              <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-                <label className="flex flex-col w-full">
-                  <p className="text-[#111318] dark:text-gray-200 text-sm font-medium leading-normal pb-2">Email Address</p>
-                  <div className="relative flex w-full flex-1 items-stretch">
-                    <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 absolute left-4 top-1/2 -translate-y-1/2">mail</span>
-                    <input 
-                      className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#111318] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 dark:focus:ring-primary/50 border border-[#dbdfe6] dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 focus:border-primary dark:focus:border-primary h-12 placeholder:text-[#616f89] dark:placeholder:text-gray-500 pl-12 pr-4 py-2 text-base font-normal leading-normal" 
-                      placeholder="you@example.com" 
-                      type="email" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                </label>
-                <label className="flex flex-col w-full">
-                  <div className="flex justify-between items-center pb-2">
-                    <p className="text-[#111318] dark:text-gray-200 text-sm font-medium leading-normal">Password</p>
-                    <a className="text-sm font-medium text-primary hover:underline" href="#">Forgot?</a>
-                  </div>
-                  <div className="relative flex w-full flex-1 items-stretch">
-                    <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 absolute left-4 top-1/2 -translate-y-1/2">lock</span>
-                    <input 
-                      className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#111318] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 dark:focus:ring-primary/50 border border-[#dbdfe6] dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 focus:border-primary dark:focus:border-primary h-12 placeholder:text-[#616f89] dark:placeholder:text-gray-500 pl-12 pr-12 py-2 text-base font-normal leading-normal" 
-                      placeholder="Enter your password" 
-                      type={showPassword ? "text" : "password"} 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                    <button 
-                      className="absolute right-0 top-0 h-full px-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      <span className="material-symbols-outlined text-xl">
-                        {showPassword ? "visibility_off" : "visibility"}
-                      </span>
-                    </button>
-                  </div>
-                </label>
-                <div className="flex items-center gap-3 pt-2">
-                  <input 
-                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-900 text-primary focus:ring-2 focus:ring-primary/50" 
-                    id="remember-me" 
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                  />
-                  <label className="text-[#111318] dark:text-gray-200 text-sm font-normal cursor-pointer" htmlFor="remember-me">
-                    Keep me logged in
-                  </label>
-                </div>
-                <button 
-                  className="flex items-center justify-center w-full h-12 px-6 py-3 mt-4 text-base font-bold text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors duration-200 shadow-lg shadow-primary/20 hover:shadow-primary/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-background-dark"
-                  type="submit"
-                >
-                  Sign In
-                </button>
-              </form>
-            </div>
-            <div className="mt-12 text-center">
-              <p className="text-xs text-[#616f89] dark:text-gray-500">© 2025 CitiMart. All Rights Reserved.</p>
-            </div>
+            <h2 className="mt-6 text-2xl font-bold">Admin Portal Access</h2>
+            <p className="mt-2 text-sm text-subtext-light dark:text-subtext-dark">
+              Manage your organization with enterprise-grade security.
+            </p>
           </div>
-        </main>
+        </div>
+        <div className="flex flex-col justify-center p-8 sm:p-12">
+          <div className="mb-8 flex flex-col gap-2">
+            <p className="text-sm font-semibold uppercase text-primary">Super Admin Portal</p>
+            <h1 className="text-3xl font-bold tracking-tight">Welcome Back</h1>
+            <p className="text-sm text-subtext-light dark:text-subtext-dark">Sign in to continue to your workspace.</p>
+          </div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Email Address</span>
+              <div className="relative flex items-center">
+                <span className="material-symbols-outlined absolute left-3 text-subtext-light dark:text-subtext-dark">mail</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 py-3 pl-11 pr-4 text-sm text-text-light placeholder:text-subtext-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900/50 dark:text-text-dark dark:placeholder:text-subtext-dark"
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+            </label>
+            <label className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Password</span>
+                <a href="#" className="text-primary hover:text-primary-hover">
+                  Forgot password?
+                </a>
+              </div>
+              <div className="relative flex items-center">
+                <span className="material-symbols-outlined absolute left-3 text-subtext-light dark:text-subtext-dark">lock</span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 py-3 pl-11 pr-12 text-sm text-text-light placeholder:text-subtext-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900/50 dark:text-text-dark dark:placeholder:text-subtext-dark"
+                  placeholder="Enter your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="material-symbols-outlined absolute right-3 text-subtext-light hover:text-text-light dark:text-subtext-dark dark:hover:text-text-dark"
+                >
+                  {showPassword ? 'visibility_off' : 'visibility'}
+                </button>
+              </div>
+            </label>
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-3 text-subtext-light dark:text-subtext-dark">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40 dark:border-slate-600"
+                />
+                Remember me
+              </label>
+            </div>
+            <button
+              type="submit"
+              className="flex h-12 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white shadow-lg shadow-primary/40 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-xl hover:shadow-primary/50"
+            >
+              Sign In
+            </button>
+          </form>
+          <div className="mt-8 text-center text-xs text-subtext-light dark:text-subtext-dark">
+            © 2025 CitiMart-HouseofMusa. All rights reserved.
+          </div>
+        </div>
       </div>
     </div>
   );

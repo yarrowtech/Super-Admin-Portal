@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CEO Executive Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "success": "#38A169",
+              "danger": "#E53E3E",
+              "warning": "#D69E2E",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#111318] dark:text-gray-200">
+<div class="flex h-screen w-full flex-col group/design-root">
+<div class="flex h-full w-full">
+<!-- SideNavBar -->
+<aside class="flex w-64 flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-background-dark p-4 shrink-0">
+<div class="flex h-full flex-col justify-between">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="A portrait of the CEO, Evelyn Reed" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA6TmQIdW2UOLyWz79w5pAAMyKfnl5ydwJK-9XmP_wAMwNT_4GDOxUL0XEVLlU8gN8QAAOaloIWOn_YZ_Us6rA-wKBcqTQmwdzSSmmhHzeEsVKzuCUoO4O5SaasOi-ktyW-_MxW0N_0xuWUfH5TLZfyz0Scae_RG3rYvDjuN5jc1DIfYfcrp74IodOHBF4TH943uHqFK6thq1clcTKvYBHFD0YtGdmX_0QktyvUt8HDclFg09DgMD1K5z_PxqnxdDg5PFI-URI1nXu-");'></div>
+<div class="flex flex-col">
+<h1 class="text-base font-medium leading-normal dark:text-white">Dr. Evelyn Reed</h1>
+<p class="text-sm font-normal leading-normal text-[#616f89] dark:text-gray-400">CEO</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<p class="text-sm font-bold leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">gavel</span>
+<p class="text-sm font-medium leading-normal">Law</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">groups</span>
+<p class="text-sm font-medium leading-normal">HR</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">laptop_chromebook</span>
+<p class="text-sm font-medium leading-normal">IT</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">account_balance_wallet</span>
+<p class="text-sm font-medium leading-normal">A/C &amp; Finance</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">dvr</span>
+<p class="text-sm font-medium leading-normal">System Operator</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">science</span>
+<p class="text-sm font-medium leading-normal">Research</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">trending_up</span>
+<p class="text-sm font-medium leading-normal">A/C Sales &amp; Growth</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">campaign</span>
+<p class="text-sm font-medium leading-normal">Media</p>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-4">
+<button class="flex min-w-[84px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90">
+<span class="truncate">New Report</span>
+</button>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">settings</span>
+<p class="text-sm font-medium leading-normal">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-danger" href="#">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">logout</span>
+<p class="text-sm font-medium leading-normal">Logout</p>
+</a>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto">
+<div class="p-8">
+<!-- Page Heading -->
+<div class="flex flex-wrap justify-between gap-4 items-center mb-6">
+<div class="flex flex-col gap-1">
+<h1 class="text-4xl font-black leading-tight tracking-[-0.033em] dark:text-white">CEO Executive Dashboard</h1>
+<p class="text-base font-normal leading-normal text-[#616f89] dark:text-gray-400">Consolidated view of all departmental performance.</p>
+</div>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 text-[#111318] dark:text-gray-200 text-sm font-bold leading-normal tracking-[0.015em] hover:bg-gray-50 dark:hover:bg-white/5">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']" style="font-size: 20px;">calendar_today</span>
+<span class="truncate">Last 30 Days</span>
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']" style="font-size: 20px;">expand_more</span>
+</button>
+</div>
+<!-- Stats -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700">
+<p class="text-base font-medium leading-normal text-[#616f89] dark:text-gray-400">Total Revenue</p>
+<p class="tracking-tight text-3xl font-bold leading-tight dark:text-white">$12.8M</p>
+<p class="text-base font-medium leading-normal text-success flex items-center gap-1">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']" style="font-size: 16px;">arrow_upward</span>
+<span>+2.5%</span>
+</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700">
+<p class="text-base font-medium leading-normal text-[#616f89] dark:text-gray-400">New Customers</p>
+<p class="tracking-tight text-3xl font-bold leading-tight dark:text-white">1,450</p>
+<p class="text-base font-medium leading-normal text-success flex items-center gap-1">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']" style="font-size: 16px;">arrow_upward</span>
+<span>+1.8%</span>
+</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700">
+<p class="text-base font-medium leading-normal text-[#616f89] dark:text-gray-400">Project Completion</p>
+<p class="tracking-tight text-3xl font-bold leading-tight dark:text-white">89%</p>
+<p class="text-base font-medium leading-normal text-danger flex items-center gap-1">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']" style="font-size: 16px;">arrow_downward</span>
+<span>-0.5%</span>
+</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700">
+<p class="text-base font-medium leading-normal text-[#616f89] dark:text-gray-400">System Uptime</p>
+<p class="tracking-tight text-3xl font-bold leading-tight dark:text-white">99.98%</p>
+<p class="text-base font-medium leading-normal text-success flex items-center gap-1">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']" style="font-size: 16px;">arrow_upward</span>
+<span>+0.01%</span>
+</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Main content area -->
+<div class="lg:col-span-2 flex flex-col gap-8">
+<!-- Revenue Chart -->
+<div class="bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-6">
+<h3 class="text-lg font-bold mb-4 dark:text-white">Revenue Over Time</h3>
+<div class="h-64 flex items-center justify-center bg-gray-50 dark:bg-white/5 rounded-lg">
+<p class="text-gray-400 dark:text-gray-500">Revenue Chart Placeholder</p>
+</div>
+</div>
+<!-- Departmental KPIs -->
+<div>
+<h2 class="text-[22px] font-bold leading-tight tracking-[-0.015em] mb-4 dark:text-white">Departmental KPIs</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-6 flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h4 class="font-bold dark:text-white">A/C &amp; Finance</h4>
+<a class="text-sm font-bold text-primary hover:underline" href="#">View Details</a>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">Profit Margin</p>
+<p class="text-2xl font-bold text-success dark:text-success-light">+18.2%</p>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">Burn Rate</p>
+<p class="text-2xl font-bold dark:text-white">$1.2M / mo</p>
+</div>
+</div>
+<div class="bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-6 flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h4 class="font-bold dark:text-white">Sales &amp; Growth</h4>
+<a class="text-sm font-bold text-primary hover:underline" href="#">View Details</a>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">New Leads (30d)</p>
+<p class="text-2xl font-bold dark:text-white">4,281</p>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">Conversion Rate</p>
+<p class="text-2xl font-bold text-success dark:text-success-light">5.7%</p>
+</div>
+</div>
+<div class="bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-6 flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h4 class="font-bold dark:text-white">Human Resources</h4>
+<a class="text-sm font-bold text-primary hover:underline" href="#">View Details</a>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">Attrition Rate</p>
+<p class="text-2xl font-bold text-danger dark:text-danger-light">3.1%</p>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">Open High-Priority Roles</p>
+<p class="text-2xl font-bold dark:text-white">4</p>
+</div>
+</div>
+<div class="bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-6 flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h4 class="font-bold dark:text-white">Legal &amp; Compliance</h4>
+<a class="text-sm font-bold text-primary hover:underline" href="#">View Details</a>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">Major Contracts Pending</p>
+<p class="text-2xl font-bold dark:text-white">2</p>
+</div>
+<div>
+<p class="text-sm text-[#616f89] dark:text-gray-400">Compliance Adherence</p>
+<p class="text-2xl font-bold text-success dark:text-success-light">99.8%</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Sidebar content area -->
+<div class="lg:col-span-1 flex flex-col gap-6">
+<!-- Critical Alerts -->
+<div class="bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-6">
+<h3 class="text-lg font-bold mb-4 dark:text-white">Critical Alerts</h3>
+<div class="flex flex-col gap-4">
+<div class="flex items-start gap-4">
+<div class="text-danger flex items-center justify-center rounded-lg bg-danger/10 shrink-0 size-12">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">error</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-base font-medium leading-normal line-clamp-1 dark:text-white">Major System Outage</p>
+<p class="text-sm font-normal leading-normal line-clamp-2 text-[#616f89] dark:text-gray-400">Main auth server unresponsive. IT notified.</p>
+<p class="text-xs font-normal leading-normal text-gray-400 dark:text-gray-500 mt-1">5m ago</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="text-warning flex items-center justify-center rounded-lg bg-warning/10 shrink-0 size-12">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">warning</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-base font-medium leading-normal line-clamp-1 dark:text-white">Q3 Budget Overrun</p>
+<p class="text-sm font-normal leading-normal line-clamp-2 text-[#616f89] dark:text-gray-400">Marketing department has exceeded their quarterly budget by 15%.</p>
+<p class="text-xs font-normal leading-normal text-gray-400 dark:text-gray-500 mt-1">2h ago</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="text-danger flex items-center justify-center rounded-lg bg-danger/10 shrink-0 size-12">
+<span class="material-symbols-outlined !font-['Material_Symbols_Outlined']">security</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-base font-medium leading-normal line-clamp-1 dark:text-white">High Severity Security Threat</p>
+<p class="text-sm font-normal leading-normal line-clamp-2 text-[#616f89] dark:text-gray-400">A new vulnerability has been detected in the primary database.</p>
+<p class="text-xs font-normal leading-normal text-gray-400 dark:text-gray-500 mt-1">1d ago</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Top Campaigns Table -->
+<div class="bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-6">
+<h3 class="text-lg font-bold mb-4 dark:text-white">Top Performing Campaigns</h3>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="border-b border-gray-200 dark:border-gray-700">
+<th class="py-2 pr-2 text-sm font-semibold text-[#616f89] dark:text-gray-400">Campaign</th>
+<th class="py-2 px-2 text-sm font-semibold text-[#616f89] dark:text-gray-400 text-right">ROI</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-gray-200 dark:border-gray-700">
+<td class="py-3 pr-2 text-sm font-medium dark:text-white">Summer Sale 2024</td>
+<td class="py-3 px-2 text-sm font-medium text-success dark:text-success-light text-right">320%</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-700">
+<td class="py-3 pr-2 text-sm font-medium dark:text-white">Product Launch Webinar</td>
+<td class="py-3 px-2 text-sm font-medium text-success dark:text-success-light text-right">250%</td>
+</tr>
+<tr>
+<td class="py-3 pr-2 text-sm font-medium dark:text-white">Q3 Social Media Push</td>
+<td class="py-3 px-2 text-sm font-medium text-success dark:text-success-light text-right">180%</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

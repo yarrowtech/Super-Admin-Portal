@@ -1,16 +1,16 @@
 import React from 'react';
-import Sidebar from './Sidebar';
-import HRDashboard from '../hr/HRDashboard';
+import ITSidebar from './ITSidebar';
+import ITDashboard from './ITDashboard';
 
-const Dashboard = () => {
+const ITPortal = () => {
   return (
     <div className="min-h-screen w-full font-display bg-background-light dark:bg-background-dark text-neutral-800 dark:text-neutral-100">
-      <Sidebar />
+      <ITSidebar />
       <div className="ml-64">
-        <HRDashboard />
+        <ITDashboard />
       </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default ITPortal;

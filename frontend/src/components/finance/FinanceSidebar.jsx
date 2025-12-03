@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Sidebar = () => {
+const FinanceSidebar = () => {
   return (
     <aside className="fixed left-0 top-0 h-screen flex w-64 flex-col border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-background-dark p-4 overflow-hidden z-10">
       <div className="flex flex-col gap-4">
@@ -15,10 +15,10 @@ const Sidebar = () => {
           ></div>
           <div className="flex flex-col">
             <h1 className="text-neutral-800 dark:text-neutral-100 text-base font-medium leading-normal">
-              Super Admin
+              Finance Admin
             </h1>
             <p className="text-neutral-600 dark:text-neutral-400 text-sm font-normal leading-normal">
-              HR Department
+              Finance Department
             </p>
           </div>
         </div>
@@ -30,43 +30,55 @@ const Sidebar = () => {
             >
               dashboard
             </span>
-            <p className="text-sm font-bold leading-normal">Dashboard</p>
+            <p className="text-sm font-bold leading-normal">Dashboards</p>
           </div>
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-            <span className="material-symbols-outlined">group</span>
+            <span className="material-symbols-outlined">account_balance</span>
             <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
-              Applicants
+              Cash Management
             </p>
           </div>
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-            <span className="material-symbols-outlined">calendar_month</span>
+            <span className="material-symbols-outlined">trending_up</span>
             <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
-              Attendance
+              Profit & Loss
             </p>
           </div>
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-            <span className="material-symbols-outlined">badge</span>
+            <span className="material-symbols-outlined">analytics</span>
             <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
-              Employees
+              Financial Performance
             </p>
           </div>
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-            <span className="material-symbols-outlined">hourglass_empty</span>
+            <span className="material-symbols-outlined">receipt_long</span>
             <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
-              Leave
+              Invoices
             </p>
           </div>
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-            <span className="material-symbols-outlined">campaign</span>
+            <span className="material-symbols-outlined">payment</span>
             <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
-              Notices
+              Payments
+            </p>
+          </div>
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
+            <span className="material-symbols-outlined">savings</span>
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+              Budget Planning
+            </p>
+          </div>
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
+            <span className="material-symbols-outlined">assessment</span>
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
+              Reports
             </p>
           </div>
         </div>
       </div>
       <div className="mt-auto flex flex-col gap-4">
         <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
-          <span className="truncate">Post Announcement</span>
+          <span className="truncate">Create Report</span>
         </button>
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
@@ -87,4 +99,4 @@ const Sidebar = () => {
   );
 };
 
-export default Sidebar;
+export default FinanceSidebar;

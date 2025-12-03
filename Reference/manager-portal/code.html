@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Manager Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "green-500": "#7ED321",
+              "red-500": "#D0021B",
+              "gray-100": "#f0f2f4",
+              "gray-200": "#dbdfe6",
+              "gray-400": "#a1aab8",
+              "gray-600": "#616f89",
+              "gray-800": "#111318",
+              "white": "#ffffff",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="relative flex min-h-screen w-full">
+<!-- SideNavBar -->
+<aside class="flex w-64 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/20">
+<div class="flex h-full min-h-[700px] flex-col justify-between p-4">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 p-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Manager's profile picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC0NyPTg6QnGCd6bzahKXvW46dMD1lNfA6X1S32qTZUncNY2RHoZso_crxkUid-qUOnXTPDD6Ccnu_OxR-mOryUr8iUkAXX8sDkFZVq-13kCqal55UCl9oxbkSdJDZuvPTU58zA51yJ-SdljQlsmDOKpf6BC0x_ziY7ylYopUR2N9AJfoMojwIWulwTme9skA2VGi9mrQzahcmnEMRx1mMW69GK9i92zZHgfwRD8ULc-bRTn9wl5NsG0O9hNTa3RLtdtWWMu_N0G4Gj");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-800 dark:text-white text-base font-medium leading-normal">Alex Chen</h1>
+<p class="text-gray-600 dark:text-gray-400 text-sm font-normal leading-normal">Project Manager</p>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20" href="#">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<p class="text-primary text-sm font-bold leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">inventory_2</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Products</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">group</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Team</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">assessment</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Reports</p>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90">
+<span class="truncate">New Project</span>
+</button>
+<div class="flex flex-col gap-1 border-t border-gray-200 dark:border-gray-800 pt-4">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">settings</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50" href="#">
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200">logout</span>
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Log Out</p>
+</a>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto">
+<div class="p-8">
+<!-- PageHeading -->
+<div class="flex flex-wrap justify-between gap-4 items-center mb-8">
+<div class="flex min-w-72 flex-col gap-1">
+<p class="text-gray-800 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">Welcome back, Alex!</p>
+<p class="text-gray-600 dark:text-gray-400 text-base font-normal leading-normal">Here's your performance summary for this week.</p>
+</div>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined text-base">tune</span>
+<span class="truncate">Customize Dashboard</span>
+</button>
+</div>
+<!-- Stats -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
+<p class="text-gray-800 dark:text-gray-200 text-base font-medium leading-normal">Total Sales</p>
+<p class="text-gray-800 dark:text-white tracking-light text-3xl font-bold leading-tight">$125,430</p>
+<p class="text-green-500 text-base font-medium leading-normal flex items-center"><span class="material-symbols-outlined text-lg">arrow_upward</span>+5.4%</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
+<p class="text-gray-800 dark:text-gray-200 text-base font-medium leading-normal">Active Users</p>
+<p class="text-gray-800 dark:text-white tracking-light text-3xl font-bold leading-tight">2,150</p>
+<p class="text-green-500 text-base font-medium leading-normal flex items-center"><span class="material-symbols-outlined text-lg">arrow_upward</span>+1.2%</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
+<p class="text-gray-800 dark:text-gray-200 text-base font-medium leading-normal">Team Productivity</p>
+<p class="text-gray-800 dark:text-white tracking-light text-3xl font-bold leading-tight">92%</p>
+<p class="text-red-500 text-base font-medium leading-normal flex items-center"><span class="material-symbols-outlined text-lg">arrow_downward</span>-2.1%</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
+<p class="text-gray-800 dark:text-gray-200 text-base font-medium leading-normal">Open Tickets</p>
+<p class="text-gray-800 dark:text-white tracking-light text-3xl font-bold leading-tight">14</p>
+<p class="text-green-500 text-base font-medium leading-normal flex items-center"><span class="material-symbols-outlined text-lg">arrow_upward</span>+8.0%</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2 flex flex-col gap-6">
+<!-- Pending Approvals -->
+<div class="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800">
+<h2 class="text-gray-800 dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-6 pb-3 pt-5">Pending Approvals</h2>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="border-b border-gray-200 dark:border-gray-800">
+<tr>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400">Request</th>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400">Requester</th>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400">Date</th>
+<th class="p-4 px-6 text-sm font-semibold text-gray-600 dark:text-gray-400 text-right">Actions</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
+<td class="p-4 px-6 text-gray-800 dark:text-white text-sm">Vacation Request</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Olivia Martin</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-28</td>
+<td class="p-4 px-6 flex justify-end gap-2">
+<button class="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
+<button class="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
+<td class="p-4 px-6 text-gray-800 dark:text-white text-sm">Budget Approval Q4</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Liam Garcia</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-27</td>
+<td class="p-4 px-6 flex justify-end gap-2">
+<button class="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
+<button class="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
+<td class="p-4 px-6 text-gray-800 dark:text-white text-sm">Content Review</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">Sophia Williams</td>
+<td class="p-4 px-6 text-gray-600 dark:text-gray-400 text-sm">2023-10-26</td>
+<td class="p-4 px-6 flex justify-end gap-2">
+<button class="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
+<button class="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="lg:col-span-1 flex flex-col gap-6">
+<!-- Calendar -->
+<div class="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+<div class="flex min-w-72 max-w-[336px] flex-1 flex-col gap-0.5 mx-auto">
+<div class="flex items-center p-1 justify-between">
+<button class="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
+<span class="material-symbols-outlined text-gray-800 dark:text-white flex size-10 items-center justify-center">chevron_left</span>
+</button>
+<p class="text-gray-800 dark:text-white text-base font-bold leading-tight flex-1 text-center">October 2023</p>
+<button class="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
+<span class="material-symbols-outlined text-gray-800 dark:text-white flex size-10 items-center justify-center">chevron_right</span>
+</button>
+</div>
+<div class="grid grid-cols-7">
+<p class="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">S</p>
+<p class="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">M</p>
+<p class="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">T</p>
+<p class="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">W</p>
+<p class="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">T</p>
+<p class="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">F</p>
+<p class="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">S</p>
+<button class="h-12 w-full text-gray-800 dark:text-white col-start-1 text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">1</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">2</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">3</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">4</div></button>
+<button class="h-12 w-full text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full bg-primary">5</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">6</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">7</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">8</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">9</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">10</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">11</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">12</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">13</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">14</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">15</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">16</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">17</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">18</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">19</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">20</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">21</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">22</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">23</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">24</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">25</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">26</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">27</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">28</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">29</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">30</div></button>
+<button class="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal"><div class="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">31</div></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

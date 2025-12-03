@@ -8,10 +8,27 @@ const Login = ({ onLogin }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Simple validation - in real app, this would call an API
+    // Simple role-based login - in real app, this would call an API
     if (email && password) {
-      console.log('Login successful:', { email, password, rememberMe });
-      onLogin();
+      let userRole = 'hr'; // default
+      
+      // Role determination based on email domain or specific emails
+      if (email.includes('ceo@') || email.includes('chief@') || email.toLowerCase().includes('ceo') || email.toLowerCase().includes('chief')) {
+        userRole = 'ceo';
+      } else if (email.includes('admin@') || email.includes('superadmin@') || email.toLowerCase().includes('admin')) {
+        userRole = 'admin';
+      } else if (email.includes('manager@') || email.toLowerCase().includes('manager') || email.toLowerCase().includes('project')) {
+        userRole = 'manager';
+      } else if (email.includes('it@') || email.includes('tech@') || email.toLowerCase().includes('it')) {
+        userRole = 'it';
+      } else if (email.includes('hr@') || email.toLowerCase().includes('hr')) {
+        userRole = 'hr';
+      } else if (email.includes('finance@') || email.includes('accounting@') || email.toLowerCase().includes('finance') || email.toLowerCase().includes('cfo')) {
+        userRole = 'finance';
+      }
+      
+      console.log('Login successful:', { email, password, rememberMe, role: userRole });
+      onLogin(userRole);
     } else {
       alert('Please enter both email and password');
     }
@@ -97,7 +114,7 @@ const Login = ({ onLogin }) => {
               </form>
             </div>
             <div className="mt-12 text-center">
-              <p className="text-xs text-[#616f89] dark:text-gray-500">© 2024 AdminCorp. All Rights Reserved.</p>
+              <p className="text-xs text-[#616f89] dark:text-gray-500">© 2025 CitiMart. All Rights Reserved.</p>
             </div>
           </div>
         </main>

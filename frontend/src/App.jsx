@@ -8,6 +8,9 @@ import Attendance from './components/hr/Attendance';
 import EmployeeDirectory from './components/hr/EmployeeDirectory';
 import LeaveManagement from './components/hr/LeaveManagement';
 import Notices from './components/hr/Notices';
+import Performance from './components/hr/Performance';
+import StaffWorkReport from './components/hr/StaffWorkReport';
+import ComplaintSolutions from './components/hr/ComplaintSolutions';
 import ITPortal from './components/it/ITPortal';
 import FinancePortal from './components/finance/FinancePortal';
 import AdminPortal from './components/admin/AdminPortal';
@@ -87,6 +90,9 @@ function App() {
         <Route path="/hr/employees" element={renderHRPage(EmployeeDirectory)} />
         <Route path="/hr/leave" element={renderHRPage(LeaveManagement)} />
         <Route path="/hr/notices" element={renderHRPage(Notices)} />
+        <Route path="/hr/performance" element={renderHRPage(Performance)} />
+        <Route path="/hr/staff-report" element={renderHRPage(StaffWorkReport)} />
+        <Route path="/hr/complaints" element={renderHRPage(ComplaintSolutions)} />
         <Route 
           path="/it/dashboard" 
           element={

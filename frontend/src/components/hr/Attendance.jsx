@@ -9,7 +9,7 @@ const summaryCards = [
 
 const attendanceRows = [
   {
-    name: 'Olivia Rhye',
+    name: 'Srijon Sarkar',
     role: 'UX Designer',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
@@ -22,7 +22,7 @@ const attendanceRows = [
     action: 'View Details',
   },
   {
-    name: 'Phoenix Baker',
+    name: 'Sangeet Chowdhury',
     role: 'Product Manager',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
@@ -36,7 +36,7 @@ const attendanceRows = [
     clockInClass: 'text-danger dark:text-red-400',
   },
   {
-    name: 'Lana Steiner',
+    name: 'Raktim Maity',
     role: 'Frontend Developer',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
@@ -49,7 +49,7 @@ const attendanceRows = [
     action: 'Approve',
   },
   {
-    name: 'Candice Wu',
+    name: 'Anshika Pathak',
     role: 'Marketing Lead',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
@@ -62,7 +62,7 @@ const attendanceRows = [
     action: 'View Details',
   },
   {
-    name: 'Natali Craig',
+    name: 'DJ',
     role: 'Backend Engineer',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',

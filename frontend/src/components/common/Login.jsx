@@ -32,7 +32,10 @@ const Login = ({ onLogin }) => {
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-background-light px-4 py-8 font-display text-text-light dark:bg-background-dark dark:text-text-dark">
       <div className="absolute -top-1/4 -right-1/4 h-1/2 w-1/2 rounded-full bg-indigo-500/5 dark:bg-indigo-500/10 blur-3xl"></div>
       <div className="absolute -bottom-1/4 -left-1/4 h-1/2 w-1/2 rounded-full bg-sky-500/5 dark:bg-sky-500/10 blur-3xl"></div>
-      <div className="relative z-10 grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 shadow-2xl shadow-slate-200/80 backdrop-blur-xl dark:border-slate-800/80 dark:bg-card-dark/70 dark:shadow-black/60 md:grid-cols-2">
+      <div className="absolute inset-0 z-0 flex items-center justify-center">
+        <div className="h-96 w-96 rounded-full bg-gradient-to-r from-primary/40 via-purple-500/50 via-indigo-400/40 to-sky-400/40 blur-3xl opacity-80 dark:from-primary/50 dark:via-purple-500/60 dark:via-indigo-400/50 dark:to-sky-400/50"></div>
+      </div>
+      <div className="relative z-10 grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 shadow-2xl shadow-purple-500/50 backdrop-blur-xl ring-1 ring-purple-500/20 ring-offset-4 ring-offset-transparent dark:border-slate-800/80 dark:bg-card-dark/70 dark:shadow-purple-500/40 dark:ring-purple-500/30 md:grid-cols-2" style={{boxShadow: '0 0 30px rgba(168, 85, 247, 0.3), 0 0 60px rgba(168, 85, 247, 0.1)'}}>
         <div className="hidden items-center justify-center bg-slate-50 p-8 dark:bg-slate-900/50 md:flex">
           <div className="flex flex-col items-center text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-400 text-white shadow-lg shadow-primary/30">

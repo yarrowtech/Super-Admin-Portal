@@ -15,23 +15,23 @@ const teams = [
 
 const people = [
   {
-    name: 'Eleanor Pena',
-    email: 'eleanor.pena@example.com',
+    name: 'Koushik Bala',
+    email: 'koushikbala54@gmail.com',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBexYXG10WxoXa8ojfJ5FL2l7YD9ba6S2SgpUem5ApHK1pCFc6bvH4sy8Fi_o4Hl3K2x4y8oRxQL-MEi3Gu9J3ghkoWBDevRYL6EAdmPDP_w_Jk4zkIgl8hG5RHnIASuEX-IqKGoHUnQdOklJCwn-0m56kZIv12qoeMo5NhseGAnEOvZIQNrSta77-1YgMHzIYnKzfEWT813TgmJNrK5X_bsWTDOAyDtVy0ij9h0RbJm02il8U-YlsZIg1MwO0xvEx08FLAa7w-2nO4',
     role: 'Admin',
     active: true,
   },
   {
-    name: 'John Doe',
-    email: 'john.doe@example.com',
+    name: 'Boby Peter Mondal',
+    email: 'boby.peter@gmail.com',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDh-dgARhehegTzzGTLScxYBxeETK334s114iBiDx2rlmgHrC3D3z3OseT-Zu7_SObZUBmLut6pyBUXeWcofaUTGZSydSUKl2Y90sR8L64Q-PCzEIm6brqqNdS69TiUSEv9Nt31ok1jrvrUH6cwIGzqVTX2-B6CHgWBbeGh3ztgGAqc3xDWVfevy7bK-zGF1HPJGYqd8hYsrcjYtv06TePjHmLHYxeJT8BFeqDCdbgBlxIu3695W5w3Lcs0k06M4Y6tYSk7WhB12W96',
     role: 'Manager',
   },
   {
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
+    name: 'Raktim Maity',
+    email: 'raktim.maity@gmail.com',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDk7gNShtZIkL3LpnGF1sR1aYqcxNAvlUZNTPQI09NgrFZR8k-2lgXWrmpkJxQIPe8Sy3F_N5EAet4aUm96nbSM8iGmFH2pfCQx3vpIMNwQCqJHzsM29TRFMK6feAC8miVBwACGgq1lYpX7ZNcXcm2CmGYqZgI021VFXOn_uP7DNzgixLl2GqAl1ZfhN875M_QKXoF07E8F4XpnWzD5xNg6KEZAQo6Eeu_ZgRAKpndzOsp15qWNPayaf4MrRfxUVS1IZ1-HMqaOYfgi',
     role: 'Viewer',

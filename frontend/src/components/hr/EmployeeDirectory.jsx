@@ -2,8 +2,8 @@ import React from 'react';
 
 const employees = [
   {
-    name: 'Olivia Rhye',
-    email: 'olivia@example.com',
+    name: 'Srijon Sarkar',
+    email: 'srijon@example.com',
     status: { label: 'Active', className: 'bg-success/10 text-success dark:bg-success/20 dark:text-green-300' },
     position: 'Senior UX Designer',
     department: 'Design',
@@ -12,8 +12,8 @@ const employees = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCXFB_wAz4uwhnoixDRIfgdgpqG5pUz-wRe8C8rzyI8lYrTvw6ycC69cmtK9uEck81FmcuTfYzkCtOj_jcTZYACJwJ3r-QBPTW9qDn9cfgtF6n4j42zWXAV5bHaFKI3uZjR3tWpEkrdV16tZoKTRxyaRDRgEXNPK2Xie-1Ws29oLXaSXBC_S0LDCGgjnrzRA5J9sX-7t2Gj70WILNvEmGPMd3COyRnEpBc0JsZO_SWTHZcCNG4SxkmxH32IJSSw06EJx2S32e6CKRtO',
   },
   {
-    name: 'Phoenix Baker',
-    email: 'phoenix@example.com',
+    name: 'Sangeet Chowdhury',
+    email: 'sangeet@example.com',
     status: { label: 'Active', className: 'bg-success/10 text-success dark:bg-success/20 dark:text-green-300' },
     position: 'Product Manager',
     department: 'Product',
@@ -22,8 +22,8 @@ const employees = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuB7ggBVBbVv4fKoPPQBTUOad6ctqoY5c-6Y8-yowlseO93ReQHb5X1fVZ4ZGuCBSz4evBIjA8FihyRsxypJUkXqqle8l7piZpciMB0gAnigSCWdSIKvokD0aJse_O2S4YxCCatD1Ulb41mN_PxuCOrjogV03UOrtbQ8Wz59ayW2fr5JiRs48DKf2MCNNZO7p7dQS6GInrMuRrOdty7OLIC3VcK5LYrOa034JQW9upSnBCwNZd22WsxO9Uyyp1hbyOhCF9v90tuqflet',
   },
   {
-    name: 'Lana Steiner',
-    email: 'lana@example.com',
+    name: 'Raktim Maity',
+    email: 'raktim@example.com',
     status: { label: 'Active', className: 'bg-success/10 text-success dark:bg-success/20 dark:text-green-300' },
     position: 'Frontend Developer',
     department: 'Engineering',
@@ -32,8 +32,8 @@ const employees = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAIhaWVE9cMd0eeLxgk7i5fBc0oiS2c8GlUiMSwnlxbXdhIZjolamvIpNtqkENaYfIUQyaTCnJOtboprCVcR1v6iYe8_qKfqUCnu9K8GZK21W35pAk-Dj8_KYaMkX7yd0a7eaBSd8HgXv1rICjPxstAiVv3nF-HwuISPx-S4mBIsBL6ICvuY6FqZEyHTy75Z4jskhVHk4Xd65w1LW28CouuK6FGK9M11eFbJIOi8fA4TUIbiXPL_9RSxj_maduZTOw9fbbfrSXCnOnw',
   },
   {
-    name: 'Candice Wu',
-    email: 'candice@example.com',
+    name: 'Anshika Pathak',
+    email: 'anshika@example.com',
     status: { label: 'On Leave', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200' },
     position: 'Marketing Lead',
     department: 'Marketing',
@@ -42,8 +42,8 @@ const employees = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuC5VeYsvEe-nOMcwCTzlmyBdBEsHB6mmaFuJOOOuAqQgr7l-7otfN2HYGtxqWSgrjpAsgcGYW0gwWavh_MGhzqPQh04b-uW7I2y4PQga8UyPomehFIWyPQWKRmhrfvS8ShxEcfGxED96UI-TjsanQKlVSomoZOg2SPLXQoS2torrsHJTovNY3S_cgoxgjgW7veCZLcGRj19rJc2JYLLaUBXrmOop9-V1XENbVQEvHygpBqQikV91yz0lP7fhfDg7LQs7YfK2vLNrj0m',
   },
   {
-    name: 'Drew Cano',
-    email: 'drew@example.com',
+    name: 'Swapnanil Dey',
+    email: 'swap@example.com',
     status: { label: 'Inactive', className: 'bg-danger/10 text-danger dark:bg-danger/20 dark:text-red-300' },
     position: 'Customer Success Manager',
     department: 'Customer Success',

@@ -2,42 +2,46 @@
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>HR Leave Management</title>
+<title>HR Notices &amp; Announcements</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
 <style>
         .material-symbols-outlined {
-            font-variation-settings:
-            'FILL' 0,
+            font-variation-settings: 'FILL' 0,
             'wght' 400,
             'GRAD' 0,
             'opsz' 24
         }
     </style>
 <script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              "primary": "#135bec",
-              "background-light": "#f6f6f8",
-              "background-dark": "#101622",
-              "neutral-100": "#f0f2f4",
-              "neutral-200": "#dbdfe6",
-              "neutral-800": "#111318",
-              "neutral-600": "#616f89",
-              "success": "#07883b",
-              "danger": "#e73908",
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                        "neutral-100": "#f0f2f4",
+                        "neutral-200": "#dbdfe6",
+                        "neutral-800": "#111318",
+                        "neutral-600": "#616f89",
+                        "success": "#07883b",
+                        "danger": "#e73908",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
             },
-            fontFamily: {
-              "display": ["Manrope", "sans-serif"]
-            },
-            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
-          },
-        },
-      }
+        }
     </script>
 </head>
 <body class="font-display bg-background-light dark:bg-background-dark text-neutral-800 dark:text-neutral-100">
@@ -68,19 +72,19 @@
 <span class="material-symbols-outlined">badge</span>
 <p class="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">Employees</p>
 </div>
-<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary">
-<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">hourglass_empty</span>
-<p class="text-sm font-bold leading-normal">Leave</p>
-</div>
 <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
-<span class="material-symbols-outlined">campaign</span>
-<p class="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">Notices</p>
+<span class="material-symbols-outlined">hourglass_empty</span>
+<p class="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">Leave</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">campaign</span>
+<p class="text-sm font-bold leading-normal">Notices</p>
 </div>
 </div>
 </div>
 <div class="mt-auto flex flex-col gap-4">
 <button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
-<span class="truncate">Request Leave</span>
+<span class="truncate">Create Notice</span>
 </button>
 <div class="flex flex-col gap-1">
 <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
@@ -96,189 +100,121 @@
 </aside>
 <main class="flex-1 overflow-y-auto p-8">
 <div class="mx-auto max-w-7xl">
-<div class="flex flex-wrap items-center justify-between gap-4 pb-6">
-<div class="flex min-w-72 flex-col gap-2">
-<p class="text-neutral-800 dark:text-neutral-100 text-4xl font-black leading-tight tracking-[-0.033em]">Leave Management</p>
-<p class="text-neutral-600 dark:text-neutral-400 text-base font-normal leading-normal">Track, manage, and approve employee leave requests.</p>
+<div class="flex flex-wrap justify-between gap-4 pb-6 items-center">
+<div class="flex min-w-72 flex-col gap-3">
+<p class="text-neutral-800 dark:text-neutral-100 text-4xl font-black leading-tight tracking-[-0.033em]">HR Notices &amp; Announcements</p>
+<p class="text-neutral-600 dark:text-neutral-400 text-base font-normal leading-normal">Create, manage, and publish company-wide announcements.</p>
 </div>
-<div class="flex items-center gap-4">
-<button class="flex h-10 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 px-4 text-sm font-bold leading-normal tracking-[0.015em] text-neutral-800 dark:text-neutral-100"><span class="material-symbols-outlined">download</span><span class="truncate">Export Report</span></button>
-<button class="flex h-10 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-4 text-sm font-bold leading-normal tracking-[0.015em] text-white"><span class="material-symbols-outlined">add</span><span class="truncate">New Leave Request</span></button>
-</div>
-</div>
-<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-<div class="flex flex-col gap-4 rounded-xl bg-white dark:bg-neutral-800/50 p-6 border border-neutral-200 dark:border-neutral-800 lg:col-span-2">
-<div class="flex items-center justify-between">
-<h2 class="text-lg font-bold text-neutral-800 dark:text-neutral-100">Leave Calendar</h2>
-<div class="flex items-center gap-2">
-<button class="flex size-8 items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700">
-<span class="material-symbols-outlined text-xl">chevron_left</span>
-</button>
-<p class="text-sm font-medium text-neutral-800 dark:text-neutral-100">June 2024</p>
-<button class="flex size-8 items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700">
-<span class="material-symbols-outlined text-xl">chevron_right</span>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2">
+<span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+<span class="truncate">Create New</span>
 </button>
 </div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2">
+<div class="flex flex-col gap-6 rounded-xl bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 p-6">
+<h2 class="text-neutral-800 dark:text-neutral-100 text-lg font-bold">New Announcement</h2>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-neutral-800 dark:text-neutral-100" for="title">Title</label>
+<input class="w-full rounded-lg border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-800/50 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-primary" id="title" placeholder="e.g. Annual Company Offsite" type="text"/>
 </div>
-<div class="grid grid-cols-7 gap-1 text-center text-sm">
-<div class="font-medium text-neutral-600 dark:text-neutral-400">Sun</div>
-<div class="font-medium text-neutral-600 dark:text-neutral-400">Mon</div>
-<div class="font-medium text-neutral-600 dark:text-neutral-400">Tue</div>
-<div class="font-medium text-neutral-600 dark:text-neutral-400">Wed</div>
-<div class="font-medium text-neutral-600 dark:text-neutral-400">Thu</div>
-<div class="font-medium text-neutral-600 dark:text-neutral-400">Fri</div>
-<div class="font-medium text-neutral-600 dark:text-neutral-400">Sat</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">26</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">27</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">28</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">29</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">30</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">31</div>
-<div class="py-2">1</div>
-<div class="py-2">2</div>
-<div class="py-2">3</div>
-<div class="relative py-2"><span class="absolute left-1/2 top-1/2 size-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 flex items-center justify-center font-semibold">4</span></div>
-<div class="py-2">5</div>
-<div class="py-2">6</div>
-<div class="py-2">7</div>
-<div class="py-2">8</div>
-<div class="py-2">9</div>
-<div class="relative py-2"><span class="absolute left-1/2 top-1/2 size-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary text-white flex items-center justify-center font-bold">10</span></div>
-<div class="py-2">11</div>
-<div class="relative py-2"><span class="absolute left-1/2 top-1/2 size-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 flex items-center justify-center font-semibold">12</span></div>
-<div class="py-2">13</div>
-<div class="py-2">14</div>
-<div class="py-2">15</div>
-<div class="py-2">16</div>
-<div class="py-2">17</div>
-<div class="py-2">18</div>
-<div class="py-2">19</div>
-<div class="py-2">20</div>
-<div class="py-2">21</div>
-<div class="py-2">22</div>
-<div class="py-2">23</div>
-<div class="py-2">24</div>
-<div class="py-2">25</div>
-<div class="py-2">26</div>
-<div class="relative py-2"><span class="absolute left-1/2 top-1/2 size-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 flex items-center justify-center font-semibold">27</span></div>
-<div class="py-2">28</div>
-<div class="py-2">29</div>
-<div class="py-2">30</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">1</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">2</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">3</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">4</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">5</div>
-<div class="py-2 text-neutral-400 dark:text-neutral-600">6</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-neutral-800 dark:text-neutral-100" for="content">Content</label>
+<div class="rounded-lg border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-800/50">
+<div class="flex flex-wrap items-center gap-2 border-b border-neutral-200 dark:border-neutral-600 p-2">
+<button class="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">format_bold</span></button>
+<button class="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">format_italic</span></button>
+<button class="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">format_underlined</span></button>
+<div class="h-5 w-px bg-neutral-200 dark:bg-neutral-600"></div>
+<button class="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">format_list_bulleted</span></button>
+<button class="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">format_list_numbered</span></button>
+<div class="h-5 w-px bg-neutral-200 dark:bg-neutral-600"></div>
+<button class="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">link</span></button>
+<button class="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">image</span></button>
 </div>
-<div class="flex flex-wrap gap-x-4 gap-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-4">
-<div class="flex items-center gap-2"><div class="size-3 rounded-full bg-primary"></div><span class="text-sm text-neutral-600 dark:text-neutral-400">Today</span></div>
-<div class="flex items-center gap-2"><div class="size-3 rounded-full bg-green-500"></div><span class="text-sm text-neutral-600 dark:text-neutral-400">Approved Leave</span></div>
-<div class="flex items-center gap-2"><div class="size-3 rounded-full bg-yellow-500"></div><span class="text-sm text-neutral-600 dark:text-neutral-400">Pending Request</span></div>
-<div class="flex items-center gap-2"><div class="size-3 rounded-full bg-blue-500"></div><span class="text-sm text-neutral-600 dark:text-neutral-400">Public Holiday</span></div>
-</div>
-</div>
-<div class="flex flex-col gap-4 rounded-xl bg-white dark:bg-neutral-800/50 p-6 border border-neutral-200 dark:border-neutral-800">
-<h2 class="text-lg font-bold text-neutral-800 dark:text-neutral-100">Your Leave Balances</h2>
-<div class="flex flex-col gap-4">
-<div class="flex flex-col">
-<div class="flex justify-between text-sm">
-<p class="font-medium text-neutral-800 dark:text-neutral-100">Vacation</p>
-<p class="text-neutral-600 dark:text-neutral-400">14 / 20 days</p>
-</div>
-<div class="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
-<div class="h-2 rounded-full bg-primary" style="width: 70%"></div>
-</div>
-</div>
-<div class="flex flex-col">
-<div class="flex justify-between text-sm">
-<p class="font-medium text-neutral-800 dark:text-neutral-100">Sick Leave</p>
-<p class="text-neutral-600 dark:text-neutral-400">3 / 10 days</p>
-</div>
-<div class="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
-<div class="h-2 rounded-full bg-yellow-500" style="width: 30%"></div>
-</div>
-</div>
-<div class="flex flex-col">
-<div class="flex justify-between text-sm">
-<p class="font-medium text-neutral-800 dark:text-neutral-100">Personal Leave</p>
-<p class="text-neutral-600 dark:text-neutral-400">2 / 5 days</p>
-</div>
-<div class="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
-<div class="h-2 rounded-full bg-green-500" style="width: 40%"></div>
-</div>
-</div>
-<div class="flex flex-col">
-<div class="flex justify-between text-sm">
-<p class="font-medium text-neutral-800 dark:text-neutral-100">Unpaid Leave</p>
-<p class="text-neutral-600 dark:text-neutral-400">1 day used</p>
-</div>
-<div class="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
-<div class="h-2 rounded-full bg-red-500" style="width: 10%"></div>
+<textarea class="w-full bg-transparent p-3 text-sm text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-600 focus:outline-none resize-none" id="content" placeholder="Start writing your announcement here..." rows="8"></textarea>
 </div>
 </div>
 </div>
 </div>
+<div class="lg:col-span-1">
+<div class="flex flex-col gap-6 rounded-xl bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 p-6">
+<h2 class="text-neutral-800 dark:text-neutral-100 text-lg font-bold">Publishing Options</h2>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-neutral-800 dark:text-neutral-100" for="audience">Audience</label>
+<select class="w-full rounded-lg border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-800/50 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary" id="audience">
+<option>Company-Wide</option>
+<option>Engineering</option>
+<option>Design</option>
+<option>Sales</option>
+</select>
 </div>
-<h2 class="text-neutral-800 dark:text-neutral-100 text-[22px] font-bold leading-tight tracking-[-0.015em] pb-3 pt-8">Leave Requests</h2>
-<div class="overflow-x-auto rounded-xl bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-neutral-800 dark:text-neutral-100" for="publish-date">Publish Date</label>
+<input class="w-full rounded-lg border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-800/50 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary" id="publish-date" type="date" value="2024-08-15"/>
+</div>
+<div class="flex flex-col gap-4 pt-2">
+<button class="w-full flex items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal">Publish Now</button>
+<button class="w-full flex items-center justify-center rounded-lg h-10 px-4 bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 text-sm font-bold leading-normal">Schedule for Later</button>
+<button class="w-full flex items-center justify-center text-primary text-sm font-medium">Save as Draft</button>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-8">
+<div class="flex border-b border-neutral-200 dark:border-neutral-800">
+<button class="py-3 px-4 text-sm font-semibold text-primary border-b-2 border-primary">Active (3)</button>
+<button class="py-3 px-4 text-sm font-medium text-neutral-600 dark:text-neutral-400">Scheduled (1)</button>
+<button class="py-3 px-4 text-sm font-medium text-neutral-600 dark:text-neutral-400">Archived (12)</button>
+</div>
+<div class="overflow-x-auto rounded-b-xl bg-white dark:bg-neutral-800/50 border-x border-b border-neutral-200 dark:border-neutral-800">
 <table class="w-full text-left">
 <thead class="border-b border-neutral-200 dark:border-neutral-800">
 <tr>
-<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Employee</th>
-<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Leave Type</th>
-<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Dates</th>
-<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Days</th>
+<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Title</th>
+<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Audience</th>
+<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Published Date</th>
 <th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
-<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Actions</th>
+<th class="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400 text-right">Actions</th>
 </tr>
 </thead>
 <tbody>
 <tr class="border-b border-neutral-200 dark:border-neutral-800">
-<td class="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">Olivia Rhye</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Vacation</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Jun 27, 2024 - Jun 28, 2024</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">2</td>
-<td class="p-4"><span class="inline-block rounded-full bg-yellow-100 dark:bg-yellow-900/50 px-2 py-0.5 text-xs font-semibold text-yellow-800 dark:text-yellow-200">Pending</span></td>
-<td class="p-4 text-sm font-semibold">
-<div class="flex items-center gap-2">
-<button class="flex h-8 items-center justify-center gap-1 rounded-md border border-green-500 px-2 text-xs text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20">
-<span class="material-symbols-outlined text-sm">check</span>
-<span>Approve</span>
-</button>
-<button class="flex h-8 items-center justify-center gap-1 rounded-md border border-red-500 px-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
-<span class="material-symbols-outlined text-sm">close</span>
-<span>Reject</span>
-</button>
-</div>
+<td class="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">Welcome New Hires - August 2024</td>
+<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Company-Wide</td>
+<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Aug 01, 2024</td>
+<td class="p-4"><span class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success"><span class="size-1.5 rounded-full bg-success"></span>Published</span></td>
+<td class="p-4 text-sm text-right">
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">edit</span></button>
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">archive</span></button>
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">delete</span></button>
 </td>
 </tr>
 <tr class="border-b border-neutral-200 dark:border-neutral-800">
-<td class="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">Phoenix Baker</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Sick Leave</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Jun 12, 2024</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">1</td>
-<td class="p-4"><span class="inline-block rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-xs font-semibold text-green-800 dark:text-green-200">Approved</span></td>
-<td class="p-4 text-sm text-primary font-semibold"><a class="hover:underline" href="#">View Details</a></td>
-</tr>
-<tr class="border-b border-neutral-200 dark:border-neutral-800">
-<td class="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">Lana Steiner</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Personal Leave</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Jun 20, 2024 - Jun 21, 2024</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">2</td>
-<td class="p-4"><span class="inline-block rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-xs font-semibold text-green-800 dark:text-green-200">Approved</span></td>
-<td class="p-4 text-sm text-primary font-semibold"><a class="hover:underline" href="#">View Details</a></td>
+<td class="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">Updated Holiday Schedule for Q4</td>
+<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Company-Wide</td>
+<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Jul 25, 2024</td>
+<td class="p-4"><span class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success"><span class="size-1.5 rounded-full bg-success"></span>Published</span></td>
+<td class="p-4 text-sm text-right">
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">edit</span></button>
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">archive</span></button>
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">delete</span></button>
+</td>
 </tr>
 <tr>
-<td class="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">Candice Wu</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Vacation</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">May 15, 2024 - May 17, 2024</td>
-<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">3</td>
-<td class="p-4"><span class="inline-block rounded-full bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-xs font-semibold text-red-800 dark:text-red-200">Rejected</span></td>
-<td class="p-4 text-sm text-primary font-semibold"><a class="hover:underline" href="#">View Details</a></td>
+<td class="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">Engineering All-Hands Meeting</td>
+<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Engineering</td>
+<td class="p-4 text-sm text-neutral-600 dark:text-neutral-400">Jul 22, 2024</td>
+<td class="p-4"><span class="inline-flex items-center gap-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 px-2 py-0.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300"><span class="size-1.5 rounded-full bg-neutral-500"></span>Draft</span></td>
+<td class="p-4 text-sm text-right">
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">edit</span></button>
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">archive</span></button>
+<button class="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700"><span class="material-symbols-outlined" style="font-size: 20px;">delete</span></button>
+</td>
 </tr>
 </tbody>
 </table>
+</div>
 </div>
 </div>
 </main>

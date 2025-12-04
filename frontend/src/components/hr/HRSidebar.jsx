@@ -8,6 +8,9 @@ const navLinks = [
   { label: 'Employees', icon: 'badge', path: '/hr/employees' },
   { label: 'Leave', icon: 'hourglass_empty', path: '/hr/leave' },
   { label: 'Notices', icon: 'campaign', path: '/hr/notices' },
+  { label: 'Performance', icon: 'trending_up', path: '/hr/performance' },
+  { label: 'Staff Work Report', icon: 'assessment', path: '/hr/staff-report' },
+  { label: 'Complaint & Solutions', icon: 'report', path: '/hr/complaints' },
 ];
 
 const HRSidebar = () => {

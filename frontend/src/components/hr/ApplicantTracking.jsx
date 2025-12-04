@@ -2,39 +2,46 @@ import React from 'react';
 
 const applicants = [
   {
-    name: 'Olivia Rhye',
+    name: 'Srijon Sarkar',
     role: 'Senior UX Designer',
-    date: 'Jan 15, 2024',
+    date: 'Jan 15, 2025',
     status: 'Interview',
     badgeClass:
       'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
   },
   {
-    name: 'Phoenix Baker',
+    name: 'Sangeet Chouwdhury',
     role: 'Product Manager',
     date: 'Jan 12, 2024',
     status: 'Screening',
     badgeClass: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
   },
   {
-    name: 'Lana Steiner',
-    role: 'Frontend Developer',
-    date: 'Jan 10, 2024',
+    name: 'Koushik Bala',
+    role: 'Team Lead',
+    date: 'Jan 10, 2025',
     status: 'Hired',
     badgeClass: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
   },
   {
-    name: 'Demi Wilkinson',
+    name: 'Santu Paramanik',
     role: 'Backend Developer',
-    date: 'Jan 09, 2024',
+    date: 'Jan 09, 2025',
     status: 'Applied',
     badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200',
   },
   {
-    name: 'Candice Wu',
+    name: 'Anshika Pathak',
     role: 'Marketing Lead',
     date: 'Jan 08, 2024',
-    status: 'Rejected',
+    status: 'Hired',
+    badgeClass: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
+  },
+  {
+    name: 'Boby Peter Mondal',
+    role: 'Machine Learning Engineer',
+    date: 'Jan 08, 2024',
+    status: 'Hired',
     badgeClass: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
   },
 ];

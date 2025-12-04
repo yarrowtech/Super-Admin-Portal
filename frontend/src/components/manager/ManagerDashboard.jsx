@@ -1,6 +1,40 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const ManagerDashboard = () => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check localStorage for dark mode preference
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode === 'true') {
+      document.documentElement.classList.add('dark');
+      setIsDarkMode(true);
+    } else if (savedDarkMode === 'false') {
+      document.documentElement.classList.remove('dark');
+      setIsDarkMode(false);
+    } else {
+      // Default to system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        document.documentElement.classList.add('dark');
+        setIsDarkMode(true);
+      }
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const html = document.documentElement;
+    if (html.classList.contains('dark')) {
+      html.classList.remove('dark');
+      setIsDarkMode(false);
+      localStorage.setItem('darkMode', 'false');
+    } else {
+      html.classList.add('dark');
+      setIsDarkMode(true);
+      localStorage.setItem('darkMode', 'true');
+    }
+  };
+
   return (
     <main className="flex-1 overflow-y-auto">
       <div className="p-8">
@@ -9,10 +43,27 @@ const ManagerDashboard = () => {
             <p className="text-gray-800 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">Welcome back, Sangeet!</p>
             <p className="text-gray-600 dark:text-gray-400 text-base font-normal leading-normal">Here's your performance summary for this week.</p>
           </div>
-          <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-gray-100 dark:hover:bg-gray-800">
-            <span className="material-symbols-outlined text-base">tune</span>
-            <span className="truncate">Customize Dashboard</span>
-          </button>
+          <div className="flex items-center gap-4">
+            {/* Dark Mode Toggle */}
+            <button 
+              onClick={toggleDarkMode}
+              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <span className="material-symbols-outlined text-base">
+                {isDarkMode ? 'light_mode' : 'dark_mode'}
+              </span>
+              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              <div className="ml-2 flex items-center">
+                <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isDarkMode ? 'bg-primary' : 'bg-gray-300'}`}>
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+              </div>
+            </button>
+            <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-gray-100 dark:hover:bg-gray-800">
+              <span className="material-symbols-outlined text-base">tune</span>
+              <span className="truncate">Customize Dashboard</span>
+            </button>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

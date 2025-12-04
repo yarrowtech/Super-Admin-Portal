@@ -1,6 +1,40 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const HRDashboard = () => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check localStorage for dark mode preference
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode === 'true') {
+      document.documentElement.classList.add('dark');
+      setIsDarkMode(true);
+    } else if (savedDarkMode === 'false') {
+      document.documentElement.classList.remove('dark');
+      setIsDarkMode(false);
+    } else {
+      // Default to system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        document.documentElement.classList.add('dark');
+        setIsDarkMode(true);
+      }
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const html = document.documentElement;
+    if (html.classList.contains('dark')) {
+      html.classList.remove('dark');
+      setIsDarkMode(false);
+      localStorage.setItem('darkMode', 'false');
+    } else {
+      html.classList.add('dark');
+      setIsDarkMode(true);
+      localStorage.setItem('darkMode', 'true');
+    }
+  };
+
   return (
     <main className="flex-1 overflow-y-auto p-8">
       <div className="mx-auto max-w-7xl">
@@ -14,6 +48,23 @@ const HRDashboard = () => {
               Welcome back, here is an overview of the HR department's
               activities.
             </p>
+          </div>
+          <div className="flex items-center gap-4">
+            {/* Dark Mode Toggle */}
+            <button 
+              onClick={toggleDarkMode}
+              className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-100 dark:hover:bg-neutral-800"
+            >
+              <span className="material-symbols-outlined text-base">
+                {isDarkMode ? 'light_mode' : 'dark_mode'}
+              </span>
+              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              <div className="ml-2 flex items-center">
+                <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isDarkMode ? 'bg-primary' : 'bg-neutral-300'}`}>
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+              </div>
+            </button>
           </div>
         </div>
         {/* Stats */}

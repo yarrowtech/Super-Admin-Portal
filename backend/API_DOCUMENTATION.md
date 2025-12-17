@@ -3,45 +3,6 @@
 ## Overview
 A comprehensive multi-department backend system with role-based access control supporting 8 different roles: ADMIN, CEO, IT, LAW, HR, MEDIA, FINANCE, and MANAGER.
 
-## Table of Contents
-- [Getting Started](#getting-started)
-- [Authentication](#authentication)
-- [Roles & Permissions](#roles--permissions)
-- [API Endpoints](#api-endpoints)
-- [Security Features](#security-features)
-
----
-
-## Getting Started
-
-### Installation
-```bash
-cd backend
-npm install
-```
-
-### Environment Variables
-Create a `.env` file with the following variables:
-```env
-MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_secret_key
-PORT=5000
-NODE_ENV=development
-```
-
-### Running the Server
-```bash
-# Development mode
-npm run dev
-
-# Production mode
-npm start
-```
-
----
-
-## Authentication
-
 ### Register a New User
 **POST** `/api/auth/register`
 
@@ -56,7 +17,6 @@ npm start
   "department": "Administration"
 }
 ```
-
 **Response:**
 ```json
 {

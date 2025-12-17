@@ -14,6 +14,7 @@ lerna-debug.log*
 .env
 .env.*
 !.env.example
+API_DOCUMENTATION.md
 
 # -------------------------
 # Build / runtime
@@ -57,14 +58,3 @@ COM1
 lpt1
 LPT1
 
-# -------------------------
-# Optional: uploads (uncomment if you store uploads locally)
-# -------------------------
-# uploads/
-# public/uploads/
-
-# -------------------------
-# Optional: secrets/keys (uncomment if you keep them in repo folder)
-# -------------------------
-# *.pem
-# *.key

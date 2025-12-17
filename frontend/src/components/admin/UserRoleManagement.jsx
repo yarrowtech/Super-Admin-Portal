@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 
 const stats = [
   { label: 'Active Roles', value: '12', change: '+2 this week' },
@@ -50,6 +50,22 @@ const activity = [
 ];
 
 const UserRoleManagement = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleAddUserClick = useCallback(() => {
+    setIsModalOpen(true);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
+  const handleSubmit = useCallback((event) => {
+    event.preventDefault();
+    // For now, just close the modal after submission; integrate API later.
+    setIsModalOpen(false);
+  }, []);
+
   return (
     <main className="flex-1 overflow-y-auto p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
@@ -63,7 +79,11 @@ const UserRoleManagement = () => {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button className="flex items-center gap-2 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">
+            <button
+              type="button"
+              onClick={handleAddUserClick}
+              className="flex items-center gap-2 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+            >
               <span className="material-symbols-outlined text-base">person_add</span>
               Add User
             </button>
@@ -204,6 +224,87 @@ const UserRoleManagement = () => {
           </div>
         </section>
       </div>
+      {isModalOpen && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 px-4 py-8">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-neutral-900">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Add New User</h2>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">Invite a member and assign their primary role.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="rounded-full p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Full Name</label>
+                <input
+                  required
+                  type="text"
+                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  placeholder="Jane Doe"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Email Address</label>
+                <input
+                  required
+                  type="email"
+                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  placeholder="jane@company.com"
+                />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Primary Role</label>
+                  <select className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="hr">HR</option>
+                    <option value="finance">Finance</option>
+                    <option value="employee">Employee</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Department</label>
+                  <select className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                    <option>Operations</option>
+                    <option>Technology</option>
+                    <option>IT</option>
+                    <option>Compliance</option>
+                    <option>Media</option>
+                  </select>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-300">
+                <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-neutral-300 text-primary focus:ring-primary/50" />
+                Require MFA on first login
+              </label>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+                >
+                  <span className="material-symbols-outlined text-base">send</span>
+                  Send Invite
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

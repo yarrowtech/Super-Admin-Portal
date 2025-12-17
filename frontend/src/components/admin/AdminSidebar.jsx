@@ -1,5 +1,6 @@
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useCallback } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
   { label: 'Dashboard', icon: 'dashboard', path: '/admin/dashboard' },
@@ -12,6 +13,13 @@ const navItems = [
 
 const AdminSidebar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/login', { replace: true });
+  }, [logout, navigate]);
 
   return (
     <aside className="fixed left-0 top-0 z-20 flex h-screen w-64 flex-col border-r border-neutral-200 bg-white p-4 text-neutral-800 dark:border-neutral-800 dark:bg-background-dark dark:text-neutral-100">
@@ -49,15 +57,25 @@ const AdminSidebar = () => {
         })}
       </nav>
       <div className="mt-auto flex flex-col gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-        <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800">
+        <button
+          type="button"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+        >
           <span className="material-symbols-outlined">settings</span>
           Settings
         </button>
-        <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800">
+        <button
+          type="button"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+        >
           <span className="material-symbols-outlined">help</span>
           Support
         </button>
-        <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+        >
           <span className="material-symbols-outlined">logout</span>
           Logout
         </button>

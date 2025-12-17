@@ -1,0 +1,70 @@
+# -------------------------
+# Node / npm / yarn / pnpm
+# -------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -------------------------
+# Environment files
+# -------------------------
+.env
+.env.*
+!.env.example
+
+# -------------------------
+# Build / runtime
+# -------------------------
+dist/
+build/
+coverage/
+.tmp/
+temp/
+.cache/
+
+# -------------------------
+# Logs
+# -------------------------
+logs/
+*.log
+
+# -------------------------
+# OS / Editor
+# -------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# -------------------------
+# Windows reserved filenames (fix: invalid path 'nul')
+# -------------------------
+nul
+NUL
+con
+CON
+prn
+PRN
+aux
+AUX
+com1
+COM1
+lpt1
+LPT1
+
+# -------------------------
+# Optional: uploads (uncomment if you store uploads locally)
+# -------------------------
+# uploads/
+# public/uploads/
+
+# -------------------------
+# Optional: secrets/keys (uncomment if you keep them in repo folder)
+# -------------------------
+# *.pem
+# *.key

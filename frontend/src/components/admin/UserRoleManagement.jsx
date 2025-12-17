@@ -247,7 +247,7 @@ const UserRoleManagement = () => {
                   required
                   type="text"
                   className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  placeholder="Jane Doe"
+                  placeholder="Koushik Bala"
                 />
               </div>
               <div>
@@ -256,7 +256,7 @@ const UserRoleManagement = () => {
                   required
                   type="email"
                   className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  placeholder="jane@company.com"
+                  placeholder="koushikbala54@gmail.com"
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">

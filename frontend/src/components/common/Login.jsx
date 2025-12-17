@@ -1,31 +1,55 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
-const Login = ({ onLogin }) => {
+const defaultRolePath = (role) => {
+  switch (role) {
+    case 'ceo':
+      return '/ceo/dashboard';
+    case 'admin':
+      return '/admin/dashboard';
+    case 'manager':
+      return '/manager/dashboard';
+    case 'it':
+      return '/it/dashboard';
+    case 'finance':
+      return '/finance/dashboard';
+    case 'hr':
+    default:
+      return '/hr/dashboard';
+  }
+};
+
+const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (email && password) {
-      let userRole = 'hr';
-      if (email.toLowerCase().includes('ceo')) {
-        userRole = 'ceo';
-      } else if (email.toLowerCase().includes('admin')) {
-        userRole = 'admin';
-      } else if (email.toLowerCase().includes('manager')) {
-        userRole = 'manager';
-      } else if (email.toLowerCase().includes('it')) {
-        userRole = 'it';
-      } else if (email.toLowerCase().includes('finance')) {
-        userRole = 'finance';
-      } else if (email.toLowerCase().includes('hr')) {
-        userRole = 'hr';
-      }
+    if (!email || !password || submitting) return;
 
-      onLogin(userRole);
-    }
+    const redirectTo = location.state?.from;
+
+    (async () => {
+      try {
+        setSubmitting(true);
+        setError(null);
+        const authedUser = await login(email, password);
+        const targetPath = redirectTo || defaultRolePath(authedUser.role);
+        navigate(targetPath, { replace: true });
+      } catch (err) {
+        setError(err.message || 'Login failed. Please check your credentials.');
+      } finally {
+        setSubmitting(false);
+      }
+    })();
   };
 
   return (
@@ -54,6 +78,11 @@ const Login = ({ onLogin }) => {
             <p className="text-sm text-subtext-light dark:text-subtext-dark">Sign in to continue to your workspace.</p>
           </div>
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {error}
+              </div>
+            )}
             <label className="flex flex-col gap-2">
               <span className="text-sm font-medium">Email Address</span>
               <div className="relative flex items-center">
@@ -71,7 +100,7 @@ const Login = ({ onLogin }) => {
             <label className="flex flex-col gap-2">
               <div className="flex items-center justify-between text-sm font-medium">
                 <span>Password</span>
-                <a href="#" className="text-primary hover:text-primary-hover">
+                <a href="/forgot-password" className="text-primary hover:text-primary-hover">
                   Forgot password?
                 </a>
               </div>
@@ -107,9 +136,10 @@ const Login = ({ onLogin }) => {
             </div>
             <button
               type="submit"
-              className="flex h-12 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white shadow-lg shadow-primary/40 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-xl hover:shadow-primary/50"
+              disabled={submitting}
+              className="flex h-12 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white shadow-lg shadow-primary/40 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-xl hover:shadow-primary/50 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Sign In
+              {submitting ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
           <div className="mt-8 text-center text-xs text-subtext-light dark:text-subtext-dark">

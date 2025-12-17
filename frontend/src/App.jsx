@@ -1,5 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './components/common/Login';
 import HRPortal from './components/hr/HRPortal';
 import HRDashboard from './components/hr/HRDashboard';
@@ -27,107 +26,259 @@ import ProductManagement from './components/manager/ProductManagement';
 import TeamManagement from './components/manager/TeamManagement';
 import ManagerReports from './components/manager/ManagerReports';
 import NotFound from './components/404/NotFound';
+import { useAuth } from './context/AuthContext';
+
+const defaultRolePath = (role) => {
+  switch (role) {
+    case 'ceo':
+      return '/ceo/dashboard';
+    case 'admin':
+      return '/admin/dashboard';
+    case 'manager':
+      return '/manager/dashboard';
+    case 'it':
+      return '/it/dashboard';
+    case 'finance':
+      return '/finance/dashboard';
+    case 'hr':
+    default:
+      return '/hr/dashboard';
+  }
+};
+
+const PrivateRoute = ({ roles, children }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center text-neutral-700 dark:text-neutral-200">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to={defaultRolePath(user.role)} replace />;
+  }
+
+  return children;
+};
+
+const withPortal = (Portal, Page) => (
+  <Portal>
+    <Page />
+  </Portal>
+);
+
+const allow = (role) => [role, 'admin'];
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-
-  const handleLogin = (role) => {
-    setIsAuthenticated(true);
-    setUserRole(role);
-  };
-
-  const renderHRPage = (PageComponent) =>
-    isAuthenticated && userRole === 'hr' ? (
-      <HRPortal>
-        <PageComponent />
-      </HRPortal>
-    ) : (
-      <Navigate to="/login" replace />
-    );
-
-  const renderAdminPage = (PageComponent) =>
-    isAuthenticated && userRole === 'admin' ? (
-      <AdminPortal>
-        <PageComponent />
-      </AdminPortal>
-    ) : (
-      <Navigate to="/login" replace />
-    );
-
-  const renderManagerPage = (PageComponent) =>
-    isAuthenticated && userRole === 'manager' ? (
-      <ManagerPortal>
-        <PageComponent />
-      </ManagerPortal>
-    ) : (
-      <Navigate to="/login" replace />
-    );
+  const { user } = useAuth();
 
   return (
     <Router>
       <Routes>
-        <Route 
-          path="/login" 
+        <Route
+          path="/login"
           element={
-            isAuthenticated ? (
-              <Navigate to={
-                userRole === 'ceo' ? '/ceo/dashboard' :
-                userRole === 'admin' ? '/admin/dashboard' :
-                userRole === 'manager' ? '/manager/dashboard' :
-                userRole === 'it' ? '/it/dashboard' : 
-                userRole === 'finance' ? '/finance/dashboard' : 
-                '/hr/dashboard'
-              } replace />
+            user ? (
+              <Navigate to={defaultRolePath(user.role)} replace />
             ) : (
-              <Login onLogin={handleLogin} />
+              <Login />
             )
-          } 
+          }
         />
-        <Route path="/hr/dashboard" element={renderHRPage(HRDashboard)} />
-        <Route path="/hr/applicants" element={renderHRPage(ApplicantTracking)} />
-        <Route path="/hr/attendance" element={renderHRPage(Attendance)} />
-        <Route path="/hr/employees" element={renderHRPage(EmployeeDirectory)} />
-        <Route path="/hr/leave" element={renderHRPage(LeaveManagement)} />
-        <Route path="/hr/notices" element={renderHRPage(Notices)} />
-        <Route path="/hr/performance" element={renderHRPage(Performance)} />
-        <Route path="/hr/staff-report" element={renderHRPage(StaffWorkReport)} />
-        <Route path="/hr/complaints" element={renderHRPage(ComplaintSolutions)} />
-        <Route 
-          path="/it/dashboard" 
+
+        {/* HR */}
+        <Route
+          path="/hr/dashboard"
           element={
-            isAuthenticated && userRole === 'it' ? 
-              <ITPortal /> : 
-              <Navigate to="/login" replace />
-          } 
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, HRDashboard)}
+            </PrivateRoute>
+          }
         />
-        <Route 
-          path="/finance/dashboard" 
+        <Route
+          path="/hr/applicants"
           element={
-            isAuthenticated && userRole === 'finance' ? 
-              <FinancePortal /> : 
-              <Navigate to="/login" replace />
-          } 
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, ApplicantTracking)}
+            </PrivateRoute>
+          }
         />
-        <Route path="/admin/dashboard" element={renderAdminPage(AdminDashboard)} />
-        <Route path="/admin/users" element={renderAdminPage(UserRoleManagement)} />
-        <Route path="/admin/departments" element={renderAdminPage(DepartmentsOverview)} />
-        <Route path="/admin/security" element={renderAdminPage(SecurityMonitoring)} />
-        <Route path="/admin/reports" element={renderAdminPage(ReportsAnalytics)} />
-        <Route path="/admin/workflows" element={renderAdminPage(WorkflowManagement)} />
-        <Route 
-          path="/ceo/dashboard" 
+        <Route
+          path="/hr/attendance"
           element={
-            isAuthenticated && userRole === 'ceo' ? 
-              <CEOPortal /> : 
-              <Navigate to="/login" replace />
-          } 
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, Attendance)}
+            </PrivateRoute>
+          }
         />
-        <Route path="/manager/dashboard" element={renderManagerPage(ManagerDashboard)} />
-        <Route path="/manager/products" element={renderManagerPage(ProductManagement)} />
-        <Route path="/manager/team" element={renderManagerPage(TeamManagement)} />
-        <Route path="/manager/reports" element={renderManagerPage(ManagerReports)} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/hr/employees"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, EmployeeDirectory)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hr/leave"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, LeaveManagement)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hr/notices"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, Notices)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hr/performance"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, Performance)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hr/staff-report"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, StaffWorkReport)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hr/complaints"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, ComplaintSolutions)}
+            </PrivateRoute>
+          }
+        />
+
+        {/* IT */}
+        <Route
+          path="/it/dashboard"
+          element={
+            <PrivateRoute roles={allow('it')}>
+              <ITPortal />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Finance */}
+        <Route
+          path="/finance/dashboard"
+          element={
+            <PrivateRoute roles={allow('finance')}>
+              <FinancePortal />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Admin */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <PrivateRoute roles={['admin']}>
+              {withPortal(AdminPortal, AdminDashboard)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <PrivateRoute roles={['admin']}>
+              {withPortal(AdminPortal, UserRoleManagement)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/departments"
+          element={
+            <PrivateRoute roles={['admin']}>
+              {withPortal(AdminPortal, DepartmentsOverview)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/security"
+          element={
+            <PrivateRoute roles={['admin']}>
+              {withPortal(AdminPortal, SecurityMonitoring)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/reports"
+          element={
+            <PrivateRoute roles={['admin']}>
+              {withPortal(AdminPortal, ReportsAnalytics)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/workflows"
+          element={
+            <PrivateRoute roles={['admin']}>
+              {withPortal(AdminPortal, WorkflowManagement)}
+            </PrivateRoute>
+          }
+        />
+
+        {/* CEO */}
+        <Route
+          path="/ceo/dashboard"
+          element={
+            <PrivateRoute roles={allow('ceo')}>
+              <CEOPortal />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Manager */}
+        <Route
+          path="/manager/dashboard"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, ManagerDashboard)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/manager/products"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, ProductManagement)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/manager/team"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, TeamManagement)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/manager/reports"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, ManagerReports)}
+            </PrivateRoute>
+          }
+        />
+
+        <Route path="/" element={<Navigate to={user ? defaultRolePath(user.role) : '/login'} replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>

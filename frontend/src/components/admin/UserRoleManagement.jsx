@@ -278,6 +278,7 @@ const UserRoleManagement = () => {
                     <option>IT</option>
                     <option>Compliance</option>
                     <option>Media</option>
+                    <option>LAW</option>
                   </select>
                 </div>
               </div>
@@ -297,8 +298,8 @@ const UserRoleManagement = () => {
                   type="submit"
                   className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
                 >
-                  <span className="material-symbols-outlined text-base">send</span>
-                  Send Invite
+                  <span className="material-symbols-outlined text-base">Add</span>
+                  Add User
                 </button>
               </div>
             </form>

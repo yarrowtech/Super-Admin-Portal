@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nexus PM Dashboard</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#137fec",
+              "primary-dark": "#0b66c3",
+              "background-light": "#f6f7f8",
+              "background-dark": "#101922",
+              "surface-dark": "#1a2634",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"]
+            },
+            borderRadius: {
+              "xl": "0.75rem", 
+              "2xl": "1rem",
+            },
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#111418] dark:text-white font-display antialiased overflow-hidden">
+<div class="flex h-screen w-full overflow-hidden">
+<aside class="hidden md:flex w-64 flex-col bg-white dark:bg-surface-dark border-r border-[#f0f2f4] dark:border-gray-800 h-full transition-all">
+<div class="flex flex-col h-full p-4 justify-between">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-2">
+<div class="bg-gradient-to-tr from-primary to-blue-400 flex items-center justify-center rounded-lg size-10 text-white shadow-lg shadow-blue-500/20">
+<span class="material-symbols-outlined text-2xl">grid_view</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-base font-bold leading-none dark:text-white tracking-tight">Nexus PM</h1>
+<p class="text-[#617589] dark:text-gray-400 text-xs font-medium mt-1">Enterprise Workspace</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1.5">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary dark:text-blue-400 font-semibold" href="#">
+<span class="material-symbols-outlined filled">dashboard</span>
+<span class="text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#617589] dark:text-gray-400 hover:bg-[#f0f2f4] dark:hover:bg-gray-800 transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#111418] dark:group-hover:text-white transition-colors">folder</span>
+<span class="text-sm font-medium group-hover:text-[#111418] dark:group-hover:text-white transition-colors">Projects</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#617589] dark:text-gray-400 hover:bg-[#f0f2f4] dark:hover:bg-gray-800 transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#111418] dark:group-hover:text-white transition-colors">check_circle</span>
+<span class="text-sm font-medium group-hover:text-[#111418] dark:group-hover:text-white transition-colors">My Tasks</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#617589] dark:text-gray-400 hover:bg-[#f0f2f4] dark:hover:bg-gray-800 transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#111418] dark:group-hover:text-white transition-colors">description</span>
+<span class="text-sm font-medium group-hover:text-[#111418] dark:group-hover:text-white transition-colors">Documents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#617589] dark:text-gray-400 hover:bg-[#f0f2f4] dark:hover:bg-gray-800 transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#111418] dark:group-hover:text-white transition-colors">chat</span>
+<span class="text-sm font-medium group-hover:text-[#111418] dark:group-hover:text-white transition-colors">Team Chat</span>
+<span class="ml-auto bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">3</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#617589] dark:text-gray-400 hover:bg-[#f0f2f4] dark:hover:bg-gray-800 transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#111418] dark:group-hover:text-white transition-colors">bar_chart</span>
+<span class="text-sm font-medium group-hover:text-[#111418] dark:group-hover:text-white transition-colors">Reporting</span>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-1.5 border-t border-[#f0f2f4] dark:border-gray-800 pt-4">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#617589] dark:text-gray-400 hover:bg-[#f0f2f4] dark:hover:bg-gray-800 transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#111418] dark:group-hover:text-white transition-colors">settings</span>
+<span class="text-sm font-medium group-hover:text-[#111418] dark:group-hover:text-white transition-colors">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#617589] dark:text-gray-400 hover:bg-[#f0f2f4] dark:hover:bg-gray-800 transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#111418] dark:group-hover:text-white transition-colors">help</span>
+<span class="text-sm font-medium group-hover:text-[#111418] dark:group-hover:text-white transition-colors">Help Center</span>
+</a>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark relative">
+<header class="h-16 flex items-center justify-between px-6 bg-white dark:bg-surface-dark border-b border-[#f0f2f4] dark:border-gray-800 shrink-0 z-20">
+<div class="flex items-center gap-4">
+<button class="md:hidden text-[#617589] dark:text-gray-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="hidden sm:flex items-center bg-[#f0f2f4] dark:bg-gray-800/50 rounded-lg px-3 py-2 w-64 lg:w-96 border border-transparent focus-within:border-primary/30 focus-within:bg-white dark:focus-within:bg-surface-dark transition-all">
+<span class="material-symbols-outlined text-[#617589] dark:text-gray-400 text-xl">search</span>
+<input class="bg-transparent border-none text-sm w-full ml-2 text-[#111418] dark:text-white placeholder-[#617589] focus:ring-0 p-0" placeholder="Search projects, tasks, or people..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center h-9 px-4 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-bold transition-all shadow-sm shadow-blue-500/20 hover:shadow-blue-500/40 gap-2 active:scale-95">
+<span class="material-symbols-outlined text-[20px]">add</span>
+<span class="hidden sm:inline">Create</span>
+</button>
+<div class="h-6 w-[1px] bg-[#f0f2f4] dark:bg-gray-700 mx-1"></div>
+<button class="text-[#617589] dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors relative p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 size-2 bg-red-500 rounded-full border-2 border-white dark:border-surface-dark"></span>
+</button>
+<button class="flex items-center gap-2 pl-2">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-9 ring-2 ring-transparent hover:ring-primary/20 transition-all" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBMxy62z6CCnw8IIR_pP64KMUMMov8eLkfYJdHq9fOI6Nl77YlnUYkctIyOk3KMJt-Hbatc30y0alFnO67MLC3A-BwPi_o1M5pVEvMqfPhFCYDP_64TeuDcpkG_lG1JB3LSDcLQS0OUoClo0S7xDlCJUUy97YKJ37tmNUSXS8vDdbvCHvceVZm7zj38wBEBt1keRJ_X51IcsHxP8UA9dn7xejqGeWWcN5i2JfLfiQuBMLtc1wByRHIEPBvg6pOwhWC_tSzJznuc7TDt");'></div>
+</button>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto p-6 lg:p-8 scroll-smooth">
+<div class="max-w-[1600px] mx-auto flex flex-col gap-8">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2">
+<div>
+<h1 class="text-3xl font-bold tracking-tight text-[#111418] dark:text-white mb-2">Good Morning, Sarah</h1>
+<p class="text-[#617589] dark:text-gray-400 text-base">Here's what's happening today, <span class="text-[#111418] dark:text-gray-200 font-medium">October 24th</span>.</p>
+</div>
+<div class="flex items-center gap-4 bg-white dark:bg-surface-dark py-2 px-4 rounded-full border border-[#f0f2f4] dark:border-gray-800 shadow-sm">
+<span class="text-xs font-semibold uppercase tracking-wider text-[#617589] dark:text-gray-400">Team Online</span>
+<div class="flex -space-x-2">
+<div class="size-8 rounded-full border-2 border-white dark:border-surface-dark bg-gray-200 bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW")'></div>
+<div class="size-8 rounded-full border-2 border-white dark:border-surface-dark bg-gray-300 bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW")'></div>
+<div class="size-8 rounded-full border-2 border-white dark:border-surface-dark bg-gray-400 bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW")'></div>
+<div class="size-8 rounded-full border-2 border-white dark:border-surface-dark bg-[#f0f2f4] dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-[#617589] dark:text-gray-300">+4</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<div class="xl:col-span-2 flex flex-col gap-8">
+<section>
+<div class="flex items-center justify-between mb-5">
+<h3 class="text-lg font-bold text-[#111418] dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">folder_open</span>
+                                        Active Projects
+                                    </h3>
+<a class="text-sm font-semibold text-primary hover:text-primary-dark flex items-center gap-1" href="#">
+                                        View All
+                                        <span class="material-symbols-outlined text-base">arrow_forward</span>
+</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+<div class="bg-white dark:bg-surface-dark p-5 rounded-xl border border-[#e5e7eb] dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined">web</span>
+</div>
+<span class="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[11px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">On Track</span>
+</div>
+<h4 class="font-bold text-lg text-[#111418] dark:text-white mb-1 group-hover:text-primary transition-colors">Website Redesign</h4>
+<p class="text-sm text-[#617589] dark:text-gray-400 mb-5">Due Nov 15 • 12 Tasks remaining</p>
+<div class="flex items-center justify-between text-xs font-semibold text-[#617589] dark:text-gray-400 mb-2">
+<span>Progress</span>
+<span class="text-[#111418] dark:text-white">75%</span>
+</div>
+<div class="w-full bg-[#f0f2f4] dark:bg-gray-700 rounded-full h-2 mb-5">
+<div class="bg-primary h-2 rounded-full transition-all duration-1000" style="width: 75%"></div>
+</div>
+<div class="flex items-center justify-between pt-4 border-t border-[#f0f2f4] dark:border-gray-700">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white dark:border-surface-dark bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW")'></div>
+<div class="size-6 rounded-full border-2 border-white dark:border-surface-dark bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW")'></div>
+<div class="size-6 rounded-full border-2 border-white dark:border-surface-dark bg-[#f0f2f4] dark:bg-gray-700 flex items-center justify-center text-[10px] font-bold text-[#617589]">+2</div>
+</div>
+<span class="text-xs text-[#617589] dark:text-gray-500 font-medium">Updated 2h ago</span>
+</div>
+</div>
+<div class="bg-white dark:bg-surface-dark p-5 rounded-xl border border-[#e5e7eb] dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2.5 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600 dark:text-purple-400 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined">smartphone</span>
+</div>
+<span class="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[11px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">At Risk</span>
+</div>
+<h4 class="font-bold text-lg text-[#111418] dark:text-white mb-1 group-hover:text-primary transition-colors">Mobile App V2</h4>
+<p class="text-sm text-[#617589] dark:text-gray-400 mb-5">Due Oct 30 • 5 Tasks remaining</p>
+<div class="flex items-center justify-between text-xs font-semibold text-[#617589] dark:text-gray-400 mb-2">
+<span>Progress</span>
+<span class="text-[#111418] dark:text-white">45%</span>
+</div>
+<div class="w-full bg-[#f0f2f4] dark:bg-gray-700 rounded-full h-2 mb-5">
+<div class="bg-amber-500 h-2 rounded-full transition-all duration-1000" style="width: 45%"></div>
+</div>
+<div class="flex items-center justify-between pt-4 border-t border-[#f0f2f4] dark:border-gray-700">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white dark:border-surface-dark bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW")'></div>
+<div class="size-6 rounded-full border-2 border-white dark:border-surface-dark bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB30fw4A_BpEImlshiCikJIVIRvnOFnLtgfUKeV7QupKvDFMs-2i_V2gf_Ehh2B2DizvMTyjcnmWQ1H5Nv9ZlPuKFTsFXdZmpoRZwzsilqZ6LERdtC77IB6iFXgH1K8C4Ee_dnwdxqLEa82BeaZfuBnxsCabzFyDmY9wGh45yOikmmepVZzE9Fy0nxbCdMbXW28Nr46lSwJcMihXU7lN7aNKJG-AaEyGoKUszCV7UaNec7tNVL2_BKwAWfjKoPL7kMTgQqnfrnEkvLE")'></div>
+</div>
+<span class="text-xs text-[#617589] dark:text-gray-500 font-medium">Updated 5h ago</span>
+</div>
+</div>
+</div>
+</section>
+<section class="flex-1 flex flex-col">
+<div class="flex items-center justify-between mb-5">
+<h3 class="text-lg font-bold text-[#111418] dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">check_box</span>
+                                        My Tasks
+                                    </h3>
+<div class="flex gap-1 text-xs font-medium bg-white dark:bg-surface-dark rounded-lg p-1 border border-[#e5e7eb] dark:border-gray-700 shadow-sm">
+<button class="px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[#111418] dark:text-white shadow-sm">Today</button>
+<button class="px-3 py-1.5 rounded-md text-[#617589] dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Upcoming</button>
+</div>
+</div>
+<div class="bg-white dark:bg-surface-dark rounded-xl border border-[#e5e7eb] dark:border-gray-700 shadow-sm overflow-hidden flex-1 flex flex-col">
+<div class="flex items-center gap-4 p-4 border-b border-[#f0f2f4] dark:border-gray-700 hover:bg-[#fafafa] dark:hover:bg-gray-800/50 transition-colors group cursor-pointer relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-red-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<button class="text-[#617589] dark:text-gray-500 hover:text-primary transition-colors flex-shrink-0">
+<span class="material-symbols-outlined">radio_button_unchecked</span>
+</button>
+<div class="flex-1 min-w-0">
+<h5 class="text-sm font-semibold text-[#111418] dark:text-white group-hover:text-primary transition-colors truncate">Review Q3 Financial Report</h5>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 rounded">FIN-203</span>
+<span class="text-xs text-[#617589] dark:text-gray-400 truncate">Finance Project</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="hidden sm:inline-flex px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-xs rounded-md font-bold uppercase tracking-wide">High</span>
+<div class="text-xs font-medium text-[#617589] dark:text-gray-400 w-16 text-right">Today</div>
+</div>
+</div>
+<div class="flex items-center gap-4 p-4 border-b border-[#f0f2f4] dark:border-gray-700 hover:bg-[#fafafa] dark:hover:bg-gray-800/50 transition-colors group cursor-pointer relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<button class="text-[#617589] dark:text-gray-500 hover:text-primary transition-colors flex-shrink-0">
+<span class="material-symbols-outlined">radio_button_unchecked</span>
+</button>
+<div class="flex-1 min-w-0">
+<h5 class="text-sm font-semibold text-[#111418] dark:text-white group-hover:text-primary transition-colors truncate">Update Homepage Hero Image</h5>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 rounded">WEB-105</span>
+<span class="text-xs text-[#617589] dark:text-gray-400 truncate">Website Redesign</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="hidden sm:inline-flex px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs rounded-md font-bold uppercase tracking-wide">Medium</span>
+<div class="text-xs font-medium text-[#617589] dark:text-gray-400 w-16 text-right">2:00 PM</div>
+</div>
+</div>
+<div class="flex items-center gap-4 p-4 border-b border-[#f0f2f4] dark:border-gray-700 hover:bg-[#fafafa] dark:hover:bg-gray-800/50 transition-colors group cursor-pointer relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<button class="text-[#617589] dark:text-gray-500 hover:text-primary transition-colors flex-shrink-0">
+<span class="material-symbols-outlined">radio_button_unchecked</span>
+</button>
+<div class="flex-1 min-w-0">
+<h5 class="text-sm font-semibold text-[#111418] dark:text-white group-hover:text-primary transition-colors truncate">Client Feedback Call</h5>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 rounded">MKT-301</span>
+<span class="text-xs text-[#617589] dark:text-gray-400 truncate">Marketing</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="hidden sm:inline-flex px-2 py-1 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-xs rounded-md font-bold uppercase tracking-wide">Low</span>
+<div class="text-xs font-medium text-[#617589] dark:text-gray-400 w-16 text-right">4:30 PM</div>
+</div>
+</div>
+<div class="flex items-center gap-4 p-4 hover:bg-[#fafafa] dark:hover:bg-gray-800/50 transition-colors group cursor-pointer relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<button class="text-[#617589] dark:text-gray-500 hover:text-primary transition-colors flex-shrink-0">
+<span class="material-symbols-outlined">radio_button_unchecked</span>
+</button>
+<div class="flex-1 min-w-0">
+<h5 class="text-sm font-semibold text-[#111418] dark:text-white group-hover:text-primary transition-colors truncate">Prepare Sprint Retrospective</h5>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 rounded">OPS-112</span>
+<span class="text-xs text-[#617589] dark:text-gray-400 truncate">Internal</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="hidden sm:inline-flex px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs rounded-md font-bold uppercase tracking-wide">Medium</span>
+<div class="text-xs font-medium text-[#617589] dark:text-gray-400 w-16 text-right">Tomorrow</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div class="xl:col-span-1 flex flex-col gap-8">
+<section>
+<h3 class="text-lg font-bold text-[#111418] dark:text-white mb-5 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">bolt</span>
+                                    Quick Actions
+                                </h3>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex flex-col items-center justify-center p-4 bg-white dark:bg-surface-dark rounded-xl border border-[#e5e7eb] dark:border-gray-700 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all group">
+<div class="size-11 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3 group-hover:scale-110 transition-transform shadow-sm">
+<span class="material-symbols-outlined text-[22px]">timer</span>
+</div>
+<span class="text-sm font-bold text-[#111418] dark:text-white group-hover:text-primary transition-colors">Log Time</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white dark:bg-surface-dark rounded-xl border border-[#e5e7eb] dark:border-gray-700 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-800 transition-all group">
+<div class="size-11 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-600 dark:text-purple-400 mb-3 group-hover:scale-110 transition-transform shadow-sm">
+<span class="material-symbols-outlined text-[22px]">calendar_month</span>
+</div>
+<span class="text-sm font-bold text-[#111418] dark:text-white group-hover:text-purple-600 transition-colors">Schedule</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white dark:bg-surface-dark rounded-xl border border-[#e5e7eb] dark:border-gray-700 hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group">
+<div class="size-11 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-3 group-hover:scale-110 transition-transform shadow-sm">
+<span class="material-symbols-outlined text-[22px]">receipt_long</span>
+</div>
+<span class="text-sm font-bold text-[#111418] dark:text-white group-hover:text-emerald-600 transition-colors">Expenses</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white dark:bg-surface-dark rounded-xl border border-[#e5e7eb] dark:border-gray-700 hover:shadow-md hover:border-amber-200 dark:hover:border-amber-800 transition-all group">
+<div class="size-11 rounded-full bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-600 dark:text-amber-400 mb-3 group-hover:scale-110 transition-transform shadow-sm">
+<span class="material-symbols-outlined text-[22px]">group_add</span>
+</div>
+<span class="text-sm font-bold text-[#111418] dark:text-white group-hover:text-amber-600 transition-colors">Invite</span>
+</button>
+</div>
+</section>
+<section class="bg-gradient-to-br from-primary to-blue-700 rounded-xl p-6 text-white shadow-lg shadow-blue-500/20 relative overflow-hidden group">
+<div class="absolute -top-6 -right-6 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-9xl">videocam</span>
+</div>
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-2">
+<span class="inline-block size-2 rounded-full bg-red-400 animate-pulse"></span>
+<p class="text-blue-100 text-xs font-bold uppercase tracking-wider">Starting in 15m</p>
+</div>
+<h3 class="text-xl font-bold mb-3 leading-tight">Design Sync: Weekly Review</h3>
+<div class="flex items-center gap-2 mb-6 text-sm text-blue-50 font-medium">
+<span class="material-symbols-outlined text-lg">schedule</span>
+<span>10:30 AM - 11:30 AM</span>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-white text-primary py-2.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors shadow-sm">Join Now</button>
+<button class="size-10 flex items-center justify-center rounded-lg bg-blue-600/50 hover:bg-blue-600 text-white backdrop-blur-sm transition-colors border border-blue-500">
+<span class="material-symbols-outlined text-lg">more_horiz</span>
+</button>
+</div>
+</div>
+</section>
+<section class="bg-white dark:bg-surface-dark rounded-xl border border-[#e5e7eb] dark:border-gray-700 p-5 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-bold text-[#111418] dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">history</span>
+                                        Activity
+                                    </h3>
+<button class="text-[#617589] hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+<div class="flex flex-col gap-6 relative">
+<div class="absolute left-[19px] top-2 bottom-4 w-[2px] bg-[#f0f2f4] dark:bg-gray-800"></div>
+<div class="flex gap-4 relative group">
+<div class="bg-white dark:bg-surface-dark z-10 py-1">
+<div class="size-10 rounded-full bg-cover bg-center border-2 border-white dark:border-surface-dark ring-2 ring-[#e5e7eb] dark:ring-gray-700 group-hover:ring-primary/50 transition-all" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB30fw4A_BpEImlshiCikJIVIRvnOFnLtgfUKeV7QupKvDFMs-2i_V2gf_Ehh2B2DizvMTyjcnmWQ1H5Nv9ZlPuKFTsFXdZmpoRZwzsilqZ6LERdtC77IB6iFXgH1K8C4Ee_dnwdxqLEa82BeaZfuBnxsCabzFyDmY9wGh45yOikmmepVZzE9Fy0nxbCdMbXW28Nr46lSwJcMihXU7lN7aNKJG-AaEyGoKUszCV7UaNec7tNVL2_BKwAWfjKoPL7kMTgQqnfrnEkvLE")'></div>
+</div>
+<div class="flex flex-col pt-1">
+<p class="text-sm text-[#111418] dark:text-white leading-snug">
+<span class="font-bold">Alex M.</span> commented on <span class="font-medium text-primary cursor-pointer hover:underline">#WEB-105</span>
+</p>
+<div class="bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-lg mt-2 border border-gray-100 dark:border-gray-700">
+<p class="text-xs text-[#617589] dark:text-gray-400 italic">"The new assets are ready for review. Check the drive."</p>
+</div>
+<span class="text-[10px] text-[#617589] dark:text-gray-500 mt-1.5 font-medium">10 min ago</span>
+</div>
+</div>
+<div class="flex gap-4 relative group">
+<div class="bg-white dark:bg-surface-dark z-10 py-1">
+<div class="size-10 rounded-full flex items-center justify-center bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-2 border-white dark:border-surface-dark ring-2 ring-[#e5e7eb] dark:ring-gray-700 group-hover:ring-green-400/50 transition-all">
+<span class="material-symbols-outlined text-lg">check</span>
+</div>
+</div>
+<div class="flex flex-col pt-1">
+<p class="text-sm text-[#111418] dark:text-white leading-snug">
+<span class="font-bold">System</span> marked <span class="font-medium text-primary cursor-pointer hover:underline">#FIN-201</span> as complete
+                                            </p>
+<span class="text-[10px] text-[#617589] dark:text-gray-500 mt-1.5 font-medium">1 hour ago</span>
+</div>
+</div>
+<div class="flex gap-4 relative group">
+<div class="bg-white dark:bg-surface-dark z-10 py-1">
+<div class="size-10 rounded-full bg-cover bg-center border-2 border-white dark:border-surface-dark ring-2 ring-[#e5e7eb] dark:ring-gray-700 group-hover:ring-primary/50 transition-all" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA8_75fhE7T0gieydbUYgCmosUQ63LO0AJFFNsPzR7RsSCwUlcoSqFnKZiESveNpi3NLgwEYEI52Q6IMr10tlX3FF6GEwonPl2FWpWFGjew42Goi0YSV15t6lYDvrVzkHh_jDNVDWgzBG4jLufAXy3yr4im9mK7fMxbyCPBInBzdwD1oCAQiZ0n5zQiXbBtUsfD_wIhMdWxXQ-VSo11GwmhbcKZUMvuvEmJOGZf9dEakNpHrIzK_d93mbpFptujWN4KHUy0WVoWnuKb")'></div>
+</div>
+<div class="flex flex-col pt-1">
+<p class="text-sm text-[#111418] dark:text-white leading-snug">
+<span class="font-bold">Jessica T.</span> uploaded 3 files to <span class="font-medium text-primary cursor-pointer hover:underline">Marketing</span>
+</p>
+<div class="flex gap-2 mt-2">
+<div class="size-9 bg-[#f0f2f4] dark:bg-gray-800 rounded-lg flex items-center justify-center text-[#617589] dark:text-gray-400 border border-transparent hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-lg">image</span>
+</div>
+<div class="size-9 bg-[#f0f2f4] dark:bg-gray-800 rounded-lg flex items-center justify-center text-[#617589] dark:text-gray-400 border border-transparent hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-lg">picture_as_pdf</span>
+</div>
+</div>
+<span class="text-[10px] text-[#617589] dark:text-gray-500 mt-1.5 font-medium">2 hours ago</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

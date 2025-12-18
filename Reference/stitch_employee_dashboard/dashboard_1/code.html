@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nexus PM Dashboard</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "primary-dark": "#0b5ec2",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                        "card-light": "#ffffff",
+                        "card-dark": "#1a2632",
+                        "border-light": "#e5e7eb",
+                        "border-dark": "#2d3b4a",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569; 
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display h-screen flex overflow-hidden selection:bg-primary/20">
+<!-- Sidebar -->
+<aside class="w-64 bg-card-light dark:bg-card-dark border-r border-border-light dark:border-border-dark flex-col hidden md:flex h-full transition-colors duration-200">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary/10 dark:bg-primary/20 p-2 rounded-lg">
+<div class="size-6 bg-primary rounded-md flex items-center justify-center text-white font-bold text-xs">N</div>
+</div>
+<div>
+<h1 class="text-slate-900 dark:text-white text-base font-bold leading-none">Nexus PM</h1>
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">Internal Tools</p>
+</div>
+</div>
+<nav class="flex-1 px-4 flex flex-col gap-1 overflow-y-auto">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary dark:text-blue-400 group transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]" data-weight="fill">dashboard</span>
+<span class="text-sm font-semibold">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">folder_open</span>
+<span class="text-sm font-medium">Projects</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">check_box</span>
+<span class="text-sm font-medium">My Tasks</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">description</span>
+<span class="text-sm font-medium">Docs</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">chat_bubble</span>
+<span class="text-sm font-medium">Chat</span>
+<span class="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">3</span>
+</a>
+</nav>
+<div class="p-4 border-t border-border-light dark:border-border-dark mt-auto">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+<div class="mt-4 flex items-center gap-3 px-3">
+<div class="relative">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-9 ring-2 ring-white dark:ring-slate-700" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBlnIYAuk0DLaimxC3ng8eiLICq8nZlyEmUbjX0kBIG9wh5wBqimGA6Df4KPHbuVUefpFb7mIaids7aorq0mbsj2jLJwWooa6wC07DiVFb_QrNacnrhEyr9wSCxeiq6H7orUHYq36aJLj60TTjcTzQHl5kckxTFNZduSwRVIgEtRKhY9IS_KhT3DZpx_eudctPv0_QMeJXCJmdKwHTqxPLrhMVehVO0CR5llZgViL7_4vSyNkaU6O4DdW_zM6DuSHpOO3cJ8PjA_r6M");'></div>
+<span class="absolute bottom-0 right-0 size-2.5 bg-green-500 border-2 border-white dark:border-card-dark rounded-full"></span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-slate-900 dark:text-white">Alex M.</span>
+<span class="text-xs text-slate-500 dark:text-slate-400">Product Lead</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col h-full min-w-0">
+<!-- Top Navigation -->
+<header class="h-16 bg-card-light dark:bg-card-dark border-b border-border-light dark:border-border-dark flex items-center justify-between px-6 sticky top-0 z-20">
+<!-- Mobile Toggle -->
+<button class="md:hidden mr-4 text-slate-500">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<!-- Search -->
+<div class="flex-1 max-w-lg">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors text-[20px]">search</span>
+<input class="w-full bg-background-light dark:bg-background-dark border-none rounded-lg py-2 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary/50 transition-all" placeholder="Search projects, tasks, or people..." type="text"/>
+</div>
+</div>
+<!-- Right Actions -->
+<div class="flex items-center gap-4 ml-6">
+<button class="hidden sm:flex h-9 px-4 items-center justify-center rounded-lg bg-primary hover:bg-primary-dark text-white text-sm font-bold shadow-sm shadow-primary/30 transition-all">
+<span class="material-symbols-outlined text-[18px] mr-2">add</span>
+                    Create New
+                </button>
+<div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[22px]">notifications</span>
+<span class="absolute top-2 right-2.5 size-2 bg-red-500 rounded-full border border-white dark:border-card-dark"></span>
+</button>
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[22px]">help</span>
+</button>
+</div>
+</header>
+<!-- Scrollable Dashboard Content -->
+<main class="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+<div class="max-w-[1400px] mx-auto flex flex-col gap-6">
+<!-- Welcome Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h2 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Good Morning, Alex</h2>
+<p class="text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-amber-500">light_mode</span>
+                            You have <span class="font-bold text-slate-900 dark:text-white">3 deadlines</span> today and <span class="font-bold text-slate-900 dark:text-white">5 unread</span> notifications.
+                        </p>
+</div>
+<div class="text-right hidden md:block">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Current Sprint</p>
+<div class="flex items-center gap-2 justify-end">
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Sprint 42</span>
+<div class="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-green-500 w-[65%]"></div>
+</div>
+<span class="text-xs font-bold text-green-600 dark:text-green-400">65%</span>
+</div>
+</div>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Stat Card 1 -->
+<div class="bg-card-light dark:bg-card-dark p-5 rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="size-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+<span class="material-symbols-outlined">bolt</span>
+</div>
+<span class="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full">+12%</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Active Sprints</p>
+<p class="text-2xl font-bold text-slate-900 dark:text-white mt-1">2</p>
+</div>
+<!-- Stat Card 2 -->
+<div class="bg-card-light dark:bg-card-dark p-5 rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="size-10 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400">
+<span class="material-symbols-outlined">bug_report</span>
+</div>
+<span class="text-xs font-bold px-2 py-1 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded-full">+2%</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Open Issues</p>
+<p class="text-2xl font-bold text-slate-900 dark:text-white mt-1">14</p>
+</div>
+<!-- Stat Card 3 -->
+<div class="bg-card-light dark:bg-card-dark p-5 rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="size-10 rounded-lg bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
+<span class="material-symbols-outlined">rate_review</span>
+</div>
+<span class="text-xs font-bold px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-full">0%</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Pending Reviews</p>
+<p class="text-2xl font-bold text-slate-900 dark:text-white mt-1">6</p>
+</div>
+<!-- Stat Card 4 -->
+<div class="bg-card-light dark:bg-card-dark p-5 rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="size-10 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-600 dark:text-rose-400">
+<span class="material-symbols-outlined">event_busy</span>
+</div>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Upcoming Deadlines</p>
+<p class="text-2xl font-bold text-slate-900 dark:text-white mt-1">3</p>
+</div>
+</div>
+<!-- Main Grid Split -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Left Column (Tasks & Projects) -->
+<div class="lg:col-span-2 flex flex-col gap-6">
+<!-- My Priorities Section -->
+<div class="bg-card-light dark:bg-card-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden flex flex-col">
+<div class="px-6 py-4 border-b border-border-light dark:border-border-dark flex flex-wrap items-center justify-between gap-4">
+<h3 class="font-bold text-lg text-slate-900 dark:text-white">My Priorities</h3>
+<div class="flex bg-background-light dark:bg-background-dark p-1 rounded-lg">
+<button class="px-3 py-1 text-xs font-bold rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm">To Do</button>
+<button class="px-3 py-1 text-xs font-medium rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">In Progress</button>
+<button class="px-3 py-1 text-xs font-medium rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Review</button>
+</div>
+</div>
+<!-- Task List -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-slate-50/50 dark:bg-slate-800/20 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+<tr>
+<th class="px-6 py-3">Key</th>
+<th class="px-6 py-3 w-full">Summary</th>
+<th class="px-6 py-3">Priority</th>
+<th class="px-6 py-3">Due</th>
+<th class="px-6 py-3 text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-light dark:divide-border-dark text-sm">
+<!-- Task 1 -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-xs">NEX-402</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium text-slate-900 dark:text-white group-hover:text-primary transition-colors">Fix navigation overlap on mobile</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 w-fit">
+<span class="material-symbols-outlined text-[16px] text-red-600 dark:text-red-400">arrow_upward</span>
+<span class="text-xs font-bold text-red-700 dark:text-red-400">High</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Today</td>
+<td class="px-6 py-4 text-right">
+<button class="text-slate-400 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">play_arrow</span>
+</button>
+</td>
+</tr>
+<!-- Task 2 -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-xs">NEX-398</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium text-slate-900 dark:text-white group-hover:text-primary transition-colors">Update color palette for dark mode</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 w-fit">
+<span class="material-symbols-outlined text-[16px] text-amber-600 dark:text-amber-400">remove</span>
+<span class="text-xs font-bold text-amber-700 dark:text-amber-400">Med</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Tomorrow</td>
+<td class="px-6 py-4 text-right">
+<button class="text-slate-400 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">play_arrow</span>
+</button>
+</td>
+</tr>
+<!-- Task 3 -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-xs">NEX-390</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium text-slate-900 dark:text-white group-hover:text-primary transition-colors">User Interview Summary Docs</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/20 w-fit">
+<span class="material-symbols-outlined text-[16px] text-blue-600 dark:text-blue-400">arrow_downward</span>
+<span class="text-xs font-bold text-blue-700 dark:text-blue-400">Low</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Sep 28</td>
+<td class="px-6 py-4 text-right">
+<button class="text-slate-400 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">play_arrow</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-3 border-t border-border-light dark:border-border-dark text-center">
+<button class="text-sm font-semibold text-primary hover:text-primary-dark transition-colors">View all tasks</button>
+</div>
+</div>
+<!-- Project Summaries -->
+<div class="bg-card-light dark:bg-card-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm p-6">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-bold text-lg text-slate-900 dark:text-white">Active Projects</h3>
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+<div class="space-y-6">
+<!-- Project 1 -->
+<div>
+<div class="flex justify-between items-center mb-2">
+<div class="flex items-center gap-2">
+<div class="size-2 rounded-full bg-green-500"></div>
+<span class="font-semibold text-slate-900 dark:text-white">Mobile App Redesign</span>
+</div>
+<span class="text-xs font-medium text-slate-500 dark:text-slate-400">On Track</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+<div class="bg-primary h-2 rounded-full" style="width: 75%"></div>
+</div>
+<div class="flex justify-between mt-2 text-xs text-slate-500 dark:text-slate-400">
+<span>75% Complete</span>
+<span>Due Oct 12</span>
+</div>
+</div>
+<!-- Project 2 -->
+<div>
+<div class="flex justify-between items-center mb-2">
+<div class="flex items-center gap-2">
+<div class="size-2 rounded-full bg-amber-500"></div>
+<span class="font-semibold text-slate-900 dark:text-white">Q4 Marketing Campaign</span>
+</div>
+<span class="text-xs font-medium text-slate-500 dark:text-slate-400">At Risk</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+<div class="bg-amber-500 h-2 rounded-full" style="width: 45%"></div>
+</div>
+<div class="flex justify-between mt-2 text-xs text-slate-500 dark:text-slate-400">
+<span>45% Complete</span>
+<span>Due Sep 30</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column (Quick Actions & Activity) -->
+<div class="flex flex-col gap-6">
+<!-- Quick Actions Widget -->
+<div class="bg-card-light dark:bg-card-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm p-5">
+<h4 class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Quick Actions</h4>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+<span class="material-symbols-outlined text-primary text-[28px]">timer</span>
+<span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Log Time</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+<span class="material-symbols-outlined text-green-600 text-[28px]">add_task</span>
+<span class="text-xs font-semibold text-slate-700 dark:text-slate-300">New Task</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+<span class="material-symbols-outlined text-purple-600 text-[28px]">video_call</span>
+<span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Meet</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+<span class="material-symbols-outlined text-rose-600 text-[28px]">flag</span>
+<span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Report</span>
+</button>
+</div>
+</div>
+<!-- Activity Stream -->
+<div class="bg-card-light dark:bg-card-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm p-5 flex-1">
+<div class="flex items-center justify-between mb-5">
+<h4 class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Activity Feed</h4>
+<button class="text-xs text-primary font-semibold hover:underline">View All</button>
+</div>
+<div class="relative pl-4 border-l-2 border-slate-100 dark:border-slate-700 space-y-6">
+<!-- Activity Item 1 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 size-3 rounded-full bg-slate-200 dark:bg-slate-600 border-2 border-white dark:border-card-dark"></div>
+<div class="flex gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8 shrink-0 mt-0.5" data-alt="Sarah User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBxrwNa1C7pISKYRPVrB_OUiptrPa86Nz5ab7nnS5xvNlws-i-Fdv5uLlftrzSSNIgaMMpIGnxB5oLcCxSfbNQhDahYQCD8Elcf5F05iq0L3Uq-2S6JYBKRNEPn7-1UdfcLe03jyf7FeTQ0LI7H9ySLDljc0Y7CH5SGblYc-6-QP7pRciT6Ia54_ItXRch8_pH4GlHWYf-arI7gVTh0akdMeMmaD4JF2oILRbeEAZ4mfcaUcd5bKIl8f6qf9D7G-1GhiZKIkN2ab-Il");'></div>
+<div>
+<p class="text-sm text-slate-800 dark:text-slate-200 leading-snug">
+<span class="font-semibold">Sarah K.</span> commented on <span class="font-mono text-xs text-primary cursor-pointer hover:underline">NEX-402</span>
+</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">"I've updated the responsive grid for mobile..."</p>
+<p class="text-[10px] text-slate-400 mt-1">2 mins ago</p>
+</div>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 size-3 rounded-full bg-blue-200 dark:bg-blue-900 border-2 border-white dark:border-card-dark"></div>
+<div class="flex gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8 shrink-0 mt-0.5" data-alt="Mike User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDZQ8DTYu3EOzCMq4FS1ZdVveUTiVxESYdHridINrFuutF17fxBmmgdSRoN2rQ87kX9deeHIMV4KpV3dSdaf4SIw6pCNPqoSWmIo8SlNs4H-hmVvhVALj0B2VH_rQ8YQ39v8c9nUEdwQlikTZOI88-D20tOF7LNoPqEImMttFhDOIQBq_TMmsGUQz3FasmDYOqSioShv5O7Xcrf9cVYjcTOfCoXhuWgH1Exl80dsXJNYL5M9BJSDH3BzbHf7g1SLBHiQAdXj0Y7tb2Z");'></div>
+<div>
+<p class="text-sm text-slate-800 dark:text-slate-200 leading-snug">
+<span class="font-semibold">Mike T.</span> uploaded a file to <span class="font-mono text-xs text-primary cursor-pointer hover:underline">NEX-390</span>
+</p>
+<div class="flex items-center gap-2 mt-1.5 p-2 rounded bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark w-fit">
+<span class="material-symbols-outlined text-red-500 text-[18px]">picture_as_pdf</span>
+<span class="text-xs font-medium text-slate-700 dark:text-slate-300">Specs_v2.pdf</span>
+</div>
+<p class="text-[10px] text-slate-400 mt-1">1 hour ago</p>
+</div>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 size-3 rounded-full bg-green-200 dark:bg-green-900 border-2 border-white dark:border-card-dark"></div>
+<div class="flex gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8 shrink-0 mt-0.5" data-alt="David User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCgnVvyppT2U16VoJqbylRjEnPsXbfDW2Sr97mOQvuWN2BILoFg2k_tpG8LdiKoq7p8GxPQ218fUZOQWO3upVtNe0RFueXKuTDfyXU-XwthZPq4vRcMtShxL6aONHuhwYuhAcURSF6a95simHdAIrND01rIT47bseY3K2Ckzpp0XYOJOULgzWnPszd_JnlbQqyQss0rBRePi0ov58vhmo0YIUhUvi-cuD3KMF2-wd4WvH-eXbJxaLSP7zOOkkAWVtmWJ-H3RgE76vIS");'></div>
+<div>
+<p class="text-sm text-slate-800 dark:text-slate-200 leading-snug">
+<span class="font-semibold">David L.</span> moved <span class="font-mono text-xs text-primary cursor-pointer hover:underline">NEX-398</span> to <span class="font-bold text-green-600 dark:text-green-400">Done</span>
+</p>
+<p class="text-[10px] text-slate-400 mt-1">3 hours ago</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="h-4"></div> <!-- Bottom spacer -->
+</div>
+</main>
+</div>
+</body></html>

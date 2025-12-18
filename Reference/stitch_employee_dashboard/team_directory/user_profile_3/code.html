@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nexus WorkOS - Team Directory</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a242f",
+                        "border-light": "#e5e7eb",
+                        "border-dark": "#2d3748",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#111418] dark:text-gray-100 overflow-hidden h-screen flex">
+<aside class="w-64 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark flex-col hidden md:flex z-20">
+<div class="h-16 flex items-center px-6 border-b border-border-light dark:border-border-dark">
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-3xl">token</span>
+<span class="text-xl font-bold tracking-tight text-[#111418] dark:text-white">Nexus</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-6">
+<div class="flex gap-3 px-3">
+<div class="bg-center bg-no-repeat bg-cover rounded-lg size-10 shrink-0" data-alt="Company Logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAfwrnlDbeXis_Lt0IrMWpUHYppCrEmFjwI187TTNfMZhofGKfuAPmOv0QRaf0kqSY9X7OeDjzy5E6bLXhveEBED4lLojcS1cZbDliN3YOIVBAhibM2-TISsyFWX-VqziHovjPrrKXloNTTTKTYdc8oIpBSe3ngJd6UwczXVGjiGc8j9eR63wJn7G8VQoOD9GGP0wyZMb3j-VOxntl1ui9D1mU4yb-ebahdWkinkEhj_-i0KYxfSEDhDYDY09iTtsqRO4CAOe3VyfG_");'></div>
+<div class="flex flex-col justify-center overflow-hidden">
+<h1 class="text-[#111418] dark:text-white text-sm font-bold leading-tight truncate">Acme Corp</h1>
+<p class="text-[#617589] dark:text-gray-400 text-xs truncate">Enterprise Plan</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#617589] dark:text-gray-400 hover:bg-background-light dark:hover:bg-background-dark hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#617589] dark:text-gray-400 hover:bg-background-light dark:hover:bg-background-dark hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="text-sm font-medium">My Tasks</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#617589] dark:text-gray-400 hover:bg-background-light dark:hover:bg-background-dark hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">folder</span>
+<span class="text-sm font-medium">Projects</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-primary/10 text-primary dark:text-primary rounded-lg" href="#">
+<span class="material-symbols-outlined fill-1">groups</span>
+<span class="text-sm font-medium">Team Directory</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#617589] dark:text-gray-400 hover:bg-background-light dark:hover:bg-background-dark hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">calendar_month</span>
+<span class="text-sm font-medium">Calendar</span>
+</a>
+</nav>
+<div class="mt-auto">
+<div class="text-xs font-semibold text-[#617589] dark:text-gray-500 uppercase tracking-wider px-3 mb-2">Favorites</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#617589] dark:text-gray-400 hover:bg-background-light dark:hover:bg-background-dark rounded-lg group" href="#">
+<span class="w-2 h-2 rounded-full bg-blue-500"></span>
+<span class="text-sm font-medium">Website Redesign</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#617589] dark:text-gray-400 hover:bg-background-light dark:hover:bg-background-dark rounded-lg group" href="#">
+<span class="w-2 h-2 rounded-full bg-purple-500"></span>
+<span class="text-sm font-medium">Q4 Roadmap</span>
+</a>
+</nav>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col min-w-0 bg-white dark:bg-background-dark">
+<header class="h-16 flex items-center justify-between px-6 border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shrink-0">
+<div class="flex items-center flex-1 max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+<input class="w-full h-10 pl-10 pr-4 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary/50 text-sm text-[#111418] dark:text-white placeholder-gray-400" placeholder="Search tasks, people, or documents..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4 ml-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-background-light dark:hover:bg-background-dark text-gray-600 dark:text-gray-300 relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-surface-dark"></span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-background-light dark:hover:bg-background-dark text-gray-600 dark:text-gray-300">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-cover bg-center ring-2 ring-white dark:ring-gray-700 cursor-pointer" data-alt="Current User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAjJcm_1HezB18EobIj9kzuxRQOLp6N3cNQwxRlsxNku5kb-bLTEjpNGLTxF9SnECwlrih1mxOm1sQdX_4RwShdr_OOp5k1RrklUQ4b9Eea6by2wpnnHK0AisBdoSHwRMkT13SpGsBi1P2WHEqIwUUDG8rCvzwrISRFOfpeQj82yqStJ3_mHpeEq1ODIfGOlhx346eEmQM1lX1syvz-rQGj2l9xzVAuJim5-ivZCJVT3BpUtxISg-X4tyOXeDeFyt5V5JoAkG03n5-W");'></div>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden relative">
+<div class="w-full max-w-sm border-r border-border-light dark:border-border-dark flex flex-col bg-surface-light dark:bg-surface-dark z-10 shrink-0 hidden lg:flex">
+<div class="p-4 border-b border-border-light dark:border-border-dark flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h2 class="text-lg font-bold text-[#111418] dark:text-white">Team Directory</h2>
+<span class="text-xs text-gray-500 font-medium bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">124 Members</span>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">filter_list</span>
+<input class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border-light dark:border-gray-700 bg-white dark:bg-background-dark focus:border-primary focus:ring-0" placeholder="Filter by name or role" type="text"/>
+</div>
+<div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+<button class="px-3 py-1.5 rounded-full bg-[#111418] text-white text-xs font-medium whitespace-nowrap">All</button>
+<button class="px-3 py-1.5 rounded-full bg-background-light dark:bg-gray-800 text-[#617589] dark:text-gray-300 text-xs font-medium whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-700">Engineering</button>
+<button class="px-3 py-1.5 rounded-full bg-background-light dark:bg-gray-800 text-[#617589] dark:text-gray-300 text-xs font-medium whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-700">Design</button>
+<button class="px-3 py-1.5 rounded-full bg-background-light dark:bg-gray-800 text-[#617589] dark:text-gray-300 text-xs font-medium whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-700">Product</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto">
+<div class="flex items-center gap-3 p-4 bg-primary/5 dark:bg-primary/10 border-l-4 border-primary cursor-pointer">
+<div class="relative">
+<div class="w-10 h-10 rounded-full bg-cover bg-center" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCnMSWyDWY_e0IFaeCRrgY9tghWQQ6loT5w4GpKiKOOdOEccigGC8BhZ2uTJ66j-Dn8OaNGLwCZSfRPp6ieqgYCg21uP8PWzivZ8xFc1hbKbDh0FdyId7vYNCHFPSG1EjrQw00SJOiR3OhhS95D114MC4X9J-fGscHAOoFODRnvaSdNbsIr1iCc6R5GzgQTbXeKrpaBF7IOvLQCBqmCdgwVABNCUV3uQc5aNrJPs9_KxgyoqAuqPaH0iGWKkIUoYI08tYT_fy0Jt4V0");'></div>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-surface-dark rounded-full"></span>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate">Sarah Connor</h3>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Lead Product Designer</p>
+</div>
+<span class="material-symbols-outlined text-gray-400 text-[20px]">chevron_right</span>
+</div>
+<div class="flex items-center gap-3 p-4 hover:bg-background-light dark:hover:bg-background-dark border-l-4 border-transparent cursor-pointer transition-colors group">
+<div class="relative">
+<div class="w-10 h-10 rounded-full bg-cover bg-center" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCo5UfW_evSSPrbV8st3Rcf1hXb68L5PLV8WckoDpMgsV-J10BECRyxNlFTyoBxxb52WAX2op3cQjZlURZYbuW31k1iB2A68MdDnXlQ_DuxKgAgjNvRc9i5-WSYnaAP-cZXjAMRuYReflBXGHHJFhXRtWLwuQjolworyKwZT30FUewrvoUm7Hjks-Za0_xSGETuGDh_C051oBHUj3BogQb6C_2961Qqt729Omg5icuUtgQt0MjtUbasMlOjtFKEodcFVW4owuQslztw");'></div>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-amber-400 border-2 border-white dark:border-surface-dark rounded-full"></span>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate">Michael Chen</h3>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Senior Frontend Dev</p>
+</div>
+<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 rounded hover:bg-white dark:hover:bg-gray-700 text-gray-500"><span class="material-symbols-outlined text-[18px]">chat</span></button>
+</div>
+</div>
+<div class="flex items-center gap-3 p-4 hover:bg-background-light dark:hover:bg-background-dark border-l-4 border-transparent cursor-pointer transition-colors group">
+<div class="relative">
+<div class="w-10 h-10 rounded-full bg-cover bg-center" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC3jrNUBD4xT31fqnsZeAlEQWCXlcJrOj2U_kqHEsIcKBa1MphxQr3iRV_XgZNmkoN0xDl2Mx609qFFTF6_ID9KCufKvF7-SSgHMBwmZqWukNNrIAhyKA4KEk5Uq3U8kpD-On6MfoUNTTFzgJqaFcCLRPVkyoudR3_cZndQTLlodbNa7MOJknA3FWb0TJGiJtX4Cn8KBqQ0ub2fz2mrftSK1s_hWqrR4-MGID5x_I-pqYNIujJr8D62BdrmDFsjGFQhWd1WBVVpOjJ_");'></div>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-gray-300 border-2 border-white dark:border-surface-dark rounded-full"></span>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate">David Ross</h3>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Engineering Manager</p>
+</div>
+</div>
+<div class="flex items-center gap-3 p-4 hover:bg-background-light dark:hover:bg-background-dark border-l-4 border-transparent cursor-pointer transition-colors group">
+<div class="relative">
+<div class="w-10 h-10 rounded-full bg-cover bg-center" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAx9mSbqgiAx7NaBwHlxRA9vhv9aT6gfj6qtlxpzRS7tkEyHE4sGuyvycOW4pzyzXPjZCXXHqUkBqwPUAbAAH1HASPzOymkHU0VmsHIL-f5gUPPd9o9MY2xJ5XiSHBtqITXlzANAq-rlHZ9iPSFeXj2Anqj4o5qbACqbfi3rVEP3zbeszmcYjSJ4iqTY-yjtPt_On22xhq4dv3TAmOerBuyLUGBonS_tPBgpxsyjvgCgXNyWQ39X7FUTcuGlrOS3uqfAPGgRrEampk1");'></div>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-red-500 border-2 border-white dark:border-surface-dark rounded-full" title="In a meeting"></span>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate">Elena Rodriguez</h3>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Product Manager</p>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark min-w-0">
+<div class="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark">
+<div class="h-32 w-full bg-gradient-to-r from-blue-600 to-indigo-600 relative">
+<div class="absolute top-4 right-4 flex gap-2">
+<span class="px-2 py-1 rounded bg-black/20 text-white text-xs backdrop-blur-sm flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-green-400"></span> Online
+                             </span>
+</div>
+</div>
+<div class="px-8 pb-6">
+<div class="flex flex-col md:flex-row gap-6 items-start md:items-end -mt-10 mb-4">
+<div class="w-24 h-24 rounded-full border-4 border-white dark:border-surface-dark bg-cover bg-center shadow-md" data-alt="Profile Picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBFVYyC1Dl3Y-3DxwfNwqSv0s73fCRoPKI3k355i1dSFHQ_JDsqAm-4JUTgJYZmSWGgivF11EE0LQXrI5H7iHXnzxJ2h9gpwEZBRLiCjDDilQLoCXf5Uu4ZX_clZdDrL96MXU94HjK6iyYoj6if9XluLCATT5DT2ihcJQJnhFyTRWS1GRCeRN47Bb8TcCT1B9jBmu4irDmjOo1Yv5JkkEYfAPYqadZ5tuhfXgdfy3aZJKsku8Vcp1-y1qo_7nLLViKTKKUmTMqkT0R-");'></div>
+<div class="flex-1 mb-1">
+<h1 class="text-2xl font-bold text-[#111418] dark:text-white">Sarah Connor</h1>
+<div class="flex items-center gap-2 text-[#617589] dark:text-gray-400 text-sm mt-1">
+<span class="material-symbols-outlined text-[18px]">work</span>
+<span>Lead Product Designer</span>
+<span class="mx-1">•</span>
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<span>San Francisco, CA (GMT-7)</span>
+</div>
+</div>
+<div class="flex gap-3 mt-4 md:mt-0">
+<button class="flex items-center justify-center h-9 px-4 rounded-lg border border-border-light dark:border-gray-600 bg-white dark:bg-transparent text-[#111418] dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium transition-colors">
+<span class="material-symbols-outlined mr-2 text-[18px]">calendar_add_on</span>
+                                    Schedule
+                                </button>
+<button class="flex items-center justify-center h-9 px-4 rounded-lg bg-primary text-white hover:bg-blue-600 text-sm font-medium transition-colors shadow-sm ring-2 ring-primary ring-offset-2 ring-offset-surface-light dark:ring-offset-surface-dark">
+<span class="material-symbols-outlined mr-2 text-[18px]">chat</span>
+                                    Message
+                                </button>
+<button class="flex items-center justify-center w-9 h-9 rounded-lg border border-border-light dark:border-gray-600 bg-white dark:bg-transparent text-[#111418] dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+</div>
+<div class="flex gap-6 mt-6 border-b border-border-light dark:border-border-dark overflow-x-auto">
+<button class="pb-3 border-b-2 border-primary text-primary font-medium text-sm whitespace-nowrap">Overview</button>
+<button class="pb-3 border-b-2 border-transparent text-[#617589] dark:text-gray-400 hover:text-[#111418] dark:hover:text-white font-medium text-sm transition-colors whitespace-nowrap">Assigned Tasks <span class="ml-1 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full text-xs">8</span></button>
+<button class="pb-3 border-b-2 border-transparent text-[#617589] dark:text-gray-400 hover:text-[#111418] dark:hover:text-white font-medium text-sm transition-colors whitespace-nowrap">Activity</button>
+<button class="pb-3 border-b-2 border-transparent text-[#617589] dark:text-gray-400 hover:text-[#111418] dark:hover:text-white font-medium text-sm transition-colors whitespace-nowrap">Files</button>
+</div>
+</div>
+</div>
+<div class="p-8 flex flex-col 2xl:flex-row gap-8">
+<div class="flex flex-col gap-6 2xl:w-1/3 shrink-0 min-w-[300px]">
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark p-5">
+<h3 class="text-sm font-bold text-[#111418] dark:text-white uppercase tracking-wide mb-4">Contact Information</h3>
+<div class="flex flex-col gap-4">
+<div class="flex items-start gap-3">
+<div class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+<span class="material-symbols-outlined text-[20px]">mail</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-gray-500 dark:text-gray-400">Email Address</span>
+<a class="text-sm text-[#111418] dark:text-white hover:text-primary hover:underline" href="mailto:sarah.c@acmecorp.com">sarah.c@acmecorp.com</a>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<div class="p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
+<span class="material-symbols-outlined text-[20px]">call</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-gray-500 dark:text-gray-400">Phone</span>
+<span class="text-sm text-[#111418] dark:text-white">+1 (555) 123-4567</span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<div class="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-gray-500 dark:text-gray-400">Slack ID</span>
+<span class="text-sm text-[#111418] dark:text-white">@sarah.connor</span>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark p-5">
+<h3 class="text-sm font-bold text-[#111418] dark:text-white uppercase tracking-wide mb-4">Organization</h3>
+<div class="mb-4">
+<p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Reports to</p>
+<div class="flex items-center gap-3 p-2 rounded-lg hover:bg-background-light dark:hover:bg-background-dark cursor-pointer transition-colors">
+<div class="w-8 h-8 rounded-full bg-cover bg-center" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW");'></div>
+<div>
+<p class="text-sm font-medium text-[#111418] dark:text-white">James Cameron</p>
+<p class="text-xs text-gray-500">VP of Product</p>
+</div>
+</div>
+</div>
+<div>
+<p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Direct Reports (3)</p>
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-cover bg-center ring-2 ring-white dark:ring-surface-dark" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW");' title="Michael Chen"></div>
+<div class="w-8 h-8 rounded-full bg-cover bg-center ring-2 ring-white dark:ring-surface-dark" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAtnwMAgJPjUo5FBEFmiC5lQEoPcsD-pmMmtLIxAfGkW0Z4lYZ-9oWOMB3YZ85_bPwVjMKQn0R6tZYwcVQon1sziurjNVdxJOQW2DmSB88wGuRWwlsxr4jx9kFsy70y27ImL-T7IDhF3nO295lN-Jhp4E03U0iY747GJANH3ioKcVkJzVkPZoeSOV9qL6b9dsRHAfUmxIATkK-xbvzzsBS8cGnCbH6PBVpsiKNbSWSzgqEsKa20GZQJWspKB6_p9XT4C5PYqPN01HuW");' title="Alice Smith"></div>
+<div class="w-8 h-8 rounded-full bg-cover bg-center ring-2 ring-white dark:ring-surface-dark flex items-center justify-center bg-gray-100 text-xs font-bold text-gray-600">+1</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark p-5">
+<h3 class="text-sm font-bold text-[#111418] dark:text-white uppercase tracking-wide mb-4">Skills</h3>
+<div class="flex flex-wrap gap-2">
+<span class="px-2.5 py-1 rounded-md bg-background-light dark:bg-background-dark text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">UI/UX Design</span>
+<span class="px-2.5 py-1 rounded-md bg-background-light dark:bg-background-dark text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">Figma</span>
+<span class="px-2.5 py-1 rounded-md bg-background-light dark:bg-background-dark text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">Design Systems</span>
+<span class="px-2.5 py-1 rounded-md bg-background-light dark:bg-background-dark text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">User Research</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-6 flex-1 min-w-0">
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark flex flex-col">
+<div class="p-5 border-b border-border-light dark:border-border-dark flex justify-between items-center">
+<h3 class="text-base font-bold text-[#111418] dark:text-white">Active Tasks</h3>
+<button class="text-primary text-sm font-medium hover:underline">View All</button>
+</div>
+<div class="flex flex-col divide-y divide-border-light dark:divide-gray-800">
+<div class="p-4 hover:bg-background-light dark:hover:bg-background-dark transition-colors flex items-start gap-4">
+<div class="mt-1">
+<span class="material-symbols-outlined text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded-lg text-[20px]">contrast</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-mono text-gray-500">DS-1024</span>
+<span class="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">In Progress</span>
+</div>
+<h4 class="text-sm font-semibold text-[#111418] dark:text-white mb-1">Update color palette for dark mode consistency</h4>
+<p class="text-xs text-gray-500 dark:text-gray-400">Design Systems • Due Today</p>
+</div>
+</div>
+<div class="p-4 hover:bg-background-light dark:hover:bg-background-dark transition-colors flex items-start gap-4">
+<div class="mt-1">
+<span class="material-symbols-outlined text-red-500 bg-red-50 dark:bg-red-900/20 p-1.5 rounded-lg text-[20px]">priority_high</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-mono text-gray-500">WEB-890</span>
+<span class="px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-semibold">High Priority</span>
+</div>
+<h4 class="text-sm font-semibold text-[#111418] dark:text-white mb-1">Mobile navigation bug on iOS 17</h4>
+<p class="text-xs text-gray-500 dark:text-gray-400">Website Redesign • Due Tomorrow</p>
+</div>
+</div>
+<div class="p-4 hover:bg-background-light dark:hover:bg-background-dark transition-colors flex items-start gap-4">
+<div class="mt-1">
+<span class="material-symbols-outlined text-green-500 bg-green-50 dark:bg-green-900/20 p-1.5 rounded-lg text-[20px]">check_circle</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-mono text-gray-500">DS-1045</span>
+<span class="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold">Review</span>
+</div>
+<h4 class="text-sm font-semibold text-[#111418] dark:text-white mb-1">Component library documentation update</h4>
+<p class="text-xs text-gray-500 dark:text-gray-400">Design Systems • Due Oct 24</p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark p-5">
+<h3 class="text-sm font-bold text-[#111418] dark:text-white uppercase tracking-wide mb-4">Availability Today</h3>
+<div class="flex gap-1 h-12 w-full">
+<div class="flex-1 bg-red-100 dark:bg-red-900/30 rounded-l-md relative group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">9:00 AM - Sprint Planning</div>
+</div>
+<div class="flex-[2] bg-green-100 dark:bg-green-900/30 relative group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">Available</div>
+</div>
+<div class="flex-1 bg-red-100 dark:bg-red-900/30 relative group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">Lunch</div>
+</div>
+<div class="flex-[2] bg-green-100 dark:bg-green-900/30 relative group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">Available</div>
+</div>
+<div class="flex-1 bg-red-100 dark:bg-red-900/30 relative group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">Design Review</div>
+</div>
+<div class="flex-1 bg-green-100 dark:bg-green-900/30 rounded-r-md relative group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">Available</div>
+</div>
+</div>
+<div class="flex justify-between text-xs text-gray-400 mt-1">
+<span>9 AM</span>
+<span>12 PM</span>
+<span>5 PM</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="w-96 bg-surface-light dark:bg-surface-dark border-l border-border-light dark:border-border-dark flex flex-col z-10 shrink-0 shadow-xl lg:shadow-none hidden lg:flex">
+<div class="h-16 px-4 flex items-center justify-between border-b border-border-light dark:border-border-dark shrink-0">
+<div class="flex items-center gap-3">
+<div class="relative">
+<div class="w-9 h-9 rounded-full bg-cover bg-center" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBFVYyC1Dl3Y-3DxwfNwqSv0s73fCRoPKI3k355i1dSFHQ_JDsqAm-4JUTgJYZmSWGgivF11EE0LQXrI5H7iHXnzxJ2h9gpwEZBRLiCjDDilQLoCXf5Uu4ZX_clZdDrL96MXU94HjK6iyYoj6if9XluLCATT5DT2ihcJQJnhFyTRWS1GRCeRN47Bb8TcCT1B9jBmu4irDmjOo1Yv5JkkEYfAPYqadZ5tuhfXgdfy3aZJKsku8Vcp1-y1qo_7nLLViKTKKUmTMqkT0R-");'></div>
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-surface-dark rounded-full"></span>
+</div>
+<div>
+<h3 class="text-sm font-bold text-[#111418] dark:text-white">Sarah Connor</h3>
+<p class="text-xs text-green-600 dark:text-green-400">Online</p>
+</div>
+</div>
+<div class="flex gap-1">
+<button class="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-background-light dark:hover:bg-background-dark">
+<span class="material-symbols-outlined text-[20px]">call</span>
+</button>
+<button class="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-background-light dark:hover:bg-background-dark">
+<span class="material-symbols-outlined text-[20px]">videocam</span>
+</button>
+<button class="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-background-light dark:hover:bg-background-dark">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-background-light dark:bg-background-dark">
+<div class="flex justify-center my-2">
+<span class="text-xs text-gray-400 font-medium bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded-full">Today</span>
+</div>
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-cover bg-center shrink-0 mt-auto" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBFVYyC1Dl3Y-3DxwfNwqSv0s73fCRoPKI3k355i1dSFHQ_JDsqAm-4JUTgJYZmSWGgivF11EE0LQXrI5H7iHXnzxJ2h9gpwEZBRLiCjDDilQLoCXf5Uu4ZX_clZdDrL96MXU94HjK6iyYoj6if9XluLCATT5DT2ihcJQJnhFyTRWS1GRCeRN47Bb8TcCT1B9jBmu4irDmjOo1Yv5JkkEYfAPYqadZ5tuhfXgdfy3aZJKsku8Vcp1-y1qo_7nLLViKTKKUmTMqkT0R-");'></div>
+<div class="flex flex-col gap-1">
+<div class="bg-white dark:bg-surface-dark p-3 rounded-2xl rounded-bl-none shadow-sm border border-border-light dark:border-border-dark">
+<p class="text-sm text-[#111418] dark:text-white">Hey! Can we quickly sync about the dark mode colors?</p>
+</div>
+<span class="text-[10px] text-gray-400 ml-1">10:23 AM</span>
+</div>
+</div>
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-cover bg-center shrink-0 mt-auto" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBFVYyC1Dl3Y-3DxwfNwqSv0s73fCRoPKI3k355i1dSFHQ_JDsqAm-4JUTgJYZmSWGgivF11EE0LQXrI5H7iHXnzxJ2h9gpwEZBRLiCjDDilQLoCXf5Uu4ZX_clZdDrL96MXU94HjK6iyYoj6if9XluLCATT5DT2ihcJQJnhFyTRWS1GRCeRN47Bb8TcCT1B9jBmu4irDmjOo1Yv5JkkEYfAPYqadZ5tuhfXgdfy3aZJKsku8Vcp1-y1qo_7nLLViKTKKUmTMqkT0R-");'></div>
+<div class="flex flex-col gap-1">
+<div class="bg-white dark:bg-surface-dark p-3 rounded-2xl rounded-bl-none shadow-sm border border-border-light dark:border-border-dark">
+<p class="text-sm text-[#111418] dark:text-white">I think we need to adjust the primary blue contrast.</p>
+</div>
+<span class="text-[10px] text-gray-400 ml-1">10:24 AM</span>
+</div>
+</div>
+<div class="flex gap-3 max-w-[85%] self-end flex-row-reverse">
+<div class="flex flex-col gap-1 items-end">
+<div class="bg-primary p-3 rounded-2xl rounded-br-none shadow-sm text-white">
+<p class="text-sm">Sure, I'm free in 10 mins.</p>
+</div>
+<div class="flex items-center gap-1 mr-1">
+<span class="text-[10px] text-gray-400">10:25 AM</span>
+<span class="material-symbols-outlined text-[12px] text-primary">done_all</span>
+</div>
+</div>
+</div>
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-cover bg-center shrink-0 mt-auto" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBFVYyC1Dl3Y-3DxwfNwqSv0s73fCRoPKI3k355i1dSFHQ_JDsqAm-4JUTgJYZmSWGgivF11EE0LQXrI5H7iHXnzxJ2h9gpwEZBRLiCjDDilQLoCXf5Uu4ZX_clZdDrL96MXU94HjK6iyYoj6if9XluLCATT5DT2ihcJQJnhFyTRWS1GRCeRN47Bb8TcCT1B9jBmu4irDmjOo1Yv5JkkEYfAPYqadZ5tuhfXgdfy3aZJKsku8Vcp1-y1qo_7nLLViKTKKUmTMqkT0R-");'></div>
+<div class="flex flex-col gap-1">
+<div class="bg-white dark:bg-surface-dark p-3 rounded-2xl rounded-bl-none shadow-sm border border-border-light dark:border-border-dark">
+<p class="text-sm text-[#111418] dark:text-white">Great! I'll send an invite.</p>
+</div>
+<span class="text-[10px] text-gray-400 ml-1">10:26 AM</span>
+</div>
+</div>
+</div>
+<div class="p-3 border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shrink-0">
+<div class="flex flex-col gap-2 bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark p-2 focus-within:ring-2 ring-primary/20 transition-all">
+<textarea class="w-full bg-transparent border-none resize-none text-sm focus:ring-0 p-2 max-h-24 text-[#111418] dark:text-white placeholder-gray-400" placeholder="Type a message..." rows="1"></textarea>
+<div class="flex justify-between items-center px-1 pb-1">
+<div class="flex gap-1">
+<button class="p-1.5 text-gray-400 hover:text-[#111418] dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+<span class="material-symbols-outlined text-[20px]">attach_file</span>
+</button>
+<button class="p-1.5 text-gray-400 hover:text-[#111418] dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+<span class="material-symbols-outlined text-[20px]">sentiment_satisfied</span>
+</button>
+<button class="p-1.5 text-gray-400 hover:text-[#111418] dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+<span class="material-symbols-outlined text-[20px]">image</span>
+</button>
+</div>
+<button class="p-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[18px]">send</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

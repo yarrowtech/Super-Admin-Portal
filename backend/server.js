@@ -284,6 +284,7 @@ const financeRoutes = require("./routes/dept/finance.routes");
 const lawRoutes = require("./routes/dept/law.routes");
 const mediaRoutes = require("./routes/dept/media.routes");
 const managerRoutes = require("./routes/dept/manager.routes");
+const employeeRoutes = require("./routes/dept/employee.routes");
 
 const app = express();
 
@@ -354,6 +355,7 @@ app.use("/api/dept/finance", financeRoutes);
 app.use("/api/dept/law", lawRoutes);
 app.use("/api/dept/media", mediaRoutes);
 app.use("/api/dept/manager", managerRoutes);
+app.use("/api/dept/employee", employeeRoutes);
 
 /* ======================
    7) 404

@@ -7,7 +7,10 @@ const ROLES = {
   HR: 'hr',
   MEDIA: 'media',
   FINANCE: 'finance',
-  MANAGER: 'manager'
+  MANAGER: 'manager',
+  SALES: 'sales',
+  RESEARCH_OPERATOR: 'research_operator',
+  EMPLOYEE: 'employee'
 };
 
 // Role hierarchy - higher number = more permissions
@@ -19,7 +22,10 @@ const ROLE_HIERARCHY = {
   [ROLES.HR]: 50,
   [ROLES.MEDIA]: 50,
   [ROLES.FINANCE]: 50,
-  [ROLES.MANAGER]: 40
+  [ROLES.SALES]: 50,
+  [ROLES.RESEARCH_OPERATOR]: 50,
+  [ROLES.MANAGER]: 40,
+  [ROLES.EMPLOYEE]: 10
 };
 
 // Role permissions mapping
@@ -74,6 +80,26 @@ const ROLE_PERMISSIONS = {
     'project_oversight',
     'task_assignment',
     'team_reports'
+  ],
+  [ROLES.SALES]: [
+    'manage_leads',
+    'view_sales_reports',
+    'customer_management',
+    'sales_pipeline',
+    'quotation_management'
+  ],
+  [ROLES.RESEARCH_OPERATOR]: [
+    'research_data_access',
+    'research_reports',
+    'data_analysis',
+    'research_projects'
+  ],
+  [ROLES.EMPLOYEE]: [
+    'view_own_profile',
+    'view_tasks',
+    'submit_work_reports',
+    'view_attendance',
+    'request_leave'
   ]
 };
 

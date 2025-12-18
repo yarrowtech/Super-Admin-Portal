@@ -69,6 +69,7 @@ const authenticate = async (req, res, next) => {
     // 5. Attach user to request
     req.user = {
       id: user._id,
+      _id: user._id, // keep _id for handlers that expect it
       email: user.email,
       role: user.role,
       firstName: user.firstName,
@@ -139,6 +140,7 @@ const optionalAuth = async (req, res, next) => {
       if (user && user.isActive) {
         req.user = {
           id: user._id,
+          _id: user._id,
           email: user.email,
           role: user.role,
           firstName: user.firstName,

@@ -50,7 +50,8 @@ const requireAuth = async (req, res, next) => {
 
     // Attach user to request object
     req.user = {
-      userId: user._id,
+      id: user._id,
+      _id: user._id,
       email: user.email,
       role: user.role,
       firstName: user.firstName,

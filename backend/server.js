@@ -328,16 +328,23 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 /* ======================
    5) Rate Limiting (simple + safe)
+   - Keep in production
+   - Disable in development to avoid noisy 429s while coding
 ====================== */
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 200,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, error: "Too many requests, try again later." },
-  })
-);
+const isProd = process.env.NODE_ENV === "production";
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Request limit reached. Please retry shortly." },
+});
+
+if (isProd) {
+  app.use(apiLimiter);
+} else {
+  console.log("Rate limiting disabled in development");
+}
 
 /* ======================
    6) Routes

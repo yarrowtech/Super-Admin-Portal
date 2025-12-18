@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../api/admin';
+import ThemeToggleButton from '../common/ThemeToggleButton';
 
 const AdminDashboard = () => {
   const { token } = useAuth();
@@ -68,6 +69,7 @@ const AdminDashboard = () => {
                 </div>
               </label>
             </div>
+            <ThemeToggleButton />
             <button className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700">
               <span className="material-symbols-outlined">notifications</span>
               <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-primary"></span>

@@ -48,4 +48,12 @@ export const apiClient = {
     });
     return parseResponse(res);
   },
+  async delete(path, token) {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'DELETE',
+      headers: getDefaultHeaders(token),
+      credentials: 'include',
+    });
+    return parseResponse(res);
+  },
 };

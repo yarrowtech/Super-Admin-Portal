@@ -12,8 +12,15 @@ exports.getDashboard = async (req, res) => {
     // Get statistics
     const totalUsers = await User.countDocuments();
     const activeUsers = await User.countDocuments({ isActive: true });
-    const usersByRole = await User.aggregate([
-      { $group: { _id: '$role', count: { $sum: 1 } } }
+    const inactiveUsers = totalUsers - activeUsers;
+
+    const [usersByRole, departmentStats] = await Promise.all([
+      User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
+      User.aggregate([
+        { $match: { department: { $exists: true, $ne: null, $ne: '' } } },
+        { $group: { _id: '$department', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ])
     ]);
 
     res.status(200).json({
@@ -21,8 +28,10 @@ exports.getDashboard = async (req, res) => {
       data: {
         totalUsers,
         activeUsers,
-        inactiveUsers: totalUsers - activeUsers,
-        usersByRole
+        inactiveUsers,
+        usersByRole,
+        departmentStats,
+        totalDepartments: departmentStats.length
       }
     });
   } catch (error) {

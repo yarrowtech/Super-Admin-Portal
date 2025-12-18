@@ -108,9 +108,11 @@ const AdminDashboard = () => {
             <p className="text-sm font-medium text-orange-600 dark:text-orange-500">Need attention</p>
           </div>
           <div className="flex flex-col gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
-            <p className="text-base font-medium text-neutral-800 dark:text-neutral-300">System Health</p>
-            <p className="text-3xl font-bold tracking-tight text-neutral-800 dark:text-neutral-100">99.9%</p>
-            <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">All systems operational</p>
+            <p className="text-base font-medium text-neutral-800 dark:text-neutral-300">Departments</p>
+            <p className="text-3xl font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
+              {dashboardData?.totalDepartments || 0}
+            </p>
+            <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Active departments</p>
           </div>
         </section>
 
@@ -127,10 +129,14 @@ const AdminDashboard = () => {
                     <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Registered</p>
                   </div>
                 </div>
+                <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Active: <span className="font-semibold text-green-600 dark:text-green-500">{dashboardData?.activeUsers || 0}</span> ·
+                  Inactive: <span className="font-semibold text-orange-600">{dashboardData?.inactiveUsers || 0}</span>
+                </div>
               </div>
             </section>
 
-            <section>
+            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
               <h2 className="mb-4 text-xl font-bold text-neutral-800 dark:text-neutral-100">User Distribution by Role</h2>
               <div className="space-y-4">
                 {dashboardData?.usersByRole && dashboardData.usersByRole.length > 0 ? (
@@ -149,6 +155,25 @@ const AdminDashboard = () => {
                   ))
                 ) : (
                   <p className="text-neutral-600 dark:text-neutral-400">No user data available</p>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+              <h2 className="mb-4 text-xl font-bold text-neutral-800 dark:text-neutral-100">Departments</h2>
+              <div className="space-y-3">
+                {dashboardData?.departmentStats && dashboardData.departmentStats.length > 0 ? (
+                  dashboardData.departmentStats.map((dept) => (
+                    <div key={dept._id} className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/60 px-4 py-3">
+                      <div>
+                        <p className="font-semibold text-neutral-800 dark:text-neutral-100">{dept._id}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">Department</p>
+                      </div>
+                      <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{dept.count} users</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-neutral-600 dark:text-neutral-400">No department data available</p>
                 )}
               </div>
             </section>

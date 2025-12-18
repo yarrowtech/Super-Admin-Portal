@@ -131,8 +131,42 @@ exports.createUser = async (req, res) => {
   try {
     const { email, password, role, firstName, lastName, phone, department } = req.body;
 
+    // Validation
+    if (!email || !password || !role || !firstName || !lastName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: email, password, role, firstName, and lastName are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format'
+      });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Validate role
+    const validRoles = Object.values(ROLES);
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid role. Valid roles are: ${validRoles.join(', ')}`
+      });
+    }
+
     // Check if user exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(409).json({
         success: false,
@@ -141,13 +175,13 @@ exports.createUser = async (req, res) => {
     }
 
     const user = await User.create({
-      email,
+      email: email.toLowerCase(),
       password,
       role,
-      firstName,
-      lastName,
-      phone,
-      department
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone?.trim(),
+      department: department?.trim()
     });
 
     res.status(201).json({
@@ -157,6 +191,17 @@ exports.createUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Create user error:', error);
+
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: messages.join(', ')
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: 'Failed to create user',
@@ -174,6 +219,14 @@ exports.updateUser = async (req, res) => {
   try {
     const { firstName, lastName, phone, department, role, isActive } = req.body;
 
+    // Validate ID format
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      });
+    }
+
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -183,12 +236,23 @@ exports.updateUser = async (req, res) => {
       });
     }
 
-    // Update fields
-    if (firstName) user.firstName = firstName;
-    if (lastName) user.lastName = lastName;
-    if (phone) user.phone = phone;
-    if (department) user.department = department;
-    if (role) user.role = role;
+    // Validate role if provided
+    if (role) {
+      const validRoles = Object.values(ROLES);
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid role. Valid roles are: ${validRoles.join(', ')}`
+        });
+      }
+      user.role = role;
+    }
+
+    // Update fields with validation
+    if (firstName) user.firstName = firstName.trim();
+    if (lastName) user.lastName = lastName.trim();
+    if (phone) user.phone = phone.trim();
+    if (department) user.department = department.trim();
     if (isActive !== undefined) user.isActive = isActive;
 
     await user.save();
@@ -200,6 +264,17 @@ exports.updateUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Update user error:', error);
+
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: messages.join(', ')
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: 'Failed to update user',
@@ -215,12 +290,28 @@ exports.updateUser = async (req, res) => {
  */
 exports.deleteUser = async (req, res) => {
   try {
+    // Validate ID format
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      });
+    }
+
     const user = await User.findById(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
         error: 'User not found'
+      });
+    }
+
+    // Prevent deleting yourself
+    if (req.user && req.user.id === req.params.id) {
+      return res.status(400).json({
+        success: false,
+        error: 'You cannot delete your own account'
       });
     }
 
@@ -247,12 +338,28 @@ exports.deleteUser = async (req, res) => {
  */
 exports.toggleUserStatus = async (req, res) => {
   try {
+    // Validate ID format
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      });
+    }
+
     const user = await User.findById(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
         error: 'User not found'
+      });
+    }
+
+    // Prevent deactivating yourself
+    if (req.user && req.user.id === req.params.id && user.isActive) {
+      return res.status(400).json({
+        success: false,
+        error: 'You cannot deactivate your own account'
       });
     }
 

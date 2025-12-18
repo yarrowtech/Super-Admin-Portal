@@ -1,20 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../../api/admin';
 import { useAuth } from '../../context/AuthContext';
-
-const roleOptions = [
-  'admin',
-  'ceo',
-  'it',
-  'law',
-  'hr',
-  'media',
-  'finance',
-  'manager',
-  'sales',
-  'research_operator',
-  'employee',
-];
+import Button from '../common/Button';
+import PortalHeader from '../common/PortalHeader';
+import StatsCard from '../common/StatsCard';
+import UserFilterSidebar from './users/UserFilterSidebar';
+import UserListItem from './users/UserListItem';
+import UserDetailPanel from './users/UserDetailPanel';
+import UserFormModal from './users/UserFormModal';
 
 const initialForm = {
   firstName: '',
@@ -101,21 +94,24 @@ const UserRoleManagement = () => {
     setEditingUser(null);
     setForm(initialForm);
     setFormError('');
+    setFormTouched(false);
     setIsModalOpen(true);
   };
 
-  const openEditModal = (user) => {
-    setEditingUser(user);
+  const openEditModal = () => {
+    if (!selectedUser) return;
+    setEditingUser(selectedUser);
     setForm({
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      email: user.email || '',
+      firstName: selectedUser.firstName || '',
+      lastName: selectedUser.lastName || '',
+      email: selectedUser.email || '',
       password: '',
-      role: user.role || 'employee',
-      department: user.department || '',
-      phone: user.phone || '',
+      role: selectedUser.role || 'employee',
+      department: selectedUser.department || '',
+      phone: selectedUser.phone || '',
     });
     setFormError('');
+    setFormTouched(false);
     setIsModalOpen(true);
   };
 
@@ -124,19 +120,15 @@ const UserRoleManagement = () => {
     setFormError('');
     setForm(initialForm);
     setEditingUser(null);
+    setFormTouched(false);
   };
 
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormTouched(true);
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!token) return;
+    setFormTouched(true);
     setActionState((prev) => ({ ...prev, saving: true }));
     setFormError('');
+
     try {
       const payload = {
         firstName: form.firstName.trim(),
@@ -146,6 +138,7 @@ const UserRoleManagement = () => {
         department: form.department.trim(),
         phone: form.phone.trim(),
       };
+
       if (!editingUser || form.password.trim()) {
         payload.password = form.password.trim();
       }
@@ -155,6 +148,7 @@ const UserRoleManagement = () => {
         setActionState((prev) => ({ ...prev, saving: false }));
         return;
       }
+
       if (!editingUser && (!payload.password || payload.password.length < 6)) {
         setFormError('Password must be at least 6 characters.');
         setActionState((prev) => ({ ...prev, saving: false }));
@@ -167,6 +161,7 @@ const UserRoleManagement = () => {
         const userId = editingUser._id || editingUser.id;
         await adminApi.updateUser(token, userId, payload);
       }
+
       closeModal();
       fetchUsers();
     } catch (err) {
@@ -176,9 +171,11 @@ const UserRoleManagement = () => {
     }
   };
 
-  const handleToggleStatus = async (userId) => {
-    if (!token) return;
+  const handleToggleStatus = async () => {
+    if (!selectedUser || !token) return;
+    const userId = selectedUser._id || selectedUser.id;
     setActionState((prev) => ({ ...prev, togglingId: userId }));
+
     try {
       await adminApi.toggleUserStatus(token, userId);
       fetchUsers();
@@ -189,9 +186,15 @@ const UserRoleManagement = () => {
     }
   };
 
-  const handleDelete = async (userId) => {
-    if (!token) return;
+  const handleDelete = async () => {
+    if (!selectedUser || !token) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedUser.firstName} ${selectedUser.lastName}?`)) {
+      return;
+    }
+
+    const userId = selectedUser._id || selectedUser.id;
     setActionState((prev) => ({ ...prev, deletingId: userId }));
+
     try {
       await adminApi.deleteUser(token, userId);
       fetchUsers();
@@ -202,498 +205,189 @@ const UserRoleManagement = () => {
     }
   };
 
-  const people = useMemo(() => users.slice(0, 6), [users]);
-  const selectedUserId = selectedUser?._id || selectedUser?.id;
-
-  const renderStatusBadge = (isActive) => (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
-        isActive ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-600'
-      }`}
-    >
-      <span className="material-symbols-outlined text-sm">{isActive ? 'check_circle' : 'block'}</span>
-      {isActive ? 'Active' : 'Inactive'}
-    </span>
-  );
-
-  const initials = (name = '') => {
+  if (loading && users.length === 0) {
     return (
-      name
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase() || 'U'
+      <main className="flex-1 overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
+        <div className="flex h-full items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <svg className="h-10 w-10 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="text-neutral-600 dark:text-neutral-400">Loading users...</p>
+          </div>
+        </div>
+      </main>
     );
-  };
+  }
 
   return (
-    <main className="flex-1 overflow-y-auto p-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">
-              User &amp; Role Management
-            </h1>
-            <p className="text-neutral-600 dark:text-neutral-400">
-              Create, edit, and manage user roles and permissions across all products.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={fetchUsers}
-              className="flex items-center gap-2 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              <span className="material-symbols-outlined text-base">refresh</span>
-              Refresh
-            </button>
-            <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90">
-              <span className="material-symbols-outlined text-base">settings</span>
-              Manage Roles
-            </button>
-            <button
-              type="button"
+    <main className="flex-1 overflow-hidden bg-gradient-to-br from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800">
+      <div className="h-full overflow-y-auto">
+        <div className="p-6 md:p-8">
+          {/* Header with gradient background */}
+          <PortalHeader
+            title="User Management"
+            subtitle="Manage user accounts, roles, and permissions"
+            icon="group"
+            showSearch={false}
+            showNotifications={false}
+            showThemeToggle={false}
+          >
+            <StatsCard label="Total" value={stats.totalUsers} icon="groups" colorScheme="blue" />
+            <StatsCard label="Active" value={stats.activeUsers} icon="check_circle" colorScheme="green" />
+            <StatsCard label="Inactive" value={stats.inactiveUsers} icon="cancel" colorScheme="orange" />
+            <Button
+              variant="primary"
+              size="md"
               onClick={openCreateModal}
-              className="flex items-center gap-2 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              icon={<span className="material-symbols-outlined text-lg">add</span>}
             >
-              <span className="material-symbols-outlined text-base">person_add</span>
-              Add User
-            </button>
-          </div>
-        </header>
+              Add New User
+            </Button>
+          </PortalHeader>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Total Users</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{stats.totalUsers}</p>
-            <p className="text-xs font-semibold text-primary">All registered accounts</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Active Users</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{stats.activeUsers}</p>
-            <p className="text-xs font-semibold text-green-600">Enabled accounts</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Inactive Users</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{stats.inactiveUsers}</p>
-            <p className="text-xs font-semibold text-orange-500">Disabled accounts</p>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-6">
-          <div className="space-y-6 rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-2">
-            <div>
-              <label className="text-sm font-medium text-neutral-600 dark:text-neutral-300">Search Users</label>
-              <div className="mt-2 flex h-11 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                <span className="flex items-center px-3 text-neutral-500 dark:text-neutral-400">
-                  <span className="material-symbols-outlined text-base">search</span>
-                </span>
-                <input
-                  value={filters.search}
-                  onChange={(e) => {
-                    setFilters((prev) => ({ ...prev, search: e.target.value }));
-                    setPage(1);
-                  }}
-                  className="flex-1 bg-transparent pr-3 text-sm text-neutral-800 placeholder:text-neutral-500 focus:outline-none dark:text-neutral-100"
-                  placeholder="Name or email"
-                />
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 animate-in slide-in-from-top-2 rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm dark:border-red-800 dark:bg-red-900/20">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-2xl text-red-600 dark:text-red-400">error</span>
+                <div>
+                  <p className="font-semibold text-red-900 dark:text-red-200">Error</p>
+                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                </div>
               </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Roles</h3>
-              <div className="mt-3 space-y-2">
-                {Object.entries(roleCounts).map(([role, count]) => (
-                  <button
-                    key={role}
-                    onClick={() => {
-                      setFilters((prev) => ({ ...prev, role }));
-                      setPage(1);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                  >
-                    <span className="capitalize">{role}</span>
-                    <span className="text-xs text-neutral-500">{count}</span>
-                  </button>
-                ))}
-                {Object.keys(roleCounts).length === 0 && (
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">No users yet.</p>
+          )}
+
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            {/* Left Sidebar - Filters */}
+            <div className="lg:col-span-3">
+              <UserFilterSidebar
+                filters={filters}
+                setFilters={setFilters}
+                stats={stats}
+                roleCounts={roleCounts}
+              />
+            </div>
+
+            {/* Middle - User List */}
+            <div className="lg:col-span-4">
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 shadow-lg">
+                <div className="mb-4 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+                      Users List
+                    </h2>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      {users.length} {users.length === 1 ? 'user' : 'users'} found
+                    </p>
+                  </div>
+                  {loading && (
+                    <svg className="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                </div>
+
+                {users.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <div className="mb-4 flex justify-center">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                        <span className="material-symbols-outlined text-5xl text-neutral-400 dark:text-neutral-600">
+                          group_off
+                        </span>
+                      </div>
+                    </div>
+                    <h3 className="mb-2 text-lg font-semibold text-neutral-800 dark:text-neutral-200">No users found</h3>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      Try adjusting your search or filters
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => setFilters({ search: '', role: '', isActive: '' })}
+                    >
+                      Clear all filters
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[calc(100vh-24rem)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700">
+                    {users.map((user) => (
+                      <UserListItem
+                        key={user._id || user.id}
+                        user={user}
+                        isSelected={
+                          (selectedUser?._id || selectedUser?.id) === (user._id || user.id)
+                        }
+                        onClick={setSelectedUser}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="mt-4 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                      disabled={page === 1}
+                      icon={<span className="material-symbols-outlined text-lg">chevron_left</span>}
+                    >
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-lg bg-neutral-100 dark:bg-neutral-800 px-3 py-1 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                        {page}
+                      </span>
+                      <span className="text-sm text-neutral-500 dark:text-neutral-400">of</span>
+                      <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">{totalPages}</span>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                      disabled={page === totalPages}
+                      icon={<span className="material-symbols-outlined text-lg">chevron_right</span>}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
-            <div>
-              <h3 className="mb-3 text-sm font-semibold text-neutral-700 dark:text-neutral-200">People</h3>
-              <div className="space-y-2">
-                {people.map((person) => {
-                  const personId = person._id || person.id;
-                  return (
-                    <button
-                      key={personId}
-                      onClick={() => setSelectedUser(person)}
-                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                        personId === selectedUserId ? 'border border-primary/50 bg-primary/5 dark:bg-primary/10' : ''
-                      }`}
-                    >
-                      <div className="flex size-10 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-100">
-                        {initials(`${person.firstName || ''} ${person.lastName || ''}`)}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-                          {`${person.firstName || ''} ${person.lastName || ''}`.trim() || '—'}
-                        </p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">{person.email}</p>
-                      </div>
-                      {person.role && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold capitalize text-primary">
-                          {person.role}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-                {people.length === 0 && <p className="text-sm text-neutral-500 dark:text-neutral-400">No people to display.</p>}
-              </div>
-            </div>
-          </div>
 
-          <div className="space-y-6 rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-3">
-            {selectedUser ? (
-              <>
-                <div className="flex flex-col items-center text-center">
-                  <div className="mb-4 flex size-24 items-center justify-center rounded-full border-4 border-white bg-neutral-200 text-2xl font-bold text-neutral-700 shadow dark:border-neutral-800 dark:bg-neutral-700 dark:text-neutral-100">
-                    {initials(`${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`)}
-                  </div>
-                  <h3 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-                    {`${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`.trim() || '—'}
-                  </h3>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">{selectedUser.email}</p>
-                  <div className="mt-3 flex items-center gap-3 text-xs font-semibold">
-                    {renderStatusBadge(selectedUser.isActive)}
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary capitalize">{selectedUser.role}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800/60">
-                    <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Department</p>
-                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{selectedUser.department || '—'}</p>
-                  </div>
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800/60">
-                    <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</p>
-                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{selectedUser.phone || '—'}</p>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-dashed border-neutral-200 p-4 text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
-                  Manage access, role, and account status for this user. Use the actions on the right to edit, activate/deactivate, or remove.
-                </div>
-              </>
-            ) : (
-              <div className="flex min-h-40 items-center justify-center text-neutral-600 dark:text-neutral-300">Select a user to view details.</div>
-            )}
-          </div>
-
-          <div className="space-y-6 rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-1">
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Filters</h3>
-              <div className="mt-3 space-y-3 text-sm">
-                <div>
-                  <label className="text-neutral-600 dark:text-neutral-300">Role</label>
-                  <select
-                    value={filters.role}
-                    onChange={(e) => {
-                      setFilters((prev) => ({ ...prev, role: e.target.value }));
-                      setPage(1);
-                    }}
-                    className="mt-1 w-full rounded-lg border-neutral-200 text-sm shadow-sm focus:border-primary focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  >
-                    <option value="">All</option>
-                    {roleOptions.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-neutral-600 dark:text-neutral-300">Status</label>
-                  <select
-                    value={filters.isActive}
-                    onChange={(e) => {
-                      setFilters((prev) => ({ ...prev, isActive: e.target.value }));
-                      setPage(1);
-                    }}
-                    className="mt-1 w-full rounded-lg border-neutral-200 text-sm shadow-sm focus:border-primary focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  >
-                    <option value="">All</option>
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                  </select>
-                </div>
-              </div>
+            {/* Right - User Details */}
+            <div className="lg:col-span-5">
+              <UserDetailPanel
+                user={selectedUser}
+                onEdit={openEditModal}
+                onToggleStatus={handleToggleStatus}
+                onDelete={handleDelete}
+                actionState={actionState}
+              />
             </div>
-            {selectedUser && (
-              <div className="space-y-3 text-sm">
-                <button
-                  onClick={() => openEditModal(selectedUser)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                >
-                  <span className="material-symbols-outlined text-base">edit</span>
-                  Edit User
-                </button>
-                <button
-                  onClick={() => handleToggleStatus(selectedUserId)}
-                  disabled={actionState.togglingId === selectedUserId}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 font-semibold text-neutral-700 hover:bg-neutral-100 disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                >
-                  <span className="material-symbols-outlined text-base">toggle_on</span>
-                  {actionState.togglingId === selectedUserId
-                    ? 'Updating...'
-                    : selectedUser.isActive
-                      ? 'Deactivate'
-                      : 'Activate'}
-                </button>
-                <button
-                  onClick={() => handleDelete(selectedUserId)}
-                  disabled={actionState.deletingId === selectedUserId}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-3 py-2 font-semibold text-red-600 hover:bg-red-100 disabled:opacity-60 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/40"
-                >
-                  <span className="material-symbols-outlined text-base">delete</span>
-                  {actionState.deletingId === selectedUserId ? 'Deleting...' : 'Delete User'}
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">Users</h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Page {page} of {totalPages}
-            </p>
-          </div>
-          {error && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">
-              {error}
-            </div>
-          )}
-          {loading ? (
-            <div className="flex min-h-40 items-center justify-center text-neutral-600 dark:text-neutral-300">Loading users...</div>
-          ) : users.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed border-neutral-300 p-6 text-center text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
-              No users found. Try adjusting filters or add a new user.
-            </div>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-800">
-                <thead>
-                  <tr className="text-left text-sm text-neutral-500 dark:text-neutral-400">
-                    <th className="px-3 py-2 font-semibold">Name</th>
-                    <th className="px-3 py-2 font-semibold">Email</th>
-                    <th className="px-3 py-2 font-semibold">Role</th>
-                    <th className="px-3 py-2 font-semibold">Department</th>
-                    <th className="px-3 py-2 font-semibold">Status</th>
-                    <th className="px-3 py-2 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                  {users.map((user) => {
-                    const userId = user._id || user.id;
-                    return (
-                      <tr key={userId} className="text-sm text-neutral-800 dark:text-neutral-100">
-                        <td className="px-3 py-3">
-                          <div className="font-semibold">{`${user.firstName || ''} ${user.lastName || ''}`.trim() || '—'}</div>
-                        </td>
-                        <td className="px-3 py-3">{user.email}</td>
-                        <td className="px-3 py-3 capitalize">{user.role}</td>
-                        <td className="px-3 py-3">{user.department || '—'}</td>
-                        <td className="px-3 py-3">{renderStatusBadge(user.isActive)}</td>
-                        <td className="px-3 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleToggleStatus(userId)}
-                              disabled={actionState.togglingId === userId}
-                              className="rounded-lg border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            >
-                              {actionState.togglingId === userId ? 'Updating...' : user.isActive ? 'Deactivate' : 'Activate'}
-                            </button>
-                            <button
-                              onClick={() => openEditModal(user)}
-                              className="rounded-lg border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(userId)}
-                              disabled={actionState.deletingId === userId}
-                              className="rounded-lg bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-60 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/40"
-                            >
-                              {actionState.deletingId === userId ? 'Deleting...' : 'Delete'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <div className="mt-4 flex items-center justify-end gap-3">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-lg border border-neutral-200 px-3 py-1 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              Previous
-            </button>
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-lg border border-neutral-200 px-3 py-1 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              Next
-            </button>
-          </div>
-        </section>
-      </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 px-4 py-8">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-neutral-900">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-                  {editingUser ? 'Edit User' : 'Add New User'}
-                </h2>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                  {editingUser ? 'Update user details and role.' : 'Invite a member and assign their primary role.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="rounded-full p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            {formError && (
-              <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">
-                {formError}
-              </div>
-            )}
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div>
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">First Name</label>
-                <input
-                  required
-                  name="firstName"
-                  value={form.firstName}
-                  onChange={handleFormChange}
-                  type="text"
-                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  placeholder="Jane"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Last Name</label>
-                <input
-                  required
-                  name="lastName"
-                  value={form.lastName}
-                  onChange={handleFormChange}
-                  type="text"
-                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  placeholder="Doe"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Email Address</label>
-                <input
-                  required
-                  name="email"
-                  value={form.email}
-                  onChange={handleFormChange}
-                  type="email"
-                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark.border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  placeholder="jane.doe@example.com"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                  Password {editingUser ? '(leave blank to keep current)' : ''}
-                </label>
-                <input
-                  name="password"
-                  value={form.password}
-                  onChange={handleFormChange}
-                  type="password"
-                  required={!editingUser}
-                  minLength={6}
-                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark.border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  placeholder="Min 6 characters"
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Primary Role</label>
-                  <select
-                    name="role"
-                    value={form.role}
-                    onChange={handleFormChange}
-                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  >
-                    {roleOptions.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Department</label>
-                  <select className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
-                    <option>Operations</option>
-                    <option>Technology</option>
-                    <option>IT</option>
-                    <option>Compliance</option>
-                    <option>Media</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Phone</label>
-                <input
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleFormChange}
-                  type="tel"
-                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  placeholder="+1 555 555 5555"
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionState.saving}
-                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
-                >
-                  <span className="material-symbols-outlined text-base">send</span>
-                  Send Invite
-                </button>
-              </div>
-            </form>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Form Modal */}
+      <UserFormModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onSubmit={handleSubmit}
+        form={form}
+        setForm={setForm}
+        editingUser={editingUser}
+        formError={formError}
+        formTouched={formTouched}
+        saving={actionState.saving}
+      />
     </main>
   );
 };

@@ -273,6 +273,7 @@ const rateLimit = require("express-rate-limit");
 const morgan = require("morgan");
 
 const connectDB = require("./config/db");
+const { seedDefaultUsers } = require("./utils/seedDefaultUsers");
 
 // Routes
 const authRoutes = require("./routes/auth.routes");
@@ -291,7 +292,16 @@ const app = express();
 /* ======================
    1) Database
 ====================== */
-connectDB();
+connectDB().then(async () => {
+  // Auto-seed default users in non-production when explicitly enabled
+  if (process.env.NODE_ENV !== "production" && process.env.AUTO_SEED_DEFAULT_USERS === "true") {
+    try {
+      await seedDefaultUsers();
+    } catch (err) {
+      console.error("Default user seeding failed:", err.message);
+    }
+  }
+});
 
 /* ======================
    2) Core Middleware

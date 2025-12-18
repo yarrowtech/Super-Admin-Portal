@@ -41,6 +41,7 @@ const UserRoleManagement = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [formError, setFormError] = useState('');
+  const [formTouched, setFormTouched] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     if (!token) return;
@@ -127,6 +128,7 @@ const UserRoleManagement = () => {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
+    setFormTouched(true);
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -146,6 +148,17 @@ const UserRoleManagement = () => {
       };
       if (!editingUser || form.password.trim()) {
         payload.password = form.password.trim();
+      }
+
+      if (!payload.firstName || !payload.lastName || !payload.email || !payload.role) {
+        setFormError('Please fill first name, last name, email, and role.');
+        setActionState((prev) => ({ ...prev, saving: false }));
+        return;
+      }
+      if (!editingUser && (!payload.password || payload.password.length < 6)) {
+        setFormError('Password must be at least 6 characters.');
+        setActionState((prev) => ({ ...prev, saving: false }));
+        return;
       }
 
       if (!editingUser) {

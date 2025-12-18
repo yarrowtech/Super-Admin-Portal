@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Task Details - Project Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#111418] dark:text-white font-display overflow-x-hidden">
+<div class="relative flex h-auto min-h-screen w-full flex-col">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f0f2f4] dark:border-zinc-800 bg-white dark:bg-[#101922] px-10 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-[#111418] dark:text-white">
+<div class="size-8 text-primary">
+<svg fill="currentColor" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M13.8261 30.5736C16.7203 29.8826 20.2244 29.4783 24 29.4783C27.7756 29.4783 31.2797 29.8826 34.1739 30.5736C36.9144 31.2278 39.9967 32.7669 41.3563 33.8352L24.8486 7.36089C24.4571 6.73303 23.5429 6.73303 23.1514 7.36089L6.64374 33.8352C8.00331 32.7669 11.0856 31.2278 13.8261 30.5736Z"></path>
+<path clip-rule="evenodd" d="M39.998 35.764C39.9944 35.7463 39.9875 35.7155 39.9748 35.6706C39.9436 35.5601 39.8949 35.4259 39.8346 35.2825C39.8168 35.2403 39.7989 35.1993 39.7813 35.1602C38.5103 34.2887 35.9788 33.0607 33.7095 32.5189C30.9875 31.8691 27.6413 31.4783 24 31.4783C20.3587 31.4783 17.0125 31.8691 14.2905 32.5189C12.0012 33.0654 9.44505 34.3104 8.18538 35.1832C8.17384 35.2075 8.16216 35.233 8.15052 35.2592C8.09919 35.3751 8.05721 35.4886 8.02977 35.589C8.00356 35.6848 8.00039 35.7333 8.00004 35.7388C8.00004 35.739 8 35.7393 8.00004 35.7388C8.00004 35.7641 8.0104 36.0767 8.68485 36.6314C9.34546 37.1746 10.4222 37.7531 11.9291 38.2772C14.9242 39.319 19.1919 40 24 40C28.8081 40 33.0758 39.319 36.0709 38.2772C37.5778 37.7531 38.6545 37.1746 39.3151 36.6314C39.9006 36.1499 39.9857 35.8511 39.998 35.764ZM4.95178 32.7688L21.4543 6.30267C22.6288 4.4191 25.3712 4.41909 26.5457 6.30267L43.0534 32.777C43.0709 32.8052 43.0878 32.8338 43.104 32.8629L41.3563 33.8352C43.104 32.8629 43.1038 32.8626 43.104 32.8629L43.1051 32.865L43.1065 32.8675L43.1101 32.8739L43.1199 32.8918C43.1276 32.906 43.1377 32.9246 43.1497 32.9473C43.1738 32.9925 43.2062 33.0545 43.244 33.1299C43.319 33.2792 43.4196 33.489 43.5217 33.7317C43.6901 34.1321 44 34.9311 44 35.7391C44 37.4427 43.003 38.7775 41.8558 39.7209C40.6947 40.6757 39.1354 41.4464 37.385 42.0552C33.8654 43.2794 29.133 44 24 44C18.867 44 14.1346 43.2794 10.615 42.0552C8.86463 41.4464 7.30529 40.6757 6.14419 39.7209C4.99695 38.7775 3.99999 37.4427 3.99999 35.7391C3.99999 34.8725 4.29264 34.0922 4.49321 33.6393C4.60375 33.3898 4.71348 33.1804 4.79687 33.0311C4.83898 32.9556 4.87547 32.8935 4.9035 32.8471C4.91754 32.8238 4.92954 32.8043 4.93916 32.7889L4.94662 32.777L4.95178 32.7688ZM35.9868 29.004L24 9.77997L12.0131 29.004C12.4661 28.8609 12.9179 28.7342 13.3617 28.6282C16.4281 27.8961 20.0901 27.4783 24 27.4783C27.9099 27.4783 31.5719 27.8961 34.6383 28.6282C35.082 28.7342 35.5339 28.8609 35.9868 29.004Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-[#111418] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">TaskFlow</h2>
+</div>
+<div class="hidden lg:flex items-center gap-9">
+<a class="text-[#111418] dark:text-gray-200 text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Dashboards</a>
+<a class="text-[#111418] dark:text-gray-200 text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Projects</a>
+<a class="text-[#111418] dark:text-gray-200 text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Issues</a>
+<a class="text-[#111418] dark:text-gray-200 text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Boards</a>
+</div>
+</div>
+<div class="flex flex-1 justify-end gap-8">
+<label class="hidden md:flex flex-col min-w-40 !h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-[#617589] flex border-none bg-[#f0f2f4] dark:bg-zinc-800 items-center justify-center pl-4 rounded-l-lg border-r-0">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#111418] dark:text-white focus:outline-0 focus:ring-0 border-none bg-[#f0f2f4] dark:bg-zinc-800 focus:border-none h-full placeholder:text-[#617589] px-4 rounded-l-none border-l-0 pl-2 text-sm font-normal leading-normal" placeholder="Search tasks..." value=""/>
+</div>
+</label>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-white dark:border-zinc-800 shadow-sm cursor-pointer" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCa4wNWk6R01rquy66_11HYd92z19PsODaQOg4RQqDL7Ojrzdy1zCFfsmeN-QGwxAH3FMCT68K5BP_DWPbbpIp8EWVBjPztOhsL4lidxItIKEs3w5D4XosFVQ3P-iyjmB9GnGPRweEiRkHrbKHy9M1GUk_5P9GMi2HWcSMBguxTqx3bt4hDFpFDde73jlnwawpK7_ZEVz5zyDR37R0h4XjNhw2-ZxaapADUqaoZJXByEjr2G-cHhdhpRtSdzgQU9rjT7aQkFBmRP3i4");'></div>
+</div>
+</header>
+<!-- Main Content Wrapper -->
+<main class="flex-1 px-4 lg:px-40 py-8 flex justify-center">
+<div class="layout-content-container flex flex-col max-w-[1200px] w-full gap-6">
+<!-- Header Actions & Breadcrumbs -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<!-- Breadcrumbs -->
+<div class="flex flex-wrap gap-2 items-center">
+<span class="material-symbols-outlined text-[#617589] text-[20px]">folder_open</span>
+<a class="text-[#617589] hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Projects</a>
+<span class="text-[#617589] text-sm font-medium leading-normal">/</span>
+<a class="text-[#617589] hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Web Revamp 2024</a>
+<span class="text-[#617589] text-sm font-medium leading-normal">/</span>
+<a class="text-[#617589] hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Sprint 4</a>
+<span class="text-[#617589] text-sm font-medium leading-normal">/</span>
+<span class="text-[#111418] dark:text-white text-sm font-medium leading-normal bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded">TASK-1024</span>
+</div>
+<!-- Toolbar Actions -->
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-3 py-2 text-[#111418] dark:text-gray-200 bg-white dark:bg-zinc-800 border border-[#dbe0e6] dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[20px]">link</span>
+<span class="hidden sm:inline text-sm font-medium">Copy Link</span>
+</button>
+<button class="flex items-center gap-2 px-3 py-2 text-[#111418] dark:text-gray-200 bg-white dark:bg-zinc-800 border border-[#dbe0e6] dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</button>
+<button class="flex items-center gap-2 px-3 py-2 text-[#111418] dark:text-gray-200 bg-white dark:bg-zinc-800 border border-[#dbe0e6] dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 text-white bg-primary rounded-lg hover:bg-blue-600 transition-colors shadow-sm font-medium text-sm">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+                            Edit Task
+                        </button>
+</div>
+</div>
+<!-- Main Layout Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Left Column: Content (8 columns) -->
+<div class="lg:col-span-8 flex flex-col gap-6">
+<!-- Task Title Section -->
+<div class="bg-white dark:bg-[#101922] p-6 rounded-xl border border-[#f0f2f4] dark:border-zinc-800 shadow-sm">
+<div class="flex gap-4 items-start mb-6">
+<div class="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg text-red-600 dark:text-red-400">
+<span class="material-symbols-outlined text-[24px]">bug_report</span>
+</div>
+<div class="flex-1">
+<h1 class="text-[#111418] dark:text-white text-3xl font-black leading-tight tracking-[-0.02em] mb-2">Redesign Homepage Hero Section</h1>
+<p class="text-[#617589] dark:text-gray-400 text-base font-normal">Created by <span class="font-medium text-[#111418] dark:text-gray-300">Alex Morgan</span> on Oct 24, 2023</p>
+</div>
+</div>
+<!-- Description -->
+<div class="mb-8">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-gray-400">description</span> Description
+                                </h3>
+<div class="prose prose-slate dark:prose-invert max-w-none text-[#617589] dark:text-gray-300">
+<p class="mb-4">The current hero section has a low click-through rate (CTR) of 1.2%. Marketing aims to increase this to 3.5% for the Q4 campaign.</p>
+<p class="font-medium mb-2 text-[#111418] dark:text-white">Requirements:</p>
+<ul class="list-disc pl-5 space-y-1 mb-4">
+<li>Update the main headline to "Build Faster with TaskFlow".</li>
+<li>Replace the static image with the new <code>hero-animation.json</code> Lottie file.</li>
+<li>Change CTA button color to Primary Blue (#137fec).</li>
+</ul>
+</div>
+</div>
+<!-- Attachments -->
+<div class="mb-8">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-gray-400">attachment</span> Attachments (3)
+                                </h3>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+<!-- Attachment Item -->
+<div class="group relative aspect-square bg-[#f0f2f4] dark:bg-zinc-800 rounded-lg overflow-hidden border border-transparent hover:border-primary transition-colors cursor-pointer">
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-4xl text-gray-400">image</span>
+</div>
+<img class="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" data-alt="Abstract design pattern" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBtczdW0Er2nymMGsBInyVXcx8LEPVx_iX_2V1JN3o0zibxdz0ZZfyCoLKD60UAqQtkfU80jHTtoHT0mr2iMOIx0HOhplzKoRdbmL6EeYX02H2wLYQvjCeE6sTQsnBzvqBGuWoC6ISme1xfHqq8FkaAPQb5VPdcYJm6JRICQv4PzqBr-8dl8G15TJ821YnQTFA5MteYWB86tKLNLY2WttSbxJRPpIfmOENWpLTtSYfPfK-TVtm2f4omC4JbB4N0CmR__TQyVVW-GgDe"/>
+<div class="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-white text-xs truncate">mockup_v2.png</div>
+</div>
+<!-- Attachment Item -->
+<div class="group relative aspect-square bg-[#f0f2f4] dark:bg-zinc-800 rounded-lg overflow-hidden border border-transparent hover:border-primary transition-colors cursor-pointer">
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-4xl text-gray-400">description</span>
+</div>
+<div class="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-white text-xs truncate">specs.pdf</div>
+</div>
+<!-- Add New -->
+<div class="flex flex-col items-center justify-center aspect-square bg-white dark:bg-zinc-900 border-2 border-dashed border-[#dbe0e6] dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer text-[#617589]">
+<span class="material-symbols-outlined text-3xl mb-1">add</span>
+<span class="text-xs font-medium">Add File</span>
+</div>
+</div>
+</div>
+<!-- Subtasks -->
+<div class="mb-6">
+<div class="flex items-center justify-between mb-3">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-gray-400">check_box</span> Subtasks
+                                    </h3>
+<span class="text-sm font-medium text-[#617589]">2 of 3 done</span>
+</div>
+<div class="flex flex-col gap-2">
+<!-- Done Subtask -->
+<label class="flex items-center gap-3 p-3 bg-[#f6f7f8] dark:bg-zinc-800/50 rounded-lg cursor-pointer group hover:bg-[#f0f2f4] dark:hover:bg-zinc-800 transition-colors">
+<input checked="" class="w-5 h-5 text-primary bg-white border-gray-300 rounded focus:ring-primary dark:bg-zinc-700 dark:border-zinc-600" type="checkbox"/>
+<span class="text-[#617589] dark:text-gray-400 line-through text-sm font-medium flex-1">Create new Figma components</span>
+<div class="size-6 rounded-full bg-cover" data-alt="Assignee" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBniH611vxSPWXcYahUOuT_jBT1xRpnv1kL2R_Rx3DtfPrOKiGvrcWT4-Ikstmdh8JajClUJg8TvvGIQPEJ0CGGCLcPvGUC-R7kYeXJVqiIV92otr1Vr-UBukD3v2MEOLgCA6HpF1KJMsZbWCrWkHATjeuIgdbWlectXUOUnl7K4oF6fKK8RyLNQ_w0F6J-Jjv9RentSvGWdk_x3rflbHSnpTT-oOj6oIiSO0GYSpLJKuJ6VgBR58BMzfL0PUwthlv2O_46D1HF_UWi");'></div>
+</label>
+<!-- Done Subtask -->
+<label class="flex items-center gap-3 p-3 bg-[#f6f7f8] dark:bg-zinc-800/50 rounded-lg cursor-pointer group hover:bg-[#f0f2f4] dark:hover:bg-zinc-800 transition-colors">
+<input checked="" class="w-5 h-5 text-primary bg-white border-gray-300 rounded focus:ring-primary dark:bg-zinc-700 dark:border-zinc-600" type="checkbox"/>
+<span class="text-[#617589] dark:text-gray-400 line-through text-sm font-medium flex-1">Export assets for Dev</span>
+<div class="size-6 rounded-full bg-cover" data-alt="Assignee" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDUqEvz_b3s9SNfue7wEsU1zKzTRehcPdaw--LtFSXVK9y4hhAia2OfFGoYQrqTIenroPs2wI4fzwpe391KcCdOhNmWN5Cf7Ga7qZwTCjH-7c-2ha1oPmN0SZfseb7VHkOR2Z8jr1Q4p_wMl8Tpq-g6iHmZr9GYR8Y6_MDb3Kj2Xofbrs3EEIzIS7xwW7mhHoaxXixSGpZnSilQL3KipNH0N639uNRG6F0uXyma0IrEQGOI-QhzRaoyCItDnDuNKmzy5JXiuZ0Wc7Z0");'></div>
+</label>
+<!-- Pending Subtask -->
+<label class="flex items-center gap-3 p-3 bg-white dark:bg-[#101922] border border-[#dbe0e6] dark:border-zinc-700 rounded-lg cursor-pointer group hover:border-primary transition-colors shadow-sm">
+<input class="w-5 h-5 text-primary bg-white border-gray-300 rounded focus:ring-primary dark:bg-zinc-700 dark:border-zinc-600" type="checkbox"/>
+<span class="text-[#111418] dark:text-white text-sm font-medium flex-1">Implement responsive design</span>
+<span class="text-xs text-[#617589] bg-[#f0f2f4] dark:bg-zinc-800 px-2 py-1 rounded">Dev</span>
+</label>
+<button class="flex items-center gap-2 text-primary hover:text-blue-600 text-sm font-medium mt-2 pl-1">
+<span class="material-symbols-outlined text-[18px]">add</span> Create subtask
+                                    </button>
+</div>
+</div>
+</div>
+<!-- Activity Stream -->
+<div class="bg-white dark:bg-[#101922] p-6 rounded-xl border border-[#f0f2f4] dark:border-zinc-800 shadow-sm">
+<div class="flex items-center justify-between mb-6 border-b border-[#f0f2f4] dark:border-zinc-800 pb-2">
+<div class="flex gap-6">
+<button class="text-[#111418] dark:text-white font-bold border-b-2 border-primary pb-2 -mb-2.5">Comments</button>
+<button class="text-[#617589] font-medium hover:text-[#111418] dark:hover:text-gray-300 transition-colors pb-2">History</button>
+<button class="text-[#617589] font-medium hover:text-[#111418] dark:hover:text-gray-300 transition-colors pb-2">Work Log</button>
+</div>
+</div>
+<!-- Comment Input -->
+<div class="flex gap-4 mb-8">
+<div class="size-10 rounded-full bg-cover flex-shrink-0" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAA9Wu1jTe6-Lw0zKYdxSsSqL6gR_zDSzcgeVb-hhlLjuFngfoY2IutN2eRFyMhWY_6KdPlZ4icr-pnk0kaohIpDyPVCukqFy1N4MuMXHgsC8xfs9AiUd2B81CopTG7waKb16lFiCpNrkYu6n1R8UsVE3nf3JXSsMH_KB8_9axvknIDcsB5iLvnYbFKE3ojFnSqheHpzhiXn8EtWuHdl-QBOCEKxOhxomHCyXtof10Ib8hNUSBs5hVkYs1Dr2speq1TWZ2cm5maiyVZ");'></div>
+<div class="flex-1">
+<div class="border border-[#dbe0e6] dark:border-zinc-700 rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-shadow bg-white dark:bg-zinc-900">
+<textarea class="w-full border-none p-3 text-sm focus:ring-0 bg-transparent min-h-[80px] text-[#111418] dark:text-white placeholder-[#617589]" placeholder="Add a comment..."></textarea>
+<div class="flex justify-between items-center bg-[#f9fafb] dark:bg-zinc-800 px-3 py-2 border-t border-[#dbe0e6] dark:border-zinc-700">
+<div class="flex gap-2 text-[#617589]">
+<button class="hover:text-primary"><span class="material-symbols-outlined text-[20px]">format_bold</span></button>
+<button class="hover:text-primary"><span class="material-symbols-outlined text-[20px]">format_italic</span></button>
+<button class="hover:text-primary"><span class="material-symbols-outlined text-[20px]">link</span></button>
+<button class="hover:text-primary"><span class="material-symbols-outlined text-[20px]">image</span></button>
+</div>
+<button class="bg-primary hover:bg-blue-600 text-white text-xs font-bold py-1.5 px-4 rounded transition-colors">Save</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Comments List -->
+<div class="flex flex-col gap-6">
+<!-- Comment 1 -->
+<div class="flex gap-4">
+<div class="size-8 rounded-full bg-cover flex-shrink-0" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC6z7WNtnT_zt_mnf7XwWY5BAQYLIV6L5GWFih0l6nkYKQ-8m7_NTw9q6YoN3LgDXp-IcYSPGL7Znwjx6_9m1k9RwHL1pn_mKlc-TRUUh5lVh1Qzlwseg4wqpEcrG_7-riimny8pwbVyuG46T2htb7OJlVKwXfuLtbx6NIaGe6SA8ermTTs8tQxqpLtvnNdARzkEW2hINXS6kDoESChQAXGBRqV6or98IkHsM6lIaeajGcGTLV466YfPAtbq5VKdV7suHBu6lABcahz");'></div>
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-bold text-[#111418] dark:text-white text-sm">Sarah Jenkins</span>
+<span class="text-xs text-[#617589]">2 hours ago</span>
+</div>
+<p class="text-sm text-[#111418] dark:text-gray-300">Updated the hero image assets. Let me know if the file size is okay for the animation.</p>
+<div class="flex gap-4 mt-2">
+<button class="text-xs font-medium text-[#617589] hover:underline">Reply</button>
+<button class="text-xs font-medium text-[#617589] hover:underline">Like</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Sidebar (4 columns) -->
+<div class="lg:col-span-4 flex flex-col gap-6">
+<!-- Status Card -->
+<div class="bg-white dark:bg-[#101922] p-6 rounded-xl border border-[#f0f2f4] dark:border-zinc-800 shadow-sm">
+<label class="block mb-2 text-xs font-bold uppercase tracking-wider text-[#617589]">Status</label>
+<div class="relative">
+<select class="w-full appearance-none bg-[#f0f2f4] dark:bg-zinc-800 border-none text-[#111418] dark:text-white font-bold py-3 pl-4 pr-10 rounded-lg focus:ring-2 focus:ring-primary cursor-pointer">
+<option value="todo">To Do</option>
+<option selected="" value="progress">In Progress</option>
+<option value="review">In Review</option>
+<option value="done">Done</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#111418] dark:text-white">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Properties Card -->
+<div class="bg-white dark:bg-[#101922] p-6 rounded-xl border border-[#f0f2f4] dark:border-zinc-800 shadow-sm flex flex-col gap-6">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold">Details</h3>
+<!-- Assignee -->
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-[#617589] uppercase tracking-wide">Assignee</label>
+<div class="flex items-center gap-3 p-2 hover:bg-[#f6f7f8] dark:hover:bg-zinc-800 rounded-lg -ml-2 cursor-pointer group transition-colors">
+<div class="size-8 rounded-full bg-cover ring-2 ring-white dark:ring-zinc-700" data-alt="Assignee Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDWPCFfjTBiveXJj5wkrz4zWbkce1XqTEcLV7P3D1k7wgsoANO45OJIufcJya2qs0906_VVgOv8uYYfzRGxOK18csHL6lWYTTo4uRx5txIciywMBjiaiBJXbz9fRbJEepmwXVyE3lUpd7SskmKFCKFcSYDbRjeHlgj4ueMIAEEMAOomqt-gJojNafjfaQV6td8KyR4N9VKQztArPrmzElD4lBj4MoMok2QIW0gaBvqwQc1KoDW5w7CeHCg-LNtGmshz8tgdJPkkvRu5");'></div>
+<span class="text-[#111418] dark:text-white font-medium text-sm flex-1">Michael Chen</span>
+<span class="material-symbols-outlined text-gray-400 opacity-0 group-hover:opacity-100 text-[18px]">edit</span>
+</div>
+</div>
+<!-- Reporter -->
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-[#617589] uppercase tracking-wide">Reporter</label>
+<div class="flex items-center gap-3 p-2 hover:bg-[#f6f7f8] dark:hover:bg-zinc-800 rounded-lg -ml-2 cursor-pointer group transition-colors">
+<div class="size-8 rounded-full bg-cover ring-2 ring-white dark:ring-zinc-700" data-alt="Reporter Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDt7MT5dAU2JLGIckmL7wasdHAA4uXP3SDhNBnlMOw0oPMbTAUx1_G0DIiwdvQTcaxkzDDCsNT_0LilIW0QPbpFH6KnHMl1plKaFxB8PJoXBX7IVOVfzjf8rZNNriz4XdjAXlPLbuhHwQM-5LFnbZKWGMge3Cxyu3XrI7eq3TbyTuVK-G19Kj3cHDtjMuJBNEqe-XFWSVzbzz7iO4JL1ZtH_4s4sWXksdtw5Dx9aq8NmUWqKNpVJqfymvC1GbNCXso053SHzB3t7Ynt");'></div>
+<span class="text-[#111418] dark:text-white font-medium text-sm flex-1">Emily Davis</span>
+</div>
+</div>
+<!-- Labels -->
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-[#617589] uppercase tracking-wide">Labels</label>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 text-xs font-medium rounded-md">Frontend</span>
+<span class="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200 text-xs font-medium rounded-md">Design</span>
+<button class="px-2 py-1 bg-[#f0f2f4] dark:bg-zinc-800 text-[#617589] hover:text-[#111418] dark:hover:text-white text-xs font-medium rounded-md flex items-center">
+<span class="material-symbols-outlined text-[14px] mr-1">add</span> Add
+                                    </button>
+</div>
+</div>
+<!-- Dates & Priority Grid -->
+<div class="grid grid-cols-2 gap-4 pt-2 border-t border-[#f0f2f4] dark:border-zinc-800">
+<div>
+<label class="text-xs font-bold text-[#617589] uppercase tracking-wide block mb-1">Priority</label>
+<div class="flex items-center gap-1 text-[#d32f2f] dark:text-red-400 font-medium text-sm">
+<span class="material-symbols-outlined text-[18px] filled">flag</span>
+                                        High
+                                    </div>
+</div>
+<div>
+<label class="text-xs font-bold text-[#617589] uppercase tracking-wide block mb-1">Severity</label>
+<div class="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium text-sm">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+                                        Major
+                                    </div>
+</div>
+<div>
+<label class="text-xs font-bold text-[#617589] uppercase tracking-wide block mb-1">Start Date</label>
+<div class="text-[#111418] dark:text-white text-sm">Oct 25, 2023</div>
+</div>
+<div>
+<label class="text-xs font-bold text-[#617589] uppercase tracking-wide block mb-1">Due Date</label>
+<div class="text-[#111418] dark:text-white text-sm">Oct 30, 2023</div>
+</div>
+</div>
+</div>
+<!-- Time Tracking -->
+<div class="bg-white dark:bg-[#101922] p-6 rounded-xl border border-[#f0f2f4] dark:border-zinc-800 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold">Time Tracking</h3>
+<button class="text-primary hover:text-blue-700 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+<div class="flex items-center justify-between text-sm mb-2 text-[#617589]">
+<span>Logged: 4h</span>
+<span>Est: 8h</span>
+</div>
+<!-- Progress Bar -->
+<div class="w-full bg-[#f0f2f4] dark:bg-zinc-800 rounded-full h-2.5 mb-4 overflow-hidden">
+<div class="bg-primary h-2.5 rounded-full" style="width: 50%"></div>
+</div>
+<div class="flex gap-2">
+<div class="flex-1 bg-[#f9fafb] dark:bg-zinc-800/50 p-2 rounded text-center border border-[#f0f2f4] dark:border-zinc-700">
+<span class="block text-xs text-[#617589] uppercase">Remaining</span>
+<span class="font-bold text-[#111418] dark:text-white">4h</span>
+</div>
+<div class="flex-1 bg-[#f9fafb] dark:bg-zinc-800/50 p-2 rounded text-center border border-[#f0f2f4] dark:border-zinc-700">
+<span class="block text-xs text-[#617589] uppercase">Pace</span>
+<span class="font-bold text-green-600">On Track</span>
+</div>
+</div>
+</div>
+<!-- Watchers -->
+<div class="bg-white dark:bg-[#101922] p-6 rounded-xl border border-[#f0f2f4] dark:border-zinc-800 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold">Watchers</h3>
+<span class="bg-[#f0f2f4] dark:bg-zinc-800 text-[#111418] dark:text-white text-xs font-bold px-2 py-0.5 rounded-full">3</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="size-8 rounded-full bg-cover ring-2 ring-white dark:ring-zinc-800 cursor-pointer" data-alt="Watcher 1" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD22fMorLEVAwbB3eW10CdlqHYWx17vwsRQNNjCmId4JoFiHjDJ76PdLtKqQi4d0BuoNzQoj0W5IhspN74T4jifk8YJlhNdsK0ZCutkDxgR2sFuDwYa2CN6bSQL7B9EfVGSj4qSiJjX8E_ZWYSLmqiM7rTF5lOctOHGQJxyAuO4ts0QBJShHSAjqerL9xbwdWmuNLuFt3r7pTrF9YJuxBNavLi5LAaBBKVE8cpY-wD01qs5fYjMFqg81emh11EgPs3SxTu_KtHG5htm");'></div>
+<div class="size-8 rounded-full bg-cover ring-2 ring-white dark:ring-zinc-800 cursor-pointer" data-alt="Watcher 2" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAVq2jzoZO8YDUUu7YI27_9GajAj7oSnrUptxOMBVp54L0LDhd-CcNV1x04UGKuTJZPOi4Q7Rt1c1rTtdxLtz9QC4Qh1ojZzNW4ubDCWye3Ypw105PHwC1aNFuLp_dTIuIw4gVAvn73epjJcBdiJQaW2kdlFaKKomZWpKlSSrTdE-UtMRMAwuPSH9Qnj2Tb0D81e1vCqsKSPQu_SCeBZAskSQ_27Q4R2BPpmmaOxOhDIp6jyULKDHppyxTQCqcIY11BRI4DtRt9NwG8");'></div>
+<div class="size-8 rounded-full bg-cover ring-2 ring-white dark:ring-zinc-800 cursor-pointer" data-alt="Watcher 3" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDd72-lgDOujhi_8dbmIkH_dBPGVE0qyVFeus0I1Mp5RTiyfGCF6nSAK6BUV_51DaxT9BLK1jiseSH8z-ktEcHMMl60wIrMZ4hmDRNP4jSdMBlCO3KW27w2mGfp7w4Y_nsrvD4PI6vSXrpcSzwDpUkM0tyf4pe1FWGOfEx2-JDAk-dwIwQIZ-06D0smE5U8Hmoz4AcLKNzMqxt5JuA2aBtIXCqaRYI2lnZk9Utu2--zxFO9NrNUzuW6ax9w0zlZWJ08e2C6o3zQOaR4");'></div>
+<button class="size-8 rounded-full bg-[#f0f2f4] dark:bg-zinc-800 flex items-center justify-center text-[#617589] hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

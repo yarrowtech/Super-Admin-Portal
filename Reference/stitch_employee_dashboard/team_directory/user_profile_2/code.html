@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Team Directory &amp; User Profile - ProjectFlow</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for directory list */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#111418] dark:text-white font-display overflow-hidden h-screen flex flex-col">
+<!-- Top Navigation Bar -->
+<header class="flex flex-none items-center justify-between whitespace-nowrap border-b border-solid border-[#e5e7eb] dark:border-[#2a3b4d] bg-white dark:bg-[#1a2632] px-6 py-3 h-16 z-20">
+<div class="flex items-center gap-4 text-[#111418] dark:text-white">
+<div class="size-8 text-primary">
+<svg fill="currentColor" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M39.475 21.6262C40.358 21.4363 40.6863 21.5589 40.7581 21.5934C40.7876 21.655 40.8547 21.857 40.8082 22.3336C40.7408 23.0255 40.4502 24.0046 39.8572 25.2301C38.6799 27.6631 36.5085 30.6631 33.5858 33.5858C30.6631 36.5085 27.6632 38.6799 25.2301 39.8572C24.0046 40.4502 23.0255 40.7407 22.3336 40.8082C21.8571 40.8547 21.6551 40.7875 21.5934 40.7581C21.5589 40.6863 21.4363 40.358 21.6262 39.475C21.8562 38.4054 22.4689 36.9657 23.5038 35.2817C24.7575 33.2417 26.5497 30.9744 28.7621 28.762C30.9744 26.5497 33.2417 24.7574 35.2817 23.5037C36.9657 22.4689 38.4054 21.8562 39.475 21.6262ZM4.41189 29.2403L18.7597 43.5881C19.8813 44.7097 21.4027 44.9179 22.7217 44.7893C24.0585 44.659 25.5148 44.1631 26.9723 43.4579C29.9052 42.0387 33.2618 39.5667 36.4142 36.4142C39.5667 33.2618 42.0387 29.9052 43.4579 26.9723C44.1631 25.5148 44.659 24.0585 44.7893 22.7217C44.9179 21.4027 44.7097 19.8813 43.5881 18.7597L29.2403 4.41187C27.8527 3.02428 25.8765 3.02573 24.2861 3.36776C22.6081 3.72863 20.7334 4.58419 18.8396 5.74801C16.4978 7.18716 13.9881 9.18353 11.5858 11.5858C9.18354 13.988 7.18717 16.4978 5.74802 18.8396C4.58421 20.7334 3.72865 22.6081 3.36778 24.2861C3.02574 25.8765 3.02429 27.8527 4.41189 29.2403Z" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em]">ProjectFlow</h2>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<div class="hidden md:flex gap-2">
+<button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-blue-600 transition-colors">
+<span class="truncate">New Task</span>
+</button>
+<button class="flex items-center justify-center rounded-lg size-9 bg-[#f0f2f4] dark:bg-[#2a3b4d] text-[#111418] dark:text-white hover:bg-[#e5e7eb] dark:hover:bg-[#37495d] transition-colors">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="flex items-center justify-center rounded-lg size-9 bg-[#f0f2f4] dark:bg-[#2a3b4d] text-[#111418] dark:text-white hover:bg-[#e5e7eb] dark:hover:bg-[#37495d] transition-colors">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-9 ring-2 ring-white dark:ring-[#1a2632]" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAGiD9OGtR7vIRp-Nz_1l7HH7UK5vRlM6Blyj-MJjiu5BmIdo-BSQHKvJAJVv_l37t_3onbvwA42IvkK747GEO6NuxxC4Z-a1sKj-20Oyup4Z9F1zP5-tFLc3j8h4ebvYhN1EPaJwNhZJXOqQETcQqKkGAzsn2iKOM5tUBckXq-wgeGg1Uq_zjEgx1G7GmnkMN4eLtxeqlBeBLE1AeQdiv6lLlGilnMnltOTfV4WlbDpn_b5Gq43wZqUZVTk3Sx3mNgNUEW0yH4m-8-");'></div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Sidebar Navigation -->
+<nav class="hidden md:flex w-64 flex-col border-r border-[#e5e7eb] dark:border-[#2a3b4d] bg-white dark:bg-[#1a2632]">
+<div class="flex flex-col h-full p-4 justify-between">
+<div class="flex flex-col gap-4">
+<div class="flex gap-3 items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#2a3b4d] transition-colors cursor-pointer">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-lg size-10 shadow-sm" data-alt="Company Logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAxgDAi2oxbbu1ovT9SShHbBWys_oS6FGZ8pKUOsrQEv0DuTeDrrMDu0a0_se4vDsIcIFW5wItt2G9qqVBs4TX15XolTNHvThkD-5nSZYoT0RRcoxGXpPKHtzFwq11i22cMPyULOuarx2-S7T1DM7wAIEjBzyjj_2WkKauLbaMeX_BbmnAPh90IgCkJ9lpgpyFXVm5IwXlRfBIIXbi3Sea_FRkK6G0uX2UKFHKPgvc8oPpLIy5Ihv8QJtLfLsExx9UDtNR3sEzoPPwA");'></div>
+<div class="flex flex-col">
+<h1 class="text-[#111418] dark:text-white text-sm font-bold leading-tight">Acme Corp</h1>
+<p class="text-[#617589] dark:text-gray-400 text-xs font-normal">Enterprise</p>
+</div>
+</div>
+<div class="flex flex-col gap-1 mt-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#617589] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2a3b4d] hover:text-[#111418] dark:hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:scale-110 transition-transform">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#617589] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2a3b4d] hover:text-[#111418] dark:hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:scale-110 transition-transform">view_kanban</span>
+<p class="text-sm font-medium">Projects</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#617589] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2a3b4d] hover:text-[#111418] dark:hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:scale-110 transition-transform">check_box</span>
+<p class="text-sm font-medium">My Tasks</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20 dark:text-blue-300" href="#">
+<span class="material-symbols-outlined text-[22px] font-variation-settings-fill">group</span>
+<p class="text-sm font-bold">Directory</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#617589] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2a3b4d] hover:text-[#111418] dark:hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:scale-110 transition-transform">bar_chart</span>
+<p class="text-sm font-medium">Reports</p>
+</a>
+</div>
+</div>
+<div class="p-3 bg-[#f6f8fa] dark:bg-[#121c26] rounded-xl">
+<p class="text-xs font-medium text-gray-500 mb-2">Team Storage</p>
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mb-1">
+<div class="bg-primary h-1.5 rounded-full" style="width: 75%"></div>
+</div>
+<p class="text-xs text-gray-400">7.5 GB of 10 GB used</p>
+</div>
+</div>
+</nav>
+<!-- Main Content Area (Split Pane) -->
+<main class="flex flex-1 overflow-hidden relative">
+<!-- Left Pane: Directory List -->
+<aside class="w-full md:w-[350px] lg:w-[400px] flex flex-col border-r border-[#e5e7eb] dark:border-[#2a3b4d] bg-white dark:bg-[#1a2632] z-10">
+<!-- Search & Header -->
+<div class="p-4 border-b border-[#e5e7eb] dark:border-[#2a3b4d] flex flex-col gap-4 sticky top-0 bg-white dark:bg-[#1a2632] z-10">
+<h2 class="text-xl font-bold text-[#111418] dark:text-white">Team Directory</h2>
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-gray-400">search</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-2 border-none rounded-lg leading-5 bg-[#f0f2f4] dark:bg-[#2a3b4d] text-[#111418] dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm" placeholder="Search people..." type="text" value=""/>
+</div>
+<!-- Filters Chips -->
+<div class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#f0f2f4] dark:bg-[#2a3b4d] text-xs font-medium text-[#111418] dark:text-white whitespace-nowrap hover:bg-gray-200 dark:hover:bg-[#37495d] transition-colors">
+                            All Roles
+                            <span class="material-symbols-outlined text-[16px]">arrow_drop_down</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#f0f2f4] dark:bg-[#2a3b4d] text-xs font-medium text-[#111418] dark:text-white whitespace-nowrap hover:bg-gray-200 dark:hover:bg-[#37495d] transition-colors">
+                            Department
+                            <span class="material-symbols-outlined text-[16px]">arrow_drop_down</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#f0f2f4] dark:bg-[#2a3b4d] text-xs font-medium text-[#111418] dark:text-white whitespace-nowrap hover:bg-gray-200 dark:hover:bg-[#37495d] transition-colors">
+                            Status
+                            <span class="material-symbols-outlined text-[16px]">arrow_drop_down</span>
+</button>
+</div>
+</div>
+<!-- Scrollable List -->
+<div class="flex-1 overflow-y-auto p-2 space-y-1">
+<!-- Item 1 (Selected) -->
+<div class="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 cursor-pointer">
+<div class="relative shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Profile of Sarah Jenkins" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCTMlInee5Cau7OCWgmbAXfRKWFOgmQ1PQ0cqef9O2DGNyZEsZpoxknMtlvCt4fPvpU22XHI_-CBSLNUapw1ZshtoEkkFQSQMx8A7MqPrqSIYNl6RIwV13RN6bNbsPU-69RFORf_1Z4Qo9ztyyYYdu3yESh9FJY_n_lJLAY5EXnRRq7iZi3nqgVRZaFq0OFPEgje5TASTf-uIZuUDkZWjm2O3FbpaOeS4c5SHguhOVfe3JDIwCShLtQaUMmdLHBpSUuYZ6xk1FVAosS");'></div>
+<span class="absolute bottom-0 right-0 size-3 rounded-full bg-green-500 border-2 border-white dark:border-[#1a2632]"></span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate">Sarah Jenkins</h3>
+<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">Active</span>
+</div>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Senior Product Designer • Design</p>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-[#f0f2f4] dark:hover:bg-[#2a3b4d] cursor-pointer transition-colors group">
+<div class="relative shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Profile of Michael Chen" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCJpbxyDnhOER4OMLeKJ8Hf98d_8ImRg4OM-rImaTawQy3XzE92c4LDyTC1nwkbyGLO5uaf_f-Q1DtHbU3adJ8GoA4eGm0skHl0NiEWVEr5P5w8XIPywt7GCYnFAJ9MwPIeNgqGE1pB4mPwZxtRMM91VTSdAzqhCZSibzeBNjdm-aFV0zE5iin-n_6m4Vj-A2cnuxBjvMl4SZAoX-Na-8s1VrUrb-C0v-3lSimrApdBOjNVw_mMxkCG7Bh1O7jmHuAbos_QxAXcVmgX");'></div>
+<span class="absolute bottom-0 right-0 size-3 rounded-full bg-amber-500 border-2 border-white dark:border-[#1a2632]"></span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate group-hover:text-primary transition-colors">Michael Chen</h3>
+<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">Away</span>
+</div>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Engineering Manager • Engineering</p>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-[#f0f2f4] dark:hover:bg-[#2a3b4d] cursor-pointer transition-colors group">
+<div class="relative shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Profile of Emily Rodriguez" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBbIg9fMYkkjNSgNgiCL4Ee20aatt61gTBC_kvCAbSMWoxOw-9JUrXiyjU1_fiEd9ZCs_ODiimLn4QewDN9RsAn37aAtnUY-X678oqs8X2wJco1BMMGonJmr1MnLLh8ucNA04FhwwnBwJLuWD0JUlmhs7SHCgX1_M8Rm8we8B4HqKDdEXj1CGo9fUPuyQsZSwy1R2KfbBZ8qY6mdCvK03zybVQul2GqOtoKuUVyS6LXs7FPvno4_ADhnrjVVN1rQtwy7_gzpuUndTiU");'></div>
+<span class="absolute bottom-0 right-0 size-3 rounded-full bg-gray-400 border-2 border-white dark:border-[#1a2632]"></span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate group-hover:text-primary transition-colors">Emily Rodriguez</h3>
+<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">Offline</span>
+</div>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Frontend Developer • Engineering</p>
+</div>
+</div>
+<!-- Item 4 -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-[#f0f2f4] dark:hover:bg-[#2a3b4d] cursor-pointer transition-colors group">
+<div class="relative shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Profile of David Kim" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAHAXfKZuI5bCHVw-BY87-URGPSkQ7bj9oI86TsNUx8mpsKDZGnGgJ5VKeA5VpXtLOG72d4sry_wNhomgmnIqRSVlxb1yDfbj6vE1dKnE8czzgi28Xv5qu5kyzrXMcVaxzvjDC8XpWKjQr5LWLF-DYG4L6jzmgOf2fYiaoUo7gII3RBpDVTcypPPUqJDRT9IXQNkK1WotRECG7CL5Snfrm1Eg8ykL4J9HmMubjoCkdxrOddyskp6Q16u9ZqVuOUQx1skETFk1p8avyN");'></div>
+<span class="absolute bottom-0 right-0 size-3 rounded-full bg-red-500 border-2 border-white dark:border-[#1a2632]"></span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate group-hover:text-primary transition-colors">David Kim</h3>
+<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">In Meeting</span>
+</div>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Product Manager • Product</p>
+</div>
+</div>
+<!-- Item 5 -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-[#f0f2f4] dark:hover:bg-[#2a3b4d] cursor-pointer transition-colors group">
+<div class="relative shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Profile of David Kim" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB9V0mir3L73O5lKqovz6i8VU7pMJVjqxS2HBUMF2WJKgXlwLjAZTfzKmyrUtNUBoXDq7IGI2RYyWMgmXfp5-3tQhsYOWbJCUKnMhuyLHYUuBJ5ahi-iXy49RZSL2ZOCkmfreOnje_Ki68haOchVgwbrBbAsoxYc78vojAg9koLMNCVSR-HMVgpT2tg4QkpN6JxMufTk4GJ6IhAaOEpgimiuYQgvK8qzrd3SwGqsvy_lHc8f1yq227SK1FUWHNUefLqPaV4TOKmMNuq");'></div>
+<span class="absolute bottom-0 right-0 size-3 rounded-full bg-green-500 border-2 border-white dark:border-[#1a2632]"></span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="text-sm font-semibold text-[#111418] dark:text-white truncate group-hover:text-primary transition-colors">Priya Patel</h3>
+<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">Active</span>
+</div>
+<p class="text-xs text-[#617589] dark:text-gray-400 truncate">Marketing Lead • Marketing</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Right Pane: Profile Detail -->
+<section class="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-6 md:p-8 lg:p-10">
+<div class="max-w-4xl mx-auto space-y-6">
+<!-- Profile Header Card -->
+<div class="bg-white dark:bg-[#1a2632] rounded-xl border border-[#e5e7eb] dark:border-[#2a3b4d] shadow-sm p-6 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-100 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30"></div>
+<div class="relative flex flex-col sm:flex-row gap-6 items-start sm:items-end mt-4">
+<div class="relative">
+<div class="size-28 rounded-full border-4 border-white dark:border-[#1a2632] bg-cover bg-center shadow-md" data-alt="Large Profile Image" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDOGRmHnnPYe0ypFY6akoF4YWaLrEkVZEAsrYJe7R2y5L8adREPFaNqBrbKmfXD1ZDSBdi5ipIO_LRRvP3LJMxzpTV1ggsPkrRCxl4nzdRqwBvQNYbtuwvhEu_ZpthUjy9HjYNxU89UrRSoCdZBPhp-VbCbEFOM3Us-WJb7-dHG4abNLzhsNgfIrq1bafh8KMzj42g70Kou7_cs_GPZapFejc-PdydbJ6X4a8JEVNDzGj279YS54zyzhGexYSwuzmQc4dwzD_whghwD");'></div>
+<div class="absolute bottom-1 right-1 size-6 bg-green-500 rounded-full border-4 border-white dark:border-[#1a2632]" title="Online"></div>
+</div>
+<div class="flex-1 pb-1">
+<h1 class="text-2xl font-bold text-[#111418] dark:text-white">Sarah Jenkins</h1>
+<p class="text-[#617589] dark:text-gray-400 text-base">Senior Product Designer <span class="mx-2 text-gray-300 dark:text-gray-600">|</span> <span class="text-primary font-medium">Design Team</span></p>
+<div class="flex items-center gap-2 mt-2">
+<span class="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-900/30 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-700/10">She/Her</span>
+<span class="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 ring-1 ring-inset ring-gray-500/10">GMT-7 (PDT)</span>
+</div>
+</div>
+<div class="flex gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+<button class="flex-1 sm:flex-none h-10 px-5 rounded-lg bg-primary text-white text-sm font-bold shadow-sm hover:bg-blue-600 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">mail</span>
+                                    Message
+                                </button>
+<button class="size-10 rounded-lg border border-[#e5e7eb] dark:border-[#2a3b4d] text-[#111418] dark:text-white flex items-center justify-center hover:bg-gray-50 dark:hover:bg-[#2a3b4d] transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Main Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Left Column: Contact & Info -->
+<div class="space-y-6">
+<!-- Contact Card -->
+<div class="bg-white dark:bg-[#1a2632] rounded-xl border border-[#e5e7eb] dark:border-[#2a3b4d] p-5 shadow-sm">
+<h3 class="text-sm font-bold text-[#111418] dark:text-white uppercase tracking-wider mb-4">Contact Information</h3>
+<div class="space-y-4">
+<div class="flex gap-3 items-start">
+<div class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-primary">
+<span class="material-symbols-outlined text-[20px]">email</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-[#617589] dark:text-gray-400">Email</span>
+<a class="text-sm font-medium text-[#111418] dark:text-white hover:text-primary hover:underline" href="mailto:sarah.j@acmecorp.com">sarah.j@acmecorp.com</a>
+</div>
+</div>
+<div class="flex gap-3 items-start">
+<div class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-primary">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-[#617589] dark:text-gray-400">Slack</span>
+<span class="text-sm font-medium text-[#111418] dark:text-white">@sarahjenkins</span>
+</div>
+</div>
+<div class="flex gap-3 items-start">
+<div class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-primary">
+<span class="material-symbols-outlined text-[20px]">location_on</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-[#617589] dark:text-gray-400">Location</span>
+<span class="text-sm font-medium text-[#111418] dark:text-white">San Francisco HQ, Floor 4</span>
+</div>
+</div>
+<div class="flex gap-3 items-start">
+<div class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-primary">
+<span class="material-symbols-outlined text-[20px]">call</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-[#617589] dark:text-gray-400">Office Phone</span>
+<span class="text-sm font-medium text-[#111418] dark:text-white">+1 (555) 123-4567</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Hierarchy Card -->
+<div class="bg-white dark:bg-[#1a2632] rounded-xl border border-[#e5e7eb] dark:border-[#2a3b4d] p-5 shadow-sm">
+<h3 class="text-sm font-bold text-[#111418] dark:text-white uppercase tracking-wider mb-4">Reports To</h3>
+<div class="flex items-center gap-3 mb-4 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+<div class="size-10 rounded-full bg-cover bg-center" data-alt="Manager" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCmFSTkva9AJiPMEi1t0yghuSoi11t3PtUymDz2UKeEv5t5KWtHnr_iR17Lvo-Skw5rA1m3TfHjgBFEk30gDF2jFOE_2_U1spizzuhlRLQz46t__YRNcpcP2SwkXKNxV8W7PziCaEAFecNnuBTxBXWYb-UMcuBMuZpPdiqV0AK4ITarg3M5x9JrhWbuarKzjmU0UiMuPkZe_cwy2QBIFxi-WW6eJIQ3ofZRIe4tehK549msqIEXIgyoVHy41v5RUfj5LNqGXe6jdPR3");'></div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-[#111418] dark:text-white">James Wilson</span>
+<span class="text-xs text-[#617589] dark:text-gray-400">Director of Design</span>
+</div>
+</div>
+<h3 class="text-sm font-bold text-[#111418] dark:text-white uppercase tracking-wider mb-2 mt-6">Direct Reports (3)</h3>
+<div class="flex -space-x-2 overflow-hidden py-2">
+<img alt="Team member" class="inline-block size-8 rounded-full ring-2 ring-white dark:ring-[#1a2632] cursor-pointer hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVaGDXw700P3t--x-E9hI7gzoop7Jz2QbhV_BFxkbNWz_jIA55y9KI34bSRkOKn4o4LDbTAjWM8v7azHxeVWo6TBvlx4hOjT3mJU7QAK3pD1B-8v8JrV_oEguZi0dyn0wXI7E1TLf31nPMFbVwj3AAa98Kb3ulTbjZ_6gOGmISziKIH0xDjyRzmKlm--QqR_6ubina7UQ_N0cyNU2FzYihoqXb8mKNBs96nTEZY7N_5tBGcczQ9DIcHXUJYEwnGGR35eBfEi-_ku5P"/>
+<img alt="Team member" class="inline-block size-8 rounded-full ring-2 ring-white dark:ring-[#1a2632] cursor-pointer hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTMqXc8DXQ9oWG88VnnCXDdf9830kyp83rT5BLEzxfL5prdxU0SyumfDWFwMD0KoVB-Cg5bVDpW5GiI0TMzsRQRaRYED7snXyB9IPXNXaf54XgLR33s8-pMrrSxsxykr4POXas8GX5tHiihDtn4T2CzHIcV2b_W8vJoBD7nNX-6iTe9ZUoT6mvgtN_JaADchXvSi0GOaalbv1-C2m53AOd8pReQXYtn5SXW-ONAKq370qoqrCzEossuWyw3eOMwnYv5-BvMDxyoi4g"/>
+<img alt="Team member" class="inline-block size-8 rounded-full ring-2 ring-white dark:ring-[#1a2632] cursor-pointer hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqTvs9FnQDJ_dNiki_zBmS3h9ZDefiWj5a6-9s9ngV-Rwnt6_Nzf1MaCgRg7Lu8HQuGN3hwxq9xt93y0_QOfBXhkNZloU4nXw3UpXM0Awy8WQ7zUYhGklvN2ggF6eYHRMHzpJ5FArBmXp5r9k7sz6lC7kCMmwZmKuzHjW8W8h7mVp38FGI0_sHxRihWASEgcLX3utdA7-cSIrMHBRKjnfnPKXUO4d2VTLNV0gbKuCnRP19Oa4r0vH6Bc9TE2jeZqhrOOiFVsQxWwsJ"/>
+</div>
+</div>
+</div>
+<!-- Right Column: Workload -->
+<div class="lg:col-span-2 space-y-6">
+<!-- Tabs -->
+<div class="border-b border-[#e5e7eb] dark:border-[#2a3b4d]">
+<nav aria-label="Tabs" class="-mb-px flex space-x-8">
+<a aria-current="page" class="border-primary text-primary whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium" href="#">Overview &amp; Tasks</a>
+<a class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium" href="#">Activity</a>
+<a class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium" href="#">Documents</a>
+</nav>
+</div>
+<!-- Current Tasks Table -->
+<div class="bg-white dark:bg-[#1a2632] rounded-xl border border-[#e5e7eb] dark:border-[#2a3b4d] shadow-sm overflow-hidden">
+<div class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#2a3b4d] flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
+<h3 class="text-base font-bold text-[#111418] dark:text-white">Active Assignments</h3>
+<span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">5 Active</span>
+</div>
+<div class="overflow-x-auto">
+<table class="min-w-full text-left text-sm whitespace-nowrap">
+<thead class="uppercase tracking-wider border-b border-[#e5e7eb] dark:border-[#2a3b4d] bg-white dark:bg-[#1a2632]">
+<tr>
+<th class="px-6 py-3 text-[#617589] dark:text-gray-400 font-semibold text-xs" scope="col">Task ID</th>
+<th class="px-6 py-3 text-[#617589] dark:text-gray-400 font-semibold text-xs w-full" scope="col">Summary</th>
+<th class="px-6 py-3 text-[#617589] dark:text-gray-400 font-semibold text-xs" scope="col">Priority</th>
+<th class="px-6 py-3 text-[#617589] dark:text-gray-400 font-semibold text-xs" scope="col">Status</th>
+<th class="px-6 py-3 text-[#617589] dark:text-gray-400 font-semibold text-xs" scope="col">Due</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#e5e7eb] dark:divide-[#2a3b4d]">
+<tr class="hover:bg-gray-50 dark:hover:bg-[#2a3b4d]/50 transition-colors">
+<td class="px-6 py-4 text-[#617589] dark:text-gray-400 font-mono text-xs">DS-1024</td>
+<td class="px-6 py-4 font-medium text-[#111418] dark:text-white">Redesign User Dashboard for Mobile</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-semibold">
+<span class="material-symbols-outlined text-[16px]">keyboard_double_arrow_up</span> High
+                                                    </span>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-900/20 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-700/10">In Progress</span>
+</td>
+<td class="px-6 py-4 text-[#617589] dark:text-gray-400">Oct 24</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-[#2a3b4d]/50 transition-colors">
+<td class="px-6 py-4 text-[#617589] dark:text-gray-400 font-mono text-xs">DS-1105</td>
+<td class="px-6 py-4 font-medium text-[#111418] dark:text-white">Update Style Guide Typography</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-semibold">
+<span class="material-symbols-outlined text-[16px]">keyboard_arrow_up</span> Medium
+                                                    </span>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center rounded-md bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 text-xs font-medium text-yellow-800 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20">Review</span>
+</td>
+<td class="px-6 py-4 text-[#617589] dark:text-gray-400">Oct 28</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-[#2a3b4d]/50 transition-colors">
+<td class="px-6 py-4 text-[#617589] dark:text-gray-400 font-mono text-xs">DS-0922</td>
+<td class="px-6 py-4 font-medium text-[#111418] dark:text-white">Create icons for settings menu</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-semibold">
+<span class="material-symbols-outlined text-[16px]">keyboard_arrow_down</span> Low
+                                                    </span>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 ring-1 ring-inset ring-gray-500/10">Backlog</span>
+</td>
+<td class="px-6 py-4 text-[#617589] dark:text-gray-400">Nov 02</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-3 border-t border-[#e5e7eb] dark:border-[#2a3b4d] bg-gray-50 dark:bg-gray-800/50 text-center">
+<a class="text-sm font-medium text-primary hover:text-blue-700 dark:hover:text-blue-400" href="#">View all 12 tasks</a>
+</div>
+</div>
+<!-- Projects Involved -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="bg-white dark:bg-[#1a2632] p-4 rounded-xl border border-[#e5e7eb] dark:border-[#2a3b4d] shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<div class="size-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+<span class="material-symbols-outlined">rocket_launch</span>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary">arrow_forward</span>
+</div>
+<h4 class="font-bold text-[#111418] dark:text-white text-sm">Project Phoenix</h4>
+<p class="text-xs text-[#617589] dark:text-gray-400 mt-1 mb-3">Redesigning the core infrastructure.</p>
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+<div class="bg-indigo-500 h-1.5 rounded-full" style="width: 45%"></div>
+</div>
+</div>
+<div class="bg-white dark:bg-[#1a2632] p-4 rounded-xl border border-[#e5e7eb] dark:border-[#2a3b4d] shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<div class="size-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+<span class="material-symbols-outlined">smartphone</span>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary">arrow_forward</span>
+</div>
+<h4 class="font-bold text-[#111418] dark:text-white text-sm">Mobile App v2.0</h4>
+<p class="text-xs text-[#617589] dark:text-gray-400 mt-1 mb-3">Next gen mobile experience.</p>
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+<div class="bg-emerald-500 h-1.5 rounded-full" style="width: 72%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+</body></html>

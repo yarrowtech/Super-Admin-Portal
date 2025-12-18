@@ -640,14 +640,13 @@ const UserRoleManagement = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200">Department</label>
-                  <input
-                    name="department"
-                    value={form.department}
-                    onChange={handleFormChange}
-                    type="text"
-                    className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                    placeholder="e.g. Operations"
-                  />
+                  <select className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                    <option>Operations</option>
+                    <option>Technology</option>
+                    <option>IT</option>
+                    <option>Compliance</option>
+                    <option>Media</option>
+                  </select>
                 </div>
               </div>
               <div>
@@ -674,8 +673,8 @@ const UserRoleManagement = () => {
                   disabled={actionState.saving}
                   className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
                 >
-                  <span className="material-symbols-outlined text-base">save</span>
-                  {actionState.saving ? 'Saving...' : editingUser ? 'Update User' : 'Create User'}
+                  <span className="material-symbols-outlined text-base">send</span>
+                  Send Invite
                 </button>
               </div>
             </form>

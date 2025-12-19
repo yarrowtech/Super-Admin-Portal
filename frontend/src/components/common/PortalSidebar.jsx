@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import ThemeToggleButton from './ThemeToggleButton';
 
 const PortalSidebar = ({
@@ -12,7 +12,6 @@ const PortalSidebar = ({
   currentPath = '',
   onLogout,
 }) => {
-  const navigate = useNavigate();
   const [hoveredItem, setHoveredItem] = useState(null);
 
   const handleLogout = () => {
@@ -56,6 +55,11 @@ const PortalSidebar = ({
               </p>
               <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{user.email}</p>
             </div>
+            {user.role && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                {user.role}
+              </span>
+            )}
           </div>
         </div>
       )}

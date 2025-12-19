@@ -2,15 +2,15 @@ import React from 'react';
 
 const FinanceDashboard = () => {
   return (
-    <main className="flex-1 overflow-y-auto p-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="flex-1 overflow-y-auto p-6">
+      <div className="mx-auto max-w-6xl">
         {/* PageHeading */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-72 flex-col gap-2">
-            <h1 className="text-neutral-800 dark:text-neutral-100 text-4xl font-black leading-tight tracking-[-0.033em]">
+            <h1 className="text-neutral-800 dark:text-neutral-100 text-3xl font-black leading-tight tracking-[-0.033em]">
               Financial Dashboards Center
             </h1>
-            <p className="text-neutral-600 dark:text-neutral-400 text-base font-normal leading-normal">
+            <p className="text-neutral-600 dark:text-neutral-400 text-sm font-normal leading-normal">
               Access various AI-backed financial dashboards.
             </p>
           </div>
@@ -19,7 +19,7 @@ const FinanceDashboard = () => {
           </button>
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
           {/* SearchBar */}
           <div className="flex-1 min-w-[300px]">
             <label className="flex flex-col h-12 w-full">
@@ -28,7 +28,7 @@ const FinanceDashboard = () => {
                   <span className="material-symbols-outlined">search</span>
                 </div>
                 <input 
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-neutral-800 dark:text-neutral-100 focus:outline-0 focus:ring-2 focus:ring-primary focus:ring-inset border border-l-0 border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 h-full placeholder:text-neutral-600 dark:placeholder:text-neutral-400 px-4 text-base font-normal leading-normal" 
+                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-neutral-800 dark:text-neutral-100 focus:outline-0 focus:ring-2 focus:ring-primary focus:ring-inset border border-l-0 border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 h-full placeholder:text-neutral-600 dark:placeholder:text-neutral-400 px-4 text-sm font-normal leading-normal" 
                   placeholder="Find a dashboard by name..." 
                   value=""
                 />
@@ -54,12 +54,12 @@ const FinanceDashboard = () => {
         </div>
 
         {/* Dashboard Grid */}
-        <div className="mt-8 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+        <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-5">
           {/* Cash Management Dashboard */}
           <div className="flex flex-col gap-3 pb-3 bg-white dark:bg-neutral-800/50 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
             <div className="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/30 dark:to-green-800/30 flex items-center justify-center">
               <div className="text-center">
-                <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-6xl mb-2 block">account_balance</span>
+                <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-5xl mb-2 block">account_balance</span>
                 <p className="text-green-700 dark:text-green-300 text-sm font-medium">Cash Flow Analytics</p>
               </div>
             </div>
@@ -79,7 +79,7 @@ const FinanceDashboard = () => {
           <div className="flex flex-col gap-3 pb-3 bg-white dark:bg-neutral-800/50 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
             <div className="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 flex items-center justify-center">
               <div className="text-center">
-                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-6xl mb-2 block">trending_up</span>
+                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-5xl mb-2 block">trending_up</span>
                 <p className="text-blue-700 dark:text-blue-300 text-sm font-medium">Revenue vs Costs</p>
               </div>
             </div>
@@ -105,7 +105,7 @@ const FinanceDashboard = () => {
           <div className="flex flex-col gap-3 pb-3 bg-white dark:bg-neutral-800/50 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
             <div className="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 flex items-center justify-center">
               <div className="text-center">
-                <span className="material-symbols-outlined text-purple-600 dark:text-purple-400 text-6xl mb-2 block">dashboard</span>
+                <span className="material-symbols-outlined text-purple-600 dark:text-purple-400 text-5xl mb-2 block">dashboard</span>
                 <p className="text-purple-700 dark:text-purple-300 text-sm font-medium">Executive Overview</p>
               </div>
             </div>
@@ -125,7 +125,7 @@ const FinanceDashboard = () => {
           <div className="flex flex-col gap-3 pb-3 bg-white dark:bg-neutral-800/50 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
             <div className="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/30 dark:to-orange-800/30 flex items-center justify-center">
               <div className="text-center">
-                <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-6xl mb-2 block">analytics</span>
+                <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-5xl mb-2 block">analytics</span>
                 <p className="text-orange-700 dark:text-orange-300 text-sm font-medium">Capital Structure</p>
               </div>
             </div>
@@ -145,7 +145,7 @@ const FinanceDashboard = () => {
           <div className="flex flex-col gap-3 pb-3 bg-white dark:bg-neutral-800/50 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
             <div className="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg bg-gradient-to-br from-teal-100 to-teal-200 dark:from-teal-900/30 dark:to-teal-800/30 flex items-center justify-center">
               <div className="text-center">
-                <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-6xl mb-2 block">savings</span>
+                <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-5xl mb-2 block">savings</span>
                 <p className="text-teal-700 dark:text-teal-300 text-sm font-medium">Budget Forecasting</p>
               </div>
             </div>
@@ -165,7 +165,7 @@ const FinanceDashboard = () => {
           <div className="flex flex-col gap-3 pb-3 bg-white dark:bg-neutral-800/50 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
             <div className="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30 flex items-center justify-center">
               <div className="text-center">
-                <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-6xl mb-2 block">receipt_long</span>
+                <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-5xl mb-2 block">receipt_long</span>
                 <p className="text-red-700 dark:text-red-300 text-sm font-medium">Expense Analysis</p>
               </div>
             </div>

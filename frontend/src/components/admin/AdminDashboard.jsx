@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../api/admin';
 import PortalHeader from '../common/PortalHeader';
@@ -7,7 +6,6 @@ import KPICard from '../common/KPICard';
 import Button from '../common/Button';
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
   const { token, user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -31,6 +29,10 @@ const AdminDashboard = () => {
       fetchDashboard();
     }
   }, [token]);
+
+  const totalUsers = dashboardData?.totalUsers || 0;
+  const activeUsers = dashboardData?.activeUsers || 0;
+  const inactiveUsers = dashboardData?.inactiveUsers || 0;
 
   if (loading) {
     return (
@@ -71,8 +73,7 @@ const AdminDashboard = () => {
 
   return (
     <main className="flex-1 overflow-y-auto bg-gradient-to-br from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800">
-      <div className="p-6 md:p-8">
-        {/* Hero Header Section */}
+      <div className="mx-auto max-w-6xl p-5 md:p-6">
         <PortalHeader
           title="Admin Dashboard"
           user={user}
@@ -81,29 +82,29 @@ const AdminDashboard = () => {
           showNotifications={true}
           showThemeToggle={true}
           onSearchChange={(e) => setSearchQuery(e.target.value)}
-          searchPlaceholder="Quick search..."
+          searchPlaceholder="Search roles, departments, or users..."
         />
 
         {/* KPI Cards */}
-        <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
           <KPICard
             title="Registered Users"
-            value={dashboardData?.totalUsers || 0}
+            value={totalUsers}
             icon="group"
             colorScheme="blue"
             subtitle="TOTAL"
           />
           <KPICard
             title="Currently Active"
-            value={dashboardData?.activeUsers || 0}
+            value={activeUsers}
             icon="check_circle"
             colorScheme="green"
             subtitle="ACTIVE"
           />
           <KPICard
-            title="Need Attention"
-            value={dashboardData?.inactiveUsers || 0}
-            icon="cancel"
+            title="Needs Review"
+            value={inactiveUsers}
+            icon="warning"
             colorScheme="orange"
             subtitle="INACTIVE"
           />
@@ -116,14 +117,14 @@ const AdminDashboard = () => {
           />
         </section>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="flex flex-col gap-6 lg:col-span-2">
-            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          <div className="flex flex-col gap-5 xl:col-span-2">
+            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-base font-medium text-neutral-800 dark:text-neutral-300">User Overview</p>
+                  <p className="text-sm font-medium text-neutral-800 dark:text-neutral-300">User Overview</p>
                   <div className="flex items-baseline gap-2">
-                    <p className="text-[32px] font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
+                    <p className="text-3xl font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
                       {dashboardData?.totalUsers || 0}
                     </p>
                     <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Registered</p>
@@ -136,8 +137,8 @@ const AdminDashboard = () => {
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
-              <h2 className="mb-4 text-xl font-bold text-neutral-800 dark:text-neutral-100">User Distribution by Role</h2>
+            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
+              <h2 className="mb-4 text-lg font-bold text-neutral-800 dark:text-neutral-100">User Distribution by Role</h2>
               <div className="space-y-4">
                 {dashboardData?.usersByRole && dashboardData.usersByRole.length > 0 ? (
                   dashboardData.usersByRole.map((roleData) => (
@@ -159,8 +160,8 @@ const AdminDashboard = () => {
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
-              <h2 className="mb-4 text-xl font-bold text-neutral-800 dark:text-neutral-100">Departments</h2>
+            <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
+              <h2 className="mb-4 text-lg font-bold text-neutral-800 dark:text-neutral-100">Departments</h2>
               <div className="space-y-3">
                 {dashboardData?.departmentStats && dashboardData.departmentStats.length > 0 ? (
                   dashboardData.departmentStats.map((dept) => (
@@ -179,70 +180,7 @@ const AdminDashboard = () => {
             </section>
           </div>
 
-          <aside className="flex flex-col gap-6 lg:col-span-1">
-            <h2 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">Quick Actions</h2>
-            <div className="space-y-4">
-              <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-gradient-to-br from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/20 p-6 shadow-sm">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white shadow-md">
-                  <span className="material-symbols-outlined text-3xl">manage_accounts</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">User Management</h3>
-                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                    Add, remove, or edit user permissions and roles.
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  fullWidth
-                  onClick={() => navigate('/admin/users')}
-                  icon={<span className="material-symbols-outlined text-lg">arrow_forward</span>}
-                >
-                  Manage Users
-                </Button>
-              </div>
-
-              <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 shadow-sm">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
-                  <span className="material-symbols-outlined text-3xl">security</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Security</h3>
-                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                    Monitor system security and access logs.
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  fullWidth
-                  onClick={() => navigate('/admin/security')}
-                  icon={<span className="material-symbols-outlined text-lg">shield</span>}
-                >
-                  View Security
-                </Button>
-              </div>
-
-              <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 shadow-sm">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                  <span className="material-symbols-outlined text-3xl">bar_chart</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Reports</h3>
-                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                    View analytics and generate reports.
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  fullWidth
-                  onClick={() => navigate('/admin/reports')}
-                  icon={<span className="material-symbols-outlined text-lg">analytics</span>}
-                >
-                  View Reports
-                </Button>
-              </div>
-            </div>
-          </aside>
+          
         </div>
       </div>
     </main>

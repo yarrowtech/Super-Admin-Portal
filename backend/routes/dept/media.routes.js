@@ -7,7 +7,7 @@ const { ROLES } = require('../../config/roles');
 
 // All routes require authentication and MEDIA role
 router.use(authenticate);
-router.use(authorize(ROLES.MEDIA));
+router.use(authorize(ROLES.MEDIA, ROLES.ADMIN));
 
 // Media specific routes
 router.get('/dashboard', mediaController.getDashboard);

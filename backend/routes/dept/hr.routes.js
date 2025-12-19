@@ -7,7 +7,7 @@ const { ROLES } = require('../../config/roles');
 
 // All routes require authentication and HR role
 router.use(authenticate);
-router.use(authorize(ROLES.HR));
+router.use(authorize(ROLES.HR, ROLES.ADMIN));
 
 // Dashboard
 router.get('/dashboard', hrController.getDashboard);

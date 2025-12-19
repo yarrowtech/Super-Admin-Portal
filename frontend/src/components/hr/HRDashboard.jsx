@@ -36,15 +36,15 @@ const HRDashboard = () => {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto p-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="flex-1 overflow-y-auto p-6">
+      <div className="mx-auto max-w-6xl">
         {/* PageHeading */}
         <div className="flex flex-wrap justify-between gap-3 pb-6">
-          <div className="flex min-w-72 flex-col gap-3">
-            <p className="text-neutral-800 dark:text-neutral-100 text-4xl font-black leading-tight tracking-[-0.033em]">
+          <div className="flex min-w-72 flex-col gap-2">
+            <p className="text-neutral-800 dark:text-neutral-100 text-3xl font-black leading-tight tracking-[-0.033em]">
               HR Dashboard
             </p>
-            <p className="text-neutral-600 dark:text-neutral-400 text-base font-normal leading-normal">
+            <p className="text-neutral-600 dark:text-neutral-400 text-sm font-normal leading-normal">
               Welcome back, here is an overview of the HR department's
               activities.
             </p>
@@ -69,69 +69,69 @@ const HRDashboard = () => {
         </div>
         {/* Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-6 border border-neutral-200 dark:border-neutral-800">
-            <p className="text-neutral-800 dark:text-neutral-100 text-base font-medium leading-normal">
+          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-5 border border-neutral-200 dark:border-neutral-800">
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
               Pending Leave Requests
             </p>
-            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-3xl font-bold leading-tight">
+            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-2xl font-bold leading-tight">
               12
             </p>
-            <p className="text-success text-base font-medium leading-normal">
+            <p className="text-success text-sm font-medium leading-normal">
               +5%
             </p>
           </div>
-          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-6 border border-neutral-200 dark:border-neutral-800">
-            <p className="text-neutral-800 dark:text-neutral-100 text-base font-medium leading-normal">
+          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-5 border border-neutral-200 dark:border-neutral-800">
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
               New Applicants
             </p>
-            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-3xl font-bold leading-tight">
+            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-2xl font-bold leading-tight">
               28
             </p>
-            <p className="text-success text-base font-medium leading-normal">
+            <p className="text-success text-sm font-medium leading-normal">
               +12%
             </p>
           </div>
-          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-6 border border-neutral-200 dark:border-neutral-800">
-            <p className="text-neutral-800 dark:text-neutral-100 text-base font-medium leading-normal">
+          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-5 border border-neutral-200 dark:border-neutral-800">
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
               Upcoming Holidays
             </p>
-            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-3xl font-bold leading-tight">
+            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-2xl font-bold leading-tight">
               3
             </p>
-            <p className="text-neutral-600 dark:text-neutral-400 text-base font-medium leading-normal">
+            <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium leading-normal">
               No change
             </p>
           </div>
-          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-6 border border-neutral-200 dark:border-neutral-800">
-            <p className="text-neutral-800 dark:text-neutral-100 text-base font-medium leading-normal">
+          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 p-5 border border-neutral-200 dark:border-neutral-800">
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
               Active Employees
             </p>
-            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-3xl font-bold leading-tight">
+            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-2xl font-bold leading-tight">
               1,240
             </p>
-            <p className="text-danger text-base font-medium leading-normal">
+            <p className="text-danger text-sm font-medium leading-normal">
               -1%
             </p>
           </div>
         </div>
         {/* Charts */}
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 p-6">
-            <p className="text-neutral-800 dark:text-neutral-100 text-base font-medium leading-normal">
+          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 p-5">
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
               New Hires by Department
             </p>
-            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-[32px] font-bold leading-tight truncate">
+            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-2xl font-bold leading-tight truncate">
               18 Hires
             </p>
             <div className="flex gap-1">
-              <p className="text-neutral-600 dark:text-neutral-400 text-base font-normal leading-normal">
+              <p className="text-neutral-600 dark:text-neutral-400 text-sm font-normal leading-normal">
                 This Quarter
               </p>
-              <p className="text-success text-base font-medium leading-normal">
+              <p className="text-success text-sm font-medium leading-normal">
                 +8%
               </p>
             </div>
-            <div className="grid min-h-[180px] grid-flow-col gap-6 grid-rows-[1fr_auto] items-end justify-items-center px-3 pt-4">
+            <div className="grid min-h-[160px] grid-flow-col gap-6 grid-rows-[1fr_auto] items-end justify-items-center px-3 pt-4">
               <div
                 className="bg-primary/20 dark:bg-primary/40 w-full rounded-t"
                 style={{ height: '25%' }}
@@ -169,18 +169,18 @@ const HRDashboard = () => {
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 p-6">
-            <p className="text-neutral-800 dark:text-neutral-100 text-base font-medium leading-normal">
+          <div className="flex flex-col gap-2 rounded-xl bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 p-5">
+            <p className="text-neutral-800 dark:text-neutral-100 text-sm font-medium leading-normal">
               Application Trends
             </p>
-            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-[32px] font-bold leading-tight truncate">
+            <p className="text-neutral-800 dark:text-neutral-100 tracking-light text-2xl font-bold leading-tight truncate">
               152 Applicants
             </p>
             <div className="flex gap-1">
-              <p className="text-neutral-600 dark:text-neutral-400 text-base font-normal leading-normal">
+              <p className="text-neutral-600 dark:text-neutral-400 text-sm font-normal leading-normal">
                 Last 30 Days
               </p>
-              <p className="text-danger text-base font-medium leading-normal">
+              <p className="text-danger text-sm font-medium leading-normal">
                 -5%
               </p>
             </div>
@@ -247,7 +247,7 @@ const HRDashboard = () => {
           </div>
         </div>
         {/* SectionHeader */}
-        <h2 className="text-neutral-800 dark:text-neutral-100 text-[22px] font-bold leading-tight tracking-[-0.015em] pb-3 pt-8">
+        <h2 className="text-neutral-800 dark:text-neutral-100 text-lg font-bold leading-tight tracking-[-0.015em] pb-3 pt-6">
           Applicant Tracking
         </h2>
         {/* Applicant Tracking Table */}

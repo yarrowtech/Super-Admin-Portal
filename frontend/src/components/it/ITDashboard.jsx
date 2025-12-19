@@ -255,7 +255,7 @@ const ITDashboard = () => {
 
   if (loading) {
     return (
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 overflow-y-auto p-6">
         <div className="flex h-full items-center justify-center">
           <p className="text-neutral-600 dark:text-neutral-400">Loading IT dashboard...</p>
         </div>
@@ -265,7 +265,7 @@ const ITDashboard = () => {
 
   if (error && !hasContent) {
     return (
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 overflow-y-auto p-6">
         <div className="mx-auto flex h-full max-w-xl flex-col items-center justify-center text-center gap-4">
           <p className="text-lg font-semibold text-red-600 dark:text-red-400">
             {error}
@@ -284,14 +284,14 @@ const ITDashboard = () => {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto p-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="flex-1 overflow-y-auto p-6">
+      <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-col gap-2">
-            <p className="text-4xl font-black leading-tight tracking-[-0.033em] text-neutral-800 dark:text-neutral-100">
+            <p className="text-3xl font-black leading-tight tracking-[-0.033em] text-neutral-800 dark:text-neutral-100">
               IT Department Dashboard
             </p>
-            <p className="text-base font-normal leading-normal text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm font-normal leading-normal text-neutral-600 dark:text-neutral-400">
               Live overview of infrastructure workstreams, project health, and support queues.
             </p>
           </div>
@@ -331,8 +331,8 @@ const ITDashboard = () => {
           </div>
         )}
 
-        <div className="py-6">
-          <label className="flex h-12 min-w-40 w-full flex-col">
+        <div className="py-5">
+          <label className="flex h-11 min-w-40 w-full flex-col">
             <div className="flex h-full w-full items-stretch rounded-lg bg-neutral-100 dark:bg-neutral-800">
               <div className="flex items-center justify-center rounded-l-lg bg-transparent pl-4 text-neutral-500 dark:text-neutral-400">
                 <span className="material-symbols-outlined">search</span>
@@ -341,7 +341,7 @@ const ITDashboard = () => {
                 type="search"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                className="form-input flex w-full min-w-0 flex-1 rounded-r-lg border-none bg-transparent px-4 text-base text-neutral-800 placeholder:text-neutral-500 focus:border-none focus:outline-0 focus:ring-0 dark:text-neutral-100 dark:placeholder:text-neutral-400"
+                className="form-input flex w-full min-w-0 flex-1 rounded-r-lg border-none bg-transparent px-4 text-sm text-neutral-800 placeholder:text-neutral-500 focus:border-none focus:outline-0 focus:ring-0 dark:text-neutral-100 dark:placeholder:text-neutral-400"
                 placeholder="Search projects or support tickets..."
               />
             </div>
@@ -352,12 +352,12 @@ const ITDashboard = () => {
           {statCards.map((card) => (
             <div
               key={card.label}
-              className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-800/50"
+              className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/50"
             >
-              <p className="text-base font-medium text-neutral-600 dark:text-neutral-300">
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
                 {card.label}
               </p>
-              <p className="text-3xl font-bold leading-tight tracking-tight text-neutral-900 dark:text-white">
+              <p className="text-2xl font-bold leading-tight tracking-tight text-neutral-900 dark:text-white">
                 {typeof card.value === 'number' ? card.value : '—'}
               </p>
               <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">

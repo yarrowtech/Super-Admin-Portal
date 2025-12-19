@@ -7,7 +7,7 @@ const { ROLES } = require('../../config/roles');
 
 // All routes require authentication and MANAGER role
 router.use(authenticate);
-router.use(authorize(ROLES.MANAGER));
+router.use(authorize(ROLES.MANAGER, ROLES.ADMIN));
 
 // Manager specific routes
 router.get('/dashboard', managerController.getDashboard);

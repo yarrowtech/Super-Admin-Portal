@@ -7,7 +7,7 @@ const { ROLES } = require('../../config/roles');
 
 // All routes require authentication and LAW role
 router.use(authenticate);
-router.use(authorize(ROLES.LAW));
+router.use(authorize(ROLES.LAW, ROLES.ADMIN));
 
 // Law/Legal specific routes
 router.get('/dashboard', lawController.getDashboard);

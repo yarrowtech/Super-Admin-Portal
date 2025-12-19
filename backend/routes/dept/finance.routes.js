@@ -7,7 +7,7 @@ const { ROLES } = require('../../config/roles');
 
 // All routes require authentication and FINANCE role
 router.use(authenticate);
-router.use(authorize(ROLES.FINANCE));
+router.use(authorize(ROLES.FINANCE, ROLES.ADMIN));
 
 // Finance specific routes
 router.get('/dashboard', financeController.getDashboard);

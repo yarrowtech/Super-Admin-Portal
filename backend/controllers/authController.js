@@ -39,10 +39,19 @@ const generateRefreshToken = (user) => {
  */
 exports.register = async (req, res) => {
   try {
-    const { email, password, role, firstName, lastName, phone, department } = req.body;
+    if (process.env.ENABLE_SELF_REGISTRATION !== 'true') {
+      return res.status(403).json({
+        success: false,
+        error: 'Self-service registration is disabled. Please contact an administrator to create your account.',
+        code: 'REGISTRATION_DISABLED'
+      });
+    }
+
+    const normalizedEmail = email?.trim().toLowerCase();
+    const { password, role, firstName, lastName, phone, department } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(409).json({
         success: false,
@@ -53,7 +62,7 @@ exports.register = async (req, res) => {
 
     // Create user
     const user = await User.create({
-      email,
+      email: normalizedEmail,
       password,
       role,
       firstName,
@@ -114,10 +123,11 @@ exports.register = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const emailInput = req.body.email?.trim().toLowerCase();
+    const { password } = req.body;
 
     // Find user with password
-    const user = await User.findByCredentials(email, password);
+    const user = await User.findByCredentials(emailInput, password);
 
     // Update last login
     user.lastLogin = new Date();

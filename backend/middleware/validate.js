@@ -1,6 +1,15 @@
 // backend/middleware/validate.js
 const { body, validationResult } = require('express-validator');
 
+const emailNormalizeOptions = {
+  gmail_remove_dots: false,
+  gmail_remove_subaddress: false,
+  gmail_convert_googlemaildotcom: false,
+  outlookdotcom_remove_subaddress: false,
+  yahoo_remove_subaddress: false,
+  icloud_remove_subaddress: false,
+};
+
 /**
  * Validation middleware to check for validation errors
  */
@@ -27,7 +36,7 @@ const registerValidation = [
     .trim()
     .isEmail()
     .withMessage('Please provide a valid email address')
-    .normalizeEmail(),
+    .normalizeEmail(emailNormalizeOptions),
   body('password')
     .trim()
     .isLength({ min: 6 })
@@ -70,7 +79,7 @@ const loginValidation = [
     .trim()
     .isEmail()
     .withMessage('Please provide a valid email address')
-    .normalizeEmail(),
+    .normalizeEmail(emailNormalizeOptions),
   body('password')
     .trim()
     .notEmpty()

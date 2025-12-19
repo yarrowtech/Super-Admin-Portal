@@ -266,11 +266,13 @@
 require("dotenv").config();
 
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
 const rateLimit = require("express-rate-limit");
 const morgan = require("morgan");
+const { Server } = require("socket.io");
 
 const connectDB = require("./config/db");
 const { seedDefaultUsers } = require("./utils/seedDefaultUsers");
@@ -286,8 +288,25 @@ const lawRoutes = require("./routes/dept/law.routes");
 const mediaRoutes = require("./routes/dept/media.routes");
 const managerRoutes = require("./routes/dept/manager.routes");
 const employeeRoutes = require("./routes/dept/employee.routes");
+const employeePortalRoutes = require("./modules/employee");
+
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim());
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+  },
+});
+app.set("io", io);
 
 /* ======================
    1) Database
@@ -316,10 +335,6 @@ app.use(mongoSanitize());
    3) CORS (proper)
    NOTE: credentials:true cannot use origin:"*"
 ====================== */
-const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
-  .split(",")
-  .map((s) => s.trim());
-
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -373,6 +388,7 @@ app.use("/api/dept/law", lawRoutes);
 app.use("/api/dept/media", mediaRoutes);
 app.use("/api/dept/manager", managerRoutes);
 app.use("/api/dept/employee", employeeRoutes);
+app.use("/api/employee", employeePortalRoutes);
 
 /* ======================
    7) 404
@@ -400,8 +416,22 @@ app.use((err, req, res, next) => {
    9) Start Server
 ====================== */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ Server running: http://localhost:${PORT}`);
+});
+
+io.on("connection", (socket) => {
+  socket.on("joinThread", (threadId) => {
+    if (threadId) {
+      socket.join(threadId);
+    }
+  });
+
+  socket.on("leaveThread", (threadId) => {
+    if (threadId) {
+      socket.leave(threadId);
+    }
+  });
 });
 
 module.exports = app;

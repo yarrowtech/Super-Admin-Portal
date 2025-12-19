@@ -98,7 +98,8 @@ userSchema.methods.toSafeObject = function () {
 
 // Static method to find by email with password
 userSchema.statics.findByCredentials = async function (email, password) {
-  const user = await this.findOne({ email }).select('+password');
+  const normalized = email?.trim().toLowerCase();
+  const user = await this.findOne({ email: normalized }).select('+password');
 
   if (!user) {
     throw new Error('Invalid credentials');

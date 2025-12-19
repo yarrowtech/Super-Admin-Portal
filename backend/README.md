@@ -29,6 +29,9 @@ MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_secret_key_here
 PORT=5000
 NODE_ENV=development
+ENABLE_SELF_REGISTRATION=false      # keep false so only admins can create users
+AUTO_SEED_DEFAULT_USERS=false       # set true in dev if you need seed accounts
+CORS_ORIGIN=http://localhost:5173   # comma-separated list if you use multiple dev hosts
 ```
 
 ### 3. Run the Server
@@ -76,6 +79,12 @@ backend/
 │       ├── law.routes.js
 │       ├── manager.routes.js
 │       └── media.routes.js
+├── modules/
+│   └── employee/             # Employee portal (dashboard/projects/tasks/chat)
+│       ├── controllers/
+│       ├── services/
+│       ├── routes/
+│       └── data/
 └── server.js                 # Main entry point
 ```
 
@@ -136,9 +145,22 @@ All department routes require authentication and specific role.
 - `GET /team` - Team members
 - `GET /projects` - Project overview
 
+#### EMPLOYEE PORTAL (`/api/employee`)
+- `GET /dashboard` - Lightweight dashboard feed for the React portal
+- `GET /projects` - Kanban-style project board data
+- `GET /tasks` - Task buckets (today / upcoming / blocked)
+- `GET /documents` - Workspace documents + storage usage
+- `GET /team` - Directory cards with status & location
+- `GET /chat/threads` - Chat channel list
+- `GET /chat/threads/:id/messages` - Thread messages
+- `POST /chat/threads/:id/messages` - Append a chat message
+
+> ℹ️ **Account provisioning**: keep `ENABLE_SELF_REGISTRATION=false` so employees can only log in once an administrator creates their account via `/api/dept/admin/users`. This mirrors the production workflow where HR/Admin owns user onboarding.
+
 ## Usage Examples
 
 ### 1. Register a User
+> Requires `ENABLE_SELF_REGISTRATION=true` (keep false in production and create users via the Admin portal instead).
 ```bash
 curl -X POST http://localhost:5000/api/auth/register \
   -H "Content-Type: application/json" \

@@ -6,6 +6,7 @@ const PortalSidebar = ({
   brandingTitle = 'Portal',
   brandingSubtitle = 'Management System',
   brandingIcon = 'dashboard',
+  showBranding = true,
   user,
   navItems = [],
   currentPath = '',
@@ -28,21 +29,23 @@ const PortalSidebar = ({
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
       {/* Branding */}
-      <div className="border-b border-neutral-200 p-6 dark:border-neutral-800">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg">
-            <span className="material-symbols-outlined text-xl">{brandingIcon}</span>
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">{brandingTitle}</h1>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">{brandingSubtitle}</p>
+      {showBranding && (
+        <div className="border-b border-neutral-200 p-6 dark:border-neutral-800">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg">
+              <span className="material-symbols-outlined text-xl">{brandingIcon}</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">{brandingTitle}</h1>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400">{brandingSubtitle}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* User Info */}
       {user && (
-        <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
+        <div className={`border-neutral-200 p-4 dark:border-neutral-800 ${showBranding ? 'border-b' : ''}`}>
           <div className="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
               {user.firstName?.[0]}{user.lastName?.[0]}

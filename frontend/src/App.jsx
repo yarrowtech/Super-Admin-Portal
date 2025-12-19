@@ -25,6 +25,13 @@ import ManagerDashboard from './components/manager/ManagerDashboard';
 import ProductManagement from './components/manager/ProductManagement';
 import TeamManagement from './components/manager/TeamManagement';
 import ManagerReports from './components/manager/ManagerReports';
+import EmployeePortal from './components/employee/EmployeePortal';
+import EmployeeDashboard from './components/employee/EmployeeDashboard';
+import EmployeeProjects from './components/employee/EmployeeProjects';
+import EmployeeTasks from './components/employee/EmployeeTasks';
+import EmployeeDocuments from './components/employee/EmployeeDocuments';
+import EmployeeTeamDirectory from './components/employee/EmployeeTeamDirectory';
+import EmployeeChat from './components/employee/EmployeeChat';
 import NotFound from './components/404/NotFound';
 import { useAuth } from './context/AuthContext';
 
@@ -40,6 +47,8 @@ const defaultRolePath = (role) => {
       return '/it/dashboard';
     case 'finance':
       return '/finance/dashboard';
+    case 'employee':
+      return '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';
@@ -277,6 +286,15 @@ function App() {
             </PrivateRoute>
           }
         />
+
+        {/* Employee */}
+        <Route path="/employee" element={withPortal(EmployeePortal, EmployeeDashboard)} />
+        <Route path="/employee/dashboard" element={withPortal(EmployeePortal, EmployeeDashboard)} />
+        <Route path="/employee/projects" element={withPortal(EmployeePortal, EmployeeProjects)} />
+        <Route path="/employee/tasks" element={withPortal(EmployeePortal, EmployeeTasks)} />
+        <Route path="/employee/documents" element={withPortal(EmployeePortal, EmployeeDocuments)} />
+        <Route path="/employee/team" element={withPortal(EmployeePortal, EmployeeTeamDirectory)} />
+        <Route path="/employee/chat" element={withPortal(EmployeePortal, EmployeeChat)} />
 
         <Route path="/" element={<Navigate to={user ? defaultRolePath(user.role) : '/login'} replace />} />
         <Route path="*" element={<NotFound />} />

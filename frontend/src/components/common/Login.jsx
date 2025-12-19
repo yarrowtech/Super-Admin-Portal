@@ -14,6 +14,8 @@ const defaultRolePath = (role) => {
       return '/it/dashboard';
     case 'finance':
       return '/finance/dashboard';
+    case 'employee':
+      return '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';
@@ -143,7 +145,7 @@ const Login = () => {
             </button>
           </form>
           <div className="mt-8 text-center text-xs text-subtext-light dark:text-subtext-dark">
-            © 2025 CitiMart-HouseofMusa. All rights reserved.
+            © 2025 CitiMart - HouseofMusa. All rights reserved.
           </div>
         </div>
       </div>

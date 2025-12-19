@@ -288,13 +288,62 @@ function App() {
         />
 
         {/* Employee */}
-        <Route path="/employee" element={withPortal(EmployeePortal, EmployeeDashboard)} />
-        <Route path="/employee/dashboard" element={withPortal(EmployeePortal, EmployeeDashboard)} />
-        <Route path="/employee/projects" element={withPortal(EmployeePortal, EmployeeProjects)} />
-        <Route path="/employee/tasks" element={withPortal(EmployeePortal, EmployeeTasks)} />
-        <Route path="/employee/documents" element={withPortal(EmployeePortal, EmployeeDocuments)} />
-        <Route path="/employee/team" element={withPortal(EmployeePortal, EmployeeTeamDirectory)} />
-        <Route path="/employee/chat" element={withPortal(EmployeePortal, EmployeeChat)} />
+        <Route
+          path="/employee"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeDashboard)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employee/dashboard"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeDashboard)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employee/projects"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeProjects)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employee/tasks"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeTasks)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employee/documents"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeDocuments)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employee/team"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeTeamDirectory)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employee/chat"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeChat)}
+            </PrivateRoute>
+          }
+        />
 
         <Route path="/" element={<Navigate to={user ? defaultRolePath(user.role) : '/login'} replace />} />
         <Route path="*" element={<NotFound />} />

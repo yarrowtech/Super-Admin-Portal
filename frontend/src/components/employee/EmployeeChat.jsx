@@ -36,6 +36,7 @@ const EmployeeChat = () => {
   const typingDebounceRef = useRef(null);
   const isTypingRef = useRef(false);
   const lastActiveThreadRef = useRef(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const currentUserId = useMemo(() => user?.id || user?._id, [user]);
   const activeThread = useMemo(
@@ -632,6 +633,42 @@ const EmployeeChat = () => {
     [teamMembers, directMemberIds]
   );
 
+  const normalizedSearchTokens = useMemo(() => {
+    const base = searchQuery.trim().toLowerCase();
+    if (!base) return [];
+    return base.split(/\s+/).filter(Boolean);
+  }, [searchQuery]);
+
+  const matchTokens = useCallback((text, tokens) => {
+    if (!tokens.length) return true;
+    const source = (text || '').toLowerCase();
+    return tokens.every((token) => source.includes(token));
+  }, []);
+
+  const filteredThreads = useMemo(() => {
+    if (!normalizedSearchTokens.length) return threads;
+    return threads.filter((thread) => {
+      const name = threadDisplayName(thread) || '';
+      const preview = thread.lastMessage || '';
+      const memberNames = (thread.members || [])
+        .map((member) => member.name || member.email || '')
+        .join(' ');
+      const haystack = `${name} ${preview} ${memberNames}`;
+      return matchTokens(haystack, normalizedSearchTokens);
+    });
+  }, [threads, normalizedSearchTokens, threadDisplayName, matchTokens]);
+
+  const filteredContacts = useMemo(() => {
+    if (!normalizedSearchTokens.length) return availableContacts;
+    return availableContacts.filter((member) => {
+      const name = member.name || '';
+      const role = member.role || '';
+      const department = member.department || '';
+      const haystack = `${name} ${role} ${department}`;
+      return matchTokens(haystack, normalizedSearchTokens);
+    });
+  }, [availableContacts, normalizedSearchTokens, matchTokens]);
+
   useEffect(() => {
     if (!activeThreadId) return;
     setThreads((prev) =>
@@ -771,21 +808,45 @@ const EmployeeChat = () => {
         </div>
 
         {/* Search */}
-        <div className="p-3">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search or start new chat"
-              className="w-full rounded-lg bg-[#f0f2f5] px-10 py-2.5 text-sm text-[#111b21] placeholder:text-[#667781] focus:outline-none dark:bg-[#202c33] dark:text-white dark:placeholder:text-[#8696a0]"
-            />
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#667781] dark:text-[#8696a0]">
-              search
-            </span>
-          </div>
-        </div>
+            <div className="p-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search or start new chat"
+                  className="w-full rounded-lg bg-[#f0f2f5] px-10 py-2.5 text-sm text-[#111b21] placeholder:text-[#667781] focus:outline-none dark:bg-[#202c33] dark:text-white dark:placeholder:text-[#8696a0]"
+                />
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#667781] dark:text-[#8696a0]">
+                  search
+                </span>
+              </div>
+              {normalizedSearchTokens.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#8696a0] dark:text-[#667781]">
+                  <span className="font-semibold text-[#54656f] dark:text-[#cfd4d9]">Results:</span>
+                  <span>{filteredThreads.length} chats</span>
+                  <span>•</span>
+                  <span>{filteredContacts.length} teammates</span>
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="ml-auto text-[#00a884] hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          {threads.map((thread) => {
+          {filteredThreads.length === 0 && (
+            <div className="px-4 py-6 text-sm text-[#667781] dark:text-[#8696a0]">
+              {normalizedSearchTokens.length > 0
+                ? 'No conversations match your search.'
+                : 'No conversations yet.'}
+            </div>
+          )}
+          {filteredThreads.map((thread) => {
             const id = getThreadId(thread);
             const isActive = id === activeThreadId;
             const lastMessage = wrapMessageText(thread.lastMessage || 'No messages yet');
@@ -828,9 +889,14 @@ const EmployeeChat = () => {
           })}
 
           <div className="border-t border-[#e9edef] p-4 dark:border-[#303d45]">
-            <h3 className="mb-3 text-sm font-semibold text-[#667781] dark:text-[#8696a0]">Start New Chat</h3>
-            <div className="space-y-2">
-              {availableContacts.map((member) => (
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[#667781] dark:text-[#8696a0]">Start New Chat</h3>
+                  {normalizedSearchTokens.length > 0 && (
+                    <span className="text-xs text-[#8696a0]">Searching team...</span>
+                  )}
+                </div>
+                <div className="space-y-2">
+              {filteredContacts.map((member) => (
                 <div key={member.id} className="flex items-center justify-between rounded-lg p-2 hover:bg-[#f5f6f6] dark:hover:bg-[#2a3942]">
                   <div className="flex items-center gap-3">
                     <div className="relative">
@@ -854,8 +920,10 @@ const EmployeeChat = () => {
                   </button>
                 </div>
               ))}
-              {availableContacts.length === 0 && (
-                <p className="text-xs text-[#667781] dark:text-[#8696a0]">Everyone already has a chat.</p>
+              {filteredContacts.length === 0 && (
+                <p className="text-xs text-[#667781] dark:text-[#8696a0]">
+                  {normalizedSearchTokens.length > 0 ? 'No team members match your search.' : 'Everyone already has a chat.'}
+                </p>
               )}
             </div>
           </div>

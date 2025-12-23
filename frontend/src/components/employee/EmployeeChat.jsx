@@ -393,7 +393,27 @@ const EmployeeChat = () => {
       });
 
       if (threadId === activeId) {
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => {
+          // Check if message already exists (prevent duplicates)
+          const messageId = message.id || message._id;
+          const messageExists = prev.some(msg => 
+            (msg.id === messageId) || 
+            (msg._id === messageId) ||
+            (msg.text === message.text && Math.abs(new Date(msg.time) - new Date(message.time)) < 5000)
+          );
+          
+          if (messageExists) {
+            // If it's an optimistic message being replaced by real message, update it
+            return prev.map(msg => {
+              if (msg.sending && msg.text === message.text) {
+                return { ...message, id: messageId };
+              }
+              return msg;
+            });
+          }
+          
+          return [...prev, message];
+        });
       }
 
       if (typingStatusTimeoutsRef.current[threadId]) {
@@ -571,17 +591,47 @@ const EmployeeChat = () => {
     if (!draft.trim() || !token || !activeThreadId) return;
     setSending(true);
     setError('');
+    
+    const messageText = draft.trim();
+    setDraft(''); // Clear input immediately for better UX
+    
+    // Optimistic update - add message to UI immediately
+    const optimisticMessage = {
+      id: `temp-${Date.now()}`,
+      text: messageText,
+      time: new Date().toISOString(),
+      senderId: currentUserId,
+      from: user?.firstName || user?.name || 'You',
+      sending: true,
+    };
+    
+    setMessages(prev => [...prev, optimisticMessage]);
 
     try {
-      await employeeApi.postChatMessage(token, activeThreadId, draft.trim());
-      await loadMessages();
-      setDraft('');
+      const response = await employeeApi.postChatMessage(token, activeThreadId, messageText);
+      
+      // The socket handler will handle adding the real message, so we just remove the optimistic one
+      // or update it with server data if no socket message comes through
+      const realMessage = response?.data || response;
+      if (realMessage) {
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === optimisticMessage.id 
+              ? { ...realMessage, id: realMessage.id || realMessage._id, sending: false }
+              : msg
+          )
+        );
+      }
+      
       emitTypingStatus(false);
       if (typingDebounceRef.current) {
         clearTimeout(typingDebounceRef.current);
         typingDebounceRef.current = null;
       }
     } catch (err) {
+      // Remove optimistic message on error and restore draft
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
+      setDraft(messageText);
       setError(err.message || 'Failed to send message');
     } finally {
       setSending(false);
@@ -593,10 +643,35 @@ const EmployeeChat = () => {
     setSending(true);
     setError('');
 
+    // Optimistic update for quick reply
+    const optimisticMessage = {
+      id: `temp-${Date.now()}`,
+      text: reply,
+      time: new Date().toISOString(),
+      senderId: currentUserId,
+      from: user?.firstName || user?.name || 'You',
+      sending: true,
+    };
+    
+    setMessages(prev => [...prev, optimisticMessage]);
+
     try {
-      await employeeApi.postChatMessage(token, activeThreadId, reply);
-      await loadMessages();
+      const response = await employeeApi.postChatMessage(token, activeThreadId, reply);
+      
+      // The socket handler will handle adding the real message, so we just update the optimistic one
+      const realMessage = response?.data || response;
+      if (realMessage) {
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === optimisticMessage.id 
+              ? { ...realMessage, id: realMessage.id || realMessage._id, sending: false }
+              : msg
+          )
+        );
+      }
     } catch (err) {
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
       setError(err.message || 'Failed to send message');
     } finally {
       setSending(false);

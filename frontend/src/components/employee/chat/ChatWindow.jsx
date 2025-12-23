@@ -89,8 +89,13 @@ const ChatWindow = ({
 
             let statusIcon = 'done';
             let statusColor = 'text-[#667781]';
+            
             if (isMe) {
-              if (isSeen) {
+              if (msg.sending) {
+                // Message is being sent (optimistic update)
+                statusIcon = 'schedule';
+                statusColor = 'text-[#667781] animate-spin';
+              } else if (isSeen) {
                 statusIcon = 'done_all';
                 statusColor = 'text-[#4fc3f7]';
               } else {

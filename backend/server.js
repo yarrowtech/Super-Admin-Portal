@@ -445,6 +445,20 @@ io.on("connection", (socket) => {
       seenAt: new Date().toISOString(),
     });
   });
+
+  socket.on("chat:typing", (payload = {}) => {
+    const { threadId, userId, name, isTyping = false } = payload;
+    if (!threadId || !userId) {
+      return;
+    }
+    socket.to(threadId).emit("chat:typing", {
+      threadId,
+      userId,
+      name: name || null,
+      isTyping: Boolean(isTyping),
+      timestamp: new Date().toISOString(),
+    });
+  });
 });
 
 module.exports = app;

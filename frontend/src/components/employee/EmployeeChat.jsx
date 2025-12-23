@@ -31,6 +31,11 @@ const EmployeeChat = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
+  const [typingStatus, setTypingStatus] = useState({});
+  const typingStatusTimeoutsRef = useRef({});
+  const typingDebounceRef = useRef(null);
+  const isTypingRef = useRef(false);
+  const lastActiveThreadRef = useRef(null);
 
   const currentUserId = useMemo(() => user?.id || user?._id, [user]);
   const activeThread = useMemo(
@@ -121,12 +126,36 @@ const EmployeeChat = () => {
   }, [totalUnread, threads, deriveUnreadCount, getThreadId]);
 
   useEffect(() => {
+    if (
+      lastActiveThreadRef.current &&
+      lastActiveThreadRef.current !== activeThreadId &&
+      isTypingRef.current
+    ) {
+      const previousThreadId = lastActiveThreadRef.current;
+      const socket = socketRef.current;
+      if (socket && previousThreadId && currentUserId) {
+        socket.emit('chat:typing', {
+          threadId: previousThreadId,
+          userId: currentUserId,
+          name: user?.firstName || user?.name || null,
+          isTyping: false,
+        });
+      }
+    }
+
+    lastActiveThreadRef.current = activeThreadId;
+    isTypingRef.current = false;
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+
     activeThreadIdRef.current = activeThreadId;
     // Save active thread to localStorage
     if (activeThreadId) {
       localStorage.setItem('activeThreadId', activeThreadId);
     }
-  }, [activeThreadId]);
+  }, [activeThreadId, currentUserId, user]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -158,6 +187,27 @@ const EmployeeChat = () => {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [showEmojiPicker]);
+
+  useEffect(() => {
+    return () => {
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+      if (isTypingRef.current && lastActiveThreadRef.current && socketRef.current && currentUserId) {
+        socketRef.current.emit('chat:typing', {
+          threadId: lastActiveThreadRef.current,
+          userId: currentUserId,
+          name: user?.firstName || user?.name || null,
+          isTyping: false,
+        });
+      }
+      Object.values(typingStatusTimeoutsRef.current).forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+      typingStatusTimeoutsRef.current = {};
+    };
+  }, [currentUserId, user]);
 
   useEffect(() => {
     if (!token) return;
@@ -301,6 +351,17 @@ const EmployeeChat = () => {
       if (threadId === activeId) {
         setMessages((prev) => [...prev, message]);
       }
+
+      if (typingStatusTimeoutsRef.current[threadId]) {
+        clearTimeout(typingStatusTimeoutsRef.current[threadId]);
+        delete typingStatusTimeoutsRef.current[threadId];
+      }
+      setTypingStatus((prev) => {
+        if (!prev[threadId]) return prev;
+        const next = { ...prev };
+        delete next[threadId];
+        return next;
+      });
     };
 
     const seenHandler = (payload = {}) => {
@@ -324,11 +385,49 @@ const EmployeeChat = () => {
 
     socket.on('chat:message', messageHandler);
     socket.on('chat:seen', seenHandler);
+    const typingHandler = (payload = {}) => {
+      const { threadId, userId, name, isTyping } = payload;
+      if (!threadId || !userId) return;
+      if (currentUserId && userId.toString() === currentUserId.toString()) return;
+
+      setTypingStatus((prev) => {
+        const next = { ...prev };
+        if (isTyping) {
+          next[threadId] = {
+            userId,
+            name: name || 'Someone',
+          };
+        } else {
+          delete next[threadId];
+        }
+        return next;
+      });
+
+      if (typingStatusTimeoutsRef.current[threadId]) {
+        clearTimeout(typingStatusTimeoutsRef.current[threadId]);
+        delete typingStatusTimeoutsRef.current[threadId];
+      }
+
+      if (isTyping) {
+        typingStatusTimeoutsRef.current[threadId] = setTimeout(() => {
+          setTypingStatus((prev) => {
+            if (!prev[threadId]) return prev;
+            const next = { ...prev };
+            delete next[threadId];
+            return next;
+          });
+          delete typingStatusTimeoutsRef.current[threadId];
+        }, 3000);
+      }
+    };
+
+    socket.on('chat:typing', typingHandler);
     return () => {
       socket.off('chat:message', messageHandler);
       socket.off('chat:seen', seenHandler);
+      socket.off('chat:typing', typingHandler);
     };
-  }, [deriveUnreadCount, getThreadId]);
+  }, [deriveUnreadCount, getThreadId, currentUserId]);
 
   const toggleEmojiPicker = useCallback(() => {
     setShowEmojiPicker((prev) => !prev);
@@ -340,6 +439,82 @@ const EmployeeChat = () => {
     setHasUserInteracted(true);
   }, []);
 
+  const sendTypingStatus = useCallback(
+    (threadId, typing) => {
+      if (!socketRef.current || !threadId || !currentUserId) return;
+      const displayName =
+        `${user?.firstName || ''} ${user?.lastName || ''}`.trim() ||
+        user?.name ||
+        user?.email ||
+        'Someone';
+      socketRef.current.emit('chat:typing', {
+        threadId,
+        userId: currentUserId,
+        name: displayName,
+        isTyping: Boolean(typing),
+      });
+    },
+    [currentUserId, user]
+  );
+
+  const emitTypingStatus = useCallback(
+    (typing) => {
+      if (typing) {
+        if (isTypingRef.current) return;
+        if (!activeThreadId) return;
+        sendTypingStatus(activeThreadId, true);
+        isTypingRef.current = true;
+        return;
+      }
+
+      if (!isTypingRef.current) return;
+      const targetThreadId = activeThreadId || lastActiveThreadRef.current;
+      if (targetThreadId) {
+        sendTypingStatus(targetThreadId, false);
+      }
+      isTypingRef.current = false;
+    },
+    [activeThreadId, sendTypingStatus]
+  );
+
+  const scheduleTypingStop = useCallback(() => {
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+    }
+    typingDebounceRef.current = setTimeout(() => {
+      emitTypingStatus(false);
+      typingDebounceRef.current = null;
+    }, 2000);
+  }, [emitTypingStatus]);
+
+  const handleDraftChange = useCallback(
+    (value) => {
+      setDraft(value);
+      setHasUserInteracted(true);
+      if (!activeThreadId || !currentUserId) return;
+
+      if (value && value.trim().length > 0) {
+        emitTypingStatus(true);
+        scheduleTypingStop();
+      } else {
+        emitTypingStatus(false);
+        if (typingDebounceRef.current) {
+          clearTimeout(typingDebounceRef.current);
+          typingDebounceRef.current = null;
+        }
+      }
+    },
+    [activeThreadId, currentUserId, emitTypingStatus, scheduleTypingStop]
+  );
+
+  const handleInputBlur = useCallback(() => {
+    emitTypingStatus(false);
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+  }, [emitTypingStatus]);
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!draft.trim() || !token || !activeThreadId) return;
@@ -350,6 +525,11 @@ const EmployeeChat = () => {
       await employeeApi.postChatMessage(token, activeThreadId, draft.trim());
       await loadMessages();
       setDraft('');
+      emitTypingStatus(false);
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
     } catch (err) {
       setError(err.message || 'Failed to send message');
     } finally {
@@ -495,6 +675,8 @@ const EmployeeChat = () => {
   if (error && threads.length === 0) {
     return <div className="flex min-h-screen items-center justify-center text-red-600 dark:text-red-400">{error}</div>;
   }
+
+  const activeThreadTyping = activeThreadId ? typingStatus[activeThreadId] : null;
 
   return (
     <main className="flex h-full overflow-hidden bg-[#f0f2f5] dark:bg-[#0a1018]">
@@ -657,7 +839,11 @@ const EmployeeChat = () => {
                 </div>
                 <div>
                   <h2 className="font-semibold text-[#111b21] dark:text-white">{threadDisplayName(activeThread)}</h2>
-                  <p className="text-sm text-[#667781] dark:text-[#8696a0]">{activeThread.meta || 'Team chat'}</p>
+                  <p className="text-sm text-[#667781] dark:text-[#8696a0]">
+                    {activeThreadTyping
+                      ? `${activeThreadTyping.name || 'Someone'} is typing...`
+                      : activeThread.meta || 'Team chat'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-6 text-[#54656f]">
@@ -831,7 +1017,8 @@ const EmployeeChat = () => {
                 <div className="flex-1">
                   <input
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(e) => handleDraftChange(e.target.value)}
+                    onBlur={handleInputBlur}
                     placeholder="Type a message"
                     className="w-full rounded-lg bg-[#f0f2f5] px-4 py-3 text-[#111b21] placeholder:text-[#667781] focus:outline-none dark:bg-[#2a3942] dark:text-white dark:placeholder:text-[#8696a0]"
                   />

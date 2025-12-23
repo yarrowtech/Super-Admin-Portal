@@ -396,20 +396,46 @@ const EmployeeChat = () => {
         setMessages((prev) => {
           // Check if message already exists (prevent duplicates)
           const messageId = message.id || message._id;
-          const messageExists = prev.some(msg => 
-            (msg.id === messageId) || 
-            (msg._id === messageId) ||
-            (msg.text === message.text && Math.abs(new Date(msg.time) - new Date(message.time)) < 5000)
+          const messageSenderId = message.senderId || message.sender || message.senderID;
+          
+          // Check for exact ID match first
+          const exactMatch = prev.find(msg => 
+            (msg.id === messageId) || (msg._id === messageId)
           );
           
-          if (messageExists) {
-            // If it's an optimistic message being replaced by real message, update it
-            return prev.map(msg => {
-              if (msg.sending && msg.text === message.text) {
-                return { ...message, id: messageId };
-              }
-              return msg;
-            });
+          if (exactMatch) {
+            // Message with this ID already exists, don't add duplicate
+            return prev;
+          }
+          
+          // Check for optimistic messages that need to be replaced
+          const optimisticMatch = prev.find(msg => 
+            msg.sending && 
+            msg.text === message.text &&
+            msg.senderId?.toString() === messageSenderId?.toString() &&
+            Math.abs(new Date(msg.time) - new Date(message.time)) < 10000
+          );
+          
+          if (optimisticMatch) {
+            // Replace optimistic message with real message
+            return prev.map(msg => 
+              msg.id === optimisticMatch.id 
+                ? { ...message, id: messageId, sending: false }
+                : msg
+            );
+          }
+          
+          // Check for recent duplicate by content and sender
+          const contentDuplicate = prev.find(msg =>
+            msg.text === message.text &&
+            msg.senderId?.toString() === messageSenderId?.toString() &&
+            Math.abs(new Date(msg.time) - new Date(message.time)) < 5000 &&
+            !msg.sending
+          );
+          
+          if (contentDuplicate) {
+            // This is a duplicate message, don't add it
+            return prev;
           }
           
           return [...prev, message];
@@ -608,20 +634,10 @@ const EmployeeChat = () => {
     setMessages(prev => [...prev, optimisticMessage]);
 
     try {
-      const response = await employeeApi.postChatMessage(token, activeThreadId, messageText);
+      await employeeApi.postChatMessage(token, activeThreadId, messageText);
       
-      // The socket handler will handle adding the real message, so we just remove the optimistic one
-      // or update it with server data if no socket message comes through
-      const realMessage = response?.data || response;
-      if (realMessage) {
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === optimisticMessage.id 
-              ? { ...realMessage, id: realMessage.id || realMessage._id, sending: false }
-              : msg
-          )
-        );
-      }
+      // The socket handler will handle replacing the optimistic message with the real one
+      // No need to manually update here as it causes duplicates
       
       emitTypingStatus(false);
       if (typingDebounceRef.current) {
@@ -656,19 +672,10 @@ const EmployeeChat = () => {
     setMessages(prev => [...prev, optimisticMessage]);
 
     try {
-      const response = await employeeApi.postChatMessage(token, activeThreadId, reply);
+      await employeeApi.postChatMessage(token, activeThreadId, reply);
       
-      // The socket handler will handle adding the real message, so we just update the optimistic one
-      const realMessage = response?.data || response;
-      if (realMessage) {
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === optimisticMessage.id 
-              ? { ...realMessage, id: realMessage.id || realMessage._id, sending: false }
-              : msg
-          )
-        );
-      }
+      // The socket handler will handle replacing the optimistic message with the real one
+      // No need to manually update here as it causes duplicates
     } catch (err) {
       // Remove optimistic message on error
       setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));

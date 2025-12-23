@@ -89,6 +89,10 @@ const EmployeeChat = () => {
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
+    // Save active thread to localStorage
+    if (activeThreadId) {
+      localStorage.setItem('activeThreadId', activeThreadId);
+    }
   }, [activeThreadId]);
 
   // Auto-scroll to bottom when messages change
@@ -107,10 +111,20 @@ const EmployeeChat = () => {
         const list = res?.data || res || [];
         const normalized = list.map(normalizeThread);
         setThreads(normalized);
-        if (normalized.length > 0) {
-          const firstId = getThreadId(normalized[0]);
-          if (firstId) {
-            setActiveThreadId(firstId);
+        if (normalized.length > 0 && !activeThreadId) {
+          // Try to restore previously active thread from localStorage
+          const savedThreadId = localStorage.getItem('activeThreadId');
+          const savedThreadExists = savedThreadId && normalized.some(thread => getThreadId(thread) === savedThreadId);
+          
+          if (savedThreadExists) {
+            // Restore previously active thread
+            setActiveThreadId(savedThreadId);
+          } else {
+            // Fall back to first thread if saved thread doesn't exist
+            const firstId = getThreadId(normalized[0]);
+            if (firstId) {
+              setActiveThreadId(firstId);
+            }
           }
         }
       } catch (err) {
@@ -253,8 +267,19 @@ const EmployeeChat = () => {
     }
   };
 
-  const selectQuickReply = (reply) => {
-    setDraft(reply);
+  const selectQuickReply = async (reply) => {
+    if (!token || !activeThreadId) return;
+    setSending(true);
+    setError('');
+
+    try {
+      await employeeApi.postChatMessage(token, activeThreadId, reply);
+      await loadMessages();
+    } catch (err) {
+      setError(err.message || 'Failed to send message');
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleStartChat = async (member) => {
@@ -591,23 +616,30 @@ const EmployeeChat = () => {
                       statusIcon = 'done_all';
                       statusColor = 'text-[#4fc3f7]';
                     } else {
-                      // Check if anyone in the thread is actually online
-                      const hasOnlineMembers = activeThread?.members?.some(member => {
-                        const memberId = (member.id || member._id)?.toString();
-                        return memberId !== currentUserId?.toString() && (
-                          member.status === 'Online' || 
-                          member.status === 'online' ||
-                          member.online === true
-                        );
+                      // Simple approach: if message is recent (last 30 seconds), assume delivered
+                      const messageTime = msg.time ? new Date(msg.time) : new Date();
+                      const now = new Date();
+                      const timeDiff = now - messageTime;
+                      const isVeryRecent = timeDiff < 30 * 1000; // 30 seconds
+                      
+                      // Check thread online status or very recent message
+                      const isDelivered = activeThread?.online === true || isVeryRecent;
+                      
+                      console.log('Delivery check:', {
+                        messageTime: messageTime.toISOString(),
+                        timeDiff,
+                        isVeryRecent,
+                        threadOnline: activeThread?.online,
+                        isDelivered,
+                        msgText: msg.text?.substring(0, 20)
                       });
                       
-                      // Only show double tick if recipient is actually online
-                      if (hasOnlineMembers || activeThread?.online) {
-                        // Message delivered to online recipient - gray double tick
+                      if (isDelivered) {
+                        // Message delivered - gray double tick
                         statusIcon = 'done_all';
                         statusColor = 'text-[#667781]';
                       } else {
-                        // Recipient offline - single gray tick (sent only)
+                        // Message only sent - single gray tick
                         statusIcon = 'done';
                         statusColor = 'text-[#667781]';
                       }

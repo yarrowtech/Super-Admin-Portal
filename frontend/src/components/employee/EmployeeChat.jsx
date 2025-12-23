@@ -85,10 +85,20 @@ const EmployeeChat = () => {
   }, []);
 
   const normalizeThread = useCallback(
-    (thread) => ({
-      ...thread,
-      unreadCount: deriveUnreadCount(thread),
-    }),
+    (thread) => {
+      const rawPreview =
+        (typeof thread.lastMessage === 'object' && thread.lastMessage !== null
+          ? thread.lastMessage.text || thread.lastMessage.body
+          : thread.lastMessage) ||
+        thread.lastMessagePreview ||
+        '';
+      return {
+        ...thread,
+        lastMessage: rawPreview || '',
+        lastTime: thread.lastTime || thread.updatedAt || null,
+        unreadCount: deriveUnreadCount(thread),
+      };
+    },
     [deriveUnreadCount]
   );
 
@@ -220,13 +230,29 @@ const EmployeeChat = () => {
     setError('');
     try {
       const res = await employeeApi.getChatMessages(token, activeThreadId);
-      setMessages(res?.data || res || []);
+      const data = res?.data || res || [];
+      setMessages(data);
+
+      if (data.length > 0) {
+        const lastMsg = data[data.length - 1];
+        setThreads((prev) =>
+          prev.map((thread) => {
+            const id = getThreadId(thread);
+            if (id !== activeThreadId) return thread;
+            return {
+              ...thread,
+              lastMessage: lastMsg?.text || lastMsg?.body || thread.lastMessage || '',
+              lastTime: lastMsg?.time || thread.lastTime || new Date().toISOString(),
+            };
+          })
+        );
+      }
     } catch (err) {
       setError(err.message || 'Failed to load messages');
     } finally {
       setLoadingMessages(false);
     }
-  }, [token, activeThreadId]);
+  }, [token, activeThreadId, getThreadId]);
 
   useEffect(() => {
     if (!activeThreadId) return;

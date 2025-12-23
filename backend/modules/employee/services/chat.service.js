@@ -37,7 +37,39 @@ const getThreads = async (user) => {
     .sort({ updatedAt: -1 })
     .populate('members', 'firstName lastName email department')
     .lean();
-  return threads.map(enrichThread);
+  
+  const threadIds = threads.map((thread) => thread._id);
+  let lastMessageMap = {};
+
+  if (threadIds.length > 0) {
+    const lastMessages = await ChatMessage.aggregate([
+      { $match: { thread: { $in: threadIds } } },
+      { $sort: { sentAt: -1, _id: -1 } },
+      {
+        $group: {
+          _id: '$thread',
+          doc: { $first: '$$ROOT' },
+        },
+      },
+    ]);
+
+    lastMessageMap = lastMessages.reduce((acc, entry) => {
+      if (entry?._id && entry?.doc) {
+        acc[entry._id.toString()] = entry.doc;
+      }
+      return acc;
+    }, {});
+  }
+
+  return threads.map((thread) => {
+    const enriched = enrichThread(thread);
+    const last = lastMessageMap[thread._id.toString()];
+    return {
+      ...enriched,
+      lastMessage: last?.body || enriched.lastMessage || '',
+      lastTime: last?.sentAt || enriched.lastTime || thread.updatedAt,
+    };
+  });
 };
 
 const getThreadOrThrow = async (user, threadId) => {

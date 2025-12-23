@@ -89,6 +89,41 @@ const EmployeeChat = () => {
     return 0;
   }, []);
 
+  const wrapMessageText = useCallback((text = '', limit = 40) => {
+    if (!text || text.length <= limit) return text;
+
+    const wrapSegment = (segment) => {
+      if (!segment || segment.length <= limit) return segment;
+      const lines = [];
+      let start = 0;
+
+      while (start < segment.length) {
+        let end = Math.min(start + limit, segment.length);
+        if (end >= segment.length) {
+          lines.push(segment.slice(start));
+          break;
+        }
+
+        let breakIndex = segment.lastIndexOf(' ', end);
+        if (breakIndex <= start) {
+          // No space found in the window; hard break the long word
+          lines.push(segment.slice(start, end));
+          start = end;
+        } else {
+          lines.push(segment.slice(start, breakIndex));
+          start = breakIndex + 1; // skip the space
+        }
+      }
+
+      return lines.map((line) => line.trimEnd()).join('\n');
+    };
+
+    return text
+      .split('\n')
+      .map((segment) => wrapSegment(segment))
+      .join('\n');
+  }, []);
+
   const normalizeThread = useCallback(
     (thread) => {
       const rawPreview =
@@ -753,7 +788,7 @@ const EmployeeChat = () => {
           {threads.map((thread) => {
             const id = getThreadId(thread);
             const isActive = id === activeThreadId;
-            const lastMessage = thread.lastMessage || 'No messages yet';
+            const lastMessage = wrapMessageText(thread.lastMessage || 'No messages yet');
             const time = thread.lastTime ? new Date(thread.lastTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
             const unreadCount = deriveUnreadCount(thread);
             const displayUnread = unreadCount > 99 ? '99+' : unreadCount;
@@ -937,9 +972,9 @@ const EmployeeChat = () => {
                         {!isMe && (
                           <div className="mb-1 text-xs font-semibold text-[#00a884]">{msg.from}</div>
                         )}
-                        <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white">
-                          {msg.text}
-                        </div>
+                  <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white">
+                    {wrapMessageText(msg.text || '')}
+                  </div>
                         <div className="mt-1 flex justify-end">
                           <span className="text-xs text-[#667781]">{time}</span>
                           {isMe && (

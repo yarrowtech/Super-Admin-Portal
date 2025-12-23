@@ -5,6 +5,7 @@ import { employeeApi } from '../../api/employee';
 import { useAuth } from '../../context/AuthContext';
 
 const quickReplies = ['On it', 'Need help', 'Can we sync?', 'Uploading shortly'];
+const emojiOptions = ['😀', '😁', '😂', '😅', '😍', '😎', '😢', '😡', '👍', '🙏', '🎉', '🔥', '🚀', '💡', '✅', '❗'];
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const EmployeeChat = () => {
@@ -27,6 +28,9 @@ const EmployeeChat = () => {
   const seenEmittedRef = useRef({});
   const [seenByOthers, setSeenByOthers] = useState({});
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
 
   const currentUserId = useMemo(() => user?.id || user?._id, [user]);
   const activeThread = useMemo(
@@ -118,6 +122,32 @@ const EmployeeChat = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleClickOutside = (event) => {
+      if (
+        emojiPickerRef.current?.contains(event.target) ||
+        emojiButtonRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      setShowEmojiPicker(false);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showEmojiPicker]);
 
   useEffect(() => {
     if (!token) return;
@@ -273,6 +303,16 @@ const EmployeeChat = () => {
       socket.off('chat:seen', seenHandler);
     };
   }, [deriveUnreadCount, getThreadId]);
+
+  const toggleEmojiPicker = useCallback(() => {
+    setShowEmojiPicker((prev) => !prev);
+  }, []);
+
+  const handleEmojiSelect = useCallback((emoji) => {
+    setDraft((prev) => `${prev || ''}${emoji}`);
+    setShowEmojiPicker(false);
+    setHasUserInteracted(true);
+  }, []);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -596,12 +636,6 @@ const EmployeeChat = () => {
               </div>
               <div className="flex items-center gap-6 text-[#54656f]">
                 <button className="hover:text-[#00a884]">
-                  <span className="material-symbols-outlined">videocam</span>
-                </button>
-                <button className="hover:text-[#00a884]">
-                  <span className="material-symbols-outlined">call</span>
-                </button>
-                <button className="hover:text-[#00a884]">
                   <span className="material-symbols-outlined">more_vert</span>
                 </button>
               </div>
@@ -729,12 +763,39 @@ const EmployeeChat = () => {
             {/* Message input */}
             <div className="border-t border-[#e9edef] bg-white p-2 sm:p-4 dark:border-[#303d45] dark:bg-[#202c33]">
               <form onSubmit={handleSend} className="flex items-center gap-1 sm:gap-2">
-                <button
-                  type="button"
-                  className="hidden sm:flex rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
-                >
-                  <span className="material-symbols-outlined">emoji_emotions</span>
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    ref={emojiButtonRef}
+                    onClick={toggleEmojiPicker}
+                    aria-label="Insert emoji"
+                    className="flex rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
+                  >
+                    <span className="material-symbols-outlined">emoji_emotions</span>
+                  </button>
+                  {showEmojiPicker && (
+                    <div
+                      ref={emojiPickerRef}
+                      className="absolute bottom-full left-0 z-40 mb-2 w-64 rounded-2xl border border-[#e9edef] bg-white p-3 shadow-xl dark:border-[#303d45] dark:bg-[#111b21]"
+                    >
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#54656f] dark:text-[#8696a0]">
+                        Quick Emojis
+                      </div>
+                      <div className="grid grid-cols-6 gap-2">
+                        {emojiOptions.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleEmojiSelect(emoji)}
+                            className="rounded-xl bg-[#f0f2f5] p-2 text-xl hover:bg-[#e6f4ea] dark:bg-[#2a3942] dark:hover:bg-[#1f2b32]"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="rounded-full p-1.5 sm:p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"

@@ -308,9 +308,24 @@ const EmployeeChat = () => {
     const socket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
+      timeout: 20000,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      forceNew: true,
     });
     socketRef.current = socket;
     joinedThreadsRef.current = new Set();
+    
+    // Add connection event listeners for production debugging
+    socket.on('connect', () => {
+      console.log('Socket connected in production');
+    });
+    
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected in production');
+    });
+    
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -394,50 +409,67 @@ const EmployeeChat = () => {
 
       if (threadId === activeId) {
         setMessages((prev) => {
-          // Check if message already exists (prevent duplicates)
           const messageId = message.id || message._id;
           const messageSenderId = message.senderId || message.sender || message.senderID;
           
-          // Check for exact ID match first
-          const exactMatch = prev.find(msg => 
-            (msg.id === messageId) || (msg._id === messageId)
+          // For production stability, check multiple duplicate scenarios
+          
+          // 1. Check if this exact message already exists by ID
+          const existingById = prev.find(msg => 
+            (msg.id && msg.id === messageId) || 
+            (msg._id && msg._id === messageId)
           );
           
-          if (exactMatch) {
-            // Message with this ID already exists, don't add duplicate
+          if (existingById) {
             return prev;
           }
           
-          // Check for optimistic messages that need to be replaced
-          const optimisticMatch = prev.find(msg => 
-            msg.sending && 
-            msg.text === message.text &&
-            msg.senderId?.toString() === messageSenderId?.toString() &&
-            Math.abs(new Date(msg.time) - new Date(message.time)) < 10000
-          );
-          
-          if (optimisticMatch) {
-            // Replace optimistic message with real message
-            return prev.map(msg => 
-              msg.id === optimisticMatch.id 
-                ? { ...message, id: messageId, sending: false }
-                : msg
+          // 2. For sender's own messages in production, be more aggressive about duplicate detection
+          if (messageSenderId?.toString() === currentUserId?.toString()) {
+            // First, try to replace optimistic message
+            const optimisticIndex = prev.findIndex(msg => 
+              msg.sending && 
+              msg.text === message.text &&
+              msg.senderId?.toString() === messageSenderId?.toString() &&
+              Math.abs(new Date(msg.time || 0) - new Date(message.time || 0)) < 30000 // 30 second window for production
             );
+            
+            if (optimisticIndex !== -1) {
+              const newMessages = [...prev];
+              newMessages[optimisticIndex] = { 
+                ...message, 
+                id: messageId,
+                _id: messageId,
+                sending: false 
+              };
+              return newMessages;
+            }
+            
+            // Second, check for any duplicate by content and sender (more aggressive for production)
+            const duplicateByContent = prev.find(msg => 
+              msg.text === message.text &&
+              msg.senderId?.toString() === messageSenderId?.toString() &&
+              !msg.sending &&
+              Math.abs(new Date(msg.time || 0) - new Date(message.time || 0)) < 10000 // 10 second window
+            );
+            
+            if (duplicateByContent) {
+              return prev;
+            }
+          } else {
+            // 3. For other people's messages, check for content duplicates too
+            const duplicateByContent = prev.find(msg => 
+              msg.text === message.text &&
+              msg.senderId?.toString() === messageSenderId?.toString() &&
+              Math.abs(new Date(msg.time || 0) - new Date(message.time || 0)) < 5000
+            );
+            
+            if (duplicateByContent) {
+              return prev;
+            }
           }
           
-          // Check for recent duplicate by content and sender
-          const contentDuplicate = prev.find(msg =>
-            msg.text === message.text &&
-            msg.senderId?.toString() === messageSenderId?.toString() &&
-            Math.abs(new Date(msg.time) - new Date(message.time)) < 5000 &&
-            !msg.sending
-          );
-          
-          if (contentDuplicate) {
-            // This is a duplicate message, don't add it
-            return prev;
-          }
-          
+          // 4. Add the message
           return [...prev, message];
         });
       }
@@ -631,13 +663,47 @@ const EmployeeChat = () => {
       sending: true,
     };
     
+    console.log('Adding optimistic message:', optimisticMessage);
     setMessages(prev => [...prev, optimisticMessage]);
 
     try {
-      await employeeApi.postChatMessage(token, activeThreadId, messageText);
+      const response = await employeeApi.postChatMessage(token, activeThreadId, messageText);
       
-      // The socket handler will handle replacing the optimistic message with the real one
-      // No need to manually update here as it causes duplicates
+      // For production reliability, add a fallback timeout
+      // If socket doesn't replace the optimistic message within 5 seconds, do it manually
+      const timeoutId = setTimeout(() => {
+        const realMessage = response?.data || response;
+        if (realMessage) {
+          setMessages(prev => {
+            const optimisticIndex = prev.findIndex(msg => msg.id === optimisticMessage.id);
+            if (optimisticIndex !== -1 && prev[optimisticIndex].sending) {
+              const newMessages = [...prev];
+              newMessages[optimisticIndex] = {
+                ...realMessage,
+                id: realMessage.id || realMessage._id,
+                sending: false
+              };
+              return newMessages;
+            }
+            return prev;
+          });
+        }
+      }, 5000);
+      
+      // Clear timeout if component unmounts or message is handled by socket
+      const currentOptimisticId = optimisticMessage.id;
+      const checkAndClearTimeout = () => {
+        setMessages(prev => {
+          const stillOptimistic = prev.find(msg => msg.id === currentOptimisticId && msg.sending);
+          if (!stillOptimistic) {
+            clearTimeout(timeoutId);
+          }
+          return prev;
+        });
+      };
+      
+      // Check after a short delay
+      setTimeout(checkAndClearTimeout, 1000);
       
       emitTypingStatus(false);
       if (typingDebounceRef.current) {

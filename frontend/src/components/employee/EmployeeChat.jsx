@@ -263,7 +263,7 @@ const EmployeeChat = () => {
     if (!token) return;
     const socket = io(SOCKET_URL, {
       withCredentials: true,
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     });
     socketRef.current = socket;
     joinedThreadsRef.current = new Set();

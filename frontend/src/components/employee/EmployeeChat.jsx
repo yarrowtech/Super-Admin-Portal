@@ -751,99 +751,75 @@ const EmployeeChat = () => {
   const activeThreadTyping = activeThreadId ? typingStatus[activeThreadId] : null;
 
   return (
-    <main className="flex h-full overflow-hidden bg-[#f0f2f5] dark:bg-[#0a1018]">
+    <main className="flex h-full overflow-hidden bg-white dark:bg-[#0a1018]">
       {/* Mobile Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 md:hidden flex items-center justify-between border-b border-[#e9edef] bg-white p-4 dark:border-[#303d45] dark:bg-[#111b21]">
-        <div className="flex items-center gap-3">
+      <div className="absolute top-0 left-0 right-0 z-10 md:hidden flex items-center justify-between bg-white/95 backdrop-blur-sm p-4 dark:bg-[#111b21]/95">
+        <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/employee/dashboard')}
-            className="text-[#54656f] hover:text-[#00a884] p-1 -ml-1"
+            className="text-[#54656f] hover:text-[#00a884] transition-colors"
           >
-            <span className="material-symbols-outlined">arrow_back</span>
+            <span className="material-symbols-outlined text-xl">arrow_back</span>
           </button>
-          <div className="size-8 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white font-semibold text-sm">
-            {user?.firstName?.[0] || 'U'}
-          </div>
-          <h1 className="font-semibold text-[#111b21] dark:text-white">Team Chat</h1>
+          <h1 className="text-lg font-medium text-[#111b21] dark:text-white">Chat</h1>
           {totalUnread > 0 && (
-            <span className="min-w-[1.5rem] rounded-full bg-[#00a884] px-1.5 py-0.5 text-center text-xs font-semibold text-white">
+            <span className="min-w-[1.25rem] h-5 rounded-full bg-[#00a884] px-1.5 flex items-center justify-center text-xs font-medium text-white">
               {totalUnread > 99 ? '99+' : totalUnread}
             </span>
           )}
         </div>
-        <button className="text-[#54656f] hover:text-[#00a884]">
-          <span className="material-symbols-outlined">more_vert</span>
-        </button>
       </div>
 
       {/* Sidebar */}
-      <div className="hidden md:flex md:w-80 lg:w-96 flex-col h-full border-r border-[#e9edef] bg-white dark:border-[#303d45] dark:bg-[#111b21]">
+      <div className="hidden md:flex md:w-80 flex-col h-full bg-white dark:bg-[#111b21]">
         {/* Sidebar header */}
-        <div className="flex items-center justify-between border-b border-[#e9edef] p-4 dark:border-[#303d45]">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white font-semibold">
-              {user?.firstName?.[0] || 'U'}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-semibold text-[#111b21] dark:text-white">Team Chat</h1>
-                {totalUnread > 0 && (
-                  <span className="min-w-[1.75rem] rounded-full bg-[#00a884] px-2 py-0.5 text-center text-xs font-semibold text-white">
-                    {totalUnread > 99 ? '99+' : totalUnread}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-[#667781]">Active now</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 text-[#54656f]">
-            <button className="hover:text-[#00a884]">
-              <span className="material-symbols-outlined">chat</span>
-            </button>
-            <button className="hover:text-[#00a884]">
-              <span className="material-symbols-outlined">more_vert</span>
-            </button>
+        <div className="p-6 pb-4">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-lg font-medium text-[#111b21] dark:text-white">Messages</h1>
+            {totalUnread > 0 && (
+              <span className="min-w-[1.25rem] h-5 rounded-full bg-[#00a884] px-1.5 flex items-center justify-center text-xs font-medium text-white">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </span>
+            )}
           </div>
         </div>
 
         {/* Search */}
-            <div className="p-3">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search or start new chat"
-                  className="w-full rounded-lg bg-[#f0f2f5] px-10 py-2.5 text-sm text-[#111b21] placeholder:text-[#667781] focus:outline-none dark:bg-[#202c33] dark:text-white dark:placeholder:text-[#8696a0]"
-                />
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#667781] dark:text-[#8696a0]">
-                  search
-                </span>
-              </div>
-              {normalizedSearchTokens.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#8696a0] dark:text-[#667781]">
-                  <span className="font-semibold text-[#54656f] dark:text-[#cfd4d9]">Results:</span>
-                  <span>{filteredThreads.length} chats</span>
-                  <span>•</span>
-                  <span>{filteredContacts.length} teammates</span>
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="ml-auto text-[#00a884] hover:underline"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-            </div>
+        <div className="px-6 pb-4">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search conversations..."
+              className="w-full rounded-full bg-[#f0f2f5] px-12 py-3 text-sm text-[#111b21] placeholder:text-[#667781] focus:outline-none focus:bg-white dark:bg-[#202c33] dark:text-white dark:placeholder:text-[#8696a0] dark:focus:bg-[#2a3942] transition-colors"
+            />
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#667781] dark:text-[#8696a0] text-lg">
+              search
+            </span>
+            {normalizedSearchTokens.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#667781] hover:text-[#00a884] transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            )}
+          </div>
+        </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto">
           {filteredThreads.length === 0 && (
-            <div className="px-4 py-6 text-sm text-[#667781] dark:text-[#8696a0]">
-              {normalizedSearchTokens.length > 0
-                ? 'No conversations match your search.'
-                : 'No conversations yet.'}
+            <div className="px-6 py-12 text-center">
+              <div className="size-12 rounded-full bg-[#f0f2f5] dark:bg-[#202c33] flex items-center justify-center mx-auto mb-4">
+                <span className="material-symbols-outlined text-[#667781] dark:text-[#8696a0]">chat_bubble_outline</span>
+              </div>
+              <p className="text-sm text-[#667781] dark:text-[#8696a0]">
+                {normalizedSearchTokens.length > 0
+                  ? 'No conversations match your search.'
+                  : 'No conversations yet.'}
+              </p>
             </div>
           )}
           {filteredThreads.map((thread) => {
@@ -858,75 +834,65 @@ const EmployeeChat = () => {
               <button
                 key={id || thread.name}
                 onClick={() => id && setActiveThreadId(id)}
-                className={`flex w-full items-center gap-3 p-3 text-left hover:bg-[#f5f6f6] dark:hover:bg-[#2a3942] ${
-                  isActive ? 'bg-[#f0f2f5] dark:bg-[#2a3942]' : ''
+                className={`flex w-full items-center gap-4 px-6 py-4 text-left transition-all ${
+                  isActive ? 'bg-[#00a884]/5' : 'hover:bg-[#f5f6f6] dark:hover:bg-[#1a1a1a]'
                 }`}
               >
                 <div className="relative">
-                  <div className="size-12 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white">
-                    <span className="material-symbols-outlined">forum</span>
+                  <div className="size-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white font-medium text-sm">
+                    {threadDisplayName(thread)?.[0] || 'T'}
                   </div>
                   {thread.online && (
-                    <div className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-white bg-[#00a884] dark:border-[#111b21]"></div>
+                    <div className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-white bg-[#00a884] dark:border-[#111b21]"></div>
                   )}
                 </div>
-                <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-[#111b21] dark:text-white">{threadDisplayName(thread)}</h3>
-                    <span className="text-xs text-[#667781]">{time}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-medium text-[#111b21] dark:text-white truncate">{threadDisplayName(thread)}</h3>
+                    <div className="flex items-center gap-2 ml-2">
+                      <span className="text-xs text-[#667781] shrink-0">{time}</span>
+                      {unreadCount > 0 && (
+                        <span className="min-w-[1rem] h-4 rounded-full bg-[#00a884] px-1.5 flex items-center justify-center text-xs font-medium text-white">
+                          {displayUnread}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="truncate text-sm text-[#667781]">{lastMessage}</p>
-                    {unreadCount > 0 && (
-                      <span className="flex size-5 items-center justify-center rounded-full bg-[#00a884] text-xs font-semibold text-white">
-                        {displayUnread}
-                      </span>
-                    )}
-                  </div>
+                  <p className="truncate text-sm text-[#667781] dark:text-[#8696a0]">{lastMessage}</p>
                 </div>
               </button>
             );
           })}
 
-          <div className="border-t border-[#e9edef] p-4 dark:border-[#303d45]">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-[#667781] dark:text-[#8696a0]">Start New Chat</h3>
-                  {normalizedSearchTokens.length > 0 && (
-                    <span className="text-xs text-[#8696a0]">Searching team...</span>
-                  )}
-                </div>
-                <div className="space-y-2">
-              {filteredContacts.map((member) => (
-                <div key={member.id} className="flex items-center justify-between rounded-lg p-2 hover:bg-[#f5f6f6] dark:hover:bg-[#2a3942]">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="size-10 rounded-full bg-gradient-to-br from-[#008069] to-[#00a884] flex items-center justify-center text-white">
-                        {member.name?.[0] || 'T'}
-                      </div>
-                      <div className={`absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-white ${member.status === 'Online' ? 'bg-[#00a884]' : 'bg-[#667781]'} dark:border-[#111b21]`}></div>
-                    </div>
-                    <div>
-                      <p className="font-medium text-[#111b21] dark:text-white">{member.name}</p>
-                      <p className="text-xs text-[#667781]">{member.role || 'Team Member'}</p>
-                    </div>
-                  </div>
+          {filteredContacts.length > 0 && (
+            <div className="mt-6 px-6 pb-6">
+              <h3 className="text-sm font-medium text-[#667781] dark:text-[#8696a0] mb-4">Team Members</h3>
+              <div className="space-y-1">
+                {filteredContacts.map((member) => (
                   <button
-                    type="button"
+                    key={member.id}
                     onClick={() => handleStartChat(member)}
                     disabled={creatingThreadId === member.id}
-                    className="rounded-full bg-[#00a884] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#008069] disabled:opacity-60"
+                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#f5f6f6] dark:hover:bg-[#1a1a1a] transition-colors disabled:opacity-60"
                   >
-                    {creatingThreadId === member.id ? 'Opening...' : 'Message'}
+                    <div className="relative">
+                      <div className="size-8 rounded-full bg-gradient-to-br from-[#008069] to-[#00a884] flex items-center justify-center text-white text-sm font-medium">
+                        {member.name?.[0] || 'T'}
+                      </div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-white ${member.status === 'Online' ? 'bg-[#00a884]' : 'bg-[#667781]'} dark:border-[#111b21]`}></div>
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="font-medium text-[#111b21] dark:text-white text-sm truncate">{member.name}</p>
+                      <p className="text-xs text-[#667781] dark:text-[#8696a0]">{member.role || 'Team Member'}</p>
+                    </div>
+                    <span className="material-symbols-outlined text-[#667781] text-lg">
+                      {creatingThreadId === member.id ? 'schedule' : 'add_circle'}
+                    </span>
                   </button>
-                </div>
-              ))}
-              {filteredContacts.length === 0 && (
-                <p className="text-xs text-[#667781] dark:text-[#8696a0]">
-                  {normalizedSearchTokens.length > 0 ? 'No team members match your search.' : 'Everyone already has a chat.'}
-                </p>
-              )}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -935,46 +901,44 @@ const EmployeeChat = () => {
         {activeThread ? (
           <>
             {/* Chat header */}
-            <div className="flex items-center justify-between border-b border-[#e9edef] bg-white p-4 dark:border-[#303d45] dark:bg-[#202c33]">
-              <div className="flex items-center gap-3">
-                <div className="size-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white">
-                  <span className="material-symbols-outlined">forum</span>
+            <div className="flex items-center justify-between bg-white/95 backdrop-blur-sm p-6 dark:bg-[#111b21]/95">
+              <div className="flex items-center gap-4">
+                <div className="size-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white font-medium text-sm">
+                  {threadDisplayName(activeThread)?.[0] || 'T'}
                 </div>
                 <div>
-                  <h2 className="font-semibold text-[#111b21] dark:text-white">{threadDisplayName(activeThread)}</h2>
+                  <h2 className="font-medium text-[#111b21] dark:text-white">{threadDisplayName(activeThread)}</h2>
                   <p className="text-sm text-[#667781] dark:text-[#8696a0]">
                     {activeThreadTyping
                       ? `${activeThreadTyping.name || 'Someone'} is typing...`
-                      : activeThread.meta || 'Team chat'}
+                      : 'Click to view info'}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-6 text-[#54656f]">
-                <button className="hover:text-[#00a884]">
-                  <span className="material-symbols-outlined">more_vert</span>
-                </button>
               </div>
             </div>
 
             {/* Messages container */}
-            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNFNUU2RUEiIGZpbGwtb3BhY2l0eT0iMC4zIj48cGF0aCBkPSJNNDAgNjBIMFYwbDYwIDYweiIvPjwvZz48L2c+PC9zdmc+')] bg-repeat p-4 dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDJDMzMiIGZpbGwtb3BhY2l0eT0iMC4yIj48cGF0aCBkPSJNNDAgNjBIMFYwbDYwIDYweiIvPjwvZz48L2c+PC9zdmc+')]">
+            <div className="flex-1 overflow-y-auto bg-[#f8f9fa] dark:bg-[#0a1018] px-4 py-6">
               {loadingMessages && (
                 <div className="flex h-full items-center justify-center">
-                  <div className="text-[#667781]">Loading messages...</div>
+                  <div className="flex items-center gap-3">
+                    <div className="size-6 border-2 border-[#00a884] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-[#667781] dark:text-[#8696a0]">Loading messages...</span>
+                  </div>
                 </div>
               )}
               
               {!loadingMessages && messages.length === 0 && (
                 <div className="flex h-full flex-col items-center justify-center text-center">
-                  <div className="mb-4 size-20 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-3xl text-white">forum</span>
+                  <div className="mb-6 size-16 rounded-full bg-[#00a884]/10 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-2xl text-[#00a884]">chat_bubble_outline</span>
                   </div>
-                  <h3 className="mb-2 text-xl font-semibold text-[#111b21] dark:text-white">No messages yet</h3>
-                  <p className="text-[#667781]">Start the conversation with your team</p>
+                  <h3 className="mb-2 text-lg font-medium text-[#111b21] dark:text-white">No messages yet</h3>
+                  <p className="text-[#667781] dark:text-[#8696a0]">Send a message to start the conversation</p>
                 </div>
               )}
 
-              <div className="space-y-2">
+              <div className="space-y-6 max-w-4xl mx-auto">
                 {messages.map((msg) => {
                   const senderId = msg.senderId || msg.sender || msg.senderID || '';
                   const isMe = senderId?.toString() === currentUserId?.toString();
@@ -1036,17 +1000,21 @@ const EmployeeChat = () => {
                   
                   return (
                     <div key={`${msg.id}-${isSeen ? 'seen' : 'unseen'}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] sm:max-w-[75%] md:max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none dark:bg-[#2a3942]'}`}>
+                      <div className={`max-w-[70%] px-4 py-3 ${
+                        isMe 
+                          ? 'bg-[#d9fdd3] rounded-2xl rounded-br-md ml-12' 
+                          : 'bg-white rounded-2xl rounded-bl-md shadow-sm border border-gray-100 mr-12 dark:bg-[#2a3942] dark:border-[#404040]'
+                      }`}>
                         {!isMe && (
-                          <div className="mb-1 text-xs font-semibold text-[#00a884]">{msg.from}</div>
+                          <div className="mb-1 text-xs font-medium text-[#00a884]">{msg.from}</div>
                         )}
-                  <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white">
-                    {wrapMessageText(msg.text || '')}
-                  </div>
-                        <div className="mt-1 flex justify-end">
-                          <span className="text-xs text-[#667781]">{time}</span>
+                        <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white leading-relaxed">
+                          {wrapMessageText(msg.text || '')}
+                        </div>
+                        <div className="mt-2 flex items-center justify-end gap-1">
+                          <span className="text-xs text-[#667781] dark:text-[#8696a0]">{time}</span>
                           {isMe && (
-                            <span className={`material-symbols-outlined ml-1 text-xs ${statusColor}`}>
+                            <span className={`material-symbols-outlined text-xs ${statusColor}`}>
                               {statusIcon}
                             </span>
                           )}
@@ -1061,13 +1029,13 @@ const EmployeeChat = () => {
 
             {/* Quick replies */}
             {quickReplies.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto border-t border-[#e9edef] bg-white px-2 sm:px-4 py-3 dark:border-[#303d45] dark:bg-[#202c33] scrollbar-none">
+              <div className="flex gap-3 overflow-x-auto bg-white px-6 py-3 dark:bg-[#111b21] scrollbar-none">
                 {quickReplies.map((reply) => (
                   <button
                     key={reply}
                     type="button"
                     onClick={() => selectQuickReply(reply)}
-                    className="shrink-0 rounded-full border border-[#e9edef] bg-[#f0f2f5] px-3 py-1.5 text-sm text-[#111b21] hover:border-[#00a884] hover:bg-[#e6f4ea] dark:border-[#303d45] dark:bg-[#2a3942] dark:text-white"
+                    className="shrink-0 rounded-full bg-[#f0f2f5] px-4 py-2 text-sm text-[#111b21] hover:bg-[#00a884] hover:text-white transition-all dark:bg-[#2a3942] dark:text-white dark:hover:bg-[#00a884]"
                   >
                     {reply}
                   </button>
@@ -1076,24 +1044,24 @@ const EmployeeChat = () => {
             )}
 
             {/* Message input */}
-            <div className="border-t border-[#e9edef] bg-white p-2 sm:p-4 dark:border-[#303d45] dark:bg-[#202c33]">
-              <form onSubmit={handleSend} className="flex items-center gap-1 sm:gap-2">
+            <div className="bg-white p-6 dark:bg-[#111b21]">
+              <form onSubmit={handleSend} className="max-w-4xl mx-auto flex items-center gap-3">
                 <div className="relative">
                   <button
                     type="button"
                     ref={emojiButtonRef}
                     onClick={toggleEmojiPicker}
                     aria-label="Insert emoji"
-                    className="flex rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
+                    className="flex rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942] transition-colors"
                   >
-                    <span className="material-symbols-outlined">emoji_emotions</span>
+                    <span className="material-symbols-outlined text-lg">emoji_emotions</span>
                   </button>
                   {showEmojiPicker && (
                     <div
                       ref={emojiPickerRef}
-                      className="absolute bottom-full left-0 z-40 mb-2 w-64 rounded-2xl border border-[#e9edef] bg-white p-3 shadow-xl dark:border-[#303d45] dark:bg-[#111b21]"
+                      className="absolute bottom-full left-0 z-40 mb-2 w-64 rounded-xl border border-[#e9edef] bg-white p-4 shadow-xl dark:border-[#303d45] dark:bg-[#111b21]"
                     >
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#54656f] dark:text-[#8696a0]">
+                      <div className="mb-3 text-xs font-medium uppercase tracking-wide text-[#54656f] dark:text-[#8696a0]">
                         Quick Emojis
                       </div>
                       <div className="grid grid-cols-6 gap-2">
@@ -1102,7 +1070,7 @@ const EmployeeChat = () => {
                             key={emoji}
                             type="button"
                             onClick={() => handleEmojiSelect(emoji)}
-                            className="rounded-xl bg-[#f0f2f5] p-2 text-xl hover:bg-[#e6f4ea] dark:bg-[#2a3942] dark:hover:bg-[#1f2b32]"
+                            className="rounded-lg bg-[#f0f2f5] p-2 text-xl hover:bg-[#e6f4ea] transition-colors dark:bg-[#2a3942] dark:hover:bg-[#1f2b32]"
                           >
                             {emoji}
                           </button>
@@ -1111,50 +1079,39 @@ const EmployeeChat = () => {
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="rounded-full p-1.5 sm:p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
-                >
-                  <span className="material-symbols-outlined text-lg sm:text-xl">attach_file</span>
-                </button>
-                <div className="flex-1">
+                <div className="flex-1 relative">
                   <input
                     value={draft}
                     onChange={(e) => handleDraftChange(e.target.value)}
                     onBlur={handleInputBlur}
-                    placeholder="Type a message"
-                    className="w-full rounded-lg bg-[#f0f2f5] px-4 py-3 text-[#111b21] placeholder:text-[#667781] focus:outline-none dark:bg-[#2a3942] dark:text-white dark:placeholder:text-[#8696a0]"
+                    placeholder="Type your message..."
+                    className="w-full rounded-full bg-[#f0f2f5] px-6 py-3 pr-12 text-[#111b21] placeholder:text-[#667781] focus:outline-none focus:bg-white focus:shadow-sm transition-all dark:bg-[#2a3942] dark:text-white dark:placeholder:text-[#8696a0] dark:focus:bg-[#1f2b32]"
                   />
-                </div>
-                {draft.trim() ? (
-                  <button
-                    type="submit"
-                    disabled={sending}
-                    className="rounded-full bg-[#00a884] p-2 sm:p-3 text-white hover:bg-[#008069] disabled:opacity-60"
-                  >
-                    <span className="material-symbols-outlined text-lg sm:text-xl">{sending ? 'schedule' : 'send'}</span>
-                  </button>
-                ) : (
                   <button
                     type="button"
-                    className="rounded-full bg-[#00a884] p-2 sm:p-3 text-white hover:bg-[#008069]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#54656f] hover:bg-[#e6f4ea] dark:hover:bg-[#1f2b32] transition-colors"
                   >
-                    <span className="material-symbols-outlined text-lg sm:text-xl">send</span>
+                    <span className="material-symbols-outlined text-lg">attach_file</span>
                   </button>
-                )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={sending || !draft.trim()}
+                  className="rounded-full bg-[#00a884] p-3 text-white hover:bg-[#008069] disabled:opacity-50 disabled:hover:bg-[#00a884] transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">{sending ? 'schedule' : 'send'}</span>
+                </button>
               </form>
             </div>
           </>
         ) : (
           /* Empty state */
-          <div className="flex flex-1 flex-col items-center justify-center bg-white dark:bg-[#111b21]">
-            <div className="mb-6 size-48 rounded-full bg-gradient-to-br from-[#00a884]/10 to-[#128c7e]/10 p-8">
-              <div className="size-full rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center">
-                <span className="material-symbols-outlined text-6xl text-white">forum</span>
-              </div>
+          <div className="flex flex-1 flex-col items-center justify-center bg-[#f8f9fa] dark:bg-[#0a1018] text-center">
+            <div className="mb-8 size-24 rounded-full bg-[#00a884]/10 flex items-center justify-center">
+              <span className="material-symbols-outlined text-4xl text-[#00a884]">chat_bubble_outline</span>
             </div>
-            <h2 className="mb-2 text-2xl font-semibold text-[#111b21] dark:text-white">Team Chat</h2>
-            <p className="text-[#667781] dark:text-[#8696a0]">Select a chat to start messaging</p>
+            <h2 className="mb-3 text-xl font-medium text-[#111b21] dark:text-white">Select a conversation</h2>
+            <p className="text-[#667781] dark:text-[#8696a0] max-w-md">Choose a conversation from the sidebar to start messaging with your team members</p>
           </div>
         )}
       </div>

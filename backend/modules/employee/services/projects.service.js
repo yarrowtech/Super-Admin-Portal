@@ -104,7 +104,43 @@ const createPersonalTask = async (user, payload = {}) => {
   };
 };
 
+const deletePersonalTask = async (user, taskId) => {
+  if (!user?._id) {
+    const err = new Error('User context is required');
+    err.statusCode = 401;
+    throw err;
+  }
+  
+  if (!taskId) {
+    const err = new Error('Task ID is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const task = await Task.findById(taskId);
+  if (!task) {
+    const err = new Error('Task not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Ensure user can only delete their own tasks
+  if (task.assignedTo.toString() !== user._id.toString()) {
+    const err = new Error('Unauthorized: You can only delete your own tasks');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  await Task.findByIdAndDelete(taskId);
+  
+  return {
+    success: true,
+    message: 'Task deleted successfully',
+  };
+};
+
 module.exports = {
   getProjectBoard,
   createPersonalTask,
+  deletePersonalTask,
 };

@@ -16,3 +16,11 @@ exports.createTask = asyncHandler(async (req, res) => {
     data,
   });
 });
+
+exports.deleteTask = asyncHandler(async (req, res) => {
+  const data = await projectsService.deletePersonalTask(req.user, req.params.taskId);
+  res.json({
+    success: true,
+    data,
+  });
+});

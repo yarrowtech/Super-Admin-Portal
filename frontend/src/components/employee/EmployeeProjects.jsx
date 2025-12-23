@@ -23,6 +23,7 @@ const EmployeeProjects = () => {
   const [creatingTask, setCreatingTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '' });
   const [formError, setFormError] = useState('');
+  const [deletingTaskId, setDeletingTaskId] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [attendanceData, setAttendanceData] = useState(null);
@@ -429,6 +430,34 @@ const EmployeeProjects = () => {
     }
   };
 
+  const handleDeleteTask = async (taskId) => {
+    if (!token || !taskId) return;
+    setDeletingTaskId(taskId);
+    setMoveError('');
+
+    try {
+      await employeeApi.deleteTask(token, taskId);
+      setBoard((prev) => 
+        prev.map((column) => ({
+          ...column,
+          cards: (column.cards || []).filter((card) => card.id !== taskId),
+        }))
+      );
+      setSummary((prev) =>
+        prev
+          ? {
+              ...prev,
+              totalTasks: Math.max((prev.totalTasks || 0) - 1, 0),
+            }
+          : prev
+      );
+    } catch (err) {
+      setMoveError(err.message || 'Failed to delete task');
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center text-neutral-600 dark:text-neutral-200">Loading project board...</div>;
   }
@@ -555,18 +584,36 @@ const EmployeeProjects = () => {
                       }
                       return 'bg-white/90 dark:bg-slate-900/70';
                     })();
+                    const isDeleting = deletingTaskId === task.id;
                     return (
                       <article
                         key={task.id}
-                        draggable
+                        draggable={!isDeleting}
                         onDragStart={(event) => handleDragStart(event, columnKey, task)}
                         onDragEnd={handleDragEnd}
                         className={`rounded-2xl border border-white/70 ${cardTone} p-4 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/70 dark:ring-white/5 ${
                           isDragging ? 'opacity-60' : ''
-                        } ${isUpdating ? 'pointer-events-none opacity-60' : ''}`}
+                        } ${isUpdating || isDeleting ? 'pointer-events-none opacity-60' : ''} relative group`}
                       >
-                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{task.title}</h3>
-                        <p className="text-xs text-slate-500">{task.project || task.status}</p>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{task.title}</h3>
+                            <p className="text-xs text-slate-500">{task.project || task.status}</p>
+                          </div>
+                          {isTodoColumn && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTask(task.id)}
+                              disabled={isDeleting || isUpdating}
+                              className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
+                              title="Delete task"
+                            >
+                              <span className="material-symbols-outlined text-red-500 dark:text-red-400" style={{ fontSize: '14px' }}>
+                                {isDeleting ? 'schedule' : 'delete'}
+                              </span>
+                            </button>
+                          )}
+                        </div>
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500">
                           <div className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-base text-slate-400">schedule</span>

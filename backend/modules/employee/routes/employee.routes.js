@@ -16,6 +16,7 @@ router.use(authorize(ROLES.EMPLOYEE, ROLES.ADMIN, ROLES.MANAGER, ROLES.CEO));
 router.get('/dashboard', dashboardController.getDashboard);
 router.get('/projects', projectsController.getProjects);
 router.post('/projects/tasks', projectsController.createTask);
+router.delete('/projects/tasks/:taskId', projectsController.deleteTask);
 router.get('/tasks', tasksController.getTasks);
 router.get('/documents', documentsController.getDocuments);
 router.get('/team', teamController.getTeam);

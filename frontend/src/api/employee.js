@@ -17,6 +17,8 @@ export const employeeApi = {
     apiClient.put(`/api/dept/employee/tasks/${taskId}/status`, body, token),
   createTask: (token, body) =>
     apiClient.post('/api/employee/projects/tasks', body, token),
+  deleteTask: (token, taskId) =>
+    apiClient.delete(`/api/employee/projects/tasks/${taskId}`, token),
   getAttendance: (token, params = '') =>
     apiClient.get(`/api/dept/employee/attendance${params}`, token),
   getLeaves: (token, params = '') =>

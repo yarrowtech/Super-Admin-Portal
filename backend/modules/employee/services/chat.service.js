@@ -1,52 +1,6 @@
 const ChatThread = require('../../../models/ChatThread');
 const ChatMessage = require('../../../models/ChatMessage');
 const User = require('../../../models/User');
-const { chat: sampleChat } = require('../data/sampleData');
-
-let seedPromise = null;
-const ensureSeeded = async () => {
-  if (!seedPromise) {
-    seedPromise = (async () => {
-      const threadCount = await ChatThread.countDocuments();
-      if (threadCount > 0) return;
-
-      const insertedThreads = await ChatThread.insertMany(
-        sampleChat.threads.map((thread) => ({
-          name: thread.name,
-          slug: thread.id,
-          meta: thread.meta,
-          badge: thread.badge,
-          members: [],
-        }))
-      );
-
-      const slugToId = insertedThreads.reduce((acc, thread) => {
-        acc[thread.slug] = thread._id;
-        return acc;
-      }, {});
-
-      const messageDocs = [];
-      Object.entries(sampleChat.messages).forEach(([slug, messages]) => {
-        const threadId = slugToId[slug];
-        if (!threadId) return;
-        messages.forEach((message) => {
-          messageDocs.push({
-            thread: threadId,
-            senderName: message.from,
-            body: message.text,
-            sentAt: new Date(),
-          });
-        });
-      });
-
-      if (messageDocs.length) {
-        await ChatMessage.insertMany(messageDocs);
-      }
-    })();
-  }
-
-  return seedPromise;
-};
 
 const threadFilter = (userId) => ({
   $or: [
@@ -59,8 +13,15 @@ const threadFilter = (userId) => ({
 const enrichThread = (thread) => {
   const plain = thread.toObject ? thread.toObject() : thread;
   const members = plain.members || [];
+  const unread =
+    typeof plain.unreadCount === 'number'
+      ? plain.unreadCount
+      : typeof plain.unread === 'number'
+        ? plain.unread
+        : 0;
   return {
     ...plain,
+    unread,
     members: members.map((member) => ({
       id: member._id,
       _id: member._id,
@@ -72,7 +33,6 @@ const enrichThread = (thread) => {
 };
 
 const getThreads = async (user) => {
-  await ensureSeeded();
   const threads = await ChatThread.find(threadFilter(user._id))
     .sort({ updatedAt: -1 })
     .populate('members', 'firstName lastName email department')
@@ -100,10 +60,10 @@ const mapMessage = (userId) => (message) => ({
   time: message.sentAt,
   me: message.sender?.toString() === userId.toString(),
   thread: message.thread?.toString(),
+  senderId: message.sender?.toString() || null,
 });
 
 const getMessages = async (user, threadId) => {
-  await ensureSeeded();
   await getThreadOrThrow(user, threadId);
   const messages = await ChatMessage.find({ thread: threadId })
     .sort({ sentAt: 1 })
@@ -112,7 +72,6 @@ const getMessages = async (user, threadId) => {
 };
 
 const postMessage = async (user, threadId, text) => {
-  await ensureSeeded();
   await getThreadOrThrow(user, threadId);
 
   const message = await ChatMessage.create({
@@ -146,8 +105,6 @@ const createDirectThread = async (user, targetUserId) => {
     err.statusCode = 404;
     throw err;
   }
-
-  await ensureSeeded();
 
   const existing = await ChatThread.findOne({
     isDirect: true,

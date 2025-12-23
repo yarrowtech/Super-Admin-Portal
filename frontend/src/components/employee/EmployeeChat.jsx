@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { employeeApi } from '../../api/employee';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +9,7 @@ const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').rep
 
 const EmployeeChat = () => {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -18,8 +20,13 @@ const EmployeeChat = () => {
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const socketRef = useRef(null);
+  const joinedThreadsRef = useRef(new Set());
   const [creatingThreadId, setCreatingThreadId] = useState(null);
   const messagesEndRef = useRef(null);
+  const activeThreadIdRef = useRef(null);
+  const seenEmittedRef = useRef({});
+  const [seenByOthers, setSeenByOthers] = useState({});
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
 
   const currentUserId = useMemo(() => user?.id || user?._id, [user]);
   const activeThread = useMemo(
@@ -41,6 +48,49 @@ const EmployeeChat = () => {
     [currentUserId]
   );
 
+  const getThreadId = useCallback(
+    (thread) => thread?._id?.toString?.() || thread?.id?.toString?.() || thread?._id || thread?.id || null,
+    []
+  );
+
+  const deriveUnreadCount = useCallback((thread) => {
+    if (!thread) return 0;
+    if (typeof thread.unreadCount === 'number') return thread.unreadCount;
+    if (typeof thread.unread === 'number') return thread.unread;
+    if (typeof thread.unreadMessages === 'number') return thread.unreadMessages;
+    return 0;
+  }, []);
+
+  const normalizeThread = useCallback(
+    (thread) => ({
+      ...thread,
+      unreadCount: deriveUnreadCount(thread),
+    }),
+    [deriveUnreadCount]
+  );
+
+  const totalUnread = useMemo(
+    () => threads.reduce((sum, thread) => sum + deriveUnreadCount(thread), 0),
+    [threads, deriveUnreadCount]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const threadCounts = threads.map((thread) => ({
+      id: getThreadId(thread),
+      count: deriveUnreadCount(thread),
+    }));
+    window.dispatchEvent(
+      new CustomEvent('employee-chat-unread-changed', {
+        detail: { count: totalUnread, threadCounts },
+      })
+    );
+  }, [totalUnread, threads, deriveUnreadCount, getThreadId]);
+
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId;
+  }, [activeThreadId]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -55,9 +105,13 @@ const EmployeeChat = () => {
       try {
         const res = await employeeApi.getChatThreads(token);
         const list = res?.data || res || [];
-        setThreads(list);
-        if (list.length > 0) {
-          setActiveThreadId(list[0]._id || list[0].id);
+        const normalized = list.map(normalizeThread);
+        setThreads(normalized);
+        if (normalized.length > 0) {
+          const firstId = getThreadId(normalized[0]);
+          if (firstId) {
+            setActiveThreadId(firstId);
+          }
         }
       } catch (err) {
         setError(err.message || 'Failed to load chat threads');
@@ -65,7 +119,7 @@ const EmployeeChat = () => {
         setLoadingThreads(false);
       }
     })();
-  }, [token]);
+  }, [token, normalizeThread, getThreadId]);
 
   useEffect(() => {
     if (!token) return;
@@ -89,9 +143,11 @@ const EmployeeChat = () => {
       transports: ['websocket'],
     });
     socketRef.current = socket;
+    joinedThreadsRef.current = new Set();
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      joinedThreadsRef.current = new Set();
     };
   }, [token]);
 
@@ -110,24 +166,75 @@ const EmployeeChat = () => {
   }, [token, activeThreadId]);
 
   useEffect(() => {
-    if (!activeThreadId) return undefined;
+    if (!activeThreadId) return;
     loadMessages();
-    const socket = socketRef.current;
-    if (socket) {
-      socket.emit('joinThread', activeThreadId);
-      const handler = (message) => {
-        if ((message.thread || message.threadId) === activeThreadId) {
-          setMessages((prev) => [...prev, message]);
-        }
-      };
-      socket.on('chat:message', handler);
-      return () => {
-        socket.emit('leaveThread', activeThreadId);
-        socket.off('chat:message', handler);
-      };
-    }
-    return undefined;
   }, [activeThreadId, loadMessages]);
+
+  useEffect(() => {
+    if (!threads.length) return;
+    const socket = socketRef.current;
+    if (!socket) return;
+    threads.forEach((thread) => {
+      const id = getThreadId(thread);
+      if (!id || joinedThreadsRef.current.has(id)) return;
+      socket.emit('joinThread', id);
+      joinedThreadsRef.current.add(id);
+    });
+  }, [threads, getThreadId]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    const messageHandler = (message) => {
+      const threadId = message?.thread?.toString?.() || message?.threadId?.toString?.();
+      if (!threadId) return;
+      const activeId = activeThreadIdRef.current?.toString?.() || activeThreadIdRef.current || null;
+
+      setThreads((prev) => {
+        let found = false;
+        const next = prev.map((thread) => {
+          const id = getThreadId(thread);
+          if (id !== threadId) return thread;
+          found = true;
+          const unreadCount = deriveUnreadCount(thread);
+          const shouldIncrement = !activeId || activeId !== threadId;
+          return {
+            ...thread,
+            lastMessage: message.text || message.body || thread.lastMessage,
+            lastTime: message.time || message.sentAt || new Date().toISOString(),
+            unreadCount: shouldIncrement ? unreadCount + 1 : 0,
+          };
+        });
+        if (!found) return prev;
+        return next;
+      });
+
+      if (threadId === activeId) {
+        setMessages((prev) => [...prev, message]);
+      }
+    };
+
+    const seenHandler = (payload = {}) => {
+      const { threadId, seenMessageIds } = payload;
+      if (!threadId || !Array.isArray(seenMessageIds) || seenMessageIds.length === 0) return;
+      setSeenByOthers((prev) => {
+        const next = { ...prev };
+        seenMessageIds.forEach((id) => {
+          if (id) {
+            next[id] = true;
+          }
+        });
+        return next;
+      });
+    };
+
+    socket.on('chat:message', messageHandler);
+    socket.on('chat:seen', seenHandler);
+    return () => {
+      socket.off('chat:message', messageHandler);
+      socket.off('chat:seen', seenHandler);
+    };
+  }, [deriveUnreadCount, getThreadId]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -156,13 +263,16 @@ const EmployeeChat = () => {
     setError('');
     try {
       const res = await employeeApi.createChatThread(token, member.id);
-      const thread = res?.data || res;
+      const thread = normalizeThread(res?.data || res);
+      const threadId = getThreadId(thread);
       setThreads((prev) => {
-        const exists = prev.some((t) => (t._id || t.id) === (thread._id || thread.id));
+        const exists = prev.some((t) => getThreadId(t) === threadId);
         if (exists) return prev;
         return [thread, ...prev];
       });
-      setActiveThreadId(thread._id || thread.id);
+      if (threadId) {
+        setActiveThreadId(threadId);
+      }
     } catch (err) {
       setError(err.message || 'Failed to start chat');
     } finally {
@@ -192,6 +302,75 @@ const EmployeeChat = () => {
     [teamMembers, directMemberIds]
   );
 
+  useEffect(() => {
+    if (!activeThreadId) return;
+    setThreads((prev) =>
+      prev.map((thread) => {
+        const id = getThreadId(thread);
+        if (id !== activeThreadId) return thread;
+        const unreadCount = deriveUnreadCount(thread);
+        if (unreadCount === 0) return thread;
+        return {
+          ...thread,
+          unreadCount: 0,
+        };
+      })
+    );
+  }, [activeThreadId, deriveUnreadCount, getThreadId]);
+
+  // Track user interaction to prevent auto-marking on page load
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      setHasUserInteracted(true);
+    };
+
+    // Add listeners for user interactions
+    window.addEventListener('click', handleUserInteraction);
+    window.addEventListener('keydown', handleUserInteraction);
+    window.addEventListener('scroll', handleUserInteraction);
+    window.addEventListener('touchstart', handleUserInteraction);
+
+    return () => {
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('keydown', handleUserInteraction);
+      window.removeEventListener('scroll', handleUserInteraction);
+      window.removeEventListener('touchstart', handleUserInteraction);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeThreadId || !currentUserId || !hasUserInteracted) return;
+    const socket = socketRef.current;
+    if (!socket) return;
+    
+    // Add delay to prevent immediate marking on thread switch
+    const timer = setTimeout(() => {
+      const threadKey = activeThreadId.toString();
+      if (!seenEmittedRef.current[threadKey]) {
+        seenEmittedRef.current[threadKey] = new Set();
+      }
+      const emitted = seenEmittedRef.current[threadKey];
+      const newlySeen = [];
+      messages.forEach((msg) => {
+        const senderId = msg.senderId || msg.sender || msg.senderID || '';
+        if (!msg.id || !senderId) return;
+        if (senderId.toString() === currentUserId.toString()) return;
+        if (emitted.has(msg.id)) return;
+        newlySeen.push(msg.id);
+      });
+      if (newlySeen.length > 0) {
+        socket.emit('chat:seen', {
+          threadId: threadKey,
+          readerId: currentUserId,
+          seenMessageIds: newlySeen,
+        });
+        newlySeen.forEach((id) => emitted.add(id));
+      }
+    }, 1000); // 1 second delay
+
+    return () => clearTimeout(timer);
+  }, [messages, activeThreadId, currentUserId, hasUserInteracted]);
+
   if (loadingThreads) {
     return <div className="flex min-h-screen items-center justify-center text-neutral-600 dark:text-neutral-200">Loading chat...</div>;
   }
@@ -201,9 +380,33 @@ const EmployeeChat = () => {
   }
 
   return (
-    <main className="flex h-[calc(100vh-3rem)] min-h-[620px] overflow-hidden bg-[#f0f2f5] dark:bg-[#0a1018]">
+    <main className="flex h-full overflow-hidden bg-[#f0f2f5] dark:bg-[#0a1018]">
+      {/* Mobile Header */}
+      <div className="absolute top-0 left-0 right-0 z-10 md:hidden flex items-center justify-between border-b border-[#e9edef] bg-white p-4 dark:border-[#303d45] dark:bg-[#111b21]">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => navigate('/employee/dashboard')}
+            className="text-[#54656f] hover:text-[#00a884] p-1 -ml-1"
+          >
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+          <div className="size-8 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white font-semibold text-sm">
+            {user?.firstName?.[0] || 'U'}
+          </div>
+          <h1 className="font-semibold text-[#111b21] dark:text-white">Team Chat</h1>
+          {totalUnread > 0 && (
+            <span className="min-w-[1.5rem] rounded-full bg-[#00a884] px-1.5 py-0.5 text-center text-xs font-semibold text-white">
+              {totalUnread > 99 ? '99+' : totalUnread}
+            </span>
+          )}
+        </div>
+        <button className="text-[#54656f] hover:text-[#00a884]">
+          <span className="material-symbols-outlined">more_vert</span>
+        </button>
+      </div>
+
       {/* Sidebar */}
-      <div className="flex w-[380px] flex-col border-r border-[#e9edef] bg-white dark:border-[#303d45] dark:bg-[#111b21]">
+      <div className="hidden md:flex md:w-80 lg:w-96 flex-col h-full border-r border-[#e9edef] bg-white dark:border-[#303d45] dark:bg-[#111b21]">
         {/* Sidebar header */}
         <div className="flex items-center justify-between border-b border-[#e9edef] p-4 dark:border-[#303d45]">
           <div className="flex items-center gap-3">
@@ -211,7 +414,14 @@ const EmployeeChat = () => {
               {user?.firstName?.[0] || 'U'}
             </div>
             <div>
-              <h1 className="font-semibold text-[#111b21] dark:text-white">Team Chat</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-semibold text-[#111b21] dark:text-white">Team Chat</h1>
+                {totalUnread > 0 && (
+                  <span className="min-w-[1.75rem] rounded-full bg-[#00a884] px-2 py-0.5 text-center text-xs font-semibold text-white">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-[#667781]">Active now</p>
             </div>
           </div>
@@ -240,17 +450,19 @@ const EmployeeChat = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           {threads.map((thread) => {
-            const id = thread._id || thread.id;
+            const id = getThreadId(thread);
             const isActive = id === activeThreadId;
             const lastMessage = thread.lastMessage || 'No messages yet';
             const time = thread.lastTime ? new Date(thread.lastTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+            const unreadCount = deriveUnreadCount(thread);
+            const displayUnread = unreadCount > 99 ? '99+' : unreadCount;
             
             return (
               <button
-                key={id}
-                onClick={() => setActiveThreadId(id)}
+                key={id || thread.name}
+                onClick={() => id && setActiveThreadId(id)}
                 className={`flex w-full items-center gap-3 p-3 text-left hover:bg-[#f5f6f6] dark:hover:bg-[#2a3942] ${
                   isActive ? 'bg-[#f0f2f5] dark:bg-[#2a3942]' : ''
                 }`}
@@ -270,9 +482,9 @@ const EmployeeChat = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <p className="truncate text-sm text-[#667781]">{lastMessage}</p>
-                    {thread.unreadCount > 0 && (
+                    {unreadCount > 0 && (
                       <span className="flex size-5 items-center justify-center rounded-full bg-[#00a884] text-xs font-semibold text-white">
-                        {thread.unreadCount}
+                        {displayUnread}
                       </span>
                     )}
                   </div>
@@ -317,7 +529,7 @@ const EmployeeChat = () => {
       </div>
 
       {/* Chat area */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col h-full pt-16 md:pt-0">
         {activeThread ? (
           <>
             {/* Chat header */}
@@ -345,7 +557,7 @@ const EmployeeChat = () => {
             </div>
 
             {/* Messages container */}
-            <div className="flex-1 overflow-y-auto bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNFNUU2RUEiIGZpbGwtb3BhY2l0eT0iMC4zIj48cGF0aCBkPSJNNDAgNjBIMFYwbDYwIDYweiIvPjwvZz48L2c+PC9zdmc+')] bg-repeat p-4 dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDJDMzMiIGZpbGwtb3BhY2l0eT0iMC4yIj48cGF0aCBkPSJNNDAgNjBIMFYwbDYwIDYweiIvPjwvZz48L2c+PC9zdmc+')]">
+            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNFNUU2RUEiIGZpbGwtb3BhY2l0eT0iMC4zIj48cGF0aCBkPSJNNDAgNjBIMFYwbDYwIDYweiIvPjwvZz48L2c+PC9zdmc+')] bg-repeat p-4 dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDJDMzMiIGZpbGwtb3BhY2l0eT0iMC4yIj48cGF0aCBkPSJNNDAgNjBIMFYwbDYwIDYweiIvPjwvZz48L2c+PC9zdmc+')]">
               {loadingMessages && (
                 <div className="flex h-full items-center justify-center">
                   <div className="text-[#667781]">Loading messages...</div>
@@ -364,20 +576,59 @@ const EmployeeChat = () => {
 
               <div className="space-y-2">
                 {messages.map((msg) => {
-                  const isMe = msg.me || msg.from === `${user?.firstName} ${user?.lastName}`;
+                  const senderId = msg.senderId || msg.sender || msg.senderID || '';
+                  const isMe = senderId?.toString() === currentUserId?.toString();
+                  const isSeen = isMe && Boolean(seenByOthers[msg.id]);
                   const time = msg.time ? new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                  
+                  // Determine message status for my messages
+                  let statusIcon = 'done'; // Single tick (sent)
+                  let statusColor = 'text-[#667781]'; // Gray
+                  
+                  if (isMe) {
+                    if (isSeen) {
+                      // Message has been seen - blue double tick
+                      statusIcon = 'done_all';
+                      statusColor = 'text-[#4fc3f7]';
+                    } else {
+                      // Check if anyone in the thread is actually online
+                      const hasOnlineMembers = activeThread?.members?.some(member => {
+                        const memberId = (member.id || member._id)?.toString();
+                        return memberId !== currentUserId?.toString() && (
+                          member.status === 'Online' || 
+                          member.status === 'online' ||
+                          member.online === true
+                        );
+                      });
+                      
+                      // Only show double tick if recipient is actually online
+                      if (hasOnlineMembers || activeThread?.online) {
+                        // Message delivered to online recipient - gray double tick
+                        statusIcon = 'done_all';
+                        statusColor = 'text-[#667781]';
+                      } else {
+                        // Recipient offline - single gray tick (sent only)
+                        statusIcon = 'done';
+                        statusColor = 'text-[#667781]';
+                      }
+                    }
+                  }
                   
                   return (
                     <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none dark:bg-[#2a3942]'}`}>
+                      <div className={`max-w-[85%] sm:max-w-[75%] md:max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none dark:bg-[#2a3942]'}`}>
                         {!isMe && (
                           <div className="mb-1 text-xs font-semibold text-[#00a884]">{msg.from}</div>
                         )}
-                        <div className="text-[#111b21] dark:text-white">{msg.text}</div>
+                        <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white">
+                          {msg.text}
+                        </div>
                         <div className="mt-1 flex justify-end">
                           <span className="text-xs text-[#667781]">{time}</span>
                           {isMe && (
-                            <span className="material-symbols-outlined ml-1 text-xs text-[#667781]">done_all</span>
+                            <span className={`material-symbols-outlined ml-1 text-xs ${statusColor}`}>
+                              {statusIcon}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -390,7 +641,7 @@ const EmployeeChat = () => {
 
             {/* Quick replies */}
             {quickReplies.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto border-t border-[#e9edef] bg-white px-4 py-3 dark:border-[#303d45] dark:bg-[#202c33]">
+              <div className="flex gap-2 overflow-x-auto border-t border-[#e9edef] bg-white px-2 sm:px-4 py-3 dark:border-[#303d45] dark:bg-[#202c33] scrollbar-none">
                 {quickReplies.map((reply) => (
                   <button
                     key={reply}
@@ -405,19 +656,19 @@ const EmployeeChat = () => {
             )}
 
             {/* Message input */}
-            <div className="border-t border-[#e9edef] bg-white p-4 dark:border-[#303d45] dark:bg-[#202c33]">
-              <form onSubmit={handleSend} className="flex items-center gap-2">
+            <div className="border-t border-[#e9edef] bg-white p-2 sm:p-4 dark:border-[#303d45] dark:bg-[#202c33]">
+              <form onSubmit={handleSend} className="flex items-center gap-1 sm:gap-2">
                 <button
                   type="button"
-                  className="rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
+                  className="hidden sm:flex rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
                 >
                   <span className="material-symbols-outlined">emoji_emotions</span>
                 </button>
                 <button
                   type="button"
-                  className="rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
+                  className="rounded-full p-1.5 sm:p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942]"
                 >
-                  <span className="material-symbols-outlined">attach_file</span>
+                  <span className="material-symbols-outlined text-lg sm:text-xl">attach_file</span>
                 </button>
                 <div className="flex-1">
                   <input
@@ -431,16 +682,16 @@ const EmployeeChat = () => {
                   <button
                     type="submit"
                     disabled={sending}
-                    className="rounded-full bg-[#00a884] p-3 text-white hover:bg-[#008069] disabled:opacity-60"
+                    className="rounded-full bg-[#00a884] p-2 sm:p-3 text-white hover:bg-[#008069] disabled:opacity-60"
                   >
-                    <span className="material-symbols-outlined">{sending ? 'schedule' : 'send'}</span>
+                    <span className="material-symbols-outlined text-lg sm:text-xl">{sending ? 'schedule' : 'send'}</span>
                   </button>
                 ) : (
                   <button
                     type="button"
-                    className="rounded-full bg-[#00a884] p-3 text-white hover:bg-[#008069]"
+                    className="rounded-full bg-[#00a884] p-2 sm:p-3 text-white hover:bg-[#008069]"
                   >
-                    <span className="material-symbols-outlined">mic</span>
+                    <span className="material-symbols-outlined text-lg sm:text-xl">send</span>
                   </button>
                 )}
               </form>

@@ -8,3 +8,11 @@ exports.getProjects = asyncHandler(async (req, res) => {
     data,
   });
 });
+
+exports.createTask = asyncHandler(async (req, res) => {
+  const data = await projectsService.createPersonalTask(req.user, req.body);
+  res.status(201).json({
+    success: true,
+    data,
+  });
+});

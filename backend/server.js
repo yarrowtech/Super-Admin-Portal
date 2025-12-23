@@ -432,6 +432,19 @@ io.on("connection", (socket) => {
       socket.leave(threadId);
     }
   });
+
+  socket.on("chat:seen", (payload = {}) => {
+    const { threadId, seenMessageIds } = payload;
+    if (!threadId || !Array.isArray(seenMessageIds) || seenMessageIds.length === 0) {
+      return;
+    }
+    socket.to(threadId).emit("chat:seen", {
+      threadId,
+      seenMessageIds,
+      readerId: payload.readerId || null,
+      seenAt: new Date().toISOString(),
+    });
+  });
 });
 
 module.exports = app;

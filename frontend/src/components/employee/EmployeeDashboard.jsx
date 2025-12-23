@@ -23,7 +23,7 @@ const EmployeeDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [projectHighlights, setProjectHighlights] = useState([]);
   const [teamPreview, setTeamPreview] = useState([]);
-  const [taskBuckets, setTaskBuckets] = useState({ today: [], upcoming: [], blocked: [] });
+  const [taskBuckets, setTaskBuckets] = useState({ today: [], upcoming: [], Done: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -69,7 +69,7 @@ const EmployeeDashboard = () => {
         setDashboardData(dashboardRes?.data || dashboardRes);
         setProjectHighlights((projectsRes?.data?.projects || []).slice(0, 3));
         setTeamPreview((teamRes?.data?.members || []).slice(0, 3));
-        setTaskBuckets(tasksRes?.data || tasksRes || { today: [], upcoming: [], blocked: [] });
+        setTaskBuckets(tasksRes?.data || tasksRes || { today: [], upcoming: [], Done: [] });
       } catch (err) {
         setError(err.message || 'Failed to load dashboard');
       } finally {
@@ -237,7 +237,7 @@ const EmployeeDashboard = () => {
         {[
           { key: 'today', label: 'Today', icon: 'sunny' },
           { key: 'upcoming', label: 'Upcoming', icon: 'upcoming' },
-          { key: 'blocked', label: 'Blocked', icon: 'block' },
+          { key: 'Done', label: 'Done', icon: 'Done' },
         ].map((bucket) => (
           <div key={bucket.key} className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
             <div className="flex items-center justify-between">
@@ -294,16 +294,16 @@ const EmployeeDashboard = () => {
             {documents.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No reports submitted yet.</p>}
           </div>
         </div>
-        <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 to-slate-800 p-6 text-white shadow-xl">
-          <p className="text-sm font-semibold uppercase tracking-widest text-white/70">Attendance</p>
+        <div className="lg:col-span-2 rounded-3xl border border-slate-200  from-slate-900 to-slate-800 p-6 text-black shadow-xl">
+          <p className="text-sm font-semibold uppercase tracking-widest text-black">Attendance</p>
           <h3 className="mt-2 text-2xl font-black">{attendance?.checkedIn ? 'You\'re checked in' : 'Check-in pending'}</h3>
-          <p className="mt-1 text-sm text-white/70">
+          <p className="mt-1 text-sm text-black">
             {attendance?.checkIn
               ? `Checked in at ${new Date(attendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
               : 'Tap the attendance widget to log your day'}
           </p>
           {attendance?.checkOut && (
-            <p className="text-xs text-white/60">Checked out at {new Date(attendance.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+            <p className="text-xs text-black">Checked out at {new Date(attendance.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
           )}
         </div>
       </section>

@@ -2,7 +2,7 @@ const Task = require('../../../models/Task');
 const Project = require('../../../models/Project');
 
 const COLUMN_CONFIG = [
-  { id: 'backlog', title: 'Backlog', statuses: ['pending', 'cancelled'] },
+  { id: 'todo', title: 'To Do', statuses: ['pending', 'cancelled'] },
   { id: 'inProgress', title: 'In Progress', statuses: ['in-progress'] },
   { id: 'review', title: 'Review', statuses: ['review'] },
   { id: 'completed', title: 'Completed', statuses: ['completed'] },
@@ -37,7 +37,7 @@ const getProjectBoard = async (user) => {
 
   tasks.forEach((task) => {
     const column =
-      columnByStatus.get(task.status) || columns.find((col) => col.id === 'backlog');
+      columnByStatus.get(task.status) || columns.find((col) => col.id === 'todo');
     column.cards.push({
       id: task._id,
       title: task.title,
@@ -64,6 +64,47 @@ const getProjectBoard = async (user) => {
   };
 };
 
+const createPersonalTask = async (user, payload = {}) => {
+  if (!user?._id) {
+    const err = new Error('User context is required');
+    err.statusCode = 401;
+    throw err;
+  }
+  const title = payload.title?.trim();
+  if (!title) {
+    const err = new Error('Title is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  const description = payload.description?.trim() || 'Personal to-do';
+  const dueDate = payload.dueDate ? new Date(payload.dueDate) : new Date();
+
+  const task = await Task.create({
+    title,
+    description,
+    assignedTo: user._id,
+    assignedBy: user._id,
+    project: payload.projectId || null,
+    priority: payload.priority || 'medium',
+    status: 'pending',
+    dueDate,
+  });
+
+  return {
+    id: task._id,
+    title: task.title,
+    project: payload.projectName || 'Personal',
+    dueDate: task.dueDate,
+    priority: task.priority,
+    progress: task.progress,
+    status: task.status,
+    attachments: 0,
+    comments: 0,
+    isOverdue: task.isOverdue,
+  };
+};
+
 module.exports = {
   getProjectBoard,
+  createPersonalTask,
 };

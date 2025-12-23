@@ -6,6 +6,9 @@ import { useAuth } from '../../context/AuthContext';
 
 const quickReplies = ['On it', 'Need help', 'Can we sync?', 'Uploading shortly'];
 const emojiOptions = ['😀', '😁', '😂', '😅', '😍', '😎', '😢', '😡', '👍', '🙏', '🎉', '🔥', '🚀', '💡', '✅', '❗'];
+const TYPING_STOP_DELAY_MS = 2000;
+const TYPING_KEEP_ALIVE_MS = 1500;
+const TYPING_DISPLAY_TIMEOUT_MS = 5000;
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const EmployeeChat = () => {
@@ -37,6 +40,7 @@ const EmployeeChat = () => {
   const isTypingRef = useRef(false);
   const lastActiveThreadRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const typingLastEmitRef = useRef(null);
 
   const currentUserId = useMemo(() => user?.id || user?._id, [user]);
   const activeThread = useMemo(
@@ -181,6 +185,7 @@ const EmployeeChat = () => {
 
     lastActiveThreadRef.current = activeThreadId;
     isTypingRef.current = false;
+    typingLastEmitRef.current = null;
     if (typingDebounceRef.current) {
       clearTimeout(typingDebounceRef.current);
       typingDebounceRef.current = null;
@@ -230,6 +235,7 @@ const EmployeeChat = () => {
         clearTimeout(typingDebounceRef.current);
         typingDebounceRef.current = null;
       }
+      typingLastEmitRef.current = null;
       if (isTypingRef.current && lastActiveThreadRef.current && socketRef.current && currentUserId) {
         socketRef.current.emit('chat:typing', {
           threadId: lastActiveThreadRef.current,
@@ -453,7 +459,7 @@ const EmployeeChat = () => {
             return next;
           });
           delete typingStatusTimeoutsRef.current[threadId];
-        }, 3000);
+        }, TYPING_DISPLAY_TIMEOUT_MS);
       }
     };
 
@@ -494,21 +500,28 @@ const EmployeeChat = () => {
   );
 
   const emitTypingStatus = useCallback(
-    (typing) => {
+    (typing, options = {}) => {
+      const { force = false } = options;
       if (typing) {
-        if (isTypingRef.current) return;
         if (!activeThreadId) return;
-        sendTypingStatus(activeThreadId, true);
+        const now = Date.now();
+        const timeSinceLast = now - (typingLastEmitRef.current || 0);
+        const shouldSend = force || !isTypingRef.current || timeSinceLast >= TYPING_KEEP_ALIVE_MS;
+        if (shouldSend) {
+          sendTypingStatus(activeThreadId, true);
+          typingLastEmitRef.current = now;
+        }
         isTypingRef.current = true;
         return;
       }
 
-      if (!isTypingRef.current) return;
+      if (!isTypingRef.current && !force) return;
       const targetThreadId = activeThreadId || lastActiveThreadRef.current;
       if (targetThreadId) {
         sendTypingStatus(targetThreadId, false);
       }
       isTypingRef.current = false;
+      typingLastEmitRef.current = null;
     },
     [activeThreadId, sendTypingStatus]
   );
@@ -520,7 +533,7 @@ const EmployeeChat = () => {
     typingDebounceRef.current = setTimeout(() => {
       emitTypingStatus(false);
       typingDebounceRef.current = null;
-    }, 2000);
+    }, TYPING_STOP_DELAY_MS);
   }, [emitTypingStatus]);
 
   const handleDraftChange = useCallback(

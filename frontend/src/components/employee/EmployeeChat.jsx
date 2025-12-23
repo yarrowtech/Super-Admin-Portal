@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { employeeApi } from '../../api/employee';
 import { useAuth } from '../../context/AuthContext';
+import ChatSidebar from './chat/ChatSidebar';
+import ChatWindow from './chat/ChatWindow';
 
 const quickReplies = ['On it', 'Need help', 'Can we sync?', 'Uploading shortly'];
 const emojiOptions = ['😀', '😁', '😂', '😅', '😍', '😎', '😢', '😡', '👍', '🙏', '🎉', '🔥', '🚀', '💡', '✅', '❗'];
@@ -783,351 +785,48 @@ const EmployeeChat = () => {
         </div>
       </div>
 
-      {/* Sidebar */}
-      <div className="hidden md:flex md:w-80 flex-col h-full bg-white dark:bg-[#111b21]">
-        {/* Sidebar header */}
-        <div className="p-6 pb-4">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-lg font-medium text-[#111b21] dark:text-white">Messages</h1>
-            {totalUnread > 0 && (
-              <span className="min-w-[1.25rem] h-5 rounded-full bg-[#00a884] px-1.5 flex items-center justify-center text-xs font-medium text-white">
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </span>
-            )}
-          </div>
-        </div>
+      <ChatSidebar
+        totalUnread={totalUnread}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onClearSearch={() => setSearchQuery('')}
+        searchTokens={normalizedSearchTokens}
+        filteredThreads={filteredThreads}
+        filteredContacts={filteredContacts}
+        activeThreadId={activeThreadId}
+        onSelectThread={setActiveThreadId}
+        threadDisplayName={threadDisplayName}
+        wrapMessageText={wrapMessageText}
+        deriveUnreadCount={deriveUnreadCount}
+        getThreadId={getThreadId}
+        onStartChat={handleStartChat}
+        creatingThreadId={creatingThreadId}
+      />
 
-        {/* Search */}
-        <div className="px-6 pb-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search conversations..."
-              className="w-full rounded-full bg-[#f0f2f5] px-12 py-3 text-sm text-[#111b21] placeholder:text-[#667781] focus:outline-none focus:bg-white dark:bg-[#202c33] dark:text-white dark:placeholder:text-[#8696a0] dark:focus:bg-[#2a3942] transition-colors"
-            />
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#667781] dark:text-[#8696a0] text-lg">
-              search
-            </span>
-            {normalizedSearchTokens.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#667781] hover:text-[#00a884] transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {filteredThreads.length === 0 && (
-            <div className="px-6 py-12 text-center">
-              <div className="size-12 rounded-full bg-[#f0f2f5] dark:bg-[#202c33] flex items-center justify-center mx-auto mb-4">
-                <span className="material-symbols-outlined text-[#667781] dark:text-[#8696a0]">chat_bubble_outline</span>
-              </div>
-              <p className="text-sm text-[#667781] dark:text-[#8696a0]">
-                {normalizedSearchTokens.length > 0
-                  ? 'No conversations match your search.'
-                  : 'No conversations yet.'}
-              </p>
-            </div>
-          )}
-          {filteredThreads.map((thread) => {
-            const id = getThreadId(thread);
-            const isActive = id === activeThreadId;
-            const lastMessage = wrapMessageText(thread.lastMessage || 'No messages yet');
-            const time = thread.lastTime ? new Date(thread.lastTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-            const unreadCount = deriveUnreadCount(thread);
-            const displayUnread = unreadCount > 99 ? '99+' : unreadCount;
-            
-            return (
-              <button
-                key={id || thread.name}
-                onClick={() => id && setActiveThreadId(id)}
-                className={`flex w-full items-center gap-4 px-6 py-4 text-left transition-all ${
-                  isActive ? 'bg-[#00a884]/5' : 'hover:bg-[#f5f6f6] dark:hover:bg-[#1a1a1a]'
-                }`}
-              >
-                <div className="relative">
-                  <div className="size-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white font-medium text-sm">
-                    {threadDisplayName(thread)?.[0] || 'T'}
-                  </div>
-                  {thread.online && (
-                    <div className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-white bg-[#00a884] dark:border-[#111b21]"></div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-medium text-[#111b21] dark:text-white truncate">{threadDisplayName(thread)}</h3>
-                    <div className="flex items-center gap-2 ml-2">
-                      <span className="text-xs text-[#667781] shrink-0">{time}</span>
-                      {unreadCount > 0 && (
-                        <span className="min-w-[1rem] h-4 rounded-full bg-[#00a884] px-1.5 flex items-center justify-center text-xs font-medium text-white">
-                          {displayUnread}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="truncate text-sm text-[#667781] dark:text-[#8696a0]">{lastMessage}</p>
-                </div>
-              </button>
-            );
-          })}
-
-          {filteredContacts.length > 0 && (
-            <div className="mt-6 px-6 pb-6">
-              <h3 className="text-sm font-medium text-[#667781] dark:text-[#8696a0] mb-4">Team Members</h3>
-              <div className="space-y-1">
-                {filteredContacts.map((member) => (
-                  <button
-                    key={member.id}
-                    onClick={() => handleStartChat(member)}
-                    disabled={creatingThreadId === member.id}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#f5f6f6] dark:hover:bg-[#1a1a1a] transition-colors disabled:opacity-60"
-                  >
-                    <div className="relative">
-                      <div className="size-8 rounded-full bg-gradient-to-br from-[#008069] to-[#00a884] flex items-center justify-center text-white text-sm font-medium">
-                        {member.name?.[0] || 'T'}
-                      </div>
-                      <div className={`absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-white ${member.status === 'Online' ? 'bg-[#00a884]' : 'bg-[#667781]'} dark:border-[#111b21]`}></div>
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="font-medium text-[#111b21] dark:text-white text-sm truncate">{member.name}</p>
-                      <p className="text-xs text-[#667781] dark:text-[#8696a0]">{member.role || 'Team Member'}</p>
-                    </div>
-                    <span className="material-symbols-outlined text-[#667781] text-lg">
-                      {creatingThreadId === member.id ? 'schedule' : 'add_circle'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Chat area */}
-      <div className="flex flex-1 flex-col h-full pt-16 md:pt-0">
-        {activeThread ? (
-          <>
-            {/* Chat header */}
-            <div className="flex items-center justify-between bg-white/95 backdrop-blur-sm p-6 dark:bg-[#111b21]/95">
-              <div className="flex items-center gap-4">
-                <div className="size-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white font-medium text-sm">
-                  {threadDisplayName(activeThread)?.[0] || 'T'}
-                </div>
-                <div>
-                  <h2 className="font-medium text-[#111b21] dark:text-white">{threadDisplayName(activeThread)}</h2>
-                  <p className="text-sm text-[#667781] dark:text-[#8696a0]">
-                    {activeThreadTyping
-                      ? `${activeThreadTyping.name || 'Someone'} is typing...`
-                      : 'Click to view info'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Messages container */}
-            <div className="flex-1 overflow-y-auto bg-[#f8f9fa] dark:bg-[#0a1018] px-4 py-6">
-              {loadingMessages && (
-                <div className="flex h-full items-center justify-center">
-                  <div className="flex items-center gap-3">
-                    <div className="size-6 border-2 border-[#00a884] border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-[#667781] dark:text-[#8696a0]">Loading messages...</span>
-                  </div>
-                </div>
-              )}
-              
-              {!loadingMessages && messages.length === 0 && (
-                <div className="flex h-full flex-col items-center justify-center text-center">
-                  <div className="mb-6 size-16 rounded-full bg-[#00a884]/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-2xl text-[#00a884]">chat_bubble_outline</span>
-                  </div>
-                  <h3 className="mb-2 text-lg font-medium text-[#111b21] dark:text-white">No messages yet</h3>
-                  <p className="text-[#667781] dark:text-[#8696a0]">Send a message to start the conversation</p>
-                </div>
-              )}
-
-              <div className="space-y-6 max-w-4xl mx-auto">
-                {messages.map((msg) => {
-                  const senderId = msg.senderId || msg.sender || msg.senderID || '';
-                  const isMe = senderId?.toString() === currentUserId?.toString();
-                  const isSeen = isMe && Boolean(seenByOthers[msg.id]);
-                  
-                  // Debug log for seen status
-                  if (isMe) {
-                    console.log(`Message ${msg.id} seen status:`, {
-                      msgText: msg.text?.substring(0, 20),
-                      isSeen,
-                      seenByOthers: seenByOthers[msg.id]
-                    });
-                  }
-                  const time = msg.time ? new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                  
-                  // Determine message status for my messages
-                  let statusIcon = 'done'; // Single tick (sent)
-                  let statusColor = 'text-[#667781]'; // Gray
-                  
-                  if (isMe) {
-                    if (isSeen) {
-                      // Message has been seen - blue double tick
-                      statusIcon = 'done_all';
-                      statusColor = 'text-[#4fc3f7]';
-                    } else {
-                      // Check if recipient is actually online
-                      const recipientIsOnline = activeThread?.members?.some(member => {
-                        const memberId = (member.id || member._id)?.toString();
-                        const isOtherUser = memberId !== currentUserId?.toString();
-                        return isOtherUser && (
-                          member.status === 'Online' || 
-                          member.status === 'online' ||
-                          member.online === true
-                        );
-                      }) || activeThread?.online === true;
-                      
-                      console.log('Delivery check:', {
-                        recipientIsOnline,
-                        threadOnline: activeThread?.online,
-                        threadMembers: activeThread?.members?.map(m => ({
-                          name: m.name,
-                          status: m.status,
-                          online: m.online
-                        })),
-                        msgText: msg.text?.substring(0, 20)
-                      });
-                      
-                      if (recipientIsOnline) {
-                        // Message delivered to online recipient - gray double tick
-                        statusIcon = 'done_all';
-                        statusColor = 'text-[#667781]';
-                      } else {
-                        // Recipient offline - single gray tick (sent only)
-                        statusIcon = 'done';
-                        statusColor = 'text-[#667781]';
-                      }
-                    }
-                  }
-                  
-                  return (
-                    <div key={`${msg.id}-${isSeen ? 'seen' : 'unseen'}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] px-4 py-3 ${
-                        isMe 
-                          ? 'bg-[#d9fdd3] rounded-2xl rounded-br-md ml-12' 
-                          : 'bg-white rounded-2xl rounded-bl-md shadow-sm border border-gray-100 mr-12 dark:bg-[#2a3942] dark:border-[#404040]'
-                      }`}>
-                        {!isMe && (
-                          <div className="mb-1 text-xs font-medium text-[#00a884]">{msg.from}</div>
-                        )}
-                        <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white leading-relaxed">
-                          {wrapMessageText(msg.text || '')}
-                        </div>
-                        <div className="mt-2 flex items-center justify-end gap-1">
-                          <span className="text-xs text-[#667781] dark:text-[#8696a0]">{time}</span>
-                          {isMe && (
-                            <span className={`material-symbols-outlined text-xs ${statusColor}`}>
-                              {statusIcon}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div ref={messagesEndRef} />
-              </div>
-            </div>
-
-            {/* Quick replies */}
-            {quickReplies.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto bg-white px-6 py-3 dark:bg-[#111b21] scrollbar-none">
-                {quickReplies.map((reply) => (
-                  <button
-                    key={reply}
-                    type="button"
-                    onClick={() => selectQuickReply(reply)}
-                    className="shrink-0 rounded-full bg-[#f0f2f5] px-4 py-2 text-sm text-[#111b21] hover:bg-[#00a884] hover:text-white transition-all dark:bg-[#2a3942] dark:text-white dark:hover:bg-[#00a884]"
-                  >
-                    {reply}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Message input */}
-            <div className="bg-white p-6 dark:bg-[#111b21]">
-              <form onSubmit={handleSend} className="max-w-4xl mx-auto flex items-center gap-3">
-                <div className="relative">
-                  <button
-                    type="button"
-                    ref={emojiButtonRef}
-                    onClick={toggleEmojiPicker}
-                    aria-label="Insert emoji"
-                    className="flex rounded-full p-2 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#2a3942] transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-lg">emoji_emotions</span>
-                  </button>
-                  {showEmojiPicker && (
-                    <div
-                      ref={emojiPickerRef}
-                      className="absolute bottom-full left-0 z-40 mb-2 w-64 rounded-xl border border-[#e9edef] bg-white p-4 shadow-xl dark:border-[#303d45] dark:bg-[#111b21]"
-                    >
-                      <div className="mb-3 text-xs font-medium uppercase tracking-wide text-[#54656f] dark:text-[#8696a0]">
-                        Quick Emojis
-                      </div>
-                      <div className="grid grid-cols-6 gap-2">
-                        {emojiOptions.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => handleEmojiSelect(emoji)}
-                            className="rounded-lg bg-[#f0f2f5] p-2 text-xl hover:bg-[#e6f4ea] transition-colors dark:bg-[#2a3942] dark:hover:bg-[#1f2b32]"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 relative">
-                  <input
-                    value={draft}
-                    onChange={(e) => handleDraftChange(e.target.value)}
-                    onBlur={handleInputBlur}
-                    placeholder="Type your message..."
-                    className="w-full rounded-full bg-[#f0f2f5] px-6 py-3 pr-12 text-[#111b21] placeholder:text-[#667781] focus:outline-none focus:bg-white focus:shadow-sm transition-all dark:bg-[#2a3942] dark:text-white dark:placeholder:text-[#8696a0] dark:focus:bg-[#1f2b32]"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#54656f] hover:bg-[#e6f4ea] dark:hover:bg-[#1f2b32] transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-lg">attach_file</span>
-                  </button>
-                </div>
-                <button
-                  type="submit"
-                  disabled={sending || !draft.trim()}
-                  className="rounded-full bg-[#00a884] p-3 text-white hover:bg-[#008069] disabled:opacity-50 disabled:hover:bg-[#00a884] transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">{sending ? 'schedule' : 'send'}</span>
-                </button>
-              </form>
-            </div>
-          </>
-        ) : (
-          /* Empty state */
-          <div className="flex flex-1 flex-col items-center justify-center bg-[#f8f9fa] dark:bg-[#0a1018] text-center">
-            <div className="mb-8 size-24 rounded-full bg-[#00a884]/10 flex items-center justify-center">
-              <span className="material-symbols-outlined text-4xl text-[#00a884]">chat_bubble_outline</span>
-            </div>
-            <h2 className="mb-3 text-xl font-medium text-[#111b21] dark:text-white">Select a conversation</h2>
-            <p className="text-[#667781] dark:text-[#8696a0] max-w-md">Choose a conversation from the sidebar to start messaging with your team members</p>
-          </div>
-        )}
-      </div>
+      <ChatWindow
+        activeThread={activeThread}
+        threadDisplayName={threadDisplayName}
+        activeThreadTyping={activeThreadTyping}
+        loadingMessages={loadingMessages}
+        messages={messages}
+        wrapMessageText={wrapMessageText}
+        currentUserId={currentUserId}
+        seenByOthers={seenByOthers}
+        quickReplies={quickReplies}
+        selectQuickReply={selectQuickReply}
+        messagesEndRef={messagesEndRef}
+        handleSend={handleSend}
+        draft={draft}
+        handleDraftChange={handleDraftChange}
+        handleInputBlur={handleInputBlur}
+        sending={sending}
+        showEmojiPicker={showEmojiPicker}
+        toggleEmojiPicker={toggleEmojiPicker}
+        emojiPickerRef={emojiPickerRef}
+        emojiButtonRef={emojiButtonRef}
+        emojiOptions={emojiOptions}
+        handleEmojiSelect={handleEmojiSelect}
+      />
     </main>
   );
 };

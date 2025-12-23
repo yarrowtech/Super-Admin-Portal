@@ -26,6 +26,7 @@ const EmployeeDashboard = () => {
   const [taskBuckets, setTaskBuckets] = useState({ today: [], upcoming: [], Done: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -78,6 +79,11 @@ const EmployeeDashboard = () => {
     })();
   }, [token]);
 
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const stats = dashboardData?.stats || [];
   const sprint = dashboardData?.sprint;
   const schedule = dashboardData?.schedule || [];
@@ -95,6 +101,26 @@ const EmployeeDashboard = () => {
       })),
     [schedule]
   );
+
+  const { greetingLabel, dayName, dateLabel, timeLabel } = useMemo(() => {
+    const now = currentTime;
+    const hour = now.getHours();
+    let label = 'Good Night';
+    if (hour >= 5 && hour < 12) label = 'Good Morning';
+    else if (hour >= 12 && hour < 17) label = 'Good Afternoon';
+    else if (hour >= 17 && hour < 21) label = 'Good Evening';
+
+    const day = now.toLocaleDateString(undefined, { weekday: 'long' });
+    const date = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    return {
+      greetingLabel: label,
+      dayName: day,
+      dateLabel: date,
+      timeLabel: time,
+    };
+  }, [currentTime]);
 
   if (loading) {
     return (
@@ -118,7 +144,9 @@ const EmployeeDashboard = () => {
     <main className="mx-auto flex max-w-[1400px] flex-col gap-6">
       <header className="flex flex-col justify-between gap-4 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-lg shadow-primary/5 ring-1 ring-slate-100 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/70 dark:ring-white/5 md:flex-row md:items-end">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">Good Morning</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
+            {greetingLabel} • {dayName} • {dateLabel} • {timeLabel}
+          </p>
           <h1 className="mt-2 text-3xl font-black text-slate-900 dark:text-white">Welcome back, {greeting}</h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
             <span className="material-symbols-outlined text-base text-amber-500">light_mode</span>

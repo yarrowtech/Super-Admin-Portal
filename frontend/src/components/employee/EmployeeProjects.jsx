@@ -570,7 +570,11 @@ const EmployeeProjects = () => {
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500">
                           <div className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-base text-slate-400">schedule</span>
-                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
+                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: '2-digit' 
+                            }) : 'No due date'}
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-base text-slate-400">chat</span>

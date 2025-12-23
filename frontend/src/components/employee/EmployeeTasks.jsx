@@ -71,7 +71,11 @@ const EmployeeTasks = () => {
                   <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                     <div className="flex items-center gap-1">
                       <span className="material-symbols-outlined text-base text-slate-400">schedule</span>
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
+                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: '2-digit' 
+                      }) : 'No due date'}
                     </div>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200">
                       {task.priority || 'Normal'}

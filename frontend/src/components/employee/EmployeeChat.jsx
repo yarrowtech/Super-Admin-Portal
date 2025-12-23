@@ -37,15 +37,34 @@ const EmployeeChat = () => {
   const threadDisplayName = useCallback(
     (thread) => {
       if (!thread) return '';
-      if (!thread.isDirect) return thread.name;
+      
+      // For group chats (not direct), show the thread name
+      if (!thread.isDirect && thread.name && !thread.name.includes(' & ')) {
+        return thread.name;
+      }
+      
+      // For direct chats or threads with names like "User1 & User2", find the other person
       const partner = thread.members?.find(
         (member) =>
           member.id?.toString() !== currentUserId?.toString() &&
           member._id?.toString() !== currentUserId?.toString()
       );
-      return partner?.name || thread.name;
+      
+      if (partner?.name) {
+        return partner.name;
+      }
+      
+      // Fallback: if thread name contains "&", extract the other person's name
+      if (thread.name && thread.name.includes(' & ')) {
+        const names = thread.name.split(' & ');
+        const currentUserName = user?.firstName || user?.name || '';
+        const otherName = names.find(name => name !== currentUserName);
+        if (otherName) return otherName;
+      }
+      
+      return thread.name || 'Unknown';
     },
-    [currentUserId]
+    [currentUserId, user]
   );
 
   const getThreadId = useCallback(
@@ -229,15 +248,20 @@ const EmployeeChat = () => {
     };
 
     const seenHandler = (payload = {}) => {
+      console.log('Received seen event:', payload);
       const { threadId, seenMessageIds } = payload;
       if (!threadId || !Array.isArray(seenMessageIds) || seenMessageIds.length === 0) return;
+      
+      console.log('Processing seen messages:', seenMessageIds);
       setSeenByOthers((prev) => {
         const next = { ...prev };
         seenMessageIds.forEach((id) => {
           if (id) {
+            console.log('Marking message as seen:', id);
             next[id] = true;
           }
         });
+        console.log('Updated seenByOthers:', next);
         return next;
       });
     };
@@ -384,12 +408,14 @@ const EmployeeChat = () => {
         newlySeen.push(msg.id);
       });
       if (newlySeen.length > 0) {
+        console.log('Emitting seen event for messages:', newlySeen);
         socket.emit('chat:seen', {
           threadId: threadKey,
           readerId: currentUserId,
           seenMessageIds: newlySeen,
         });
         newlySeen.forEach((id) => emitted.add(id));
+        console.log('Added to emitted set:', newlySeen);
       }
     }, 1000); // 1 second delay
 
@@ -604,6 +630,15 @@ const EmployeeChat = () => {
                   const senderId = msg.senderId || msg.sender || msg.senderID || '';
                   const isMe = senderId?.toString() === currentUserId?.toString();
                   const isSeen = isMe && Boolean(seenByOthers[msg.id]);
+                  
+                  // Debug log for seen status
+                  if (isMe) {
+                    console.log(`Message ${msg.id} seen status:`, {
+                      msgText: msg.text?.substring(0, 20),
+                      isSeen,
+                      seenByOthers: seenByOthers[msg.id]
+                    });
+                  }
                   const time = msg.time ? new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                   
                   // Determine message status for my messages
@@ -616,30 +651,34 @@ const EmployeeChat = () => {
                       statusIcon = 'done_all';
                       statusColor = 'text-[#4fc3f7]';
                     } else {
-                      // Simple approach: if message is recent (last 30 seconds), assume delivered
-                      const messageTime = msg.time ? new Date(msg.time) : new Date();
-                      const now = new Date();
-                      const timeDiff = now - messageTime;
-                      const isVeryRecent = timeDiff < 30 * 1000; // 30 seconds
-                      
-                      // Check thread online status or very recent message
-                      const isDelivered = activeThread?.online === true || isVeryRecent;
+                      // Check if recipient is actually online
+                      const recipientIsOnline = activeThread?.members?.some(member => {
+                        const memberId = (member.id || member._id)?.toString();
+                        const isOtherUser = memberId !== currentUserId?.toString();
+                        return isOtherUser && (
+                          member.status === 'Online' || 
+                          member.status === 'online' ||
+                          member.online === true
+                        );
+                      }) || activeThread?.online === true;
                       
                       console.log('Delivery check:', {
-                        messageTime: messageTime.toISOString(),
-                        timeDiff,
-                        isVeryRecent,
+                        recipientIsOnline,
                         threadOnline: activeThread?.online,
-                        isDelivered,
+                        threadMembers: activeThread?.members?.map(m => ({
+                          name: m.name,
+                          status: m.status,
+                          online: m.online
+                        })),
                         msgText: msg.text?.substring(0, 20)
                       });
                       
-                      if (isDelivered) {
-                        // Message delivered - gray double tick
+                      if (recipientIsOnline) {
+                        // Message delivered to online recipient - gray double tick
                         statusIcon = 'done_all';
                         statusColor = 'text-[#667781]';
                       } else {
-                        // Message only sent - single gray tick
+                        // Recipient offline - single gray tick (sent only)
                         statusIcon = 'done';
                         statusColor = 'text-[#667781]';
                       }
@@ -647,7 +686,7 @@ const EmployeeChat = () => {
                   }
                   
                   return (
-                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                    <div key={`${msg.id}-${isSeen ? 'seen' : 'unseen'}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] sm:max-w-[75%] md:max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none dark:bg-[#2a3942]'}`}>
                         {!isMe && (
                           <div className="mb-1 text-xs font-semibold text-[#00a884]">{msg.from}</div>

@@ -27,11 +27,48 @@ router.get('/attendance/employee/:employeeId', hrController.getEmployeeAttendanc
 
 // Employees Management
 router.get('/employees', hrController.getEmployees);
+router.post('/employees', hrController.createEmployee);
+router.put('/employees/:id', hrController.updateEmployee);
+router.post('/employees/:id/toggle-status', hrController.toggleEmployeeStatus);
+
+// Department Management
+router.get('/departments', hrController.getDepartments);
+router.post('/departments', hrController.createDepartment);
+router.put('/departments/:id', hrController.updateDepartment);
+router.delete('/departments/:id', hrController.deleteDepartment);
+
+// Designation Management
+router.get('/designations', hrController.getDesignations);
+router.post('/designations', hrController.createDesignation);
+router.put('/designations/:id', hrController.updateDesignation);
+router.delete('/designations/:id', hrController.deleteDesignation);
+
+// Employee Document Management
+router.get('/employee-documents', hrController.getEmployeeDocuments);
+router.post('/employee-documents', hrController.createEmployeeDocument);
+router.put('/employee-documents/:id', hrController.updateEmployeeDocument);
+router.delete('/employee-documents/:id', hrController.deleteEmployeeDocument);
+
+// Biometric Enrollment
+router.get('/biometrics', hrController.getBiometricEnrollments);
+router.post('/biometrics', hrController.createBiometricEnrollment);
+router.put('/biometrics/:id', hrController.updateBiometricEnrollment);
+router.delete('/biometrics/:id', hrController.deleteBiometricEnrollment);
 
 // Leave Management
 router.get('/leave', hrController.getLeaveRequests);
 router.put('/leave/:id/approve', hrController.approveLeave);
 router.put('/leave/:id/reject', hrController.rejectLeave);
+router.get('/leave-policies', hrController.getLeavePolicies);
+router.post('/leave-policies', hrController.createLeavePolicy);
+router.put('/leave-policies/:id', hrController.updateLeavePolicy);
+router.delete('/leave-policies/:id', hrController.deleteLeavePolicy);
+
+// Holidays
+router.get('/holidays', hrController.getHolidays);
+router.post('/holidays', hrController.createHoliday);
+router.put('/holidays/:id', hrController.updateHoliday);
+router.delete('/holidays/:id', hrController.deleteHoliday);
 
 // Notices Management
 router.get('/notices', hrController.getNotices);
@@ -43,6 +80,14 @@ router.delete('/notices/:id', hrController.deleteNotice);
 router.get('/performance', hrController.getPerformanceReviews);
 router.post('/performance', hrController.createPerformanceReview);
 router.put('/performance/:id', hrController.updatePerformanceReview);
+router.get('/appraisal-cycles', hrController.getAppraisalCycles);
+router.post('/appraisal-cycles', hrController.createAppraisalCycle);
+router.put('/appraisal-cycles/:id', hrController.updateAppraisalCycle);
+router.delete('/appraisal-cycles/:id', hrController.deleteAppraisalCycle);
+router.get('/appraisals', hrController.getAppraisalReviews);
+router.post('/appraisals', hrController.createAppraisalReview);
+router.put('/appraisals/:id', hrController.updateAppraisalReview);
+router.delete('/appraisals/:id', hrController.deleteAppraisalReview);
 
 // Work Reports Management
 router.get('/work-reports', hrController.getWorkReports);
@@ -54,5 +99,43 @@ router.get('/complaints/:id', hrController.getComplaintById);
 router.put('/complaints/:id/assign', hrController.assignComplaint);
 router.put('/complaints/:id/resolve', hrController.resolveComplaint);
 router.post('/complaints/:id/comment', hrController.addComplaintComment);
+
+// Recruitment
+router.get('/jobs', hrController.getJobPosts);
+router.post('/jobs', hrController.createJobPost);
+router.put('/jobs/:id', hrController.updateJobPost);
+router.delete('/jobs/:id', hrController.deleteJobPost);
+router.get('/interviews', hrController.getInterviews);
+router.post('/interviews', hrController.createInterview);
+router.put('/interviews/:id', hrController.updateInterview);
+router.delete('/interviews/:id', hrController.deleteInterview);
+router.get('/offers', hrController.getOffers);
+router.post('/offers', hrController.createOffer);
+router.put('/offers/:id', hrController.updateOffer);
+router.delete('/offers/:id', hrController.deleteOffer);
+
+// Policies & Compliance
+router.get('/policies', hrController.getPolicies);
+router.post('/policies', hrController.createPolicy);
+router.put('/policies/:id', hrController.updatePolicy);
+router.delete('/policies/:id', hrController.deletePolicy);
+router.get('/policy-acknowledgements', hrController.getPolicyAcknowledgements);
+router.post('/policy-acknowledgements', hrController.createPolicyAcknowledgement);
+router.delete('/policy-acknowledgements/:id', hrController.deletePolicyAcknowledgement);
+
+// HR Support Tickets (Employee Queries)
+router.get('/support-tickets', hrController.getSupportTickets);
+router.post('/support-tickets', hrController.createSupportTicket);
+router.put('/support-tickets/:id', hrController.updateSupportTicket);
+router.put('/support-tickets/:id/assign', hrController.assignSupportTicket);
+router.put('/support-tickets/:id/resolve', hrController.resolveSupportTicket);
+router.put('/support-tickets/:id/close', hrController.closeSupportTicket);
+router.post('/support-tickets/:id/comment', hrController.addSupportTicketComment);
+
+// Exit Interviews
+router.get('/exit-interviews', hrController.getExitInterviews);
+router.post('/exit-interviews', hrController.createExitInterview);
+router.put('/exit-interviews/:id', hrController.updateExitInterview);
+router.delete('/exit-interviews/:id', hrController.deleteExitInterview);
 
 module.exports = router;

@@ -10,6 +10,9 @@ import Notices from './components/hr/Notices';
 import Performance from './components/hr/Performance';
 import StaffWorkReport from './components/hr/StaffWorkReport';
 import ComplaintSolutions from './components/hr/ComplaintSolutions';
+import HRSystemStructure from './components/hr/HRSystemStructure';
+import HRResourcePage from './components/hr/HRResourcePage';
+import HRModuleDashboard from './components/hr/HRModuleDashboard';
 import ITPortal from './components/it/ITPortal';
 import FinancePortal from './components/finance/FinancePortal';
 import AdminPortal from './components/admin/AdminPortal';
@@ -109,6 +112,22 @@ function App() {
           }
         />
         <Route
+          path="/hr/system"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, HRSystemStructure)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hr/modules/:key"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, HRModuleDashboard)}
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/hr/applicants"
           element={
             <PrivateRoute roles={allow('hr')}>
@@ -169,6 +188,14 @@ function App() {
           element={
             <PrivateRoute roles={allow('hr')}>
               {withPortal(HRPortal, ComplaintSolutions)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hr/resources/:key"
+          element={
+            <PrivateRoute roles={allow('hr')}>
+              {withPortal(HRPortal, HRResourcePage)}
             </PrivateRoute>
           }
         />

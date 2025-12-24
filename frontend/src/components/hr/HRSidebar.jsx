@@ -2,23 +2,20 @@ import React, { useMemo } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const navLinks = [
-  { label: 'Dashboard', icon: 'dashboard', path: '/hr/dashboard' },
-  { label: 'Applicants', icon: 'group', path: '/hr/applicants' },
-  { label: 'Attendance', icon: 'calendar_month', path: '/hr/attendance' },
-  { label: 'Employees', icon: 'badge', path: '/hr/employees' },
-  { label: 'Leave', icon: 'hourglass_empty', path: '/hr/leave' },
-  { label: 'Notices', icon: 'campaign', path: '/hr/notices' },
-  { label: 'Performance', icon: 'trending_up', path: '/hr/performance' },
-  { label: 'Staff Work Report', icon: 'assessment', path: '/hr/staff-report' },
-  { label: 'Complaint & Solutions', icon: 'report', path: '/hr/complaints' },
+const navSections = [
+  { id: 'employee-management', label: 'Employee Management', icon: 'manage_accounts', path: '/hr/system#employee-management' },
+  { id: 'attendance-management', label: 'Attendance Management', icon: 'calendar_month', path: '/hr/system#attendance-management' },
+  { id: 'leave-management', label: 'Leave Management', icon: 'hourglass_empty', path: '/hr/system#leave-management' },
+  { id: 'recruitment-hiring', label: 'Recruitment and Hiring', icon: 'work', path: '/hr/system#recruitment-hiring' },
+  { id: 'performance-appraisal', label: 'Performance & Appraisal', icon: 'trending_up', path: '/hr/system#performance-appraisal' },
+  { id: 'policy-compliance', label: 'Policy, Compliance and Documentation', icon: 'gavel', path: '/hr/system#policy-compliance' },
+  { id: 'employee-communication', label: 'Employee Communication and Report', icon: 'campaign', path: '/hr/system#employee-communication' },
 ];
 
 const HRSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-
   const displayName = useMemo(() => {
     if (!user) return 'HR';
     const name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
@@ -34,7 +31,7 @@ const HRSidebar = () => {
 
   return (
     <aside className="fixed left-0 top-0 z-10 flex h-screen w-64 flex-col border-r border-neutral-200 bg-white p-4 text-neutral-800 dark:border-neutral-800 dark:bg-background-dark dark:text-neutral-100">
-      <div className="flex flex-col gap-4">
+      <div className="flex h-full flex-col gap-4 overflow-hidden">
         <div className="flex items-center gap-3">
           <div
             className="size-10 rounded-full bg-cover bg-center bg-no-repeat"
@@ -51,48 +48,49 @@ const HRSidebar = () => {
             </p>
           </div>
         </div>
-        <div className="flex flex-col gap-2">
-          {navLinks.map((link) => {
-            const isActive = location.pathname.startsWith(link.path);
+        <div className="flex flex-1 flex-col gap-3 overflow-y-auto pr-1">
+          <NavLink
+            to="/hr/dashboard"
+            className={({ isActive }) =>
+              `group flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                isActive
+                  ? 'bg-gradient-to-r from-purple-400 to-purple-600 text-white shadow-inner'
+                  : 'text-neutral-700 hover:bg-purple-100 hover:shadow-inner dark:text-neutral-100 dark:hover:bg-white/10'
+              }`
+            }
+          >
+            <span className="material-symbols-outlined text-[20px]">dashboard</span>
+            <span className="whitespace-nowrap">Dashboard</span>
+          </NavLink>
+          {navSections.map((link) => {
+            const targetHash = link.path.split('#')[1] || '';
+            const currentHash = location.hash.replace('#', '');
+            const isActive = location.pathname === '/hr/system' && currentHash === targetHash;
             return (
               <NavLink
-                key={link.path}
+                key={link.id}
                 to={link.path}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm leading-normal transition-colors ${
+                className={`group flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
                   isActive
-                    ? 'bg-primary/10 text-primary font-bold'
-                    : 'font-medium text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-white/10'
+                    ? 'bg-gradient-to-r from-purple-400 to-purple-600 text-white shadow-inner'
+                    : 'text-neutral-700 hover:bg-purple-100 hover:shadow-inner dark:text-neutral-100 dark:hover:bg-white/10'
                 }`}
               >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
-                >
-                  {link.icon}
-                </span>
-                <span>{link.label}</span>
+                <span className="material-symbols-outlined text-[20px]">{link.icon}</span>
+                <span className="whitespace-nowrap">{link.label}</span>
               </NavLink>
             );
           })}
         </div>
       </div>
-      <div className="mt-auto flex flex-col gap-4">
-        <button className="flex h-10 min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-primary px-4 text-sm font-bold leading-normal tracking-[0.015em] text-white">
-          <span className="truncate">Post Announcement</span>
+      <div className="mt-auto flex flex-col gap-2">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold text-neutral-700 transition-all hover:bg-purple-100 hover:shadow-inner dark:text-neutral-100 dark:hover:bg-white/10"
+        >
+          <span className="material-symbols-outlined">logout</span>
+          <span>Logout</span>
         </button>
-        <div className="flex flex-col gap-1">
-          <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium leading-normal text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-white/10">
-            <span className="material-symbols-outlined">settings</span>
-            <span>Settings</span>
-          </button>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium leading-normal text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-white/10"
-          >
-            <span className="material-symbols-outlined">logout</span>
-            <span>Logout</span>
-          </button>
-        </div>
       </div>
     </aside>
   );

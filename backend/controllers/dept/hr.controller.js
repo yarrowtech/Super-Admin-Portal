@@ -7,6 +7,21 @@ const Notice = require('../../models/Notice');
 const Performance = require('../../models/Performance');
 const WorkReport = require('../../models/WorkReport');
 const Complaint = require('../../models/Complaint');
+const Department = require('../../models/Department');
+const Designation = require('../../models/Designation');
+const EmployeeDocument = require('../../models/EmployeeDocument');
+const BiometricEnrollment = require('../../models/BiometricEnrollment');
+const LeavePolicy = require('../../models/LeavePolicy');
+const Holiday = require('../../models/Holiday');
+const JobPost = require('../../models/JobPost');
+const Interview = require('../../models/Interview');
+const Offer = require('../../models/Offer');
+const AppraisalCycle = require('../../models/AppraisalCycle');
+const AppraisalReview = require('../../models/AppraisalReview');
+const PolicyDocument = require('../../models/PolicyDocument');
+const PolicyAcknowledgement = require('../../models/PolicyAcknowledgement');
+const SupportTicket = require('../../models/SupportTicket');
+const ExitInterview = require('../../models/ExitInterview');
 
 /**
  * @route   GET /api/dept/hr/dashboard
@@ -1092,6 +1107,1724 @@ exports.addComplaintComment = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to add comment',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * EMPLOYEE MANAGEMENT (HR CRUD)
+ */
+exports.createEmployee = async (req, res) => {
+  try {
+    const { email, password, role, firstName, lastName, phone, department } = req.body;
+
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail || !password || !role || !firstName || !lastName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required employee fields'
+      });
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: 'User with this email already exists'
+      });
+    }
+
+    const user = await User.create({
+      email: normalizedEmail,
+      password,
+      role,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone?.trim(),
+      department: department?.trim()
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Employee created successfully',
+      data: user.toSafeObject()
+    });
+  } catch (error) {
+    console.error('Create employee error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create employee',
+      details: error.message
+    });
+  }
+};
+
+exports.updateEmployee = async (req, res) => {
+  try {
+    const { role, firstName, lastName, phone, department, isActive } = req.body;
+    const user = await User.findById(req.params.id).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Employee not found'
+      });
+    }
+
+    if (role) user.role = role;
+    if (firstName) user.firstName = firstName.trim();
+    if (lastName) user.lastName = lastName.trim();
+    if (phone !== undefined) user.phone = phone?.trim();
+    if (department !== undefined) user.department = department?.trim();
+    if (isActive !== undefined) user.isActive = isActive;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Employee updated successfully',
+      data: user.toSafeObject()
+    });
+  } catch (error) {
+    console.error('Update employee error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update employee',
+      details: error.message
+    });
+  }
+};
+
+exports.toggleEmployeeStatus = async (req, res) => {
+  try {
+    const employee = await User.findById(req.params.id);
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        error: 'Employee not found'
+      });
+    }
+
+    employee.isActive = !employee.isActive;
+    await employee.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Employee ${employee.isActive ? 'activated' : 'deactivated'} successfully`,
+      data: employee.toSafeObject()
+    });
+  } catch (error) {
+    console.error('Toggle employee status error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to toggle employee status',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * DEPARTMENT MANAGEMENT
+ */
+exports.getDepartments = async (req, res) => {
+  try {
+    const { isActive } = req.query;
+    const query = {};
+    if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    const departments = await Department.find(query).sort({ name: 1 });
+    res.status(200).json({
+      success: true,
+      data: departments
+    });
+  } catch (error) {
+    console.error('Get departments error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch departments',
+      details: error.message
+    });
+  }
+};
+
+exports.createDepartment = async (req, res) => {
+  try {
+    const department = await Department.create(req.body);
+    res.status(201).json({
+      success: true,
+      message: 'Department created successfully',
+      data: department
+    });
+  } catch (error) {
+    console.error('Create department error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create department',
+      details: error.message
+    });
+  }
+};
+
+exports.updateDepartment = async (req, res) => {
+  try {
+    const department = await Department.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        error: 'Department not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Department updated successfully',
+      data: department
+    });
+  } catch (error) {
+    console.error('Update department error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update department',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteDepartment = async (req, res) => {
+  try {
+    const department = await Department.findByIdAndDelete(req.params.id);
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        error: 'Department not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Department deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete department error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete department',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * DESIGNATION MANAGEMENT
+ */
+exports.getDesignations = async (req, res) => {
+  try {
+    const { department, isActive } = req.query;
+    const query = {};
+    if (department) query.department = new RegExp(department, 'i');
+    if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    const designations = await Designation.find(query).sort({ name: 1 });
+    res.status(200).json({
+      success: true,
+      data: designations
+    });
+  } catch (error) {
+    console.error('Get designations error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch designations',
+      details: error.message
+    });
+  }
+};
+
+exports.createDesignation = async (req, res) => {
+  try {
+    const designation = await Designation.create(req.body);
+    res.status(201).json({
+      success: true,
+      message: 'Designation created successfully',
+      data: designation
+    });
+  } catch (error) {
+    console.error('Create designation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create designation',
+      details: error.message
+    });
+  }
+};
+
+exports.updateDesignation = async (req, res) => {
+  try {
+    const designation = await Designation.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!designation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Designation not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Designation updated successfully',
+      data: designation
+    });
+  } catch (error) {
+    console.error('Update designation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update designation',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteDesignation = async (req, res) => {
+  try {
+    const designation = await Designation.findByIdAndDelete(req.params.id);
+    if (!designation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Designation not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Designation deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete designation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete designation',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * EMPLOYEE DOCUMENTS
+ */
+exports.getEmployeeDocuments = async (req, res) => {
+  try {
+    const { employee, documentType } = req.query;
+    const query = {};
+    if (employee) query.employee = employee;
+    if (documentType) query.documentType = documentType;
+
+    const documents = await EmployeeDocument.find(query)
+      .populate('employee', 'firstName lastName email department')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: documents
+    });
+  } catch (error) {
+    console.error('Get employee documents error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch employee documents',
+      details: error.message
+    });
+  }
+};
+
+exports.createEmployeeDocument = async (req, res) => {
+  try {
+    const document = await EmployeeDocument.create(req.body);
+    await document.populate('employee', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Employee document created successfully',
+      data: document
+    });
+  } catch (error) {
+    console.error('Create employee document error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create employee document',
+      details: error.message
+    });
+  }
+};
+
+exports.updateEmployeeDocument = async (req, res) => {
+  try {
+    const document = await EmployeeDocument.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('employee', 'firstName lastName email');
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        error: 'Employee document not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Employee document updated successfully',
+      data: document
+    });
+  } catch (error) {
+    console.error('Update employee document error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update employee document',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteEmployeeDocument = async (req, res) => {
+  try {
+    const document = await EmployeeDocument.findByIdAndDelete(req.params.id);
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        error: 'Employee document not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Employee document deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete employee document error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete employee document',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * BIOMETRIC ENROLLMENT
+ */
+exports.getBiometricEnrollments = async (req, res) => {
+  try {
+    const { employee, status } = req.query;
+    const query = {};
+    if (employee) query.employee = employee;
+    if (status) query.status = status;
+
+    const enrollments = await BiometricEnrollment.find(query)
+      .populate('employee', 'firstName lastName email department')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: enrollments
+    });
+  } catch (error) {
+    console.error('Get biometric enrollments error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch biometric enrollments',
+      details: error.message
+    });
+  }
+};
+
+exports.createBiometricEnrollment = async (req, res) => {
+  try {
+    const enrollment = await BiometricEnrollment.create(req.body);
+    await enrollment.populate('employee', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Biometric enrollment created successfully',
+      data: enrollment
+    });
+  } catch (error) {
+    console.error('Create biometric enrollment error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create biometric enrollment',
+      details: error.message
+    });
+  }
+};
+
+exports.updateBiometricEnrollment = async (req, res) => {
+  try {
+    const enrollment = await BiometricEnrollment.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('employee', 'firstName lastName email');
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Biometric enrollment not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Biometric enrollment updated successfully',
+      data: enrollment
+    });
+  } catch (error) {
+    console.error('Update biometric enrollment error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update biometric enrollment',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteBiometricEnrollment = async (req, res) => {
+  try {
+    const enrollment = await BiometricEnrollment.findByIdAndDelete(req.params.id);
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Biometric enrollment not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Biometric enrollment deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete biometric enrollment error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete biometric enrollment',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * LEAVE POLICIES
+ */
+exports.getLeavePolicies = async (req, res) => {
+  try {
+    const { isActive, leaveType } = req.query;
+    const query = {};
+    if (leaveType) query.leaveType = leaveType;
+    if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    const policies = await LeavePolicy.find(query).sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      data: policies
+    });
+  } catch (error) {
+    console.error('Get leave policies error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch leave policies',
+      details: error.message
+    });
+  }
+};
+
+exports.createLeavePolicy = async (req, res) => {
+  try {
+    const policy = await LeavePolicy.create(req.body);
+    res.status(201).json({
+      success: true,
+      message: 'Leave policy created successfully',
+      data: policy
+    });
+  } catch (error) {
+    console.error('Create leave policy error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create leave policy',
+      details: error.message
+    });
+  }
+};
+
+exports.updateLeavePolicy = async (req, res) => {
+  try {
+    const policy = await LeavePolicy.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        error: 'Leave policy not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Leave policy updated successfully',
+      data: policy
+    });
+  } catch (error) {
+    console.error('Update leave policy error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update leave policy',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteLeavePolicy = async (req, res) => {
+  try {
+    const policy = await LeavePolicy.findByIdAndDelete(req.params.id);
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        error: 'Leave policy not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Leave policy deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete leave policy error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete leave policy',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * HOLIDAYS
+ */
+exports.getHolidays = async (req, res) => {
+  try {
+    const { department, startDate, endDate } = req.query;
+    const query = {};
+    if (department) query.department = new RegExp(department, 'i');
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate);
+    }
+
+    const holidays = await Holiday.find(query).sort({ date: 1 });
+    res.status(200).json({
+      success: true,
+      data: holidays
+    });
+  } catch (error) {
+    console.error('Get holidays error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch holidays',
+      details: error.message
+    });
+  }
+};
+
+exports.createHoliday = async (req, res) => {
+  try {
+    const holiday = await Holiday.create(req.body);
+    res.status(201).json({
+      success: true,
+      message: 'Holiday created successfully',
+      data: holiday
+    });
+  } catch (error) {
+    console.error('Create holiday error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create holiday',
+      details: error.message
+    });
+  }
+};
+
+exports.updateHoliday = async (req, res) => {
+  try {
+    const holiday = await Holiday.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!holiday) {
+      return res.status(404).json({
+        success: false,
+        error: 'Holiday not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Holiday updated successfully',
+      data: holiday
+    });
+  } catch (error) {
+    console.error('Update holiday error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update holiday',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteHoliday = async (req, res) => {
+  try {
+    const holiday = await Holiday.findByIdAndDelete(req.params.id);
+    if (!holiday) {
+      return res.status(404).json({
+        success: false,
+        error: 'Holiday not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Holiday deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete holiday error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete holiday',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * JOB POSTS
+ */
+exports.getJobPosts = async (req, res) => {
+  try {
+    const { status, department } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (department) query.department = new RegExp(department, 'i');
+
+    const jobs = await JobPost.find(query)
+      .populate('createdBy', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: jobs
+    });
+  } catch (error) {
+    console.error('Get job posts error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch job posts',
+      details: error.message
+    });
+  }
+};
+
+exports.createJobPost = async (req, res) => {
+  try {
+    const payload = {
+      ...req.body,
+      createdBy: req.user._id
+    };
+    if (payload.status === 'open' && !payload.postedDate) {
+      payload.postedDate = new Date();
+    }
+    const job = await JobPost.create(payload);
+    await job.populate('createdBy', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Job post created successfully',
+      data: job
+    });
+  } catch (error) {
+    console.error('Create job post error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create job post',
+      details: error.message
+    });
+  }
+};
+
+exports.updateJobPost = async (req, res) => {
+  try {
+    const job = await JobPost.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'firstName lastName email');
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: 'Job post not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Job post updated successfully',
+      data: job
+    });
+  } catch (error) {
+    console.error('Update job post error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update job post',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteJobPost = async (req, res) => {
+  try {
+    const job = await JobPost.findByIdAndDelete(req.params.id);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: 'Job post not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Job post deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete job post error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete job post',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * INTERVIEWS
+ */
+exports.getInterviews = async (req, res) => {
+  try {
+    const { status, applicant, startDate, endDate } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (applicant) query.applicant = applicant;
+    if (startDate || endDate) {
+      query.scheduledAt = {};
+      if (startDate) query.scheduledAt.$gte = new Date(startDate);
+      if (endDate) query.scheduledAt.$lte = new Date(endDate);
+    }
+
+    const interviews = await Interview.find(query)
+      .populate('applicant', 'firstName lastName email position')
+      .populate('panel', 'firstName lastName email')
+      .sort({ scheduledAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: interviews
+    });
+  } catch (error) {
+    console.error('Get interviews error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch interviews',
+      details: error.message
+    });
+  }
+};
+
+exports.createInterview = async (req, res) => {
+  try {
+    const interview = await Interview.create(req.body);
+    await interview.populate('applicant', 'firstName lastName email position');
+    res.status(201).json({
+      success: true,
+      message: 'Interview scheduled successfully',
+      data: interview
+    });
+  } catch (error) {
+    console.error('Create interview error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to schedule interview',
+      details: error.message
+    });
+  }
+};
+
+exports.updateInterview = async (req, res) => {
+  try {
+    const interview = await Interview.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    )
+      .populate('applicant', 'firstName lastName email position')
+      .populate('panel', 'firstName lastName email');
+
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        error: 'Interview not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Interview updated successfully',
+      data: interview
+    });
+  } catch (error) {
+    console.error('Update interview error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update interview',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteInterview = async (req, res) => {
+  try {
+    const interview = await Interview.findByIdAndDelete(req.params.id);
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        error: 'Interview not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Interview deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete interview error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete interview',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * OFFERS
+ */
+exports.getOffers = async (req, res) => {
+  try {
+    const { status, applicant } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (applicant) query.applicant = applicant;
+
+    const offers = await Offer.find(query)
+      .populate('applicant', 'firstName lastName email position')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: offers
+    });
+  } catch (error) {
+    console.error('Get offers error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch offers',
+      details: error.message
+    });
+  }
+};
+
+exports.createOffer = async (req, res) => {
+  try {
+    const offer = await Offer.create(req.body);
+    await offer.populate('applicant', 'firstName lastName email position');
+    res.status(201).json({
+      success: true,
+      message: 'Offer created successfully',
+      data: offer
+    });
+  } catch (error) {
+    console.error('Create offer error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create offer',
+      details: error.message
+    });
+  }
+};
+
+exports.updateOffer = async (req, res) => {
+  try {
+    const offer = await Offer.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('applicant', 'firstName lastName email position');
+    if (!offer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Offer not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Offer updated successfully',
+      data: offer
+    });
+  } catch (error) {
+    console.error('Update offer error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update offer',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteOffer = async (req, res) => {
+  try {
+    const offer = await Offer.findByIdAndDelete(req.params.id);
+    if (!offer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Offer not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Offer deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete offer error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete offer',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * APPRAISAL CYCLES
+ */
+exports.getAppraisalCycles = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const query = {};
+    if (status) query.status = status;
+
+    const cycles = await AppraisalCycle.find(query).sort({ startDate: -1 });
+    res.status(200).json({
+      success: true,
+      data: cycles
+    });
+  } catch (error) {
+    console.error('Get appraisal cycles error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch appraisal cycles',
+      details: error.message
+    });
+  }
+};
+
+exports.createAppraisalCycle = async (req, res) => {
+  try {
+    const cycle = await AppraisalCycle.create(req.body);
+    res.status(201).json({
+      success: true,
+      message: 'Appraisal cycle created successfully',
+      data: cycle
+    });
+  } catch (error) {
+    console.error('Create appraisal cycle error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create appraisal cycle',
+      details: error.message
+    });
+  }
+};
+
+exports.updateAppraisalCycle = async (req, res) => {
+  try {
+    const cycle = await AppraisalCycle.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!cycle) {
+      return res.status(404).json({
+        success: false,
+        error: 'Appraisal cycle not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Appraisal cycle updated successfully',
+      data: cycle
+    });
+  } catch (error) {
+    console.error('Update appraisal cycle error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update appraisal cycle',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteAppraisalCycle = async (req, res) => {
+  try {
+    const cycle = await AppraisalCycle.findByIdAndDelete(req.params.id);
+    if (!cycle) {
+      return res.status(404).json({
+        success: false,
+        error: 'Appraisal cycle not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Appraisal cycle deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete appraisal cycle error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete appraisal cycle',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * APPRAISAL REVIEWS
+ */
+exports.getAppraisalReviews = async (req, res) => {
+  try {
+    const { status, employee, cycle } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (employee) query.employee = employee;
+    if (cycle) query.cycle = cycle;
+
+    const reviews = await AppraisalReview.find(query)
+      .populate('employee', 'firstName lastName email')
+      .populate('cycle', 'name startDate endDate')
+      .populate('reviewer', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: reviews
+    });
+  } catch (error) {
+    console.error('Get appraisal reviews error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch appraisal reviews',
+      details: error.message
+    });
+  }
+};
+
+exports.createAppraisalReview = async (req, res) => {
+  try {
+    const review = await AppraisalReview.create({
+      ...req.body,
+      reviewer: req.user._id
+    });
+    await review.populate('employee', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Appraisal review created successfully',
+      data: review
+    });
+  } catch (error) {
+    console.error('Create appraisal review error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create appraisal review',
+      details: error.message
+    });
+  }
+};
+
+exports.updateAppraisalReview = async (req, res) => {
+  try {
+    const review = await AppraisalReview.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    )
+      .populate('employee', 'firstName lastName email')
+      .populate('cycle', 'name startDate endDate')
+      .populate('reviewer', 'firstName lastName email');
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        error: 'Appraisal review not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Appraisal review updated successfully',
+      data: review
+    });
+  } catch (error) {
+    console.error('Update appraisal review error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update appraisal review',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteAppraisalReview = async (req, res) => {
+  try {
+    const review = await AppraisalReview.findByIdAndDelete(req.params.id);
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        error: 'Appraisal review not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Appraisal review deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete appraisal review error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete appraisal review',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * POLICY DOCUMENTS
+ */
+exports.getPolicies = async (req, res) => {
+  try {
+    const { category, isActive } = req.query;
+    const query = {};
+    if (category) query.category = new RegExp(category, 'i');
+    if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    const policies = await PolicyDocument.find(query)
+      .populate('publishedBy', 'firstName lastName email')
+      .sort({ publishedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: policies
+    });
+  } catch (error) {
+    console.error('Get policies error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch policies',
+      details: error.message
+    });
+  }
+};
+
+exports.createPolicy = async (req, res) => {
+  try {
+    const policy = await PolicyDocument.create({
+      ...req.body,
+      publishedBy: req.user._id
+    });
+    await policy.populate('publishedBy', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Policy created successfully',
+      data: policy
+    });
+  } catch (error) {
+    console.error('Create policy error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create policy',
+      details: error.message
+    });
+  }
+};
+
+exports.updatePolicy = async (req, res) => {
+  try {
+    const policy = await PolicyDocument.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('publishedBy', 'firstName lastName email');
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        error: 'Policy not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Policy updated successfully',
+      data: policy
+    });
+  } catch (error) {
+    console.error('Update policy error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update policy',
+      details: error.message
+    });
+  }
+};
+
+exports.deletePolicy = async (req, res) => {
+  try {
+    const policy = await PolicyDocument.findByIdAndDelete(req.params.id);
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        error: 'Policy not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Policy deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete policy error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete policy',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * POLICY ACKNOWLEDGEMENTS
+ */
+exports.getPolicyAcknowledgements = async (req, res) => {
+  try {
+    const { policy, employee } = req.query;
+    const query = {};
+    if (policy) query.policy = policy;
+    if (employee) query.employee = employee;
+
+    const acknowledgements = await PolicyAcknowledgement.find(query)
+      .populate('policy', 'title category')
+      .populate('employee', 'firstName lastName email department')
+      .sort({ acknowledgedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: acknowledgements
+    });
+  } catch (error) {
+    console.error('Get policy acknowledgements error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch policy acknowledgements',
+      details: error.message
+    });
+  }
+};
+
+exports.createPolicyAcknowledgement = async (req, res) => {
+  try {
+    const acknowledgement = await PolicyAcknowledgement.create(req.body);
+    await acknowledgement.populate('policy', 'title category');
+    await acknowledgement.populate('employee', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Policy acknowledgement created successfully',
+      data: acknowledgement
+    });
+  } catch (error) {
+    console.error('Create policy acknowledgement error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create policy acknowledgement',
+      details: error.message
+    });
+  }
+};
+
+exports.deletePolicyAcknowledgement = async (req, res) => {
+  try {
+    const acknowledgement = await PolicyAcknowledgement.findByIdAndDelete(req.params.id);
+    if (!acknowledgement) {
+      return res.status(404).json({
+        success: false,
+        error: 'Policy acknowledgement not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Policy acknowledgement deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete policy acknowledgement error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete policy acknowledgement',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * HR SUPPORT TICKETS (Employee Queries)
+ */
+exports.getSupportTickets = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, priority, category } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+    if (category) query.category = category;
+
+    const tickets = await SupportTicket.find(query)
+      .populate('requester', 'firstName lastName email department')
+      .populate('assignedTo', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await SupportTicket.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tickets,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    console.error('Get support tickets error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch support tickets',
+      details: error.message
+    });
+  }
+};
+
+exports.createSupportTicket = async (req, res) => {
+  try {
+    const ticket = await SupportTicket.create(req.body);
+    await ticket.populate('requester', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Support ticket created successfully',
+      data: ticket
+    });
+  } catch (error) {
+    console.error('Create support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create support ticket',
+      details: error.message
+    });
+  }
+};
+
+exports.updateSupportTicket = async (req, res) => {
+  try {
+    const ticket = await SupportTicket.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    )
+      .populate('requester', 'firstName lastName email')
+      .populate('assignedTo', 'firstName lastName email');
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Support ticket not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Support ticket updated successfully',
+      data: ticket
+    });
+  } catch (error) {
+    console.error('Update support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update support ticket',
+      details: error.message
+    });
+  }
+};
+
+exports.assignSupportTicket = async (req, res) => {
+  try {
+    const { assignedTo } = req.body;
+    const ticket = await SupportTicket.findByIdAndUpdate(
+      req.params.id,
+      {
+        assignedTo,
+        status: 'in-progress',
+        assignedDate: Date.now()
+      },
+      { new: true }
+    )
+      .populate('requester', 'firstName lastName email')
+      .populate('assignedTo', 'firstName lastName email');
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Support ticket not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Support ticket assigned successfully',
+      data: ticket
+    });
+  } catch (error) {
+    console.error('Assign support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to assign support ticket',
+      details: error.message
+    });
+  }
+};
+
+exports.resolveSupportTicket = async (req, res) => {
+  try {
+    const { solution } = req.body;
+    const ticket = await SupportTicket.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'resolved',
+        solution,
+        resolvedDate: Date.now()
+      },
+      { new: true }
+    )
+      .populate('requester', 'firstName lastName email')
+      .populate('assignedTo', 'firstName lastName email');
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Support ticket not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Support ticket resolved successfully',
+      data: ticket
+    });
+  } catch (error) {
+    console.error('Resolve support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to resolve support ticket',
+      details: error.message
+    });
+  }
+};
+
+exports.closeSupportTicket = async (req, res) => {
+  try {
+    const ticket = await SupportTicket.findByIdAndUpdate(
+      req.params.id,
+      { status: 'closed', closedDate: Date.now() },
+      { new: true }
+    )
+      .populate('requester', 'firstName lastName email')
+      .populate('assignedTo', 'firstName lastName email');
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Support ticket not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Support ticket closed successfully',
+      data: ticket
+    });
+  } catch (error) {
+    console.error('Close support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to close support ticket',
+      details: error.message
+    });
+  }
+};
+
+exports.addSupportTicketComment = async (req, res) => {
+  try {
+    const { comment, isInternal = false } = req.body;
+    const ticket = await SupportTicket.findByIdAndUpdate(
+      req.params.id,
+      {
+        $push: {
+          comments: {
+            commentedBy: req.user._id,
+            comment,
+            isInternal,
+            commentedAt: Date.now()
+          }
+        }
+      },
+      { new: true }
+    )
+      .populate('requester', 'firstName lastName email')
+      .populate('comments.commentedBy', 'firstName lastName');
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Support ticket not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Support ticket comment added successfully',
+      data: ticket
+    });
+  } catch (error) {
+    console.error('Add support ticket comment error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add support ticket comment',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * EXIT INTERVIEWS
+ */
+exports.getExitInterviews = async (req, res) => {
+  try {
+    const { status, employee } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (employee) query.employee = employee;
+
+    const interviews = await ExitInterview.find(query)
+      .populate('employee', 'firstName lastName email department')
+      .populate('interviewer', 'firstName lastName email')
+      .sort({ interviewDate: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: interviews
+    });
+  } catch (error) {
+    console.error('Get exit interviews error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch exit interviews',
+      details: error.message
+    });
+  }
+};
+
+exports.createExitInterview = async (req, res) => {
+  try {
+    const interview = await ExitInterview.create({
+      ...req.body,
+      interviewer: req.user._id
+    });
+    await interview.populate('employee', 'firstName lastName email');
+    res.status(201).json({
+      success: true,
+      message: 'Exit interview created successfully',
+      data: interview
+    });
+  } catch (error) {
+    console.error('Create exit interview error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create exit interview',
+      details: error.message
+    });
+  }
+};
+
+exports.updateExitInterview = async (req, res) => {
+  try {
+    const interview = await ExitInterview.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    )
+      .populate('employee', 'firstName lastName email')
+      .populate('interviewer', 'firstName lastName email');
+
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        error: 'Exit interview not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Exit interview updated successfully',
+      data: interview
+    });
+  } catch (error) {
+    console.error('Update exit interview error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update exit interview',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteExitInterview = async (req, res) => {
+  try {
+    const interview = await ExitInterview.findByIdAndDelete(req.params.id);
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        error: 'Exit interview not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Exit interview deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete exit interview error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete exit interview',
       details: error.message
     });
   }

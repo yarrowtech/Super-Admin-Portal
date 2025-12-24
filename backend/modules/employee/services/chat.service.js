@@ -64,10 +64,14 @@ const getThreads = async (user) => {
   return threads.map((thread) => {
     const enriched = enrichThread(thread);
     const last = lastMessageMap[thread._id.toString()];
+    const lastSenderId = last?.sender ? last.sender.toString() : enriched.lastSenderId || null;
+    const lastSenderName = last?.senderName || enriched.lastSenderName || '';
     return {
       ...enriched,
       lastMessage: last?.body || enriched.lastMessage || '',
       lastTime: last?.sentAt || enriched.lastTime || thread.updatedAt,
+      lastSenderId,
+      lastSenderName,
     };
   });
 };

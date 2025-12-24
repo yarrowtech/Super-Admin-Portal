@@ -139,10 +139,17 @@ const EmployeeChat = () => {
           : thread.lastMessage) ||
         thread.lastMessagePreview ||
         '';
+      const lastSenderId =
+        thread.lastSenderId?.toString?.() ||
+        thread.lastSender?.toString?.() ||
+        thread.lastSender ||
+        null;
       return {
         ...thread,
         lastMessage: rawPreview || '',
         lastTime: thread.lastTime || thread.updatedAt || null,
+        lastSenderId,
+        lastSenderName: thread.lastSenderName || '',
         unreadCount: deriveUnreadCount(thread),
       };
     },
@@ -352,6 +359,12 @@ const EmployeeChat = () => {
               ...thread,
               lastMessage: lastMsg?.text || lastMsg?.body || thread.lastMessage || '',
               lastTime: lastMsg?.time || thread.lastTime || new Date().toISOString(),
+              lastSenderName: lastMsg?.from || thread.lastSenderName || '',
+              lastSenderId:
+                lastMsg?.senderId?.toString?.() ||
+                lastMsg?.sender?.toString?.() ||
+                thread.lastSenderId ||
+                null,
             };
           })
         );
@@ -400,6 +413,12 @@ const EmployeeChat = () => {
             ...thread,
             lastMessage: message.text || message.body || thread.lastMessage,
             lastTime: message.time || message.sentAt || new Date().toISOString(),
+            lastSenderName: message.from || thread.lastSenderName || '',
+            lastSenderId:
+              message.senderId?.toString?.() ||
+              message.sender?.toString?.() ||
+              thread.lastSenderId ||
+              null,
             unreadCount: shouldIncrement ? unreadCount + 1 : 0,
           };
         });
@@ -809,14 +828,21 @@ const EmployeeChat = () => {
   }, []);
 
   const filteredThreads = useMemo(() => {
-    if (!normalizedSearchTokens.length) return threads;
-    return threads.filter((thread) => {
+    const sortedThreads = [...threads].sort((a, b) => {
+      const timeA = a.lastTime ? new Date(a.lastTime).getTime() : 0;
+      const timeB = b.lastTime ? new Date(b.lastTime).getTime() : 0;
+      return timeB - timeA; // Most recent first
+    });
+    
+    if (!normalizedSearchTokens.length) return sortedThreads;
+    return sortedThreads.filter((thread) => {
       const name = threadDisplayName(thread) || '';
       const preview = thread.lastMessage || '';
+      const lastSender = thread.lastSenderName || '';
       const memberNames = (thread.members || [])
         .map((member) => member.name || member.email || '')
         .join(' ');
-      const haystack = `${name} ${preview} ${memberNames}`;
+      const haystack = `${name} ${preview} ${lastSender} ${memberNames}`;
       return matchTokens(haystack, normalizedSearchTokens);
     });
   }, [threads, normalizedSearchTokens, threadDisplayName, matchTokens]);
@@ -949,6 +975,7 @@ const EmployeeChat = () => {
         getThreadId={getThreadId}
         onStartChat={handleStartChat}
         creatingThreadId={creatingThreadId}
+        currentUserId={currentUserId}
       />
 
       <ChatWindow

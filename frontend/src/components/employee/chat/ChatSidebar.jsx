@@ -16,8 +16,10 @@ const ChatSidebar = ({
   getThreadId,
   onStartChat,
   creatingThreadId,
+  currentUserId,
 }) => {
   const searchActive = searchTokens.length > 0;
+  const normalizedCurrentUserId = currentUserId?.toString?.() || currentUserId || null;
 
   return (
     <div className="hidden md:flex md:w-80 flex-col h-full bg-white dark:bg-[#111b21]">
@@ -69,6 +71,12 @@ const ChatSidebar = ({
           const id = getThreadId(thread);
           const isActive = id === activeThreadId;
           const lastMessage = wrapMessageText(thread.lastMessage || 'No messages yet');
+          const previewSenderId = thread.lastSenderId?.toString?.() || thread.lastSenderId || null;
+          const previewSenderName =
+            previewSenderId && normalizedCurrentUserId && previewSenderId === normalizedCurrentUserId
+              ? 'You'
+              : thread.lastSenderName || '';
+          const previewMessage = previewSenderName ? `${previewSenderName}: ${lastMessage}` : lastMessage;
           const time = thread.lastTime
             ? new Date(thread.lastTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : '';
@@ -103,7 +111,7 @@ const ChatSidebar = ({
                     )}
                   </div>
                 </div>
-                <p className="truncate text-sm text-[#667781] dark:text-[#8696a0]">{lastMessage}</p>
+                <p className="truncate text-sm text-[#667781] dark:text-[#8696a0]">{previewMessage}</p>
               </div>
             </button>
           );

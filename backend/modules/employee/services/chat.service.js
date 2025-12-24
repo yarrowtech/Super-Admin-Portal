@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const ChatThread = require('../../../models/ChatThread');
 const ChatMessage = require('../../../models/ChatMessage');
 const User = require('../../../models/User');
@@ -162,9 +163,59 @@ const createDirectThread = async (user, targetUserId) => {
   return thread;
 };
 
+const createGroupThread = async (user, payload = {}) => {
+  const name = payload.name?.trim();
+  const rawMemberIds = Array.isArray(payload.memberIds) ? payload.memberIds : [];
+  const meta = payload.meta?.trim?.() || null;
+
+  if (!name) {
+    const err = new Error('Group name is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const normalizedIds = new Set(
+    rawMemberIds
+      .map((id) => (id ? id.toString() : null))
+      .filter(Boolean)
+  );
+
+  normalizedIds.add(user._id.toString());
+  const uniqueIds = Array.from(normalizedIds);
+
+  if (uniqueIds.length < 2) {
+    const err = new Error('Select at least one teammate for the group');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const objectIds = uniqueIds.map((id) => new mongoose.Types.ObjectId(id));
+  const members = await User.find({ _id: { $in: objectIds } });
+
+  if (members.length < uniqueIds.length) {
+    const err = new Error('One or more selected members were not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const thread = await ChatThread.create({
+    name,
+    meta: meta || `${uniqueIds.length} members`,
+    members: objectIds,
+    isDirect: false,
+    createdBy: user._id,
+  });
+
+  const populated = await ChatThread.findById(thread._id)
+    .populate('members', 'firstName lastName email department');
+
+  return enrichThread(populated);
+};
+
 module.exports = {
   getThreads,
   getMessages,
   postMessage,
   createDirectThread,
+  createGroupThread,
 };

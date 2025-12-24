@@ -13,6 +13,8 @@ export const employeeApi = {
     apiClient.post(`/api/employee/chat/threads/${threadId}/messages`, { text }, token),
   createChatThread: (token, targetUserId) =>
     apiClient.post('/api/employee/chat/threads', { targetUserId }, token),
+  createGroupThread: (token, body) =>
+    apiClient.post('/api/employee/chat/groups', body, token),
   updateTaskStatus: (token, taskId, body) =>
     apiClient.put(`/api/dept/employee/tasks/${taskId}/status`, body, token),
   createTask: (token, body) =>

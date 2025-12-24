@@ -25,5 +25,6 @@ router.get('/chat/threads', chatController.getThreads);
 router.get('/chat/threads/:threadId/messages', chatController.getMessages);
 router.post('/chat/threads/:threadId/messages', chatController.postMessage);
 router.post('/chat/threads', chatController.createThread);
+router.post('/chat/groups', chatController.createGroupThread);
 
 module.exports = router;

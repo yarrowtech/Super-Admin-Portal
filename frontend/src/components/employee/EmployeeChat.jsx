@@ -28,6 +28,7 @@ const EmployeeChat = () => {
   const socketRef = useRef(null);
   const joinedThreadsRef = useRef(new Set());
   const [creatingThreadId, setCreatingThreadId] = useState(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const messagesEndRef = useRef(null);
   const activeThreadIdRef = useRef(null);
   const seenEmittedRef = useRef({});
@@ -793,6 +794,38 @@ const EmployeeChat = () => {
     }
   };
 
+  const handleCreateGroup = async ({ name, memberIds, meta }) => {
+    if (!token || !name || !Array.isArray(memberIds)) return;
+    setCreatingGroup(true);
+    setError('');
+    try {
+      const payload = {
+        name: name.trim(),
+        memberIds,
+      };
+      if (meta) {
+        payload.meta = meta;
+      }
+      const res = await employeeApi.createGroupThread(token, payload);
+      const thread = normalizeThread(res?.data || res);
+      const threadId = getThreadId(thread);
+      setThreads((prev) => {
+        const exists = threadId && prev.some((t) => getThreadId(t) === threadId);
+        if (exists) return prev;
+        return [thread, ...prev];
+      });
+      if (threadId) {
+        setActiveThreadId(threadId);
+      }
+      return thread;
+    } catch (err) {
+      setError(err.message || 'Failed to create group');
+      throw err;
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
   const directMemberIds = useMemo(() => {
     const ids = new Set();
     threads.forEach((thread) => {
@@ -975,6 +1008,9 @@ const EmployeeChat = () => {
         getThreadId={getThreadId}
         onStartChat={handleStartChat}
         creatingThreadId={creatingThreadId}
+        onCreateGroup={handleCreateGroup}
+        creatingGroup={creatingGroup}
+        teamMembers={teamMembers}
         currentUserId={currentUserId}
       />
 

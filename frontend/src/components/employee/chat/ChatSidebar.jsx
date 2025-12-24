@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const ChatSidebar = ({
   totalUnread,
@@ -17,9 +17,54 @@ const ChatSidebar = ({
   onStartChat,
   creatingThreadId,
   currentUserId,
+  onCreateGroup,
+  creatingGroup,
+  teamMembers = [],
 }) => {
   const searchActive = searchTokens.length > 0;
   const normalizedCurrentUserId = currentUserId?.toString?.() || currentUserId || null;
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [groupMemberIds, setGroupMemberIds] = useState([]);
+  const [groupError, setGroupError] = useState('');
+
+  const availableGroupMembers = teamMembers;
+
+  const toggleMemberSelection = (memberId) => {
+    setGroupMemberIds((prev) => {
+      if (prev.includes(memberId)) {
+        return prev.filter((id) => id !== memberId);
+      }
+      return [...prev, memberId];
+    });
+  };
+
+  const handleGroupSubmit = async (event) => {
+    event.preventDefault();
+    if (!onCreateGroup) return;
+    const trimmedName = groupName.trim();
+    if (!trimmedName) {
+      setGroupError('Group name is required');
+      return;
+    }
+    if (groupMemberIds.length === 0) {
+      setGroupError('Select at least one teammate');
+      return;
+    }
+    try {
+      setGroupError('');
+      await onCreateGroup({
+        name: trimmedName,
+        memberIds: groupMemberIds,
+        meta: `${groupMemberIds.length + 1} members`,
+      });
+      setGroupName('');
+      setGroupMemberIds([]);
+      setShowGroupForm(false);
+    } catch (err) {
+      setGroupError(err.message || 'Failed to create group');
+    }
+  };
 
   return (
     <div className="hidden md:flex md:w-80 flex-col h-full bg-white dark:bg-[#111b21]">
@@ -53,6 +98,104 @@ const ChatSidebar = ({
             </button>
           )}
         </div>
+      </div>
+
+      <div className="px-6 pb-4">
+        {showGroupForm ? (
+          <form
+            onSubmit={handleGroupSubmit}
+            className="rounded-2xl border border-[#e9edef] bg-[#f8fafb] p-4 dark:border-[#1f2b32] dark:bg-[#111b21]"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#111b21] dark:text-white">Create Group</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setGroupName('');
+                  setGroupMemberIds([]);
+                  setShowGroupForm(false);
+                  setGroupError('');
+                }}
+                className="text-[#667781] hover:text-[#00a884]"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[#54656f] dark:text-[#8696a0]">
+              Group Name
+            </label>
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="Project Alpha"
+              className="mb-3 w-full rounded-xl border border-transparent bg-white px-3 py-2 text-sm text-[#111b21] focus:border-[#00a884] focus:outline-none dark:bg-[#1f2b32] dark:text-white"
+            />
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#54656f] dark:text-[#8696a0]">
+              Add Members
+            </p>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl bg-white p-2 dark:bg-[#1f2b32]">
+              {availableGroupMembers.length === 0 && (
+                <p className="px-2 py-1 text-xs text-[#667781] dark:text-[#8696a0]">No teammates available</p>
+              )}
+              {availableGroupMembers.map((member) => {
+                const memberId = member.id?.toString?.() || member._id?.toString?.() || '';
+                if (!memberId) return null;
+                const selected = groupMemberIds.includes(memberId);
+                return (
+                  <label
+                    key={memberId}
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1 text-sm ${
+                      selected ? 'bg-[#e6f4ea] dark:bg-[#1d2a30]' : 'hover:bg-[#f0f2f5] dark:hover:bg-[#1a1a1a]'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleMemberSelection(memberId)}
+                      className="size-4 rounded border-[#cfdce3] text-[#00a884] focus:ring-[#00a884]"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-[#111b21] dark:text-white">{member.name}</p>
+                      <p className="text-xs text-[#667781] dark:text-[#8696a0]">{member.role || member.department || ''}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            {groupError && <p className="mt-2 text-xs text-red-500">{groupError}</p>}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="submit"
+                disabled={creatingGroup}
+                className="flex-1 rounded-xl bg-[#00a884] px-3 py-2 text-sm font-semibold text-white hover:bg-[#029172] disabled:opacity-60"
+              >
+                {creatingGroup ? 'Creating...' : 'Create Group'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGroupName('');
+                  setGroupMemberIds([]);
+                  setShowGroupForm(false);
+                  setGroupError('');
+                }}
+                className="rounded-xl border border-[#d1d7db] px-3 py-2 text-sm text-[#54656f] hover:border-[#00a884] hover:text-[#00a884]"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowGroupForm(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[#d1d7db] px-3 py-2 text-sm font-semibold text-[#00a884] hover:border-[#00a884]"
+          >
+            <span className="material-symbols-outlined text-base">group_add</span>
+            New Group
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">

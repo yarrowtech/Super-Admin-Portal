@@ -64,3 +64,16 @@ exports.createThread = asyncHandler(async (req, res) => {
     data: thread,
   });
 });
+
+exports.createGroupThread = asyncHandler(async (req, res) => {
+  const { name, memberIds, meta } = req.body || {};
+  const thread = await chatService.createGroupThread(req.user, {
+    name,
+    memberIds,
+    meta,
+  });
+  res.status(201).json({
+    success: true,
+    data: thread,
+  });
+});

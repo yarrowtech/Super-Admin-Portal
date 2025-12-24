@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const ChatWindow = ({
   activeThread,
@@ -24,6 +24,43 @@ const ChatWindow = ({
   emojiOptions,
   handleEmojiSelect,
 }) => {
+  const [expandedMessages, setExpandedMessages] = useState({});
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+
+  const toggleMessageExpansion = (key) => {
+    setExpandedMessages((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const getDateKey = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString().slice(0, 10);
+  };
+
+  const formatDayLabel = (value) => {
+    if (!value) return 'Today';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Today';
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    }
+    if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    }
+    return date.toLocaleDateString([], {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
   if (!activeThread) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center bg-white dark:bg-[#111b21]">
@@ -38,22 +75,137 @@ const ChatWindow = ({
     );
   }
 
+  let lastDateKey = null;
+  const renderedMessages = messages.map((msg) => {
+    const senderId = msg.senderId || msg.sender || msg.senderID || '';
+    const isMe = senderId?.toString() === currentUserId?.toString();
+    const isSeen = isMe && Boolean(seenByOthers[msg.id]);
+    const time = msg.time
+      ? new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '';
+    const messageKey =
+      msg.id ||
+      msg._id ||
+      `${senderId || 'unknown'}-${msg.time || 'pending'}-${msg.text?.length || 0}`;
+    const wrappedMessage = wrapMessageText(msg.text || '');
+    const messageLines = wrappedMessage ? wrappedMessage.split('\n') : [''];
+    const isExpanded = Boolean(expandedMessages[messageKey]);
+    const needsToggle = messageLines.length > 10;
+    const displayedText = isExpanded ? messageLines.join('\n') : messageLines.slice(0, 10).join('\n');
+    const dateKey = getDateKey(msg.time);
+    const showDateSeparator = Boolean(dateKey && dateKey !== lastDateKey);
+    if (showDateSeparator) {
+      lastDateKey = dateKey;
+    }
+
+    let statusIcon = 'done';
+    let statusColor = 'text-[#667781]';
+
+    if (isMe) {
+      if (msg.sending) {
+        statusIcon = 'schedule';
+        statusColor = 'text-[#667781] animate-spin';
+      } else if (isSeen) {
+        statusIcon = 'done_all';
+        statusColor = 'text-[#4fc3f7]';
+      } else {
+        const recipientIsOnline =
+          activeThread?.members?.some((member) => {
+            const memberId = (member.id || member._id)?.toString();
+            const isOtherUser = memberId !== currentUserId?.toString();
+            return (
+              isOtherUser &&
+              (member.status === 'Online' || member.status === 'online' || member.online === true)
+            );
+          }) || activeThread?.online === true;
+
+        if (recipientIsOnline) {
+          statusIcon = 'done_all';
+          statusColor = 'text-[#667781]';
+        } else {
+          statusIcon = 'done';
+          statusColor = 'text-[#667781]';
+        }
+      }
+    }
+
+    const bubbleKey = `${messageKey}-${isSeen ? 'seen' : 'unseen'}`;
+
+    return (
+      <React.Fragment key={bubbleKey}>
+        {showDateSeparator && (
+          <div className="my-4 flex items-center gap-3">
+            <span className="flex-1 h-px bg-[#d1d7db] dark:bg-[#2a3942]" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-[#54656f] dark:text-[#8696a0]">
+              {formatDayLabel(msg.time)}
+            </span>
+            <span className="flex-1 h-px bg-[#d1d7db] dark:bg-[#2a3942]" />
+          </div>
+        )}
+        <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+          <div
+            className={`max-w-[85%] sm:max-w-[75%] md:max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${
+              isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none dark:bg-[#2a3942]'
+            }`}
+          >
+            {!isMe && <div className="mb-1 text-xs font-semibold text-[#00a884]">{msg.from}</div>}
+            <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white">
+              {displayedText}
+            </div>
+            {needsToggle && (
+              <button
+                type="button"
+                onClick={() => toggleMessageExpansion(messageKey)}
+                className="mt-1 text-xs font-semibold text-[#00a884] hover:text-[#059e7f]"
+              >
+                {isExpanded ? 'Show less' : 'Read more'}
+              </button>
+            )}
+            <div className="mt-1 flex justify-end">
+              <span className="text-xs text-[#667781]">{time}</span>
+              {isMe && (
+                <span className={`material-symbols-outlined ml-1 text-xs ${statusColor}`}>{statusIcon}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </React.Fragment>
+    );
+  });
+
+  const isGroupChat = Boolean(activeThread && !activeThread.isDirect);
+  const groupMembers = Array.isArray(activeThread?.members) ? activeThread.members : [];
+
   return (
     <div className="flex flex-1 flex-col h-full pt-16 md:pt-0">
       <div className="flex items-center justify-between border-b border-[#e9edef] bg-white p-4 dark:border-[#303d45] dark:bg-[#202c33]">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="flex items-center gap-3 text-left"
+          onClick={() => isGroupChat && setShowMembersPanel(true)}
+          disabled={!isGroupChat}
+        >
           <div className="size-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] flex items-center justify-center text-white">
             <span className="material-symbols-outlined">forum</span>
           </div>
           <div>
-            <h2 className="font-semibold text-[#111b21] dark:text-white">{threadDisplayName(activeThread)}</h2>
+            <h2 className="font-semibold text-[#111b21] dark:text-white">
+              {threadDisplayName(activeThread)}
+            </h2>
             <p className="text-sm text-[#667781] dark:text-[#8696a0]">
               {activeThreadTyping
                 ? `${activeThreadTyping.name || 'Someone'} is typing...`
-                : activeThread.meta || 'Team chat'}
+                : isGroupChat
+                  ? `${groupMembers.length} members`
+                  : activeThread.meta || 'Team chat'}
             </p>
+            {/* {isGroupChat && (
+              <p className="text-xs text-[#00a884] underline-offset-2 hover:underline">
+                View members
+              </p>
+            )} */}
           </div>
-        </div>
+        </button>
         <div className="flex items-center gap-6 text-[#54656f]">
           <button className="hover:text-[#00a884]">
             <span className="material-symbols-outlined">more_vert</span>
@@ -79,69 +231,7 @@ const ChatWindow = ({
         )}
 
         <div className="space-y-2">
-          {messages.map((msg) => {
-            const senderId = msg.senderId || msg.sender || msg.senderID || '';
-            const isMe = senderId?.toString() === currentUserId?.toString();
-            const isSeen = isMe && Boolean(seenByOthers[msg.id]);
-            const time = msg.time
-              ? new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : '';
-
-            let statusIcon = 'done';
-            let statusColor = 'text-[#667781]';
-            
-            if (isMe) {
-              if (msg.sending) {
-                // Message is being sent (optimistic update)
-                statusIcon = 'schedule';
-                statusColor = 'text-[#667781] animate-spin';
-              } else if (isSeen) {
-                statusIcon = 'done_all';
-                statusColor = 'text-[#4fc3f7]';
-              } else {
-                const recipientIsOnline =
-                  activeThread?.members?.some((member) => {
-                    const memberId = (member.id || member._id)?.toString();
-                    const isOtherUser = memberId !== currentUserId?.toString();
-                    return (
-                      isOtherUser &&
-                      (member.status === 'Online' ||
-                        member.status === 'online' ||
-                        member.online === true)
-                    );
-                  }) || activeThread?.online === true;
-
-                if (recipientIsOnline) {
-                  statusIcon = 'done_all';
-                  statusColor = 'text-[#667781]';
-                } else {
-                  statusIcon = 'done';
-                  statusColor = 'text-[#667781]';
-                }
-              }
-            }
-
-            return (
-              <div key={`${msg.id}-${isSeen ? 'seen' : 'unseen'}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[85%] sm:max-w-[75%] md:max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${
-                    isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none dark:bg-[#2a3942]'
-                  }`}
-                >
-                  {!isMe && <div className="mb-1 text-xs font-semibold text-[#00a884]">{msg.from}</div>}
-                  <div className="whitespace-pre-line break-words text-[#111b21] dark:text-white">
-                    {wrapMessageText(msg.text || '')}
-                  </div>
-                  <div className="mt-1 flex justify-end">
-                    <span className="text-xs text-[#667781]">{time}</span>
-                    {isMe && (
-                      <span className={`material-symbols-outlined ml-1 text-xs ${statusColor}`}>{statusIcon}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {renderedMessages}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -226,6 +316,63 @@ const ChatWindow = ({
           )}
         </form>
       </div>
+
+      {isGroupChat && showMembersPanel && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-[#111b21]">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-[#111b21] dark:text-white">Group Members</h3>
+                { isGroupChat && (
+                
+                <p className="text-sm text-[#667781] dark:text-[#8696a0]">
+
+                  {groupMembers.length} member{groupMembers.length === 1 ? '' : 's'}
+                </p>)}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMembersPanel(false)}
+                className="rounded-full p-1.5 text-[#54656f] hover:bg-[#f0f2f5] dark:hover:bg-[#1f1f1f]"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {groupMembers.map((member) => {
+                const memberId = (member.id || member._id)?.toString() || '';
+                return (
+                  <div
+                    key={memberId || member.email}
+                    className="flex items-center gap-3 rounded-xl border border-[#eef1f2] px-3 py-2 dark:border-[#1f2b32]"
+                  >
+                    <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-[#00a884] to-[#128c7e] text-white text-sm font-semibold">
+                      {member.name?.[0] || member.email?.[0] || '?'}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-[#111b21] dark:text-white">
+                        {member.name || member.email || 'Unknown'}
+                      </p>
+                      <p className="text-xs text-[#667781] dark:text-[#8696a0]">
+                        {member.role || member.department || member.email || ''}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowMembersPanel(false)}
+                className="rounded-xl bg-[#00a884] px-4 py-2 text-sm font-semibold text-white hover:bg-[#008069]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

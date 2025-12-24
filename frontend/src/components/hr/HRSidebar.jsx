@@ -1,5 +1,6 @@
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const navLinks = [
   { label: 'Dashboard', icon: 'dashboard', path: '/hr/dashboard' },
@@ -15,6 +16,21 @@ const navLinks = [
 
 const HRSidebar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const displayName = useMemo(() => {
+    if (!user) return 'HR';
+    const name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    return name || user.name || user.email || 'HR';
+  }, [user]);
+
+  const subtitle = user?.department || (user?.role ? `${user.role.toUpperCase()} Department` : 'HR Department');
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-10 flex h-screen w-64 flex-col border-r border-neutral-200 bg-white p-4 text-neutral-800 dark:border-neutral-800 dark:bg-background-dark dark:text-neutral-100">
@@ -29,9 +45,9 @@ const HRSidebar = () => {
             }}
           ></div>
           <div className="flex flex-col">
-            <h1 className="text-base font-medium leading-normal">Super Admin</h1>
+            <h1 className="text-base font-medium leading-normal">{displayName}</h1>
             <p className="text-sm font-normal leading-normal text-neutral-600 dark:text-neutral-400">
-              HR Department
+              {subtitle}
             </p>
           </div>
         </div>
@@ -69,7 +85,10 @@ const HRSidebar = () => {
             <span className="material-symbols-outlined">settings</span>
             <span>Settings</span>
           </button>
-          <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium leading-normal text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-white/10">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium leading-normal text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-white/10"
+          >
             <span className="material-symbols-outlined">logout</span>
             <span>Logout</span>
           </button>

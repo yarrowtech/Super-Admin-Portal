@@ -1,24 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+import { managerApi } from '../../api/manager';
+import { useAuth } from '../../context/AuthContext';
+
+const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
 
 const ManagerDashboard = () => {
+  const { token, user } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [realtimeStatus, setRealtimeStatus] = useState('connecting');
+  const socketRef = useRef(null);
+
+  const managerName = useMemo(() => {
+    const full = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+    return full || user?.name || 'Manager';
+  }, [user]);
 
   useEffect(() => {
-    // Check localStorage for dark mode preference
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode === 'true') {
       document.documentElement.classList.add('dark');
       setIsDarkMode(true);
-    } else if (savedDarkMode === 'false') {
+      return;
+    }
+    if (savedDarkMode === 'false') {
       document.documentElement.classList.remove('dark');
       setIsDarkMode(false);
-    } else {
-      // Default to system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        document.documentElement.classList.add('dark');
-        setIsDarkMode(true);
-      }
+      return;
+    }
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (prefersDark) {
+      document.documentElement.classList.add('dark');
+      setIsDarkMode(true);
     }
   }, []);
 
@@ -35,17 +58,114 @@ const ManagerDashboard = () => {
     }
   };
 
+  useEffect(() => {
+    if (!token) return undefined;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const res = await managerApi.getDashboard(token);
+        if (!cancelled) {
+          setSnapshot(res?.data?.data || res?.data || null);
+          setError('');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || 'Failed to load dashboard');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !user) return undefined;
+    const managerId = user.id || user._id;
+    if (!managerId) return undefined;
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+    socketRef.current = socket;
+    const payload = { managerId };
+
+    socket.on('connect', () => {
+      setRealtimeStatus('connecting');
+      socket.emit('manager:subscribe', payload);
+    });
+
+    socket.on('manager:dashboard', (data) => {
+      setSnapshot(data);
+      setRealtimeStatus('live');
+      setLoading(false);
+      setError('');
+    });
+
+    socket.on('manager:dashboard:error', (payload = {}) => {
+      setRealtimeStatus('error');
+      setError(payload?.message || 'Live updates unavailable');
+    });
+
+    socket.emit('manager:subscribe', payload);
+
+    return () => {
+      socket.emit('manager:unsubscribe', payload);
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [token, user]);
+
+  const projectSummary = snapshot?.projectSummary || {};
+  const taskSummary = snapshot?.taskSummary || {};
+  const teamSummary = snapshot?.teamSummary || {};
+  const alerts = snapshot?.alerts || {};
+  const upcomingTasks = taskSummary?.upcoming || [];
+  const recentProjects = projectSummary?.recent || [];
+  const teamMembers = teamSummary?.members || [];
+
+  const realtimeLabel = useMemo(() => {
+    switch (realtimeStatus) {
+      case 'live':
+        return { text: 'Live data', color: 'text-emerald-500', dot: 'bg-emerald-500' };
+      case 'error':
+        return { text: 'Live feed offline', color: 'text-red-500', dot: 'bg-red-500' };
+      default:
+        return { text: 'Syncing…', color: 'text-amber-500', dot: 'bg-amber-500' };
+    }
+  }, [realtimeStatus]);
+
   return (
     <main className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-6xl p-6">
-        <div className="flex flex-wrap justify-between gap-4 items-center mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex min-w-72 flex-col gap-1">
-            <p className="text-gray-800 dark:text-white text-3xl font-black leading-tight tracking-[-0.033em]">Welcome back, Sangeet!</p>
-            <p className="text-gray-600 dark:text-gray-400 text-sm font-normal leading-normal">Here's your performance summary for this week.</p>
+            <p className="text-gray-800 dark:text-white text-3xl font-black leading-tight tracking-[-0.033em]">
+              Welcome back, {managerName}!
+            </p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
+              Your live snapshot updates every few seconds.
+            </p>
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className={`inline-flex size-2 rounded-full ${realtimeLabel.dot}`}></span>
+              <span className={`${realtimeLabel.color}`}>{realtimeLabel.text}</span>
+              {snapshot?.timestamp && (
+                <span className="text-gray-500 dark:text-gray-400 font-normal">
+                  Updated {new Date(snapshot.timestamp).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-4">
-            {/* Dark Mode Toggle */}
-            <button 
+            <button
               onClick={toggleDarkMode}
               className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
             >
@@ -54,140 +174,230 @@ const ManagerDashboard = () => {
               </span>
               <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
               <div className="ml-2 flex items-center">
-                <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isDarkMode ? 'bg-primary' : 'bg-gray-300'}`}>
-                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-5' : 'translate-x-1'}`} />
+                <div
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    isDarkMode ? 'bg-primary' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                      isDarkMode ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
                 </div>
               </div>
             </button>
-            <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-gray-100 dark:hover:bg-gray-800">
-              <span className="material-symbols-outlined text-base">tune</span>
-              <span className="truncate">Customize Dashboard</span>
-            </button>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Total Sales</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">$125,430</p>
-            <p className="text-green-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_upward</span>+5.4%
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Active Users</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">2,150</p>
-            <p className="text-green-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_upward</span>+1.2%
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Team Productivity</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">92%</p>
-            <p className="text-red-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_downward</span>-2.1%
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Open Tickets</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">14</p>
-            <p className="text-green-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_upward</span>+8.0%
-            </p>
+            <div className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-white dark:hover:bg-gray-800">
+              <span className="material-symbols-outlined text-base">sync</span>
+              <span className="ml-2 text-xs">{realtimeStatus === 'live' ? 'Live' : 'Sync'}</span>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 flex flex-col gap-5">
-            <div className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800">
-              <h2 className="text-gray-800 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] px-5 pb-3 pt-4">Pending Approvals</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="border-b border-gray-200 dark:border-gray-800">
-                    <tr>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400">Request</th>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400">Requester</th>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400">Date</th>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
-                      <td className="p-3 px-5 text-gray-800 dark:text-white text-sm">Vacation Request</td>
-                      <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">Boby Peter</td>
-                      <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">2025-10-28</td>
-                      <td className="p-3 px-5 flex justify-end gap-2">
-                        <button className="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
-                        <button className="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
-                      <td className="p-3 px-5 text-gray-800 dark:text-white text-sm">Budget Approval Q4</td>
-                      <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">Nandini Biswas</td>
-                      <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">2025-10-27</td>
-                      <td className="p-3 px-5 flex justify-end gap-2">
-                        <button className="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
-                        <button className="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
-                      <td className="p-3 px-5 text-gray-800 dark:text-white text-sm">Content Review</td>
-                      <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">Anshika Pathak</td>
-                      <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">202-10-26</td>
-                      <td className="p-3 px-5 flex justify-end gap-2">
-                        <button className="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20">Deny</button>
-                        <button className="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20">Approve</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100">
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="mb-6 flex items-center gap-3 rounded-xl border border-dashed border-gray-200 bg-white/50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/30 dark:text-gray-300">
+            <span className="material-symbols-outlined animate-spin text-base text-primary">progress_activity</span>
+            Fetching your latest KPIs…
+          </div>
+        )}
+
+        <div className="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Total Projects"
+            value={numberFormatter.format(projectSummary.total || 0)}
+            trend={`${projectSummary.active || 0} active`}
+            icon="account_tree"
+          />
+          <StatCard
+            label="Overdue Projects"
+            value={numberFormatter.format(alerts.overdueProjects || 0)}
+            trend={`${projectSummary.completed || 0} completed`}
+            trendColor="text-red-500"
+            icon="warning"
+          />
+          <StatCard
+            label="Team Members"
+            value={numberFormatter.format(teamSummary.totalMembers || 0)}
+            trend={`${teamSummary.activeMembers || 0} active`}
+            icon="group"
+          />
+          <StatCard
+            label="Pending Tasks"
+            value={numberFormatter.format((taskSummary.breakdown?.pending || 0) + (taskSummary.breakdown?.['in-progress'] || 0))}
+            trend={`${taskSummary.overdue || 0} overdue`}
+            trendColor={taskSummary.overdue ? 'text-red-500' : 'text-green-500'}
+            icon="checklist"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Project Status</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Breakdown of all managed projects
+                  </p>
+                </div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Total {projectSummary.total || 0}
+                </span>
+              </div>
+              <div className="space-y-4">
+                {['planning', 'in-progress', 'on-hold', 'completed', 'cancelled'].map((status) => {
+                  const count = projectSummary.breakdown?.[status] || 0;
+                  const percentage = projectSummary.total
+                    ? Math.round((count / projectSummary.total) * 100)
+                    : 0;
+                  return (
+                    <div key={status}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium capitalize text-gray-700 dark:text-gray-200">{status.replace('-', ' ')}</p>
+                        <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                          {count} • {percentage}%
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 rounded-full bg-gray-100 dark:bg-gray-800">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-primary to-indigo-400"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
-          
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-              <div className="flex min-w-72 max-w-[336px] flex-1 flex-col gap-0.5 mx-auto">
-                <div className="flex items-center p-1 justify-between">
-                  <button className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-                    <span className="material-symbols-outlined text-gray-800 dark:text-white flex size-10 items-center justify-center">chevron_left</span>
-                  </button>
-                  <p className="text-gray-800 dark:text-white text-base font-bold leading-tight flex-1 text-center">October 2023</p>
-                  <button className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-                    <span className="material-symbols-outlined text-gray-800 dark:text-white flex size-10 items-center justify-center">chevron_right</span>
-                  </button>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upcoming Tasks</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Due in the next 7 days ({upcomingTasks.length})
+                  </p>
                 </div>
-                <div className="grid grid-cols-7">
-                  <p className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">S</p>
-                  <p className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">M</p>
-                  <p className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">T</p>
-                  <p className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">W</p>
-                  <p className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">T</p>
-                  <p className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">F</p>
-                  <p className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">S</p>
-                  <button className="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal">
-                    <div className="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">1</div>
-                  </button>
-                  <button className="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal">
-                    <div className="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">2</div>
-                  </button>
-                  <button className="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal">
-                    <div className="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">3</div>
-                  </button>
-                  <button className="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal">
-                    <div className="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">4</div>
-                  </button>
-                  <button className="h-12 w-full text-white text-sm font-medium leading-normal">
-                    <div className="flex size-full items-center justify-center rounded-full bg-primary">5</div>
-                  </button>
-                  <button className="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal">
-                    <div className="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">6</div>
-                  </button>
-                  <button className="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal">
-                    <div className="flex size-full items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">7</div>
-                  </button>
-                </div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Live Feed
+                </span>
               </div>
+              {upcomingTasks.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No upcoming tasks.</p>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{task.title}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {task.project?.name || 'Unassigned project'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                          {task.dueDate ? dateFormatter.format(new Date(task.dueDate)) : '—'}
+                        </p>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                          {task.priority || 'medium'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Team At a Glance</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {teamSummary.department ? `${teamSummary.department} department` : 'Company-wide'}
+                  </p>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  {teamSummary.activeMembers || 0} active
+                </span>
+              </div>
+              {teamMembers.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No team members found.</p>
+              ) : (
+                <div className="space-y-3">
+                  {teamMembers.slice(0, 6).map((member) => (
+                    <div key={member.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-400 text-white text-sm font-bold">
+                          {member.name?.[0] || '?'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800 dark:text-white">{member.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{member.email}</p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-xs font-semibold ${
+                          member.isActive ? 'text-emerald-500' : 'text-gray-400'
+                        }`}
+                      >
+                        {member.isActive ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Recent Projects</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Newest activity first</p>
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{recentProjects.length} items</span>
+              </div>
+              {recentProjects.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No recent project updates.</p>
+              ) : (
+                <div className="space-y-3">
+                  {recentProjects.map((project) => (
+                    <div key={project.id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{project.name}</p>
+                        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          {project.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="h-1.5 flex-1 rounded-full bg-gray-100 dark:bg-gray-800">
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{ width: `${project.progress || 0}%` }}
+                          />
+                        </div>
+                        <span className="ml-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                          {project.progress || 0}%
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Updated{' '}
+                        {project.updatedAt ? dateFormatter.format(new Date(project.updatedAt)) : 'recently'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -195,5 +405,16 @@ const ManagerDashboard = () => {
     </main>
   );
 };
+
+const StatCard = ({ label, value, trend, trendColor = 'text-emerald-500', icon }) => (
+  <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-5 text-gray-800 dark:border-gray-800 dark:bg-gray-900/40 dark:text-white">
+    <div className="flex items-center justify-between">
+      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{label}</p>
+      <span className="material-symbols-outlined text-gray-400">{icon}</span>
+    </div>
+    <p className="text-2xl font-bold">{value}</p>
+    {trend && <p className={`text-sm font-medium ${trendColor}`}>{trend}</p>}
+  </div>
+);
 
 export default ManagerDashboard;

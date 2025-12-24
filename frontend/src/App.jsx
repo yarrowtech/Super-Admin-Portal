@@ -28,6 +28,8 @@ import ManagerDashboard from './components/manager/ManagerDashboard';
 import ProductManagement from './components/manager/ProductManagement';
 import TeamManagement from './components/manager/TeamManagement';
 import ManagerReports from './components/manager/ManagerReports';
+import ManagerChat from './components/manager/ManagerChat';
+import ManagerLogin from './components/manager/ManagerLogin';
 import EmployeePortal from './components/employee/EmployeePortal';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
 import EmployeeProjects from './components/employee/EmployeeProjects';
@@ -98,6 +100,16 @@ function App() {
               <Navigate to={defaultRolePath(user.role)} replace />
             ) : (
               <Login />
+            )
+          }
+        />
+        <Route
+          path="/manager/login"
+          element={
+            user ? (
+              <Navigate to={defaultRolePath(user.role)} replace />
+            ) : (
+              <ManagerLogin />
             )
           }
         />
@@ -310,6 +322,14 @@ function App() {
           element={
             <PrivateRoute roles={allow('manager')}>
               {withPortal(ManagerPortal, ManagerReports)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/manager/chat"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, ManagerChat)}
             </PrivateRoute>
           }
         />

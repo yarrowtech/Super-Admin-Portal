@@ -22,7 +22,7 @@ const defaultRolePath = (role) => {
   }
 };
 
-const Login = () => {
+const Login = ({ roleFocus = null }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -54,6 +54,18 @@ const Login = () => {
     })();
   };
 
+  const heroTitle = roleFocus === 'manager' ? 'Manager Portal Access' : 'Admin Portal Access';
+  const heroSubtitle =
+    roleFocus === 'manager'
+      ? 'Lead your teams with live insights and collaboration.'
+      : 'Manage your organization with enterprise-grade security.';
+  const welcomeTitle = roleFocus === 'manager' ? 'Manager Sign In' : 'Welcome Back';
+  const welcomeSubtitle =
+    roleFocus === 'manager'
+      ? 'Sign in to orchestrate projects, monitor teams, and review live metrics.'
+      : 'Sign in to continue to your workspace.';
+  const productLabel = roleFocus === 'manager' ? 'Manager Workspace' : 'Super Admin Portal';
+
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-background-light px-4 py-8 font-display text-text-light dark:bg-background-dark dark:text-text-dark">
       <div className="absolute -top-1/4 -right-1/4 h-1/2 w-1/2 rounded-full bg-indigo-500/5 dark:bg-indigo-500/10 blur-3xl"></div>
@@ -67,17 +79,15 @@ const Login = () => {
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-400 text-white shadow-lg shadow-primary/30">
               <span className="material-symbols-outlined text-5xl">security</span>
             </div>
-            <h2 className="mt-6 text-2xl font-bold">Admin Portal Access</h2>
-            <p className="mt-2 text-sm text-subtext-light dark:text-subtext-dark">
-              Manage your organization with enterprise-grade security.
-            </p>
+            <h2 className="mt-6 text-2xl font-bold">{heroTitle}</h2>
+            <p className="mt-2 text-sm text-subtext-light dark:text-subtext-dark">{heroSubtitle}</p>
           </div>
         </div>
         <div className="flex flex-col justify-center p-8 sm:p-12">
           <div className="mb-8 flex flex-col gap-2">
-            <p className="text-sm font-semibold uppercase text-primary">Super Admin Portal</p>
-            <h1 className="text-3xl font-bold tracking-tight">Welcome Back</h1>
-            <p className="text-sm text-subtext-light dark:text-subtext-dark">Sign in to continue to your workspace.</p>
+            <p className="text-sm font-semibold uppercase text-primary">{productLabel}</p>
+            <h1 className="text-3xl font-bold tracking-tight">{welcomeTitle}</h1>
+            <p className="text-sm text-subtext-light dark:text-subtext-dark">{welcomeSubtitle}</p>
           </div>
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {error && (

@@ -196,7 +196,7 @@ const ChatWindow = ({
               {activeThreadTyping
                 ? `${activeThreadTyping.name || 'Someone'} is typing...`
                 : isGroupChat
-                  ? `${groupMembers.length} members`
+                  ? groupMembers.map(member => member.name || member.email || 'Unknown').join(', ')
                   : activeThread.meta || 'Team chat'}
             </p>
             {/* {isGroupChat && (

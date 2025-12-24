@@ -13,7 +13,12 @@ const TYPING_KEEP_ALIVE_MS = 1500;
 const TYPING_DISPLAY_TIMEOUT_MS = 5000;
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-const EmployeeChat = () => {
+const EmployeeChat = ({
+  homePath = '/employee/dashboard',
+  headerTitle = 'Chat',
+  storageKeyPrefix = 'employee',
+  unreadEventName = 'employee-chat-unread-changed',
+} = {}) => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
@@ -50,6 +55,8 @@ const EmployeeChat = () => {
     () => threads.find((thread) => (thread._id || thread.id) === activeThreadId),
     [threads, activeThreadId]
   );
+
+  const storageKey = useMemo(() => `${storageKeyPrefix}-chat-activeThreadId`, [storageKeyPrefix]);
 
   const threadDisplayName = useCallback(
     (thread) => {
@@ -169,11 +176,11 @@ const EmployeeChat = () => {
       count: deriveUnreadCount(thread),
     }));
     window.dispatchEvent(
-      new CustomEvent('employee-chat-unread-changed', {
+      new CustomEvent(unreadEventName, {
         detail: { count: totalUnread, threadCounts },
       })
     );
-  }, [totalUnread, threads, deriveUnreadCount, getThreadId]);
+  }, [totalUnread, threads, deriveUnreadCount, getThreadId, unreadEventName]);
 
   useEffect(() => {
     if (
@@ -204,9 +211,9 @@ const EmployeeChat = () => {
     activeThreadIdRef.current = activeThreadId;
     // Save active thread to localStorage
     if (activeThreadId) {
-      localStorage.setItem('activeThreadId', activeThreadId);
+      localStorage.setItem(storageKey, activeThreadId);
     }
-  }, [activeThreadId, currentUserId, user]);
+  }, [activeThreadId, currentUserId, user, storageKey]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -274,7 +281,7 @@ const EmployeeChat = () => {
         setThreads(normalized);
         if (normalized.length > 0 && !activeThreadId) {
           // Try to restore previously active thread from localStorage
-          const savedThreadId = localStorage.getItem('activeThreadId');
+          const savedThreadId = localStorage.getItem(storageKey);
           const savedThreadExists = savedThreadId && normalized.some(thread => getThreadId(thread) === savedThreadId);
           
           if (savedThreadExists) {
@@ -294,7 +301,7 @@ const EmployeeChat = () => {
         setLoadingThreads(false);
       }
     })();
-  }, [token, normalizeThread, getThreadId]);
+  }, [token, normalizeThread, getThreadId, storageKey]);
 
   useEffect(() => {
     if (!token) return;
@@ -978,12 +985,12 @@ const EmployeeChat = () => {
       <div className="absolute top-0 left-0 right-0 z-10 md:hidden flex items-center justify-between bg-white/95 backdrop-blur-sm p-4 dark:bg-[#111b21]/95">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => navigate('/employee/dashboard')}
+            onClick={() => navigate(homePath)}
             className="text-[#54656f] hover:text-[#00a884] transition-colors"
           >
             <span className="material-symbols-outlined text-xl">arrow_back</span>
           </button>
-          <h1 className="text-lg font-medium text-[#111b21] dark:text-white">Chat</h1>
+          <h1 className="text-lg font-medium text-[#111b21] dark:text-white">{headerTitle}</h1>
           {totalUnread > 0 && (
             <span className="min-w-[1.25rem] h-5 rounded-full bg-[#00a884] px-1.5 flex items-center justify-center text-xs font-medium text-white">
               {totalUnread > 99 ? '99+' : totalUnread}

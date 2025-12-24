@@ -289,6 +289,9 @@ const mediaRoutes = require("./routes/dept/media.routes");
 const managerRoutes = require("./routes/dept/manager.routes");
 const employeeRoutes = require("./routes/dept/employee.routes");
 const employeePortalRoutes = require("./modules/employee");
+const { buildManagerSnapshot } = require("./modules/manager/services/metrics.service");
+const User = require("./models/User");
+const { ROLES } = require("./config/roles");
 
 const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
   .split(",")
@@ -421,6 +424,32 @@ server.listen(PORT, () => {
 });
 
 io.on("connection", (socket) => {
+  const managerIntervals = new Map();
+
+  const clearManagerInterval = (key) => {
+    if (!key) return;
+    const intervalId = managerIntervals.get(key);
+    if (intervalId) {
+      clearInterval(intervalId);
+      managerIntervals.delete(key);
+    }
+  };
+
+  const emitManagerSnapshot = async (managerId) => {
+    if (!managerId) return;
+    try {
+      const manager = await User.findById(managerId);
+      if (!manager || manager.role !== ROLES.MANAGER) {
+        socket.emit("manager:dashboard:error", { message: "Manager not authorized" });
+        return;
+      }
+      const snapshot = await buildManagerSnapshot(manager);
+      socket.emit("manager:dashboard", snapshot);
+    } catch (err) {
+      socket.emit("manager:dashboard:error", { message: err.message || "Failed to refresh manager data" });
+    }
+  };
+
   socket.on("joinThread", (threadId) => {
     if (threadId) {
       socket.join(threadId);
@@ -458,6 +487,34 @@ io.on("connection", (socket) => {
       isTyping: Boolean(isTyping),
       timestamp: new Date().toISOString(),
     });
+  });
+
+  socket.on("manager:subscribe", async (payload = {}) => {
+    const managerId = payload?.managerId || payload?.managerID || payload?.id;
+    if (!managerId) {
+      socket.emit("manager:dashboard:error", { message: "managerId is required" });
+      return;
+    }
+    const key = managerId.toString();
+    clearManagerInterval(key);
+    await emitManagerSnapshot(managerId);
+    const intervalId = setInterval(() => emitManagerSnapshot(managerId), 15000);
+    managerIntervals.set(key, intervalId);
+    socket.join(`manager:${key}`);
+  });
+
+  socket.on("manager:unsubscribe", (payload = {}) => {
+    const managerId = payload?.managerId || payload?.managerID || payload?.id;
+    const key = managerId?.toString?.() || managerId;
+    clearManagerInterval(key);
+    if (key) {
+      socket.leave(`manager:${key}`);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    managerIntervals.forEach((intervalId) => clearInterval(intervalId));
+    managerIntervals.clear();
   });
 });
 

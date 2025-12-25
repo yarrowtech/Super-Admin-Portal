@@ -3,13 +3,12 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const navSections = [
-  { id: 'employee-management', label: 'Employee Management', icon: 'manage_accounts', path: '/hr/system#employee-management' },
-  { id: 'attendance-management', label: 'Attendance Management', icon: 'calendar_month', path: '/hr/system#attendance-management' },
-  { id: 'leave-management', label: 'Leave Management', icon: 'hourglass_empty', path: '/hr/system#leave-management' },
-  { id: 'recruitment-hiring', label: 'Recruitment and Hiring', icon: 'work', path: '/hr/system#recruitment-hiring' },
-  { id: 'performance-appraisal', label: 'Performance & Appraisal', icon: 'trending_up', path: '/hr/system#performance-appraisal' },
-  { id: 'policy-compliance', label: 'Policy, Compliance and Documentation', icon: 'gavel', path: '/hr/system#policy-compliance' },
-  { id: 'employee-communication', label: 'Employee Communication and Report', icon: 'campaign', path: '/hr/system#employee-communication' },
+  { id: 'employees', label: 'Employee Management', icon: 'manage_accounts', path: '/hr/employees' },
+  { id: 'attendance', label: 'Attendance Management', icon: 'calendar_month', path: '/hr/attendance' },
+  { id: 'leave', label: 'Leave Management', icon: 'hourglass_empty', path: '/hr/leave' },
+  { id: 'recruitment', label: 'Recruitment & Hiring', icon: 'work', path: '/hr/recruitment' },
+  { id: 'performance', label: 'Performance & Appraisal', icon: 'trending_up', path: '/hr/performance' },
+  { id: 'communication', label: 'Communication & Reports', icon: 'campaign', path: '/hr/communication' },
 ];
 
 const HRSidebar = () => {
@@ -62,25 +61,22 @@ const HRSidebar = () => {
             <span className="material-symbols-outlined text-[20px]">dashboard</span>
             <span className="whitespace-nowrap">Dashboard</span>
           </NavLink>
-          {navSections.map((link) => {
-            const targetHash = link.path.split('#')[1] || '';
-            const currentHash = location.hash.replace('#', '');
-            const isActive = location.pathname === '/hr/system' && currentHash === targetHash;
-            return (
-              <NavLink
-                key={link.id}
-                to={link.path}
-                className={`group flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+          {navSections.map((link) => (
+            <NavLink
+              key={link.id}
+              to={link.path}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
                   isActive
                     ? 'bg-gradient-to-r from-purple-400 to-purple-600 text-white shadow-inner'
                     : 'text-neutral-700 hover:bg-purple-100 hover:shadow-inner dark:text-neutral-100 dark:hover:bg-white/10'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">{link.icon}</span>
-                <span className="whitespace-nowrap">{link.label}</span>
-              </NavLink>
-            );
-          })}
+                }`
+              }
+            >
+              <span className="material-symbols-outlined text-[20px]">{link.icon}</span>
+              <span className="whitespace-nowrap">{link.label}</span>
+            </NavLink>
+          ))}
         </div>
       </div>
       <div className="mt-auto flex flex-col gap-2">

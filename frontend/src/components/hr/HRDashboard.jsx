@@ -3,45 +3,16 @@ import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/client';
 import { hrApi } from '../../api/hr';
 import Button from '../common/Button';
+import PortalHeader from '../common/PortalHeader';
 
 const HRDashboard = () => {
   const { token, user } = useAuth();
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [pendingLeaves, setPendingLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
-
-  useEffect(() => {
-    const savedDarkMode = localStorage.getItem('darkMode');
-    if (savedDarkMode === 'true') {
-      document.documentElement.classList.add('dark');
-      setIsDarkMode(true);
-    } else if (savedDarkMode === 'false') {
-      document.documentElement.classList.remove('dark');
-      setIsDarkMode(false);
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        document.documentElement.classList.add('dark');
-        setIsDarkMode(true);
-      }
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const html = document.documentElement;
-    if (html.classList.contains('dark')) {
-      html.classList.remove('dark');
-      setIsDarkMode(false);
-      localStorage.setItem('darkMode', 'false');
-    } else {
-      html.classList.add('dark');
-      setIsDarkMode(true);
-      localStorage.setItem('darkMode', 'true');
-    }
-  };
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchPendingLeaves = async () => {
     const response = await apiClient.get('/api/dept/hr/leave?status=pending&limit=3&page=1', token);
@@ -139,171 +110,359 @@ const HRDashboard = () => {
     );
   }
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  const userName = user?.firstName || user?.name || 'HR Manager';
+
   return (
-    <main className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-6xl p-6">
-        <div className="flex flex-wrap justify-between gap-4 items-center mb-6">
-          <div className="flex min-w-72 flex-col gap-1">
-            <p className="text-gray-800 dark:text-white text-3xl font-black leading-tight tracking-[-0.033em]">
-              Welcome back, {user?.firstName || 'HR'}!
-            </p>
-            <p className="text-gray-600 dark:text-gray-400 text-sm font-normal leading-normal">
-              Here's your HR overview for this week.
-            </p>
+    <main className="flex-1 overflow-y-auto bg-gradient-to-br from-purple-50/30 via-white to-blue-50/30 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <PortalHeader
+          title="HR Management Dashboard"
+          subtitle="Comprehensive overview of workforce, recruitment, and HR operations"
+          user={user}
+          icon="badge"
+          showSearch={true}
+          showNotifications={true}
+          showThemeToggle={true}
+          onSearchChange={(e) => setSearchQuery(e.target.value)}
+          searchPlaceholder="Search employees, applicants, or leaves..."
+        />
+
+        {/* Welcome Banner */}
+        <div className="mb-8 overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 p-8 shadow-lg dark:border-purple-900/30">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-white">
+                {getGreeting()}, {userName}! 👋
+              </h1>
+              <p className="mt-2 text-lg text-purple-100">
+                Here's what's happening with your workforce today
+              </p>
+            </div>
+            <div className="hidden lg:block">
+              <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+                <span className="material-symbols-outlined text-6xl text-white">celebration</span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={toggleDarkMode}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <span className="material-symbols-outlined text-base">
-                {isDarkMode ? 'light_mode' : 'dark_mode'}
-              </span>
-              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-              <div className="ml-2 flex items-center">
-                <div
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    isDarkMode ? 'bg-primary' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                      isDarkMode ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
+        </div>
+
+        {/* KPI Cards with Enhanced Design */}
+        <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="group relative overflow-hidden rounded-2xl border border-blue-200/50 bg-gradient-to-br from-blue-50 to-blue-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-blue-100/50 dark:border-blue-900/30 dark:from-blue-950/40 dark:to-blue-900/20 dark:hover:shadow-blue-900/20">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-blue-400/10 blur-2xl"></div>
+            <div className="relative">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 dark:bg-blue-500/20">
+                  <span className="material-symbols-outlined text-2xl text-blue-600 dark:text-blue-400">groups</span>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-600/70 dark:text-blue-400/70">Workforce</span>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-3xl font-bold text-blue-900 dark:text-blue-100">{totalEmployees}</h3>
+                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Total Employees</p>
+                <p className="text-xs text-blue-600/70 dark:text-blue-400/70">{activeEmployees} active today</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-2xl border border-orange-200/50 bg-gradient-to-br from-orange-50 to-orange-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-orange-100/50 dark:border-orange-900/30 dark:from-orange-950/40 dark:to-orange-900/20 dark:hover:shadow-orange-900/20">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-orange-400/10 blur-2xl"></div>
+            <div className="relative">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500/10 dark:bg-orange-500/20">
+                  <span className="material-symbols-outlined text-2xl text-orange-600 dark:text-orange-400">event_busy</span>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-orange-600/70 dark:text-orange-400/70">Pending</span>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-3xl font-bold text-orange-900 dark:text-orange-100">{dashboardData?.pendingLeaves || 0}</h3>
+                <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Leave Requests</p>
+                <p className="text-xs text-orange-600/70 dark:text-orange-400/70">Awaiting approval</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50 to-purple-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-purple-100/50 dark:border-purple-900/30 dark:from-purple-950/40 dark:to-purple-900/20 dark:hover:shadow-purple-900/20">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-purple-400/10 blur-2xl"></div>
+            <div className="relative">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10 dark:bg-purple-500/20">
+                  <span className="material-symbols-outlined text-2xl text-purple-600 dark:text-purple-400">person_search</span>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-600/70 dark:text-purple-400/70">Pipeline</span>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-3xl font-bold text-purple-900 dark:text-purple-100">{pendingApplicants}</h3>
+                <p className="text-sm font-semibold text-purple-700 dark:text-purple-300">Active Applicants</p>
+                <p className="text-xs text-purple-600/70 dark:text-purple-400/70">In recruitment</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-2xl border border-red-200/50 bg-gradient-to-br from-red-50 to-red-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-red-100/50 dark:border-red-900/30 dark:from-red-950/40 dark:to-red-900/20 dark:hover:shadow-red-900/20">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-red-400/10 blur-2xl"></div>
+            <div className="relative">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10 dark:bg-red-500/20">
+                  <span className="material-symbols-outlined text-2xl text-red-600 dark:text-red-400">report_problem</span>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-red-600/70 dark:text-red-400/70">Issues</span>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-3xl font-bold text-red-900 dark:text-red-100">{openComplaints}</h3>
+                <p className="text-sm font-semibold text-red-700 dark:text-red-300">Open Complaints</p>
+                <p className="text-xs text-red-600/70 dark:text-red-400/70">Needs attention</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            {/* Pending Leave Approvals */}
+            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
+              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-orange-50/50 to-amber-50/50 p-5 dark:border-neutral-800/50 dark:from-orange-950/20 dark:to-amber-950/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 dark:bg-orange-500/20">
+                      <span className="material-symbols-outlined text-xl text-orange-600 dark:text-orange-400">pending_actions</span>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Pending Leave Approvals</h2>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                        {pendingLeaves.length} request{pendingLeaves.length !== 1 ? 's' : ''} awaiting your review
+                      </p>
+                    </div>
+                  </div>
+                  {pendingLeaves.length > 0 && (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
+                      {pendingLeaves.length}
+                    </div>
+                  )}
                 </div>
               </div>
-            </button>
-            <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] gap-2 hover:bg-gray-100 dark:hover:bg-gray-800">
-              <span className="material-symbols-outlined text-base">tune</span>
-              <span className="truncate">Customize Dashboard</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Total Employees</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">{totalEmployees}</p>
-            <p className="text-green-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_upward</span>Active {activeEmployees}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Active Employees</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">{activeEmployees}</p>
-            <p className="text-green-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_upward</span>In workforce
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Pending Applicants</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">{pendingApplicants}</p>
-            <p className="text-green-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_upward</span>Pipeline
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800">
-            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Open Complaints</p>
-            <p className="text-gray-800 dark:text-white tracking-light text-2xl font-bold leading-tight">{openComplaints}</p>
-            <p className="text-green-500 text-sm font-medium leading-normal flex items-center">
-              <span className="material-symbols-outlined text-lg">arrow_upward</span>Needs review
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 flex flex-col gap-5">
-            <div className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800">
-              <h2 className="text-gray-800 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] px-5 pb-3 pt-4">
-                Pending Leave Approvals
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="border-b border-gray-200 dark:border-gray-800">
-                    <tr>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400">Request</th>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400">Employee</th>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400">Date</th>
-                      <th className="p-3 px-5 text-xs font-semibold text-gray-600 dark:text-gray-400 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingLeaves.length ? (
-                      pendingLeaves.map((leave) => (
-                        <tr key={leave._id} className="border-b border-gray-200 dark:border-gray-800 last:border-b-0">
-                          <td className="p-3 px-5 text-gray-800 dark:text-white text-sm capitalize">
-                            {leave.leaveType} Leave
-                          </td>
-                          <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">
-                            {leave.employee?.firstName} {leave.employee?.lastName}
-                          </td>
-                          <td className="p-3 px-5 text-gray-600 dark:text-gray-400 text-sm">
-                            {new Date(leave.startDate).toLocaleDateString()}
-                          </td>
-                          <td className="p-3 px-5 flex justify-end gap-2">
+              <div className="p-5">
+                {pendingLeaves.length ? (
+                  <div className="space-y-3">
+                    {pendingLeaves.map((leave) => (
+                      <div key={leave._id} className="group overflow-hidden rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-4 transition-all duration-200 hover:border-orange-300 hover:shadow-md dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50 dark:hover:border-orange-700">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-1 gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/30">
+                              <span className="material-symbols-outlined text-xl text-purple-600 dark:text-purple-400">event_note</span>
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-3">
+                                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">
+                                  {leave.employee?.firstName} {leave.employee?.lastName}
+                                </h3>
+                                <span className="rounded-full bg-purple-100 px-3 py-0.5 text-xs font-bold capitalize text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                  {leave.leaveType}
+                                </span>
+                              </div>
+                              <p className="text-sm text-neutral-600 dark:text-neutral-400">{leave.employee?.email}</p>
+                              <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                                <span className="material-symbols-outlined text-base">calendar_today</span>
+                                <span className="font-semibold">{new Date(leave.startDate).toLocaleDateString()}</span>
+                                {leave.endDate && (
+                                  <>
+                                    <span className="text-neutral-400">→</span>
+                                    <span className="font-semibold">{new Date(leave.endDate).toLocaleDateString()}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
                             <button
                               onClick={() => handleReject(leave._id)}
                               disabled={actionLoadingId === leave._id}
-                              className="px-3 py-1 text-xs font-bold rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                              className="flex items-center gap-1.5 rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition-all hover:bg-red-100 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
                             >
-                              Deny
+                              <span className="material-symbols-outlined text-base">close</span>
+                              {actionLoadingId === leave._id ? 'Processing...' : 'Reject'}
                             </button>
                             <button
                               onClick={() => handleApprove(leave._id)}
                               disabled={actionLoadingId === leave._id}
-                              className="px-3 py-1 text-xs font-bold rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20"
+                              className="flex items-center gap-1.5 rounded-lg bg-green-50 px-4 py-2 text-sm font-bold text-green-600 transition-all hover:bg-green-100 disabled:opacity-50 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
                             >
-                              Approve
+                              <span className="material-symbols-outlined text-base">check</span>
+                              {actionLoadingId === leave._id ? 'Processing...' : 'Approve'}
                             </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="p-4 px-5 text-sm text-gray-600 dark:text-gray-400">
-                          No pending leave requests.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-green-100 dark:bg-green-900/30">
+                      <span className="material-symbols-outlined text-4xl text-green-600 dark:text-green-400">check_circle</span>
+                    </div>
+                    <h3 className="mt-4 text-lg font-bold text-neutral-800 dark:text-neutral-100">All Caught Up!</h3>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">No pending leave requests at the moment</p>
+                  </div>
+                )}
               </div>
-            </div>
+            </section>
+
+            {/* Recent Activities */}
+            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
+              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-blue-50/50 to-cyan-50/50 p-5 dark:border-neutral-800/50 dark:from-blue-950/20 dark:to-cyan-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 dark:bg-blue-500/20">
+                    <span className="material-symbols-outlined text-xl text-blue-600 dark:text-blue-400">history</span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Recent Activities</h2>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Latest HR actions and updates</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5">
+                {dashboardData?.recentActivities && dashboardData.recentActivities.length > 0 ? (
+                  <div className="space-y-3">
+                    {dashboardData.recentActivities.map((activity, index) => (
+                      <div key={index} className="group flex items-start gap-4 rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-4 transition-all duration-200 hover:border-blue-300 hover:shadow-md dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50 dark:hover:border-blue-700">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                          <span className="material-symbols-outlined text-lg text-blue-600 dark:text-blue-400">{activity.icon || 'info'}</span>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="font-semibold text-neutral-900 dark:text-neutral-100">{activity.title}</p>
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">{activity.description}</p>
+                        </div>
+                        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                          {activity.time || 'Just now'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-neutral-800">
+                      <span className="material-symbols-outlined text-3xl text-neutral-400 dark:text-neutral-600">history</span>
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-neutral-600 dark:text-neutral-400">No recent activities</p>
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
 
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-              <div className="flex min-w-72 max-w-[336px] flex-1 flex-col gap-0.5 mx-auto">
-                <div className="flex items-center p-1 justify-between">
-                  <button className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-                    <span className="material-symbols-outlined text-gray-800 dark:text-white flex size-10 items-center justify-center">
-                      chevron_left
-                    </span>
-                  </button>
-                  <p className="text-gray-800 dark:text-white text-base font-bold leading-tight flex-1 text-center">October 2023</p>
-                  <button className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-                    <span className="material-symbols-outlined text-gray-800 dark:text-white flex size-10 items-center justify-center">
-                      chevron_right
-                    </span>
-                  </button>
+          {/* Sidebar */}
+          <div className="flex flex-col gap-6 lg:col-span-1">
+            {/* Quick Stats */}
+            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
+              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 p-4 dark:border-neutral-800/50 dark:from-purple-950/20 dark:to-pink-950/20">
+                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">Quick Stats</h3>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">Today's overview</p>
+              </div>
+              <div className="space-y-3 p-4">
+                <div className="overflow-hidden rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-4 shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-105 hover:shadow-xl dark:shadow-blue-900/30">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-blue-100">Today's Attendance</p>
+                      <p className="mt-1 text-2xl font-bold text-white">
+                        {dashboardData?.todayAttendance || 0}
+                      </p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+                      <span className="material-symbols-outlined text-2xl text-white">how_to_reg</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-7">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) => (
-                    <p key={day} className="text-gray-800 dark:text-white text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">
-                      {day}
-                    </p>
-                  ))}
-                  {[1, 2, 3, 4, 5, 6, 7].map((date) => (
-                    <button key={date} className="h-12 w-full text-gray-800 dark:text-white text-sm font-medium leading-normal">
-                      <div className={`flex size-full items-center justify-center rounded-full ${date === 5 ? 'bg-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                        {date}
-                      </div>
-                    </button>
-                  ))}
+                <div className="overflow-hidden rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-4 shadow-lg shadow-green-500/30 transition-all duration-300 hover:scale-105 hover:shadow-xl dark:shadow-green-900/30">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-green-100">Active Employees</p>
+                      <p className="mt-1 text-2xl font-bold text-white">{activeEmployees}</p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+                      <span className="material-symbols-outlined text-2xl text-white">groups</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-4 shadow-lg shadow-purple-500/30 transition-all duration-300 hover:scale-105 hover:shadow-xl dark:shadow-purple-900/30">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-purple-100">Open Positions</p>
+                      <p className="mt-1 text-2xl font-bold text-white">
+                        {dashboardData?.openPositions || 0}
+                      </p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+                      <span className="material-symbols-outlined text-2xl text-white">work</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </section>
+
+            {/* Department Overview */}
+            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
+              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-indigo-50/50 to-violet-50/50 p-4 dark:border-neutral-800/50 dark:from-indigo-950/20 dark:to-violet-950/20">
+                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">Departments</h3>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">Employee distribution</p>
+              </div>
+              <div className="space-y-2 p-4">
+                {dashboardData?.departmentStats && dashboardData.departmentStats.length > 0 ? (
+                  dashboardData.departmentStats.slice(0, 5).map((dept, index) => (
+                    <div key={index} className="group flex items-center justify-between rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-3 transition-all duration-200 hover:border-indigo-300 hover:shadow-md dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50 dark:hover:border-indigo-700">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                          <span className="material-symbols-outlined text-base text-indigo-600 dark:text-indigo-400">corporate_fare</span>
+                        </div>
+                        <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{dept.name}</span>
+                      </div>
+                      <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{dept.count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                      <span className="material-symbols-outlined text-2xl text-neutral-400 dark:text-neutral-600">corporate_fare</span>
+                    </div>
+                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">No department data</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Quick Actions */}
+            <section className="overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50 to-pink-50 shadow-sm dark:border-purple-900/30 dark:from-purple-950/40 dark:to-pink-950/20">
+              <div className="border-b border-purple-200/50 bg-white/50 p-4 dark:border-purple-900/30 dark:bg-neutral-900/50">
+                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">Quick Actions</h3>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">Common HR tasks</p>
+              </div>
+              <div className="space-y-2 p-4">
+                <button className="group flex w-full items-center gap-3 rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-200 hover:scale-105 hover:border-purple-400 hover:bg-purple-50 hover:shadow-md dark:border-purple-900/50 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:border-purple-700 dark:hover:bg-purple-900/20">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 group-hover:bg-purple-200 dark:bg-purple-900/40 dark:group-hover:bg-purple-800/60">
+                    <span className="material-symbols-outlined text-lg text-purple-600 dark:text-purple-400">person_add</span>
+                  </div>
+                  Add Employee
+                </button>
+                <button className="group flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-200 hover:scale-105 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md dark:border-blue-900/50 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:border-blue-700 dark:hover:bg-blue-900/20">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 group-hover:bg-blue-200 dark:bg-blue-900/40 dark:group-hover:bg-blue-800/60">
+                    <span className="material-symbols-outlined text-lg text-blue-600 dark:text-blue-400">post_add</span>
+                  </div>
+                  Create Notice
+                </button>
+                <button className="group flex w-full items-center gap-3 rounded-xl border border-green-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-200 hover:scale-105 hover:border-green-400 hover:bg-green-50 hover:shadow-md dark:border-green-900/50 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:border-green-700 dark:hover:bg-green-900/20">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 group-hover:bg-green-200 dark:bg-green-900/40 dark:group-hover:bg-green-800/60">
+                    <span className="material-symbols-outlined text-lg text-green-600 dark:text-green-400">work</span>
+                  </div>
+                  Post Job
+                </button>
+              </div>
+            </section>
           </div>
         </div>
       </div>

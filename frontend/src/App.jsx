@@ -2,17 +2,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Login from './components/common/Login';
 import HRPortal from './components/hr/HRPortal';
 import HRDashboard from './components/hr/HRDashboard';
-import ApplicantTracking from './components/hr/ApplicantTracking';
-import Attendance from './components/hr/Attendance';
-import EmployeeDirectory from './components/hr/EmployeeDirectory';
-import LeaveManagement from './components/hr/LeaveManagement';
-import Notices from './components/hr/Notices';
-import Performance from './components/hr/Performance';
-import StaffWorkReport from './components/hr/StaffWorkReport';
-import ComplaintSolutions from './components/hr/ComplaintSolutions';
-import HRSystemStructure from './components/hr/HRSystemStructure';
-import HRResourcePage from './components/hr/HRResourcePage';
-import HRModuleDashboard from './components/hr/HRModuleDashboard';
+import {
+  EmployeesPage,
+  AttendancePage,
+  LeavePage,
+  RecruitmentPage,
+  PerformancePage,
+  CommunicationPage,
+} from './components/hr/pages';
 import ITPortal from './components/it/ITPortal';
 import FinancePortal from './components/finance/FinancePortal';
 import AdminPortal from './components/admin/AdminPortal';
@@ -114,103 +111,24 @@ function App() {
           }
         />
 
-        {/* HR */}
+        {/* HR - Streamlined Routes */}
         <Route
-          path="/hr/dashboard"
+          path="/hr"
           element={
             <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, HRDashboard)}
+              <HRPortal />
             </PrivateRoute>
           }
-        />
-        <Route
-          path="/hr/system"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, HRSystemStructure)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/modules/:key"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, HRModuleDashboard)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/applicants"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, ApplicantTracking)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/attendance"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, Attendance)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/employees"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, EmployeeDirectory)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/leave"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, LeaveManagement)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/notices"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, Notices)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/performance"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, Performance)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/staff-report"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, StaffWorkReport)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/complaints"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, ComplaintSolutions)}
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/hr/resources/:key"
-          element={
-            <PrivateRoute roles={allow('hr')}>
-              {withPortal(HRPortal, HRResourcePage)}
-            </PrivateRoute>
-          }
-        />
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<HRDashboard />} />
+          <Route path="employees" element={<EmployeesPage />} />
+          <Route path="attendance" element={<AttendancePage />} />
+          <Route path="leave" element={<LeavePage />} />
+          <Route path="recruitment" element={<RecruitmentPage />} />
+          <Route path="performance" element={<PerformancePage />} />
+          <Route path="communication" element={<CommunicationPage />} />
+        </Route>
 
         {/* IT */}
         <Route

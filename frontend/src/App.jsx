@@ -28,10 +28,13 @@ import ManagerReports from './components/manager/ManagerReports';
 import ManagerChat from './components/manager/ManagerChat';
 import ManagerLogin from './components/manager/ManagerLogin';
 import EmployeeWorkBoard from './components/manager/EmployeeWorkBoard';
+import ManagerLeaveManagement from './components/manager/ManagerLeaveManagement';
+import ManagerTaskManagement from './components/manager/ManagerTaskManagement';
 import EmployeePortal from './components/employee/EmployeePortal';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
 import EmployeeProjects from './components/employee/EmployeeProjects';
 import EmployeeTasks from './components/employee/EmployeeTasks';
+import EmployeeLeaveManagement from './components/employee/EmployeeLeaveManagement';
 import EmployeeDocuments from './components/employee/EmployeeDocuments';
 import EmployeeTeamDirectory from './components/employee/EmployeeTeamDirectory';
 import EmployeeChat from './components/employee/EmployeeChat';
@@ -237,6 +240,14 @@ function App() {
           }
         />
         <Route
+          path="/manager/tasks"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, ManagerTaskManagement)}
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/manager/team"
           element={
             <PrivateRoute roles={allow('manager')}>
@@ -249,6 +260,14 @@ function App() {
           element={
             <PrivateRoute roles={allow('manager')}>
               {withPortal(ManagerPortal, ManagerReports)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/manager/leave"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, ManagerLeaveManagement)}
             </PrivateRoute>
           }
         />
@@ -291,6 +310,14 @@ function App() {
           element={
             <PrivateRoute roles={allow('employee')}>
               {withPortal(EmployeePortal, EmployeeTasks)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employee/leave"
+          element={
+            <PrivateRoute roles={allow('employee')}>
+              {withPortal(EmployeePortal, EmployeeLeaveManagement)}
             </PrivateRoute>
           }
         />

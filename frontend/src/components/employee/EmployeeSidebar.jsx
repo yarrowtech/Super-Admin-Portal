@@ -10,6 +10,7 @@ const navItems = [
   { label: 'Overview', icon: 'dashboard', path: '/employee/dashboard' },
   { label: 'Projects', icon: 'folder', path: '/employee/projects' },
   { label: 'Tasks', icon: 'check_circle', path: '/employee/tasks' },
+  { label: 'Leave', icon: 'event_note', path: '/employee/leave' },
   { label: 'Documents', icon: 'description', path: '/employee/documents' },
   { label: 'Directory', icon: 'group', path: '/employee/team' },
   { label: 'Chat', icon: 'forum', path: '/employee/chat' },

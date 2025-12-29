@@ -6,8 +6,10 @@ import { employeeApi } from '../../api/employee';
 const navItems = [
   { label: 'Dashboard', icon: 'dashboard', path: '/manager/dashboard' },
   { label: 'Work Board', icon: 'work_history', path: '/manager/work-board' },
+  { label: 'Tasks', icon: 'task_alt', path: '/manager/tasks' },
   { label: 'Products', icon: 'inventory_2', path: '/manager/products' },
   { label: 'Team', icon: 'group', path: '/manager/team' },
+  { label: 'Leave', icon: 'event_note', path: '/manager/leave' },
   { label: 'Reports', icon: 'assessment', path: '/manager/reports' },
   { label: 'Chat', icon: 'forum', path: '/manager/chat', showBadge: true },
 ];

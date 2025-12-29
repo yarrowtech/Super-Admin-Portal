@@ -85,6 +85,8 @@ const LeaveManagement = () => {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalRequests, setTotalRequests] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [leaveForm, setLeaveForm] = useState({
@@ -101,10 +103,15 @@ const LeaveManagement = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await hrApi.getLeaveRequests(token, { page, limit: 10 });
+      const response = await hrApi.getLeaveRequests(token, {
+        page,
+        limit: 10,
+        status: statusFilter || undefined,
+      });
       const payload = response?.data || {};
       setLeaveRequests(payload.leaves || []);
       setTotalPages(payload.totalPages || 1);
+      setTotalRequests(payload.total || 0);
     } catch (err) {
       setError(err.message || 'Failed to load leave requests');
     } finally {
@@ -114,7 +121,7 @@ const LeaveManagement = () => {
 
   useEffect(() => {
     fetchLeaveRequests();
-  }, [token, page]);
+  }, [token, page, statusFilter]);
 
   const handleApprove = async (leaveId) => {
     try {
@@ -207,15 +214,22 @@ const LeaveManagement = () => {
       const datesLabel = startDate
         ? `${startDate.toLocaleDateString()}${endDate ? ` - ${endDate.toLocaleDateString()}` : ''}`
         : '-';
+      const managerStatus = request.managerApprovalStatus || 'pending';
       const fullName = `${request.employee?.firstName || ''} ${request.employee?.lastName || ''}`.trim();
       return {
         ...request,
         employeeName: fullName || request.employee?.email || 'Employee',
         datesLabel,
+        managerStatus,
         statusClass: statusStyles[request.status] || statusStyles.pending,
       };
     });
   }, [leaveRequests]);
+
+  const pendingCount = useMemo(
+    () => leaveRequests.filter((request) => request.status === 'pending').length,
+    [leaveRequests]
+  );
 
   return (
     <main className="flex-1 overflow-y-auto p-8">
@@ -229,7 +243,33 @@ const LeaveManagement = () => {
               Track, manage, and approve employee leave requests.
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+              <span>Total</span>
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs dark:bg-white/10">
+                {totalRequests}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+              <span>Pending</span>
+              <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200">
+                {pendingCount}
+              </span>
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+            >
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
             <button className="flex h-10 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-bold text-neutral-800 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-100">
               <span className="material-symbols-outlined">download</span>
               <span className="truncate">Export Report</span>
@@ -328,20 +368,21 @@ const LeaveManagement = () => {
                 <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Dates</th>
                 <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Days</th>
                 <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
+                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Manager</th>
                 <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                  <td colSpan={7} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                     Loading leave requests...
                   </td>
                 </tr>
               )}
               {!loading && formattedRequests.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                  <td colSpan={7} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                     No leave requests found.
                   </td>
                 </tr>
@@ -358,12 +399,17 @@ const LeaveManagement = () => {
                         {request.status}
                       </span>
                     </td>
+                    <td className="p-4">
+                      <span className="inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                        {request.managerStatus}
+                      </span>
+                    </td>
                     <td className="p-4 text-sm font-semibold text-primary">
                       {request.status === 'pending' ? (
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleApprove(request._id)}
-                            disabled={actionLoadingId === request._id}
+                            disabled={actionLoadingId === request._id || request.managerStatus !== 'approved'}
                             className="flex h-8 items-center justify-center gap-1 rounded-md border border-green-500 px-2 text-xs text-green-500 hover:bg-green-50 disabled:opacity-50 dark:hover:bg-green-900/20"
                           >
                             <span className="material-symbols-outlined text-sm">check</span>

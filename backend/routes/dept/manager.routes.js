@@ -13,6 +13,11 @@ router.use(authorize(ROLES.MANAGER, ROLES.ADMIN));
 router.get('/dashboard', managerController.getDashboard);
 router.get('/team', managerController.getTeam);
 router.get('/projects', managerController.getProjects);
+router.get('/tasks', managerController.getTasks);
+router.post('/tasks', managerController.createTask);
+router.put('/tasks/:id', managerController.updateTask);
+router.put('/tasks/:id/reassign', managerController.reassignTask);
+router.put('/tasks/:id/close', managerController.closeTask);
 
 // Employee work management routes
 router.get('/completed-tasks', managerController.getCompletedTasks);
@@ -20,6 +25,11 @@ router.get('/employee-work', managerController.getEmployeeWork);
 router.get('/employee-work/stats', managerController.getEmployeeWorkStats);
 router.put('/employee-work/:workId/approve', managerController.approveWork);
 router.put('/employee-work/:workId/reject', managerController.rejectWork);
+
+// Leave Management
+router.get('/leave', managerController.getLeaveRequests);
+router.put('/leave/:id/approve', managerController.approveLeave);
+router.put('/leave/:id/reject', managerController.rejectLeave);
 
 // Notification routes
 router.get('/notifications', managerController.getNotifications);

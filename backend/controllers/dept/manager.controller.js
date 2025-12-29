@@ -2,6 +2,8 @@
 
 const { buildManagerSnapshot } = require('../../modules/manager/services/metrics.service');
 const User = require('../../models/User');
+const Task = require('../../models/Task');
+const Leave = require('../../models/Leave');
 
 /**
  * @route   GET /api/dept/manager/dashboard
@@ -32,11 +34,25 @@ exports.getDashboard = async (req, res) => {
  */
 exports.getTeam = async (req, res) => {
   try {
+    if (!req.user?.department) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          message: 'No department assigned for manager',
+          team: []
+        }
+      });
+    }
+
+    const team = await User.find({ department: req.user.department, isActive: true })
+      .select('firstName lastName email role department isActive')
+      .sort({ lastName: 1, firstName: 1 });
+
     res.status(200).json({
       success: true,
       data: {
         message: 'Team Management',
-        team: []
+        team
       }
     });
   } catch (error) {
@@ -277,6 +293,399 @@ exports.markAllNotificationsRead = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to mark all notifications as read',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * TASK MANAGEMENT
+ */
+exports.getTasks = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, priority, assignee, search } = req.query;
+    const filters = {};
+
+    if (status) filters.status = status;
+    if (priority) filters.priority = priority;
+    if (assignee) filters.assignedTo = assignee;
+    if (search) {
+      filters.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    let scopeFilter = { assignedBy: req.user._id };
+    if (req.user?.department) {
+      const teamUsers = await User.find({ department: req.user.department }).select('_id');
+      const ids = teamUsers.map((user) => user._id);
+      scopeFilter = { $or: [{ assignedTo: { $in: ids } }, { assignedBy: req.user._id }] };
+    }
+
+    const query = Object.keys(filters).length ? { $and: [scopeFilter, filters] } : scopeFilter;
+
+    const tasks = await Task.find(query)
+      .populate('assignedTo', 'firstName lastName email department')
+      .populate('assignedBy', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Task.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tasks,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    console.error('Manager get tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch tasks',
+      details: error.message
+    });
+  }
+};
+
+exports.createTask = async (req, res) => {
+  try {
+    const { title, description, assignedTo, dueDate, priority, estimatedHours } = req.body;
+
+    if (!title || !description || !assignedTo || !dueDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: title, description, assignedTo, and dueDate'
+      });
+    }
+
+    if (req.user?.department) {
+      const assignee = await User.findById(assignedTo).select('department');
+      if (!assignee || assignee.department !== req.user.department) {
+        return res.status(400).json({
+          success: false,
+          error: 'Assignee must be in your department'
+        });
+      }
+    }
+
+    const task = await Task.create({
+      title: title.trim(),
+      description: description.trim(),
+      assignedTo,
+      assignedBy: req.user._id,
+      dueDate,
+      priority,
+      estimatedHours
+    });
+
+    await task.populate('assignedTo', 'firstName lastName email department');
+    await task.populate('assignedBy', 'firstName lastName email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Task created successfully',
+      data: task
+    });
+  } catch (error) {
+    console.error('Manager create task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create task',
+      details: error.message
+    });
+  }
+};
+
+exports.updateTask = async (req, res) => {
+  try {
+    const { title, description, priority, status, dueDate, progress, assignedTo, estimatedHours, actualHours } = req.body;
+
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid task ID format'
+      });
+    }
+
+    const task = await Task.findById(req.params.id).populate('assignedTo', 'department');
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    if (req.user?.department && task.assignedBy?.toString() !== req.user._id.toString()) {
+      if (task.assignedTo?.department && task.assignedTo.department !== req.user.department) {
+        return res.status(403).json({
+          success: false,
+          error: 'You do not have access to update this task'
+        });
+      }
+    }
+
+    if (assignedTo && req.user?.department) {
+      const assignee = await User.findById(assignedTo).select('department');
+      if (!assignee || assignee.department !== req.user.department) {
+        return res.status(400).json({
+          success: false,
+          error: 'Assignee must be in your department'
+        });
+      }
+      task.assignedTo = assignedTo;
+    }
+
+    if (title) task.title = title.trim();
+    if (description) task.description = description.trim();
+    if (priority) task.priority = priority;
+    if (status) task.status = status;
+    if (dueDate) task.dueDate = dueDate;
+    if (progress !== undefined) task.progress = progress;
+    if (estimatedHours !== undefined) task.estimatedHours = estimatedHours;
+    if (actualHours !== undefined) task.actualHours = actualHours;
+
+    if (status === 'completed' && !task.completedDate) {
+      task.completedDate = Date.now();
+    }
+
+    await task.save();
+    await task.populate('assignedTo', 'firstName lastName email department');
+    await task.populate('assignedBy', 'firstName lastName email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Task updated successfully',
+      data: task
+    });
+  } catch (error) {
+    console.error('Manager update task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update task',
+      details: error.message
+    });
+  }
+};
+
+exports.reassignTask = async (req, res) => {
+  try {
+    const { assignedTo, dueDate } = req.body;
+
+    if (!assignedTo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Assigned user is required'
+      });
+    }
+
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    if (req.user?.department) {
+      const assignee = await User.findById(assignedTo).select('department');
+      if (!assignee || assignee.department !== req.user.department) {
+        return res.status(400).json({
+          success: false,
+          error: 'Assignee must be in your department'
+        });
+      }
+    }
+
+    task.assignedTo = assignedTo;
+    task.assignedBy = req.user._id;
+    if (dueDate) task.dueDate = dueDate;
+
+    await task.save();
+    await task.populate('assignedTo', 'firstName lastName email department');
+    await task.populate('assignedBy', 'firstName lastName email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Task reassigned successfully',
+      data: task
+    });
+  } catch (error) {
+    console.error('Manager reassign task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reassign task',
+      details: error.message
+    });
+  }
+};
+
+exports.closeTask = async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    task.status = 'completed';
+    task.progress = 100;
+    task.completedDate = Date.now();
+    await task.save();
+
+    await task.populate('assignedTo', 'firstName lastName email department');
+    await task.populate('assignedBy', 'firstName lastName email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Task closed successfully',
+      data: task
+    });
+  } catch (error) {
+    console.error('Manager close task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to close task',
+      details: error.message
+    });
+  }
+};
+/**
+ * LEAVE MANAGEMENT
+ */
+exports.getLeaveRequests = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, managerStatus } = req.query;
+    const query = {};
+
+    if (status) query.status = status;
+    if (managerStatus) query.managerApprovalStatus = managerStatus;
+
+    if (req.user?.department) {
+      const teamUsers = await User.find({ department: req.user.department }).select('_id');
+      const ids = teamUsers.map((user) => user._id);
+      query.employee = { $in: ids };
+    }
+
+    const leaves = await Leave.find(query)
+      .populate('employee', 'firstName lastName email department')
+      .populate('managerApprovedBy', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Leave.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        leaves,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    console.error('Get manager leave requests error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch leave requests',
+      details: error.message
+    });
+  }
+};
+
+exports.approveLeave = async (req, res) => {
+  try {
+    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
+
+    if (!leave) {
+      return res.status(404).json({
+        success: false,
+        error: 'Leave request not found'
+      });
+    }
+
+    if (leave.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: 'Leave request is not pending'
+      });
+    }
+
+    if (leave.managerApprovalStatus === 'approved') {
+      return res.status(400).json({
+        success: false,
+        error: 'Leave request already approved by manager'
+      });
+    }
+
+    leave.managerApprovalStatus = 'approved';
+    leave.managerApprovedBy = req.user._id;
+    leave.managerApprovedDate = Date.now();
+    leave.managerRejectionReason = undefined;
+    await leave.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Leave request approved by manager',
+      data: leave
+    });
+  } catch (error) {
+    console.error('Manager approve leave error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to approve leave request',
+      details: error.message
+    });
+  }
+};
+
+exports.rejectLeave = async (req, res) => {
+  try {
+    const { rejectionReason } = req.body;
+    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
+
+    if (!leave) {
+      return res.status(404).json({
+        success: false,
+        error: 'Leave request not found'
+      });
+    }
+
+    if (leave.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: 'Leave request is not pending'
+      });
+    }
+
+    leave.managerApprovalStatus = 'rejected';
+    leave.managerApprovedBy = req.user._id;
+    leave.managerApprovedDate = Date.now();
+    leave.managerRejectionReason = rejectionReason;
+    leave.status = 'rejected';
+    await leave.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Leave request rejected by manager',
+      data: leave
+    });
+  } catch (error) {
+    console.error('Manager reject leave error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reject leave request',
       details: error.message
     });
   }

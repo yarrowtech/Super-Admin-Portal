@@ -393,7 +393,8 @@ exports.requestLeave = async (req, res) => {
   try {
     const leave = await Leave.create({
       ...req.body,
-      employee: req.user._id
+      employee: req.user._id,
+      managerApprovalStatus: 'pending'
     });
 
     await leave.populate('employee', 'firstName lastName email');

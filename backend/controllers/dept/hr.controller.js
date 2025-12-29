@@ -511,15 +511,7 @@ exports.getLeaveRequests = async (req, res) => {
  */
 exports.approveLeave = async (req, res) => {
   try {
-    const leave = await Leave.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: 'approved',
-        approvedBy: req.user._id,
-        approvedDate: Date.now()
-      },
-      { new: true }
-    ).populate('employee', 'firstName lastName email');
+    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
 
     if (!leave) {
       return res.status(404).json({
@@ -527,6 +519,18 @@ exports.approveLeave = async (req, res) => {
         error: 'Leave request not found'
       });
     }
+
+    if (leave.managerApprovalStatus !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        error: 'Manager approval is required before HR can approve'
+      });
+    }
+
+    leave.status = 'approved';
+    leave.approvedBy = req.user._id;
+    leave.approvedDate = Date.now();
+    await leave.save();
 
     res.status(200).json({
       success: true,

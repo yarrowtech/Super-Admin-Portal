@@ -36,6 +36,22 @@ const leaveSchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'rejected', 'cancelled'],
       default: 'pending'
     },
+    managerApprovalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
+    },
+    managerApprovedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    managerApprovedDate: {
+      type: Date
+    },
+    managerRejectionReason: {
+      type: String,
+      trim: true
+    },
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
@@ -80,6 +96,7 @@ leaveSchema.pre('save', function (next) {
 // Indexes for better query performance
 leaveSchema.index({ employee: 1, startDate: -1 });
 leaveSchema.index({ status: 1 });
+leaveSchema.index({ managerApprovalStatus: 1 });
 leaveSchema.index({ leaveType: 1 });
 leaveSchema.index({ startDate: 1, endDate: 1 });
 

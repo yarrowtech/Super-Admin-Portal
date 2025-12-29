@@ -5,9 +5,9 @@ const adminController = require('../../controllers/dept/admin.controller');
 const { authenticate, authorize } = require('../../middleware/auth');
 const { ROLES } = require('../../config/roles');
 
-// All routes require authentication and ADMIN role
+// All routes require authentication and ADMIN or HR role
 router.use(authenticate);
-router.use(authorize(ROLES.ADMIN));
+router.use(authorize(ROLES.ADMIN, ROLES.HR));
 
 // Dashboard
 router.get('/dashboard', adminController.getDashboard);

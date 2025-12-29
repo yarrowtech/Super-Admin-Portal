@@ -23,6 +23,15 @@ export const employeeApi = {
     apiClient.delete(`/api/employee/projects/tasks/${taskId}`, token),
   getAttendance: (token, params = '') =>
     apiClient.get(`/api/dept/employee/attendance${params}`, token),
-  getLeaves: (token, params = '') =>
-    apiClient.get(`/api/dept/employee/leave${params}`, token),
+  getLeaves: (token, params = '') => {
+    if (typeof params === 'string') {
+      return apiClient.get(`/api/dept/employee/leave${params}`, token);
+    }
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/employee/leave${query ? `?${query}` : ''}`, token);
+  },
+  requestLeave: (token, data) =>
+    apiClient.post('/api/dept/employee/leave', data, token),
+  cancelLeave: (token, leaveId) =>
+    apiClient.put(`/api/dept/employee/leave/${leaveId}/cancel`, {}, token),
 };

@@ -22,6 +22,7 @@ const PolicyDocument = require('../../models/PolicyDocument');
 const PolicyAcknowledgement = require('../../models/PolicyAcknowledgement');
 const SupportTicket = require('../../models/SupportTicket');
 const ExitInterview = require('../../models/ExitInterview');
+const { ROLES } = require('../../config/roles');
 
 /**
  * @route   GET /api/dept/hr/dashboard
@@ -430,6 +431,35 @@ exports.getEmployees = async (req, res) => {
 /**
  * LEAVE MANAGEMENT
  */
+
+/**
+ * @route   POST /api/dept/hr/leave/request
+ * @desc    Request leave for current HR user
+ * @access  Private (HR only)
+ */
+exports.requestLeave = async (req, res) => {
+  try {
+    const leave = await Leave.create({
+      ...req.body,
+      employee: req.user._id
+    });
+
+    await leave.populate('employee', 'firstName lastName email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Leave request submitted successfully',
+      data: leave
+    });
+  } catch (error) {
+    console.error('HR request leave error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to request leave',
+      details: error.message
+    });
+  }
+};
 
 /**
  * @route   GET /api/dept/hr/leave
@@ -1119,11 +1149,34 @@ exports.createEmployee = async (req, res) => {
   try {
     const { email, password, role, firstName, lastName, phone, department } = req.body;
 
-    const normalizedEmail = email?.trim().toLowerCase();
-    if (!normalizedEmail || !password || !role || !firstName || !lastName) {
+    if (!email || !password || !role || !firstName || !lastName) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required employee fields'
+        error: 'Missing required fields: email, password, role, firstName, and lastName are required'
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long'
+      });
+    }
+
+    const validRoles = Object.values(ROLES);
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid role. Valid roles are: ${validRoles.join(', ')}`
       });
     }
 
@@ -1163,6 +1216,14 @@ exports.createEmployee = async (req, res) => {
 exports.updateEmployee = async (req, res) => {
   try {
     const { role, firstName, lastName, phone, department, isActive } = req.body;
+
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      });
+    }
+
     const user = await User.findById(req.params.id).select('-password');
 
     if (!user) {
@@ -1172,7 +1233,16 @@ exports.updateEmployee = async (req, res) => {
       });
     }
 
-    if (role) user.role = role;
+    if (role) {
+      const validRoles = Object.values(ROLES);
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid role. Valid roles are: ${validRoles.join(', ')}`
+        });
+      }
+      user.role = role;
+    }
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
     if (phone !== undefined) user.phone = phone?.trim();
@@ -1198,11 +1268,25 @@ exports.updateEmployee = async (req, res) => {
 
 exports.toggleEmployeeStatus = async (req, res) => {
   try {
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      });
+    }
+
     const employee = await User.findById(req.params.id);
     if (!employee) {
       return res.status(404).json({
         success: false,
         error: 'Employee not found'
+      });
+    }
+
+    if (req.user && req.user.id === req.params.id && employee.isActive) {
+      return res.status(400).json({
+        success: false,
+        error: 'You cannot deactivate your own account'
       });
     }
 

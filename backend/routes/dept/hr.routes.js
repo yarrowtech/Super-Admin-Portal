@@ -57,6 +57,7 @@ router.delete('/biometrics/:id', hrController.deleteBiometricEnrollment);
 
 // Leave Management
 router.get('/leave', hrController.getLeaveRequests);
+router.post('/leave/request', hrController.requestLeave);
 router.put('/leave/:id/approve', hrController.approveLeave);
 router.put('/leave/:id/reject', hrController.rejectLeave);
 router.get('/leave-policies', hrController.getLeavePolicies);

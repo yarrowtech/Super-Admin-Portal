@@ -15,6 +15,23 @@ const scheduleTone = {
   sky: 'text-sky-500',
 };
 
+const leaveStatusTone = {
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+  cancelled: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+};
+
+const leaveTypeOptions = [
+  { value: 'sick', label: 'Sick' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'annual', label: 'Annual' },
+  { value: 'maternity', label: 'Maternity' },
+  { value: 'paternity', label: 'Paternity' },
+  { value: 'unpaid', label: 'Unpaid' },
+  { value: 'other', label: 'Other' },
+];
+
 const STORAGE_KEY = 'employeeDarkMode';
 
 const EmployeeDashboard = () => {
@@ -26,6 +43,16 @@ const EmployeeDashboard = () => {
   const [taskBuckets, setTaskBuckets] = useState({ today: [], upcoming: [], Done: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveError, setLeaveError] = useState('');
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({
+    leaveType: 'sick',
+    startDate: '',
+    endDate: '',
+    reason: '',
+  });
+  const [leaveActionState, setLeaveActionState] = useState({ saving: false, cancellingId: null });
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   useEffect(() => {
@@ -60,17 +87,19 @@ const EmployeeDashboard = () => {
 
     (async () => {
       try {
-        const [dashboardRes, projectsRes, teamRes, tasksRes] = await Promise.all([
+        const [dashboardRes, projectsRes, teamRes, tasksRes, leavesRes] = await Promise.all([
           employeeApi.getDashboard(token),
           employeeApi.getProjects(token),
           employeeApi.getTeam(token),
           employeeApi.getTasks(token),
+          employeeApi.getLeaves(token, { page: 1, limit: 5 }),
         ]);
 
         setDashboardData(dashboardRes?.data || dashboardRes);
         setProjectHighlights((projectsRes?.data?.projects || []).slice(0, 3));
         setTeamPreview((teamRes?.data?.members || []).slice(0, 3));
         setTaskBuckets(tasksRes?.data || tasksRes || { today: [], upcoming: [], Done: [] });
+        setLeaveRequests(leavesRes?.data?.leaves || []);
       } catch (err) {
         setError(err.message || 'Failed to load dashboard');
       } finally {
@@ -90,6 +119,76 @@ const EmployeeDashboard = () => {
   const documents = dashboardData?.recentReports || [];
   const updates = dashboardData?.notices || [];
   const attendance = dashboardData?.attendance;
+
+  const handleLeaveSubmit = async () => {
+    if (!token) return;
+    setLeaveError('');
+    setLeaveActionState((prev) => ({ ...prev, saving: true }));
+
+    try {
+      const start = leaveForm.startDate ? new Date(leaveForm.startDate) : null;
+      const end = leaveForm.endDate ? new Date(leaveForm.endDate) : null;
+
+      if (!start || !end || !leaveForm.reason.trim()) {
+        setLeaveError('Start date, end date, and reason are required.');
+        setLeaveActionState((prev) => ({ ...prev, saving: false }));
+        return;
+      }
+
+      const diffMs = end.getTime() - start.getTime();
+      const totalDays = Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1;
+      if (totalDays <= 0) {
+        setLeaveError('End date must be after start date.');
+        setLeaveActionState((prev) => ({ ...prev, saving: false }));
+        return;
+      }
+
+      await employeeApi.requestLeave(token, {
+        leaveType: leaveForm.leaveType,
+        startDate: leaveForm.startDate,
+        endDate: leaveForm.endDate,
+        totalDays,
+        reason: leaveForm.reason.trim(),
+      });
+
+      const refreshed = await employeeApi.getLeaves(token, { page: 1, limit: 5 });
+      setLeaveRequests(refreshed?.data?.leaves || []);
+      setLeaveModalOpen(false);
+      setLeaveForm({ leaveType: 'sick', startDate: '', endDate: '', reason: '' });
+    } catch (err) {
+      setLeaveError(err.message || 'Failed to submit leave request');
+    } finally {
+      setLeaveActionState((prev) => ({ ...prev, saving: false }));
+    }
+  };
+
+  const handleCancelLeave = async (leaveId) => {
+    if (!token) return;
+    setLeaveActionState((prev) => ({ ...prev, cancellingId: leaveId }));
+    try {
+      await employeeApi.cancelLeave(token, leaveId);
+      const refreshed = await employeeApi.getLeaves(token, { page: 1, limit: 5 });
+      setLeaveRequests(refreshed?.data?.leaves || []);
+    } catch (err) {
+      setLeaveError(err.message || 'Failed to cancel leave request');
+    } finally {
+      setLeaveActionState((prev) => ({ ...prev, cancellingId: null }));
+    }
+  };
+
+  const formattedLeaveRequests = useMemo(() => {
+    return leaveRequests.map((leave) => {
+      const start = leave.startDate ? new Date(leave.startDate) : null;
+      const end = leave.endDate ? new Date(leave.endDate) : null;
+      return {
+        ...leave,
+        datesLabel: start
+          ? `${start.toLocaleDateString()}${end ? ` - ${end.toLocaleDateString()}` : ''}`
+          : '',
+        statusClass: leaveStatusTone[leave.status] || leaveStatusTone.pending,
+      };
+    });
+  }, [leaveRequests]);
 
   const formattedSchedule = useMemo(
     () =>
@@ -344,7 +443,7 @@ const EmployeeDashboard = () => {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Team pulse</h3>
@@ -400,7 +499,142 @@ const EmployeeDashboard = () => {
             )}
           </div>
         </div>
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Leave requests</h3>
+            <button
+              onClick={() => {
+                setLeaveError('');
+                setLeaveModalOpen(true);
+              }}
+              className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white"
+            >
+              Request leave
+            </button>
+          </div>
+          {leaveError && (
+            <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+              {leaveError}
+            </div>
+          )}
+          <div className="mt-4 space-y-3">
+            {formattedLeaveRequests.length === 0 && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">No leave requests yet.</p>
+            )}
+            {formattedLeaveRequests.map((leave) => (
+              <div key={leave._id} className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white capitalize">{leave.leaveType}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${leave.statusClass}`}>
+                    {leave.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{leave.datesLabel}</p>
+                {leave.status === 'pending' && (
+                  <button
+                    onClick={() => handleCancelLeave(leave._id)}
+                    disabled={leaveActionState.cancellingId === leave._id}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-rose-600 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-sm">cancel</span>
+                    Cancel request
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
+
+      {leaveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Request leave</h3>
+              <button
+                onClick={() => {
+                  setLeaveError('');
+                  setLeaveModalOpen(false);
+                }}
+                className="rounded-full p-1 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {leaveError && (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+                {leaveError}
+              </div>
+            )}
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Leave type</label>
+                <select
+                  value={leaveForm.leaveType}
+                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {leaveTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Start date</label>
+                  <input
+                    type="date"
+                    value={leaveForm.startDate}
+                    onChange={(e) => setLeaveForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">End date</label>
+                  <input
+                    type="date"
+                    value={leaveForm.endDate}
+                    onChange={(e) => setLeaveForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Reason</label>
+                <textarea
+                  rows={3}
+                  value={leaveForm.reason}
+                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setLeaveError('');
+                  setLeaveModalOpen(false);
+                }}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeaveSubmit}
+                disabled={leaveActionState.saving}
+                className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {leaveActionState.saving ? 'Submitting...' : 'Submit request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

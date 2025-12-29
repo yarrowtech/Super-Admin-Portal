@@ -60,6 +60,9 @@ export const hrApi = {
     const query = new URLSearchParams(params).toString();
     return apiClient.get(`/api/dept/hr/leave${query ? `?${query}` : ''}`, token);
   },
+  requestLeave: async (data, token) => {
+    return apiClient.post('/api/dept/hr/leave/request', data, token);
+  },
   approveLeave: async (id, token) => {
     return apiClient.put(`/api/dept/hr/leave/${id}/approve`, {}, token);
   },

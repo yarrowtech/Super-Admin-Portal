@@ -14,4 +14,16 @@ router.get('/dashboard', managerController.getDashboard);
 router.get('/team', managerController.getTeam);
 router.get('/projects', managerController.getProjects);
 
+// Employee work management routes
+router.get('/completed-tasks', managerController.getCompletedTasks);
+router.get('/employee-work', managerController.getEmployeeWork);
+router.get('/employee-work/stats', managerController.getEmployeeWorkStats);
+router.put('/employee-work/:workId/approve', managerController.approveWork);
+router.put('/employee-work/:workId/reject', managerController.rejectWork);
+
+// Notification routes
+router.get('/notifications', managerController.getNotifications);
+router.put('/notifications/:id/read', managerController.markNotificationRead);
+router.put('/notifications/mark-all-read', managerController.markAllNotificationsRead);
+
 module.exports = router;

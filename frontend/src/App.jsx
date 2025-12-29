@@ -27,6 +27,7 @@ import TeamManagement from './components/manager/TeamManagement';
 import ManagerReports from './components/manager/ManagerReports';
 import ManagerChat from './components/manager/ManagerChat';
 import ManagerLogin from './components/manager/ManagerLogin';
+import EmployeeWorkBoard from './components/manager/EmployeeWorkBoard';
 import EmployeePortal from './components/employee/EmployeePortal';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
 import EmployeeProjects from './components/employee/EmployeeProjects';
@@ -216,6 +217,14 @@ function App() {
           element={
             <PrivateRoute roles={allow('manager')}>
               {withPortal(ManagerPortal, ManagerDashboard)}
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/manager/work-board"
+          element={
+            <PrivateRoute roles={allow('manager')}>
+              {withPortal(ManagerPortal, EmployeeWorkBoard)}
             </PrivateRoute>
           }
         />

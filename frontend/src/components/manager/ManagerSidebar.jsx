@@ -5,6 +5,7 @@ import { employeeApi } from '../../api/employee';
 
 const navItems = [
   { label: 'Dashboard', icon: 'dashboard', path: '/manager/dashboard' },
+  { label: 'Work Board', icon: 'work_history', path: '/manager/work-board' },
   { label: 'Products', icon: 'inventory_2', path: '/manager/products' },
   { label: 'Team', icon: 'group', path: '/manager/team' },
   { label: 'Reports', icon: 'assessment', path: '/manager/reports' },
@@ -63,7 +64,7 @@ const ManagerSidebar = () => {
   }, []);
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 overflow-hidden border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-800/20">
+    <aside className="fixed left-0 top-0 h-screen w-64 overflow-hidden border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-800/20 -translate-x-full lg:translate-x-0 transition-transform z-50">
       <div className="flex h-full min-h-[700px] flex-col justify-between p-4">
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 p-2">

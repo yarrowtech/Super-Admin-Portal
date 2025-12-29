@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { managerApi } from '../../api/manager';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
+import NotificationPanel from './NotificationPanel';
+import TaskDetailsModal from './TaskDetailsModal';
+import NotificationDebug from './NotificationDebug';
+import { shouldDeliverToManager } from '../../utils/notificationRouting';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -14,11 +19,16 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 
 const ManagerDashboard = () => {
   const { token, user } = useAuth();
+  const { addNotification } = useNotifications();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [realtimeStatus, setRealtimeStatus] = useState('connecting');
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [selectedTaskData, setSelectedTaskData] = useState(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const socketRef = useRef(null);
 
   const managerName = useMemo(() => {
@@ -84,6 +94,44 @@ const ManagerDashboard = () => {
     };
   }, [token]);
 
+  // Listen for real-time notifications from employee actions
+  useEffect(() => {
+    const handleManagerNotification = (event) => {
+      const detail = event.detail;
+      if (!detail) return;
+      if (!shouldDeliverToManager(user, detail)) {
+        return;
+      }
+      console.log('Received real-time notification:', detail);
+      addNotification(detail);
+    };
+
+    // Listen for custom events (cross-component communication)
+    window.addEventListener('managerNotification', handleManagerNotification);
+
+    // Check for pending notifications in localStorage (cross-tab communication)
+    const checkPendingNotifications = () => {
+      const pending = localStorage.getItem('pendingManagerNotification');
+      if (pending) {
+        try {
+          const notificationData = JSON.parse(pending);
+          if (shouldDeliverToManager(user, notificationData)) {
+            addNotification(notificationData);
+          }
+          localStorage.removeItem('pendingManagerNotification');
+        } catch (err) {
+          console.error('Failed to parse pending notification:', err);
+        }
+      }
+    };
+
+    checkPendingNotifications();
+    
+    return () => {
+      window.removeEventListener('managerNotification', handleManagerNotification);
+    };
+  }, [addNotification, user]);
+
   useEffect(() => {
     if (!token || !user) return undefined;
     const managerId = user.id || user._id;
@@ -115,6 +163,12 @@ const ManagerDashboard = () => {
       setError(payload?.message || 'Live updates unavailable');
     });
 
+    socket.on('manager:notification', (notificationData) => {
+      if (shouldDeliverToManager(user, notificationData)) {
+        addNotification(notificationData);
+      }
+    });
+
     socket.emit('manager:subscribe', payload);
 
     return () => {
@@ -122,7 +176,7 @@ const ManagerDashboard = () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token, user]);
+  }, [token, user, addNotification]);
 
   const projectSummary = snapshot?.projectSummary || {};
   const taskSummary = snapshot?.taskSummary || {};
@@ -131,6 +185,18 @@ const ManagerDashboard = () => {
   const upcomingTasks = taskSummary?.upcoming || [];
   const recentProjects = projectSummary?.recent || [];
   const teamMembers = teamSummary?.members || [];
+
+  const handleTaskClick = (taskId, taskData = null) => {
+    setSelectedTaskId(taskId);
+    setSelectedTaskData(taskData);
+    setIsTaskModalOpen(true);
+  };
+
+  const handleCloseTaskModal = () => {
+    setIsTaskModalOpen(false);
+    setSelectedTaskId(null);
+    setSelectedTaskData(null);
+  };
 
   const realtimeLabel = useMemo(() => {
     switch (realtimeStatus) {
@@ -145,16 +211,24 @@ const ManagerDashboard = () => {
 
   return (
     <main className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-6xl p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex min-w-72 flex-col gap-1">
-            <p className="text-gray-800 dark:text-white text-3xl font-black leading-tight tracking-[-0.033em]">
-              Welcome back, {managerName}!
-            </p>
+      <div className="mx-auto max-w-6xl p-4 sm:p-6">
+        <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                <span className="material-symbols-outlined text-xl">menu</span>
+              </button>
+              <p className="text-gray-800 dark:text-white text-2xl sm:text-3xl font-black leading-tight tracking-[-0.033em]">
+                Welcome back, {managerName}!
+              </p>
+            </div>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
               Your live snapshot updates every few seconds.
             </p>
-            <div className="flex items-center gap-2 text-xs font-semibold">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
               <span className={`inline-flex size-2 rounded-full ${realtimeLabel.dot}`}></span>
               <span className={`${realtimeLabel.color}`}>{realtimeLabel.text}</span>
               {snapshot?.timestamp && (
@@ -164,32 +238,35 @@ const ManagerDashboard = () => {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={toggleDarkMode}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <span className="material-symbols-outlined text-base">
-                {isDarkMode ? 'light_mode' : 'dark_mode'}
-              </span>
-              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-              <div className="ml-2 flex items-center">
-                <div
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    isDarkMode ? 'bg-primary' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                      isDarkMode ? 'translate-x-5' : 'translate-x-1'
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <NotificationPanel onTaskClick={handleTaskClick} />
+            <div className="flex items-center gap-2 sm:gap-4">
+              <button
+                onClick={toggleDarkMode}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 sm:px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {isDarkMode ? 'light_mode' : 'dark_mode'}
+                </span>
+                <span className="hidden sm:inline">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                <div className="ml-2 flex items-center">
+                  <div
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      isDarkMode ? 'bg-primary' : 'bg-gray-300'
                     }`}
-                  />
+                  >
+                    <span
+                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                        isDarkMode ? 'translate-x-5' : 'translate-x-1'
+                      }`}
+                    />
+                  </div>
                 </div>
+              </button>
+              <div className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white px-3 sm:px-4 py-2 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-white dark:hover:bg-gray-800">
+                <span className="material-symbols-outlined text-base">sync</span>
+                <span className="ml-1 sm:ml-2 text-xs">{realtimeStatus === 'live' ? 'Live' : 'Sync'}</span>
               </div>
-            </button>
-            <div className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-white dark:hover:bg-gray-800">
-              <span className="material-symbols-outlined text-base">sync</span>
-              <span className="ml-2 text-xs">{realtimeStatus === 'live' ? 'Live' : 'Sync'}</span>
             </div>
           </div>
         </div>
@@ -207,7 +284,7 @@ const ManagerDashboard = () => {
           </div>
         )}
 
-        <div className="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Total Projects"
             value={numberFormatter.format(projectSummary.total || 0)}
@@ -236,9 +313,9 @@ const ManagerDashboard = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Project Status</h3>
@@ -276,7 +353,7 @@ const ManagerDashboard = () => {
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upcoming Tasks</h3>
@@ -318,8 +395,8 @@ const ManagerDashboard = () => {
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Team At a Glance</h3>
@@ -359,7 +436,7 @@ const ManagerDashboard = () => {
               )}
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Recent Projects</h3>
@@ -402,6 +479,13 @@ const ManagerDashboard = () => {
           </div>
         </div>
       </div>
+      <TaskDetailsModal
+        isOpen={isTaskModalOpen}
+        onClose={handleCloseTaskModal}
+        taskId={selectedTaskId}
+        taskData={selectedTaskData}
+      />
+      <NotificationDebug />
     </main>
   );
 };

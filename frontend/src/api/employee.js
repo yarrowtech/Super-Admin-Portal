@@ -17,6 +17,8 @@ export const employeeApi = {
     apiClient.post('/api/employee/chat/groups', body, token),
   updateTaskStatus: (token, taskId, body) =>
     apiClient.put(`/api/dept/employee/tasks/${taskId}/status`, body, token),
+  notifyManagerTaskReview: (token, taskId, taskData) =>
+    apiClient.post(`/api/employee/notify-manager/task-review/${taskId}`, taskData, token),
   createTask: (token, body) =>
     apiClient.post('/api/employee/projects/tasks', body, token),
   deleteTask: (token, taskId) =>

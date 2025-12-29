@@ -8,19 +8,34 @@ const ROUTING_DIRECTORY = [
   },
 ];
 
+const matchesRoute = (normalizedDepartment, entry) => {
+  if (!normalizedDepartment || !entry) return false;
+  if (entry.key === normalizedDepartment) return true;
+  if (entry.aliases?.includes(normalizedDepartment)) return true;
+  if (normalizedDepartment.includes(entry.key)) return true;
+  return entry.aliases?.some((alias) => normalizedDepartment.includes(alias));
+};
+
 const findRouteByDepartment = (department) => {
   const normalizedDepartment = normalize(department);
   if (!normalizedDepartment) return null;
 
   return (
-    ROUTING_DIRECTORY.find((entry) => entry.key === normalizedDepartment) ||
-    ROUTING_DIRECTORY.find((entry) => entry.aliases?.includes(normalizedDepartment)) ||
+    ROUTING_DIRECTORY.find((entry) => matchesRoute(normalizedDepartment, entry)) ||
     null
   );
 };
 
-const uniqueArray = (items) =>
-  Array.from(new Set(items.map((item) => normalize(item)).filter(Boolean)));
+const uniqueArray = (items) => {
+  if (!Array.isArray(items)) return [];
+  return Array.from(
+    new Set(
+      items
+        .map((item) => normalize(item))
+        .filter(Boolean)
+    )
+  );
+};
 
 export const buildDepartmentTarget = (department, overrides = {}) => {
   const normalizedDepartment = normalize(department) || 'general';
@@ -28,6 +43,7 @@ export const buildDepartmentTarget = (department, overrides = {}) => {
 
   const departments = uniqueArray([
     normalizedDepartment,
+    normalizedDepartment.replace(/\s+/g, ''),
     ...(overrides.departments || []),
     ...(route?.aliases || []),
     route?.key || '',
@@ -57,7 +73,7 @@ export const buildDepartmentTarget = (department, overrides = {}) => {
 };
 
 export const managerMatchesTarget = (managerUser, target = {}) => {
-  if (!managerUser) return false;
+  if (!managerUser) return true;
   if (!target) return true;
 
   const normalizedName = normalize(
@@ -86,16 +102,31 @@ export const managerMatchesTarget = (managerUser, target = {}) => {
 
   const matchesDepartment =
     normalizedDepartment &&
-    target.departments?.includes(normalizedDepartment);
+    target.departments?.some(
+      (dept) =>
+        dept === normalizedDepartment ||
+        dept === normalizedDepartment.replace(/\s+/g, '') ||
+        normalizedDepartment.includes(dept) ||
+        dept.includes(normalizedDepartment)
+    );
 
   const matchesName =
     normalizedName &&
-    target.managerNames?.some((name) => normalizedName.includes(name));
+    target.managerNames?.some(
+      (name) => normalizedName.includes(name) || name.includes(normalizedName)
+    );
 
   const matchesEmail =
-    normalizedEmail && target.managerEmails?.includes(normalizedEmail);
+    normalizedEmail &&
+    target.managerEmails?.some(
+      (email) => email === normalizedEmail || normalizedEmail.includes(email)
+    );
 
-  const matchesId = normalizedId && target.managerIds?.includes(normalizedId);
+  const matchesId =
+    normalizedId &&
+    target.managerIds?.some(
+      (id) => id === normalizedId || normalizedId.includes(id)
+    );
 
   return Boolean(
     matchesDepartment || matchesName || matchesEmail || matchesId

@@ -66,8 +66,8 @@ const ManagerSidebar = () => {
   }, []);
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 overflow-hidden border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-800/20 -translate-x-full lg:translate-x-0 transition-transform z-50">
-      <div className="flex h-full min-h-[700px] flex-col justify-between p-4">
+    <aside className="fixed left-0 top-0 h-screen w-64 overflow-y-auto border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-800/20 -translate-x-full lg:translate-x-0 transition-transform z-50">
+      <div className="flex min-h-screen flex-col justify-between p-4">
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 p-2">
             <div className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-400 text-white text-lg font-semibold">
@@ -108,16 +108,13 @@ const ManagerSidebar = () => {
             })}
           </div>
         </div>
-        <div className="flex flex-col gap-4">
-          <button className="flex h-10 min-w-[84px] max-w-[480px] items-center justify-center overflow-hidden rounded-lg bg-primary px-4 text-sm font-bold leading-normal tracking-[0.015em] text-white hover:bg-primary/90">
-            <span className="truncate">New Project</span>
-          </button>
+        <div className="flex flex-col gap-3">
           <button
             onClick={logout}
-            className="flex items-center justify-center gap-3 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-gray-100 dark:text-red-400 dark:hover:bg-gray-800/50"
+            className="flex h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-500/30 dark:bg-red-900/40 dark:text-red-100 dark:hover:bg-red-900/60"
           >
-            <span className="material-symbols-outlined">logout</span>
-            Log Out
+            <span className="material-symbols-outlined text-base">logout</span>
+            Logout
           </button>
         </div>
       </div>

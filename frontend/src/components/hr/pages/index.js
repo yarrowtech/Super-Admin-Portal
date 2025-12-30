@@ -5,3 +5,4 @@ export { default as LeavePage } from './LeavePage';
 export { default as RecruitmentPage } from './RecruitmentPage';
 export { default as PerformancePage } from './PerformancePage';
 export { default as CommunicationPage } from './CommunicationPage';
+export { default as WorkUpdatesPage } from './WorkUpdatesPage';

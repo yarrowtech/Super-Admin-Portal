@@ -15,6 +15,7 @@ const HRSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const isWorkUpdatesActive = location.pathname === '/hr/work-updates';
   const displayName = useMemo(() => {
     if (!user) return 'HR';
     const name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
@@ -26,6 +27,10 @@ const HRSidebar = () => {
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
+  };
+
+  const handleWorkUpdates = () => {
+    navigate('/hr/work-updates');
   };
 
   return (
@@ -77,6 +82,17 @@ const HRSidebar = () => {
               <span className="whitespace-nowrap">{link.label}</span>
             </NavLink>
           ))}
+          <button
+            onClick={handleWorkUpdates}
+            className={`flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              isWorkUpdatesActive
+                ? 'bg-gradient-to-r from-cyan-400 to-cyan-600 text-white shadow-inner'
+                : 'text-neutral-700 hover:bg-cyan-100 hover:shadow-inner dark:text-neutral-100 dark:hover:bg-white/10'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px]">assignment_turned_in</span>
+            <span className="whitespace-nowrap">Work Updates</span>
+          </button>
         </div>
       </div>
       <div className="mt-auto flex flex-col gap-2">

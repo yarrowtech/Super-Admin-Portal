@@ -5,15 +5,15 @@ import Notices from '../Notices';
 import ComplaintSolutions from '../ComplaintSolutions';
 import StaffWorkReport from '../StaffWorkReport';
 
+const communicationTabs = [
+  { id: 'notices', label: 'Notices & Announcements', icon: 'campaign' },
+  { id: 'complaints', label: 'Complaints & Solutions', icon: 'report_problem' },
+  { id: 'reports', label: 'Work Reports', icon: 'assignment' },
+];
+
 const CommunicationPage = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('notices'); // 'notices', 'complaints', 'reports'
-
-  const tabs = [
-    { id: 'notices', label: 'Notices & Announcements', icon: 'campaign' },
-    { id: 'complaints', label: 'Complaints & Solutions', icon: 'report_problem' },
-    { id: 'reports', label: 'Work Reports', icon: 'assignment' },
-  ];
+  const [activeTab, setActiveTab] = useState('notices');
 
   return (
     <main className="flex-1 overflow-y-auto bg-gradient-to-br from-cyan-50/30 via-white to-teal-50/30 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
@@ -30,7 +30,7 @@ const CommunicationPage = () => {
 
         {/* Tabs */}
         <div className="mb-6 flex gap-2 overflow-x-auto border-b border-neutral-200/50 dark:border-neutral-800/50">
-          {tabs.map((tab) => (
+          {communicationTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}

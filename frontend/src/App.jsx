@@ -9,6 +9,7 @@ import {
   RecruitmentPage,
   PerformancePage,
   CommunicationPage,
+  WorkUpdatesPage,
 } from './components/hr/pages';
 import ITPortal from './components/it/ITPortal';
 import FinancePortal from './components/finance/FinancePortal';
@@ -132,6 +133,7 @@ function App() {
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="performance" element={<PerformancePage />} />
           <Route path="communication" element={<CommunicationPage />} />
+          <Route path="work-updates" element={<WorkUpdatesPage />} />
         </Route>
 
         {/* IT */}

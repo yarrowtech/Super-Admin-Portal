@@ -234,7 +234,6 @@ const StaffWorkReport = () => {
             <table className="w-full text-left">
               <thead className="border-b border-neutral-200 dark:border-neutral-800">
                 <tr>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Report ID</th>
                   <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Employee</th>
                   <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Project</th>
                   <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Hours</th>
@@ -248,14 +247,14 @@ const StaffWorkReport = () => {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={9} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                    <td colSpan={8} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                       Loading work reports...
                     </td>
                   </tr>
                 )}
                 {!loading && filteredReports.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                    <td colSpan={8} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                       No work reports found.
                     </td>
                   </tr>
@@ -272,7 +271,6 @@ const StaffWorkReport = () => {
                   const reportStatus = report.taskStatus || report.status;
                   return (
                     <tr key={report._id} className={index !== filteredReports.length - 1 ? 'border-b border-neutral-200 dark:border-neutral-800' : ''}>
-                      <td className="p-4 text-sm font-medium text-primary">{report._id}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">

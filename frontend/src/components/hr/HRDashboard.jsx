@@ -8,6 +8,11 @@ import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
 
 const HRDashboard = () => {
   const { token, user } = useAuth();
@@ -459,54 +464,48 @@ const HRDashboard = () => {
           {/* Sidebar */}
           <div className="flex flex-col gap-6 lg:col-span-1">
             {/* Work Updates */}
-            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
-              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 p-4 dark:border-neutral-800/50 dark:from-emerald-950/20 dark:to-teal-950/20">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20">
-                    <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">task_alt</span>
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Work Updates</h3>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400">Real-time task flow</p>
-                  </div>
+            <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Work Updates</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Latest task status changes</p>
                 </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{workUpdates.length} items</span>
               </div>
-              <div className="p-4">
-                {workUpdatesError && (
-                  <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
-                    {workUpdatesError}
-                  </div>
-                )}
-                {workUpdatesLoading ? (
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading work updates...</p>
-                ) : workUpdates.length ? (
-                  <div className="space-y-3">
-                    {workUpdates.map((report) => {
-                      const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
-                      const reportStatus = report.taskStatus || report.status;
-                      return (
-                        <div key={report._id} className="rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-3 dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{employeeName}</p>
-                              <p className="text-xs text-neutral-600 dark:text-neutral-400">{report.title || 'Task update'}</p>
-                              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                {report.project?.name || report.project?.projectCode || 'General'} •{' '}
-                                {report.reportDate ? new Date(report.reportDate).toLocaleDateString() : 'Today'}
-                              </p>
-                            </div>
-                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${workUpdateStatusStyles[reportStatus] || workUpdateStatusStyles.submitted}`}>
-                              {reportStatus || 'submitted'}
-                            </span>
+              {workUpdatesError && (
+                <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+                  {workUpdatesError}
+                </div>
+              )}
+              {workUpdatesLoading ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Loading work updates...</p>
+              ) : workUpdates.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No updates available.</p>
+              ) : (
+                <div className="space-y-3">
+                  {workUpdates.map((report) => {
+                    const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
+                    const reportStatus = report.taskStatus || report.status;
+                    return (
+                      <div key={report._id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white">{employeeName}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{report.title || 'Task update'}</p>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {report.project?.name || report.project?.projectCode || 'General'} -{' '}
+                              {report.reportDate ? dateFormatter.format(new Date(report.reportDate)) : 'Today'}
+                            </p>
                           </div>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${workUpdateStatusStyles[reportStatus] || workUpdateStatusStyles.submitted}`}>
+                            {reportStatus || 'submitted'}
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">No work updates available.</p>
-                )}
-              </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             {/* Quick Stats */}

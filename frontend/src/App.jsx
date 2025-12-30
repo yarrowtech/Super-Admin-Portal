@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Login from './components/common/Login';
 import HRPortal from './components/hr/HRPortal';
 import HRDashboard from './components/hr/HRDashboard';
+import HRTaskManagement from './components/hr/HRTaskManagement';
 import {
   EmployeesPage,
   AttendancePage,
@@ -134,6 +135,7 @@ function App() {
           <Route path="performance" element={<PerformancePage />} />
           <Route path="communication" element={<CommunicationPage />} />
           <Route path="work-updates" element={<WorkUpdatesPage />} />
+          <Route path="tasks" element={<HRTaskManagement />} />
         </Route>
 
         {/* IT */}

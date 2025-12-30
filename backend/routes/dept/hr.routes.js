@@ -25,6 +25,12 @@ router.post('/attendance', hrController.createAttendance);
 router.put('/attendance/:id', hrController.updateAttendance);
 router.get('/attendance/employee/:employeeId', hrController.getEmployeeAttendance);
 
+// Task Management
+router.get('/tasks', hrController.getTasks);
+router.post('/tasks', hrController.createTask);
+router.put('/tasks/:id', hrController.updateTask);
+router.put('/tasks/:id/close', hrController.closeTask);
+
 // Employees Management
 router.get('/employees', hrController.getEmployees);
 router.post('/employees', hrController.createEmployee);

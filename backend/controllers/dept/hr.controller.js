@@ -8,6 +8,7 @@ const Performance = require('../../models/Performance');
 const WorkReport = require('../../models/WorkReport');
 const Complaint = require('../../models/Complaint');
 const Department = require('../../models/Department');
+const Task = require('../../models/Task');
 const Designation = require('../../models/Designation');
 const EmployeeDocument = require('../../models/EmployeeDocument');
 const BiometricEnrollment = require('../../models/BiometricEnrollment');
@@ -846,6 +847,179 @@ exports.updatePerformanceReview = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update performance review',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * TASK MANAGEMENT
+ */
+exports.getTasks = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, priority, assignee, search } = req.query;
+    const filters = {};
+
+    if (status) filters.status = status;
+    if (priority) filters.priority = priority;
+    if (assignee) filters.assignedTo = assignee;
+    if (search) {
+      filters.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const tasks = await Task.find(filters)
+      .populate('assignedTo', 'firstName lastName email department')
+      .populate('assignedBy', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Task.countDocuments(filters);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tasks,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    console.error('HR get tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch tasks',
+      details: error.message
+    });
+  }
+};
+
+exports.createTask = async (req, res) => {
+  try {
+    const { title, description, assignedTo, dueDate, priority, estimatedHours, status, progress } = req.body;
+
+    if (!title || !description || !assignedTo || !dueDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: title, description, assignedTo, and dueDate'
+      });
+    }
+
+    const task = await Task.create({
+      title: title.trim(),
+      description: description.trim(),
+      assignedTo,
+      assignedBy: req.user._id,
+      dueDate,
+      priority,
+      estimatedHours,
+      status,
+      progress
+    });
+
+    await task.populate('assignedTo', 'firstName lastName email department');
+    await task.populate('assignedBy', 'firstName lastName email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Task created successfully',
+      data: task
+    });
+  } catch (error) {
+    console.error('HR create task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create task',
+      details: error.message
+    });
+  }
+};
+
+exports.updateTask = async (req, res) => {
+  try {
+    const { title, description, priority, status, dueDate, progress, assignedTo, estimatedHours, actualHours } = req.body;
+
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid task ID format'
+      });
+    }
+
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    if (assignedTo) task.assignedTo = assignedTo;
+    if (title) task.title = title.trim();
+    if (description) task.description = description.trim();
+    if (priority) task.priority = priority;
+    if (status) task.status = status;
+    if (dueDate) task.dueDate = dueDate;
+    if (progress !== undefined) task.progress = progress;
+    if (estimatedHours !== undefined) task.estimatedHours = estimatedHours;
+    if (actualHours !== undefined) task.actualHours = actualHours;
+
+    if (status === 'completed' && !task.completedDate) {
+      task.completedDate = Date.now();
+    }
+
+    await task.save();
+    await task.populate('assignedTo', 'firstName lastName email department');
+    await task.populate('assignedBy', 'firstName lastName email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Task updated successfully',
+      data: task
+    });
+  } catch (error) {
+    console.error('HR update task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update task',
+      details: error.message
+    });
+  }
+};
+
+exports.closeTask = async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    task.status = 'completed';
+    task.progress = 100;
+    task.completedDate = Date.now();
+    await task.save();
+
+    await task.populate('assignedTo', 'firstName lastName email department');
+    await task.populate('assignedBy', 'firstName lastName email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Task closed successfully',
+      data: task
+    });
+  } catch (error) {
+    console.error('HR close task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to close task',
       details: error.message
     });
   }

@@ -66,6 +66,21 @@ export const hrApi = {
     return apiClient.get(`/api/dept/hr/attendance/employee/${employeeId}${query ? `?${query}` : ''}`, token);
   },
 
+  // Task Management
+  getTasks: async (token, params = {}) => {
+    const query = buildQueryString(params);
+    return apiClient.get(`/api/dept/hr/tasks${query ? `?${query}` : ''}`, token);
+  },
+  createTask: async (data, token) => {
+    return apiClient.post('/api/dept/hr/tasks', data, token);
+  },
+  updateTask: async (id, data, token) => {
+    return apiClient.put(`/api/dept/hr/tasks/${id}`, data, token);
+  },
+  closeTask: async (id, token) => {
+    return apiClient.put(`/api/dept/hr/tasks/${id}/close`, {}, token);
+  },
+
   // Leave Management
   getLeaveRequests: async (token, params = {}) => {
     const query = new URLSearchParams(params).toString();

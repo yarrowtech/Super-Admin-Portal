@@ -233,7 +233,6 @@ const ManagerReports = () => {
             <table className="w-full text-left">
               <thead className="border-b border-neutral-200 text-xs font-semibold uppercase text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
                 <tr>
-                  <th className="px-6 py-3">Report ID</th>
                   <th className="px-6 py-3">Employee</th>
                   <th className="px-6 py-3">Project</th>
                   <th className="px-6 py-3">Hours</th>
@@ -245,14 +244,14 @@ const ManagerReports = () => {
               <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                    <td colSpan={6} className="px-6 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                       Loading work updates...
                     </td>
                   </tr>
                 )}
                 {!loading && filteredReports.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                    <td colSpan={6} className="px-6 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                       No work updates found.
                     </td>
                   </tr>
@@ -267,7 +266,6 @@ const ManagerReports = () => {
                   const reportStatus = report.taskStatus || report.status;
                   return (
                     <tr key={report._id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/40">
-                      <td className="px-6 py-4 text-sm font-medium text-primary">{report._id}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">

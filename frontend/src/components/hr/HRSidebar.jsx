@@ -7,6 +7,7 @@ const navSections = [
   { id: 'attendance', label: 'Attendance Management', icon: 'calendar_month', path: '/hr/attendance' },
   { id: 'leave', label: 'Leave Management', icon: 'hourglass_empty', path: '/hr/leave' },
   { id: 'recruitment', label: 'Recruitment & Hiring', icon: 'work', path: '/hr/recruitment' },
+  { id: 'tasks', label: 'Task Management', icon: 'task_alt', path: '/hr/tasks' },
   { id: 'performance', label: 'Performance & Appraisal', icon: 'trending_up', path: '/hr/performance' },
   { id: 'communication', label: 'Communication & Reports', icon: 'campaign', path: '/hr/communication' },
 ];

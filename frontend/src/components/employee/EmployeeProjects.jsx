@@ -817,9 +817,26 @@ const EmployeeProjects = () => {
                     <p className="text-xs text-slate-500">{column.cards?.length || 0} cards</p>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-col gap-3">
-                  {groupTasksByDay(column.cards || []).map(([groupKey, group]) => (
-                    <div key={groupKey} className={`rounded-xl border p-3 ${group.color}`}>
+                <div className="mt-4 flex flex-col gap-0">
+                  {groupTasksByDay(column.cards || []).map(([groupKey, group], groupIndex) => (
+                    <React.Fragment key={groupKey}>
+                      {groupIndex > 0 && (
+                        <div className="py-3">
+                          <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                              <div className="w-full border-t-2 border-dotted border-slate-300 dark:border-slate-600"></div>
+                            </div>
+                            <div className="relative flex justify-center text-xs">
+                              <span className="bg-white px-3 py-1 rounded-full text-slate-500 dark:bg-slate-900 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                                  {group.isCompleted ? 'check_circle' : 'calendar_today'}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className={`rounded-xl border p-3 ${group.color} ${groupIndex > 0 ? 'mt-1' : ''}`}>
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300">{group.label}</h4>
@@ -957,7 +974,8 @@ const EmployeeProjects = () => {
                           );
                         })}
                       </div>
-                    </div>
+                      </div>
+                    </React.Fragment>
                   ))}
                   {groupTasksByDay(column.cards || []).length === 0 && (
                     <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">

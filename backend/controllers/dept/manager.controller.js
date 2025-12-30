@@ -633,6 +633,9 @@ exports.approveLeave = async (req, res) => {
     leave.managerApprovedBy = req.user._id;
     leave.managerApprovedDate = Date.now();
     leave.managerRejectionReason = undefined;
+    leave.status = 'approved';
+    leave.approvedBy = req.user._id;
+    leave.approvedDate = Date.now();
     await leave.save();
 
     res.status(200).json({
@@ -674,6 +677,8 @@ exports.rejectLeave = async (req, res) => {
     leave.managerApprovedDate = Date.now();
     leave.managerRejectionReason = rejectionReason;
     leave.status = 'rejected';
+    leave.approvedBy = req.user._id;
+    leave.approvedDate = Date.now();
     await leave.save();
 
     res.status(200).json({

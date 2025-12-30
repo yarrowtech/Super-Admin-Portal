@@ -9,6 +9,12 @@ const statusStyles = {
   cancelled: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
 };
 
+const managerStatusStyles = {
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+  bypassed: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
+};
 const leaveTypeOptions = [
   { value: 'sick', label: 'Sick' },
   { value: 'casual', label: 'Casual' },
@@ -152,6 +158,8 @@ const EmployeeLeaveManagement = () => {
         ...request,
         datesLabel,
         statusClass: statusStyles[request.status] || statusStyles.pending,
+        managerStatus: request.managerApprovalStatus || 'pending',
+        managerStatusClass: managerStatusStyles[request.managerApprovalStatus] || managerStatusStyles.pending,
       };
     });
   }, [leaveRequests]);
@@ -223,20 +231,21 @@ const EmployeeLeaveManagement = () => {
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Dates</th>
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Days</th>
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Status</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Manager</th>
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && (
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                      <td colSpan={6} className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
                         Loading leave requests...
                       </td>
                     </tr>
                   )}
                   {!loading && formattedRequests.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                      <td colSpan={6} className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
                         No leave requests found.
                       </td>
                     </tr>
@@ -250,6 +259,11 @@ const EmployeeLeaveManagement = () => {
                         <td className="p-3">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${request.statusClass}`}>
                             {request.status}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${request.managerStatusClass}`}>
+                            {request.managerStatus}
                           </span>
                         </td>
                         <td className="p-3 text-sm">

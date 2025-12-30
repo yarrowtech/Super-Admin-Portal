@@ -520,16 +520,19 @@ exports.approveLeave = async (req, res) => {
       });
     }
 
-    if (leave.managerApprovalStatus !== 'approved') {
+    if (leave.status !== 'pending') {
       return res.status(400).json({
         success: false,
-        error: 'Manager approval is required before HR can approve'
+        error: 'Leave request is not pending'
       });
     }
 
     leave.status = 'approved';
     leave.approvedBy = req.user._id;
     leave.approvedDate = Date.now();
+    if (leave.managerApprovalStatus === 'pending') {
+      leave.managerApprovalStatus = 'bypassed';
+    }
     await leave.save();
 
     res.status(200).json({
@@ -555,17 +558,7 @@ exports.approveLeave = async (req, res) => {
 exports.rejectLeave = async (req, res) => {
   try {
     const { rejectionReason } = req.body;
-
-    const leave = await Leave.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: 'rejected',
-        approvedBy: req.user._id,
-        approvedDate: Date.now(),
-        rejectionReason
-      },
-      { new: true }
-    ).populate('employee', 'firstName lastName email');
+    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
 
     if (!leave) {
       return res.status(404).json({
@@ -573,6 +566,22 @@ exports.rejectLeave = async (req, res) => {
         error: 'Leave request not found'
       });
     }
+
+    if (leave.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: 'Leave request is not pending'
+      });
+    }
+
+    leave.status = 'rejected';
+    leave.approvedBy = req.user._id;
+    leave.approvedDate = Date.now();
+    leave.rejectionReason = rejectionReason;
+    if (leave.managerApprovalStatus === 'pending') {
+      leave.managerApprovalStatus = 'bypassed';
+    }
+    await leave.save();
 
     res.status(200).json({
       success: true,

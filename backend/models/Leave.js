@@ -38,7 +38,7 @@ const leaveSchema = new mongoose.Schema(
     },
     managerApprovalStatus: {
       type: String,
-      enum: ['pending', 'approved', 'rejected'],
+      enum: ['pending', 'approved', 'rejected', 'bypassed'],
       default: 'pending'
     },
     managerApprovedBy: {

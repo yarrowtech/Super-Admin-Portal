@@ -13,6 +13,7 @@ const managerStatusStyles = {
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
   approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
   rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+  bypassed: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
 };
 
 const ManagerLeaveManagement = () => {
@@ -108,7 +109,7 @@ const ManagerLeaveManagement = () => {
           <div className="flex flex-col gap-1">
             <h1 className="text-3xl font-black text-gray-800 dark:text-white">Leave Approvals</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Review team leave requests before HR approval.
+              Review team leave requests. Manager or HR can approve.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -127,6 +128,7 @@ const ManagerLeaveManagement = () => {
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+              <option value="bypassed">Bypassed</option>
             </select>
             <select
               value={statusFilter}

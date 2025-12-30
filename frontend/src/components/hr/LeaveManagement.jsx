@@ -78,6 +78,13 @@ const statusStyles = {
   cancelled: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300',
 };
 
+const managerStatusStyles = {
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+  bypassed: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
+};
+
 const LeaveManagement = () => {
   const { token } = useAuth();
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -222,6 +229,7 @@ const LeaveManagement = () => {
         datesLabel,
         managerStatus,
         statusClass: statusStyles[request.status] || statusStyles.pending,
+        managerStatusClass: managerStatusStyles[managerStatus] || managerStatusStyles.pending,
       };
     });
   }, [leaveRequests]);
@@ -400,7 +408,7 @@ const LeaveManagement = () => {
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className="inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${request.managerStatusClass}`}>
                         {request.managerStatus}
                       </span>
                     </td>
@@ -409,7 +417,7 @@ const LeaveManagement = () => {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleApprove(request._id)}
-                            disabled={actionLoadingId === request._id || request.managerStatus !== 'approved'}
+                            disabled={actionLoadingId === request._id}
                             className="flex h-8 items-center justify-center gap-1 rounded-md border border-green-500 px-2 text-xs text-green-500 hover:bg-green-50 disabled:opacity-50 dark:hover:bg-green-900/20"
                           >
                             <span className="material-symbols-outlined text-sm">check</span>

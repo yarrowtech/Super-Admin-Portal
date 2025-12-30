@@ -1,82 +1,166 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { hrApi } from '../../api/hr';
 
-const summaryCards = [
-  { label: 'On Time Today', value: '98%', change: '+2% vs yesterday', changeClass: 'text-success' },
-  { label: 'Late Arrivals', value: '15', change: '+5 vs yesterday', changeClass: 'text-danger' },
-  { label: 'Absent Today', value: '8', change: 'No change', changeClass: 'text-neutral-600 dark:text-neutral-400' },
-  { label: 'Pending Approvals', value: '5', change: 'Action required', changeClass: 'text-yellow-600 dark:text-yellow-400' },
-];
+const statusLabels = {
+  present: { label: 'On Time', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200' },
+  late: { label: 'Late', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200' },
+  'half-day': { label: 'Half Day', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200' },
+  'on-leave': { label: 'On Leave', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200' },
+  absent: { label: 'Absent', badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200' },
+};
 
-const attendanceRows = [
-  {
-    name: 'Srijon Sarkar',
-    role: 'UX Designer',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
-    clockIn: '08:58 AM',
-    clockOut: '05:02 PM',
-    total: '8h 4m',
-    status: 'On Time',
-    statusColor: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
-    dot: 'bg-green-500',
-    action: 'View Details',
-  },
-  {
-    name: 'Sangeet Chowdhury',
-    role: 'Product Manager',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
-    clockIn: '09:15 AM',
-    clockOut: '06:10 PM',
-    total: '8h 55m',
-    status: 'Late',
-    statusColor: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
-    dot: 'bg-yellow-500',
-    action: 'View Details',
-    clockInClass: 'text-danger dark:text-red-400',
-  },
-  {
-    name: 'Raktim Maity',
-    role: 'Frontend Developer',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
-    clockIn: '09:01 AM',
-    clockOut: '04:30 PM',
-    total: '7h 29m',
-    status: 'Early Leave',
-    statusColor: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200',
-    dot: 'bg-orange-500',
-    action: 'Approve',
-  },
-  {
-    name: 'Anshika Pathak',
-    role: 'Marketing Lead',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
-    clockIn: '-',
-    clockOut: '-',
-    total: '-',
-    status: 'Absent',
-    statusColor: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
-    dot: 'bg-red-500',
-    action: 'View Details',
-  },
-  {
-    name: 'DJ',
-    role: 'Backend Engineer',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAulWGUPrI69XnV8I4s8MM67bF00OMuzxPJekbbtsc03P0oXW9wQr2JWYUZDXEQQCsTCYA5vxB1tfS7LqMNdf-Cdv514ir2TADz6yPyiawg7nFZy3ki1f5Sm7N5_LNCVetMwsxvH4QL4DIKGlhXJMcuLTqJVz2hPnh9sFYygAxwyUthoawFI_o5ghUNLMa_lIug_7yfr1hhWFRi_YD-N3d-w5qqVvfDw8RTpC_afs3bUUyVekbMklx04PsOGG-a3iNCp5IAKH1C3_5y',
-    clockIn: '-',
-    clockOut: '-',
-    total: '-',
-    status: 'On Leave',
-    statusColor: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
-    dot: 'bg-blue-500',
-    action: 'View Details',
-  },
-];
+const defaultFilters = {
+  startDate: '',
+  endDate: '',
+  status: '',
+  search: '',
+};
+
+const formatDate = (value, withTime = false) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  if (withTime) {
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  return date.toLocaleDateString();
+};
+
+const formatTime = (value) => {
+  if (!value) return '-';
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 const Attendance = () => {
+  const { token } = useAuth();
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filters, setFilters] = useState({ ...defaultFilters });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  const fetchAttendance = async () => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await hrApi.getAttendance(token, {
+        page,
+        limit: 25,
+        status: filters.status || undefined,
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+      });
+      const payload = res?.data || {};
+      setRecords(payload.attendance || []);
+      setTotalPages(payload.totalPages || 1);
+      setTotalRecords(payload.total || 0);
+    } catch (err) {
+      setError(err.message || 'Failed to load attendance');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, page, filters.status, filters.startDate, filters.endDate]);
+
+  const handleFilterChange = (field, value) => {
+    setFilters((prev) => ({ ...prev, [field]: value }));
+    if (field !== 'search') {
+      setPage(1);
+    }
+  };
+
+  const filteredRecords = useMemo(() => {
+    if (!filters.search.trim()) return records;
+    const term = filters.search.toLowerCase();
+    return records.filter((record) => {
+      const name = `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.toLowerCase();
+      return name.includes(term) || record.employee?.email?.toLowerCase().includes(term);
+    });
+  }, [records, filters.search]);
+
+  const analytics = useMemo(() => {
+    const total = filteredRecords.length;
+    const present = filteredRecords.filter((item) => item.status === 'present').length;
+    const late = filteredRecords.filter((item) => item.status === 'late').length;
+    const leave = filteredRecords.filter((item) => item.status === 'on-leave').length;
+    const absent = filteredRecords.filter((item) => item.status === 'absent').length;
+    const avgHours =
+      total > 0
+        ? (
+            filteredRecords.reduce((sum, item) => sum + (item.workHours || 0), 0) / total
+          ).toFixed(1)
+        : '0';
+    return [
+      {
+        label: 'Checked In',
+        value: present,
+        change: `of ${total}`,
+        changeClass: 'text-emerald-600 dark:text-emerald-300',
+      },
+      {
+        label: 'Late Arrivals',
+        value: late,
+        change: `${total ? Math.round((late / total) * 100) : 0}% of records`,
+        changeClass: 'text-amber-600 dark:text-amber-300',
+      },
+      {
+        label: 'On Leave / Absent',
+        value: leave + absent,
+        change: `${leave} leave · ${absent} absent`,
+        changeClass: 'text-slate-600 dark:text-slate-300',
+      },
+      {
+        label: 'Avg. Hours Worked',
+        value: `${avgHours}h`,
+        change: 'based on recorded work hours',
+        changeClass: 'text-indigo-600 dark:text-indigo-300',
+      },
+    ];
+  }, [filteredRecords]);
+
+  const handleExport = () => {
+    if (!filteredRecords.length) return;
+    const rows = [
+      ['Employee Name', 'Email', 'Department', 'Date', 'Check In', 'Check Out', 'Status', 'Work Hours', 'Location', 'Notes'],
+      ...filteredRecords.map((record) => [
+        `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() || record.employee?.email || '-',
+        record.employee?.email || '-',
+        record.employee?.department || '-',
+        formatDate(record.date),
+        formatTime(record.checkIn),
+        formatTime(record.checkOut),
+        record.status || '-',
+        record.workHours ?? '-',
+        record.location || '-',
+        record.notes?.replace(/\n/g, ' ') || '',
+      ]),
+    ];
+
+    const csvContent = rows
+      .map((row) =>
+        row
+          .map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`)
+          .join(',')
+      )
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `attendance-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <main className="flex-1 overflow-y-auto p-8">
       <div className="mx-auto max-w-7xl">
@@ -85,108 +169,208 @@ const Attendance = () => {
             <h1 className="text-4xl font-black leading-tight tracking-[-0.033em] text-neutral-800 dark:text-neutral-100">
               Time &amp; Attendance
             </h1>
-            <p className="text-base font-normal leading-normal text-neutral-600 dark:text-neutral-400">
-              Track and manage employee work hours, shifts, and attendance records.
+            <p className="text-base text-neutral-600 dark:text-neutral-400">
+              Review employee check-in history, analyze attendance trends, and export detailed logs.
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="flex h-10 min-w-[84px] items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-neutral-100 px-4 text-sm font-bold text-neutral-800 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-100">
-              <span className="material-symbols-outlined">download</span>
-              <span className="truncate">Export Report</span>
-            </button>
-            <button className="flex h-10 min-w-[84px] items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-white">
-              <span className="material-symbols-outlined">add</span>
-              <span className="truncate">Add New Shift</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleExport}
+              disabled={!filteredRecords.length}
+              className="flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-bold text-neutral-800 transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100"
+            >
+              <span className="material-symbols-outlined text-base">download</span>
+              Export CSV
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {summaryCards.map((card) => (
+          {analytics.map((card) => (
             <div
               key={card.label}
-              className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-800/50"
+              className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900/60"
             >
               <p className="text-base font-medium text-neutral-600 dark:text-neutral-400">{card.label}</p>
               <p className="text-3xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">
                 {card.value}
               </p>
-              <p className={`text-base font-medium leading-normal ${card.changeClass}`}>{card.change}</p>
+              <p className={`text-base font-medium ${card.changeClass}`}>{card.change}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-8">
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
-            <h2 className="text-[22px] font-bold leading-tight tracking-[-0.015em] text-neutral-800 dark:text-neutral-100">
-              Daily Attendance Log
-            </h2>
-            <div className="flex items-center gap-4">
-              <div className="relative min-w-64">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
+        <div className="mt-8 space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900/60">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-60">
+                <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 dark:text-neutral-400">
                   search
                 </span>
                 <input
                   type="text"
+                  value={filters.search}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
                   placeholder="Search employees..."
-                  className="h-10 w-full rounded-lg border border-neutral-200 bg-white pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-neutral-800 dark:bg-neutral-800/50"
+                  className="h-10 w-full rounded-lg border border-neutral-200 bg-white pl-10 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
                 />
               </div>
+              <select
+                value={filters.status}
+                onChange={(e) => handleFilterChange('status', e.target.value)}
+                className="h-10 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+              >
+                <option value="">All Status</option>
+                <option value="present">On Time</option>
+                <option value="late">Late</option>
+                <option value="half-day">Half Day</option>
+                <option value="on-leave">On Leave</option>
+                <option value="absent">Absent</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
               <input
                 type="date"
-                defaultValue="2024-05-23"
-                className="h-10 w-40 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-neutral-800 dark:bg-neutral-800/50"
+                value={filters.startDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                className="h-10 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
               />
+              <span className="text-neutral-500 dark:text-neutral-400">to</span>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                className="h-10 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+              />
+              {(filters.startDate || filters.endDate || filters.status) && (
+                <button
+                  onClick={() => setFilters({ ...defaultFilters })}
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  Reset
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-800/50">
-            <table className="w-full text-left">
-              <thead className="border-b border-neutral-200 dark:border-neutral-800">
+          {error && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+              {error}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-neutral-200 text-xs font-semibold uppercase text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
                 <tr>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Employee</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Clock In</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Clock Out</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Total Hours</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Actions</th>
+                  <th className="p-3">Employee</th>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Check In</th>
+                  <th className="p-3">Check Out</th>
+                  <th className="p-3">Hours</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Location</th>
+                  <th className="p-3">Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {attendanceRows.map((row) => (
-                  <tr key={row.name} className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="size-8 rounded-full bg-cover bg-center"
-                          style={{ backgroundImage: `url(${row.avatar})` }}
-                        ></div>
-                        <div>
-                          <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{row.name}</p>
-                          <p className="text-xs text-neutral-600 dark:text-neutral-400">{row.role}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className={`p-4 text-sm text-neutral-600 dark:text-neutral-400 ${row.clockInClass || ''}`}>
-                      {row.clockIn}
-                    </td>
-                    <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400">{row.clockOut}</td>
-                    <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400">{row.total}</td>
-                    <td className="p-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${row.statusColor}`}
-                      >
-                        <span className={`size-1.5 rounded-full ${row.dot}`}></span>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm font-semibold text-primary">
-                      <button className="hover:underline">{row.action}</button>
+                {loading && (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-neutral-500 dark:text-neutral-400">
+                      Loading attendance records...
                     </td>
                   </tr>
-                ))}
+                )}
+                {!loading && filteredRecords.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-neutral-500 dark:text-neutral-400">
+                      No attendance records found for the selected filters.
+                    </td>
+                  </tr>
+                )}
+                {!loading &&
+                  filteredRecords.map((record) => {
+                    const employeeName =
+                      `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() ||
+                      record.employee?.email ||
+                      'Employee';
+                    const statusMeta = statusLabels[record.status] || statusLabels.present;
+                    return (
+                      <tr key={record._id} className="border-b border-neutral-100 text-sm dark:border-neutral-800">
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-neutral-800 dark:text-neutral-100">{employeeName}</span>
+                            <span className="text-xs text-neutral-500 dark:text-neutral-400">{record.employee?.email}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatDate(record.date)}</td>
+                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatTime(record.checkIn)}</td>
+                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatTime(record.checkOut)}</td>
+                        <td className="p-3 text-neutral-600 dark:text-neutral-300">
+                          {record.workHours ? `${record.workHours}h` : '-'}
+                        </td>
+                        <td className="p-3">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badge}`}>
+                            {statusMeta.label}
+                          </span>
+                        </td>
+                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{record.location || 'office'}</td>
+                        <td className="p-3 text-neutral-500 dark:text-neutral-400">{record.notes || '-'}</td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between text-sm text-neutral-600 dark:text-neutral-400">
+            <p>
+              Showing {filteredRecords.length} of {totalRecords} records
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+                className="rounded-full border border-neutral-200 px-3 py-1 font-semibold text-neutral-600 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300"
+              >
+                Previous
+              </button>
+              <span className="text-sm font-semibold">
+                Page {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={page >= totalPages}
+                className="rounded-full border border-neutral-200 px-3 py-1 font-semibold text-neutral-600 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900/60">
+          <h3 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">Attendance Details</h3>
+          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+            Use the filters above to drill down into a single employee or specific timeframe. Export the current view to
+            CSV for payroll or compliance audits.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                Current Filters
+              </p>
+              <p>Status: {filters.status || 'All'}</p>
+              <p>From: {filters.startDate || 'Any'} </p>
+              <p>To: {filters.endDate || 'Any'}</p>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                CSV Export
+              </p>
+              <p className="text-neutral-500 dark:text-neutral-400">Exports current results with all visible columns.</p>
+              <p className="text-xs text-neutral-400">Last export ready instantly.</p>
+            </div>
           </div>
         </div>
       </div>

@@ -1,5 +1,16 @@
 import { apiClient } from './client';
 
+const buildQueryString = (params = {}) => {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    const normalized = typeof value === 'string' ? value.trim() : value;
+    if (normalized === '' || normalized === 'undefined' || normalized === 'null') return;
+    search.append(key, normalized);
+  });
+  return search.toString();
+};
+
 export const hrApi = {
   // Dashboard
   getDashboard: async (token) => {
@@ -41,7 +52,7 @@ export const hrApi = {
 
   // Attendance Management
   getAttendance: async (token, params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = buildQueryString(params);
     return apiClient.get(`/api/dept/hr/attendance${query ? `?${query}` : ''}`, token);
   },
   createAttendance: async (data, token) => {

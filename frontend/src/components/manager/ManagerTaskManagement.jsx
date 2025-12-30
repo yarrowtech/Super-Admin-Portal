@@ -61,7 +61,18 @@ const ManagerTaskManagement = () => {
       setTasks(payload.tasks || []);
       setTotalPages(payload.totalPages || 1);
     } catch (err) {
-      setError(err.message || 'Failed to load tasks');
+      console.error('Failed to fetch manager tasks:', err);
+      console.error('Error status:', err.status);
+      console.error('Error code:', err.code);
+      console.error('Error details:', err.details);
+      console.error('User role:', err.userRole);
+      console.error('Required roles:', err.requiredRoles);
+      
+      let errorMessage = err.message || 'Failed to load tasks. Please check your connection and try again.';
+      if (err.status === 403 && err.code === 'INSUFFICIENT_PERMISSIONS') {
+        errorMessage = `Access denied. You need manager role to access this page. Your role: ${err.userRole}. Required roles: ${err.requiredRoles?.join(', ')}`;
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,16 @@
 import { apiClient } from './client';
 
+const buildQueryString = (params = {}) => {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    const normalized = typeof value === 'string' ? value.trim() : value;
+    if (normalized === '' || normalized === 'undefined' || normalized === 'null') return;
+    search.append(key, normalized);
+  });
+  return search.toString();
+};
+
 export const managerApi = {
   getDashboard: (token) => apiClient.get('/api/dept/manager/dashboard', token),
   getTeam: (token) => apiClient.get('/api/dept/manager/team', token),
@@ -22,7 +33,7 @@ export const managerApi = {
   rejectWork: (token, workId, reason) => 
     apiClient.put(`/api/dept/manager/employee-work/${workId}/reject`, { reason }, token),
   getLeaveRequests: (token, params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = buildQueryString(params);
     return apiClient.get(`/api/dept/manager/leave${query ? `?${query}` : ''}`, token);
   },
   approveLeave: (token, leaveId) =>
@@ -30,7 +41,7 @@ export const managerApi = {
   rejectLeave: (token, leaveId, rejectionReason) =>
     apiClient.put(`/api/dept/manager/leave/${leaveId}/reject`, { rejectionReason }, token),
   getTasks: (token, params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = buildQueryString(params);
     return apiClient.get(`/api/dept/manager/tasks${query ? `?${query}` : ''}`, token);
   },
   createTask: (token, data) =>

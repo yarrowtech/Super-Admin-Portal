@@ -1,9 +1,24 @@
 // backend/controllers/dept/manager.controller.js
 
+const mongoose = require('mongoose');
 const { buildManagerSnapshot } = require('../../modules/manager/services/metrics.service');
 const User = require('../../models/User');
 const Task = require('../../models/Task');
 const Leave = require('../../models/Leave');
+
+const sanitizeQueryValue = (value) => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed && trimmed !== 'undefined' && trimmed !== 'null' ? trimmed : undefined;
+};
+
+const parsePositiveInt = (value, fallback) => {
+  const sanitized = sanitizeQueryValue(value);
+  const parsed = parseInt(sanitized, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) return fallback;
+  return parsed;
+};
 
 /**
  * @route   GET /api/dept/manager/dashboard
@@ -303,16 +318,32 @@ exports.markAllNotificationsRead = async (req, res) => {
  */
 exports.getTasks = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, priority, assignee, search } = req.query;
+    const { status, priority, assignee, search } = req.query;
+    const pageNum = parsePositiveInt(req.query.page, 1);
+    const limitNum = parsePositiveInt(req.query.limit, 10);
     const filters = {};
 
-    if (status) filters.status = status;
-    if (priority) filters.priority = priority;
-    if (assignee) filters.assignedTo = assignee;
-    if (search) {
+    // Add debug logging
+    console.log('Manager getTasks called by user:', req.user?.email, 'with params:', req.query);
+
+    const statusFilter = sanitizeQueryValue(status);
+    const priorityFilter = sanitizeQueryValue(priority);
+    const assigneeFilter = sanitizeQueryValue(assignee);
+    const searchTerm = sanitizeQueryValue(search);
+
+    if (statusFilter) filters.status = statusFilter;
+    if (priorityFilter) filters.priority = priorityFilter;
+    if (assigneeFilter) {
+      if (mongoose.Types.ObjectId.isValid(assigneeFilter)) {
+        filters.assignedTo = assigneeFilter;
+      } else {
+        console.warn('Manager getTasks ignoring invalid assignee filter:', assigneeFilter);
+      }
+    }
+    if (searchTerm) {
       filters.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { title: { $regex: searchTerm, $options: 'i' } },
+        { description: { $regex: searchTerm, $options: 'i' } }
       ];
     }
 
@@ -321,26 +352,30 @@ exports.getTasks = async (req, res) => {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       const ids = teamUsers.map((user) => user._id);
       scopeFilter = { $or: [{ assignedTo: { $in: ids } }, { assignedBy: req.user._id }] };
+      console.log('Team users found:', teamUsers.length, 'in department:', req.user.department);
     }
 
     const query = Object.keys(filters).length ? { $and: [scopeFilter, filters] } : scopeFilter;
+    console.log('Query being executed:', JSON.stringify(query, null, 2));
 
     const tasks = await Task.find(query)
       .populate('assignedTo', 'firstName lastName email department')
       .populate('assignedBy', 'firstName lastName email')
       .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .limit(limitNum)
+      .skip((pageNum - 1) * limitNum)
       .exec();
 
     const count = await Task.countDocuments(query);
+    
+    console.log('Tasks found:', tasks.length, 'Total count:', count);
 
     res.status(200).json({
       success: true,
       data: {
         tasks,
-        totalPages: Math.ceil(count / limit),
-        currentPage: parseInt(page),
+        totalPages: Math.ceil(count / limitNum),
+        currentPage: pageNum,
         total: count
       }
     });

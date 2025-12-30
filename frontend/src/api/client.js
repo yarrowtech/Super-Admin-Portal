@@ -13,9 +13,19 @@ const getDefaultHeaders = (token) => {
 const parseResponse = async (res) => {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const error = new Error(data?.error || 'Request failed');
+    console.error('API Error Response:', {
+      status: res.status,
+      statusText: res.statusText,
+      url: res.url,
+      headers: Object.fromEntries(res.headers.entries()),
+      data: data
+    });
+    const error = new Error(data?.error || data?.message || `HTTP ${res.status}: ${res.statusText}`);
     error.status = res.status;
     error.code = data?.code;
+    error.details = data?.details;
+    error.userRole = data?.userRole;
+    error.requiredRoles = data?.requiredRoles;
     throw error;
   }
   return data;

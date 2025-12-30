@@ -25,6 +25,10 @@ export const employeeApi = {
     apiClient.delete(`/api/employee/projects/tasks/${taskId}`, token),
   getAttendance: (token, params = '') =>
     apiClient.get(`/api/dept/employee/attendance${params}`, token),
+  checkIn: (token, data = {}) =>
+    apiClient.post('/api/dept/employee/attendance/check-in', data, token),
+  checkOut: (token) =>
+    apiClient.put('/api/dept/employee/attendance/check-out', {}, token),
   getLeaves: (token, params = '') => {
     if (typeof params === 'string') {
       return apiClient.get(`/api/dept/employee/leave${params}`, token);

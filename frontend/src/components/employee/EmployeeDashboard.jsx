@@ -53,6 +53,8 @@ const EmployeeDashboard = () => {
     reason: '',
   });
   const [leaveActionState, setLeaveActionState] = useState({ saving: false, cancellingId: null });
+  const [attendanceStatus, setAttendanceStatus] = useState(null);
+  const [attendanceAction, setAttendanceAction] = useState({ loading: false, error: '', message: '' });
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   useEffect(() => {
@@ -80,6 +82,16 @@ const EmployeeDashboard = () => {
     localStorage.setItem(STORAGE_KEY, next ? 'true' : 'false');
   };
 
+  const normalizeAttendance = (data) => {
+    if (!data) return null;
+    const payload = data?.data || data;
+    if (!payload) return null;
+    return {
+      ...payload,
+      checkedIn: payload.checkedIn ?? Boolean(payload.checkIn && !payload.checkOut),
+    };
+  };
+
   useEffect(() => {
     if (!token) return;
     setLoading(true);
@@ -100,6 +112,7 @@ const EmployeeDashboard = () => {
         setTeamPreview((teamRes?.data?.members || []).slice(0, 3));
         setTaskBuckets(tasksRes?.data || tasksRes || { today: [], upcoming: [], Done: [] });
         setLeaveRequests(leavesRes?.data?.leaves || []);
+        setAttendanceStatus(normalizeAttendance(dashboardRes?.data?.attendance || dashboardRes?.attendance));
       } catch (err) {
         setError(err.message || 'Failed to load dashboard');
       } finally {
@@ -118,7 +131,62 @@ const EmployeeDashboard = () => {
   const schedule = dashboardData?.schedule || [];
   const documents = dashboardData?.recentReports || [];
   const updates = dashboardData?.notices || [];
-  const attendance = dashboardData?.attendance;
+  const attendance = attendanceStatus || normalizeAttendance(dashboardData?.attendance);
+  const canCheckIn = !attendance?.checkedIn;
+  const canCheckOut = Boolean(attendance?.checkedIn && !attendance?.checkOut);
+  const attendanceCtaLabel = canCheckIn ? 'Check In' : canCheckOut ? 'Check Out' : 'Day Complete';
+  const formatTime = (value) =>
+    value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const handleCheckIn = async () => {
+    if (!token || !canCheckIn) return;
+    setAttendanceAction({ loading: true, error: '', message: '' });
+    try {
+      const res = await employeeApi.checkIn(token);
+      const normalized = normalizeAttendance(res);
+      setAttendanceStatus(normalized);
+      setAttendanceAction({
+        loading: false,
+        error: '',
+        message: normalized?.checkIn ? `Checked in at ${formatTime(normalized.checkIn)}` : 'Checked in successfully',
+      });
+    } catch (err) {
+      setAttendanceAction({
+        loading: false,
+        error: err.message || 'Failed to check in',
+        message: '',
+      });
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!token || !canCheckOut) return;
+    setAttendanceAction({ loading: true, error: '', message: '' });
+    try {
+      const res = await employeeApi.checkOut(token);
+      const normalized = normalizeAttendance(res);
+      setAttendanceStatus(normalized);
+      setAttendanceAction({
+        loading: false,
+        error: '',
+        message: normalized?.checkOut ? `Checked out at ${formatTime(normalized.checkOut)}` : 'Checked out successfully',
+      });
+    } catch (err) {
+      setAttendanceAction({
+        loading: false,
+        error: err.message || 'Failed to check out',
+        message: '',
+      });
+    }
+  };
+
+  const handleAttendanceAction = () => {
+    if (canCheckIn) {
+      handleCheckIn();
+    } else if (canCheckOut) {
+      handleCheckOut();
+    }
+  };
 
   const handleLeaveSubmit = async () => {
     if (!token) return;
@@ -263,6 +331,31 @@ const EmployeeDashboard = () => {
               <span className={`size-4 rounded-full bg-primary transition-transform ${isDarkMode ? 'translate-x-4' : ''}`}></span>
             </span>
           </button>
+          <button
+            onClick={handleAttendanceAction}
+            disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
+            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold shadow-sm transition ${
+              canCheckIn
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200'
+                : canCheckOut
+                ? 'border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
+                : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-500'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">
+              {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
+            </span>
+            {attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}
+          </button>
+          {(attendanceAction.error || attendanceAction.message) && (
+            <p
+              className={`text-xs font-semibold ${
+                attendanceAction.error ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-300'
+              }`}
+            >
+              {attendanceAction.error || attendanceAction.message}
+            </p>
+          )}
           <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white px-4 py-3 dark:border-slate-700 dark:from-slate-900/60 dark:to-slate-900/30">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current Sprint</p>

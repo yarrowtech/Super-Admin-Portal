@@ -79,6 +79,149 @@ const EmployeeProjects = () => {
     return ['All', ...unique];
   }, [board]);
 
+  // Group tasks by day within each column with date-wise separation
+  const groupTasksByDay = useCallback((tasks) => {
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const groups = new Map();
+    
+    // Helper function to format date for grouping
+    const formatDateKey = (date) => {
+      const dateObj = new Date(date);
+      dateObj.setHours(0, 0, 0, 0);
+      return dateObj.getTime();
+    };
+    
+    // Helper function to get display label for date
+    const getDateLabel = (dateKey) => {
+      const date = new Date(dateKey);
+      const todayKey = today.getTime();
+      const yesterdayKey = yesterday.getTime();
+      
+      if (dateKey === todayKey) return 'Today';
+      if (dateKey === yesterdayKey) return 'Yesterday';
+      
+      // For older dates, show the actual date
+      const daysDiff = Math.floor((todayKey - dateKey) / (24 * 60 * 60 * 1000));
+      if (daysDiff <= 7) {
+        return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+      }
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    
+    // Helper function to get color for date group
+    const getDateColor = (dateKey) => {
+      const todayKey = today.getTime();
+      const yesterdayKey = yesterday.getTime();
+      const daysDiff = Math.floor((todayKey - dateKey) / (24 * 60 * 60 * 1000));
+      
+      if (dateKey === todayKey) return 'border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-900/20';
+      if (dateKey === yesterdayKey) return 'border-purple-200 bg-purple-50 dark:border-purple-800/50 dark:bg-purple-900/20';
+      if (daysDiff <= 3) return 'border-indigo-200 bg-indigo-50 dark:border-indigo-800/50 dark:bg-indigo-900/20';
+      if (daysDiff <= 7) return 'border-cyan-200 bg-cyan-50 dark:border-cyan-800/50 dark:bg-cyan-900/20';
+      return 'border-gray-200 bg-gray-50 dark:border-gray-700/50 dark:bg-gray-800/20';
+    };
+    
+    // First, separate completed tasks and group them by completion date
+    const completedTasks = [];
+    const incompleteTasks = [];
+    
+    tasks.forEach(task => {
+      const isCompleted = task.status === 'completed' || task.status === 'done' || 
+                         task.completedDate || task.status?.toLowerCase().includes('complete');
+      
+      if (isCompleted) {
+        completedTasks.push(task);
+      } else {
+        incompleteTasks.push(task);
+      }
+    });
+    
+    // Group completed tasks by completion date
+    completedTasks.forEach(task => {
+      const completedDate = task.completedDate || task.updatedAt || task.createdAt || now;
+      const dateKey = formatDateKey(completedDate);
+      
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, {
+          label: `${getDateLabel(dateKey)} - Completed`,
+          tasks: [],
+          color: 'border-green-200 bg-green-50 dark:border-green-800/50 dark:bg-green-900/20',
+          priority: dateKey,
+          isCompleted: true
+        });
+      }
+      groups.get(dateKey).tasks.push({ ...task, groupType: 'completed' });
+    });
+    
+    // Group incomplete tasks by due date or creation date
+    incompleteTasks.forEach(task => {
+      let groupDate = task.dueDate || task.createdAt || task.updatedAt || now;
+      const dateKey = formatDateKey(groupDate);
+      const isOverdue = task.dueDate && new Date(task.dueDate) < now;
+      
+      if (!groups.has(dateKey)) {
+        let label = getDateLabel(dateKey);
+        if (isOverdue && dateKey < today.getTime()) {
+          label += ' - Overdue';
+        }
+        
+        groups.set(dateKey, {
+          label,
+          tasks: [],
+          color: isOverdue ? 'border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20' : getDateColor(dateKey),
+          priority: dateKey,
+          isCompleted: false,
+          isOverdue
+        });
+      }
+      groups.get(dateKey).tasks.push({ ...task, groupType: isOverdue ? 'overdue' : 'normal' });
+    });
+    
+    // Sort tasks within each group by creation/completion date (newest first)
+    groups.forEach(group => {
+      group.tasks.sort((a, b) => {
+        // For completed tasks, sort by completion date if available, otherwise by creation date
+        const dateA = a.completedDate || a.updatedAt || a.createdAt || a._id;
+        const dateB = b.completedDate || b.updatedAt || b.createdAt || b._id;
+        
+        if (dateA && dateB) {
+          return new Date(dateB) - new Date(dateA); // Newest first
+        }
+        
+        // Fallback: use task ID (assuming newer tasks have later IDs)
+        if (typeof dateA === 'string' && typeof dateB === 'string') {
+          return dateB.localeCompare(dateA);
+        }
+        
+        return 0;
+      });
+    });
+    
+    // Convert Map to array and sort by date (newest first)
+    // Completed tasks come first, then incomplete tasks, all sorted by date descending
+    const sortedGroups = Array.from(groups.entries())
+      .filter(([_, group]) => group.tasks.length > 0)
+      .sort(([keyA, groupA], [keyB, groupB]) => {
+        // Completed tasks get priority
+        if (groupA.isCompleted && !groupB.isCompleted) return -1;
+        if (!groupA.isCompleted && groupB.isCompleted) return 1;
+        
+        // Within same completion status, sort by date (newest first)
+        return keyB - keyA;
+      });
+    
+    return sortedGroups;
+  }, []);
+
   const formatDateReadable = useCallback((value) => {
     if (!value) return '--';
     const date = new Date(value);
@@ -91,6 +234,23 @@ const EmployeeProjects = () => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '--';
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }, []);
+
+  const getRelativeTime = useCallback((date) => {
+    if (!date) return '';
+    const now = new Date();
+    const taskDate = new Date(date);
+    const diffInMs = now - taskDate;
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMinutes < 1) return 'just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)}w ago`;
+    return `${Math.floor(diffInDays / 30)}mo ago`;
   }, []);
 
   const filteredColumns = useMemo(() => {
@@ -657,78 +817,149 @@ const EmployeeProjects = () => {
                     <p className="text-xs text-slate-500">{column.cards?.length || 0} cards</p>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-col gap-4">
-                  {(column.cards || []).map((task) => {
-                    const isDragging = draggingCard?.card?.id === task.id;
-                    const isUpdating = updatingTaskId === task.id;
-                    const cardTone = (() => {
-                      const label = columnKey?.toString()?.toLowerCase() || '';
-                      if (label.includes('todo') || label.includes('backlog')) {
-                        return 'bg-white/90 dark:bg-[#1e2b44]';
-                      }
-                      if (label.includes('progress')) {
-                        return 'bg-white dark:bg-[#143222]';
-                      }
-                      if (label.includes('review')) {
-                        return 'bg-white/95 dark:bg-[#371f11]';
-                      }
-                      if (label.includes('complete') || label.includes('done')) {
-                        return 'bg-white/90 dark:bg-[#14203c]';
-                      }
-                      return 'bg-white/90 dark:bg-slate-900/70';
-                    })();
-                    const isDeleting = deletingTaskId === task.id;
-                    return (
-                      <article
-                        key={task.id}
-                        draggable={!isDeleting}
-                        onDragStart={(event) => handleDragStart(event, columnKey, task)}
-                        onDragEnd={handleDragEnd}
-                        className={`rounded-2xl border border-white/70 ${cardTone} p-4 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/70 dark:ring-white/5 ${
-                          isDragging ? 'opacity-60' : ''
-                        } ${isUpdating || isDeleting ? 'pointer-events-none opacity-60' : ''} relative group`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{task.title}</h3>
-                            <p className="text-xs text-slate-500">{task.project || task.status}</p>
-                          </div>
-                          {isTodoColumn && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTask(task.id)}
-                              disabled={isDeleting || isUpdating}
-                              className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
-                              title="Delete task"
+                <div className="mt-4 flex flex-col gap-3">
+                  {groupTasksByDay(column.cards || []).map(([groupKey, group]) => (
+                    <div key={groupKey} className={`rounded-xl border p-3 ${group.color}`}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300">{group.label}</h4>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>arrow_downward</span>
+                            newest first
+                          </span>
+                        </div>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{group.tasks.length} task{group.tasks.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="space-y-3">
+                        {group.tasks.map((task) => {
+                          const isDragging = draggingCard?.card?.id === task.id;
+                          const isUpdating = updatingTaskId === task.id;
+                          const cardTone = (() => {
+                            const label = columnKey?.toString()?.toLowerCase() || '';
+                            if (label.includes('todo') || label.includes('backlog')) {
+                              return 'bg-white/90 dark:bg-[#1e2b44]';
+                            }
+                            if (label.includes('progress')) {
+                              return 'bg-white dark:bg-[#143222]';
+                            }
+                            if (label.includes('review')) {
+                              return 'bg-white/95 dark:bg-[#371f11]';
+                            }
+                            if (label.includes('complete') || label.includes('done')) {
+                              return 'bg-white/90 dark:bg-[#14203c]';
+                            }
+                            return 'bg-white/90 dark:bg-slate-900/70';
+                          })();
+                          const isDeleting = deletingTaskId === task.id;
+                          const isOverdue = task.groupType === 'overdue' || group.isOverdue;
+                          const isCompleted = task.groupType === 'completed' || group.isCompleted;
+                          return (
+                            <article
+                              key={task.id}
+                              draggable={!isDeleting}
+                              onDragStart={(event) => handleDragStart(event, columnKey, task)}
+                              onDragEnd={handleDragEnd}
+                              className={`rounded-xl border border-white/70 ${cardTone} p-3 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/70 dark:ring-white/5 ${
+                                isDragging ? 'opacity-60' : ''
+                              } ${isUpdating || isDeleting ? 'pointer-events-none opacity-60' : ''} relative group ${
+                                isOverdue ? 'ring-1 ring-red-300 dark:ring-red-800/50' : ''
+                              } ${
+                                isCompleted ? 'ring-1 ring-green-300 dark:ring-green-800/50' : ''
+                              }`}
                             >
-                              <span className="material-symbols-outlined text-red-500 dark:text-red-400" style={{ fontSize: '14px' }}>
-                                {isDeleting ? 'schedule' : 'delete'}
-                              </span>
-                            </button>
-                          )}
-                        </div>
-                        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500">
-                          <div className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-base text-slate-400">schedule</span>
-                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB', { 
-                              day: '2-digit', 
-                              month: '2-digit', 
-                              year: '2-digit' 
-                            }) : 'No due date'}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-base text-slate-400">chat</span>
-                            {task.comments || 0}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-base text-slate-400">attach_file</span>
-                            {task.attachments || 0}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                  {(column.cards || []).length === 0 && (
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className={`text-sm font-semibold ${
+                                      isCompleted ? 'text-green-700 dark:text-green-300' :
+                                      isOverdue ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-white'
+                                    }`}>{task.title}</h3>
+                                    {isCompleted && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>check_circle</span>
+                                        Completed
+                                      </span>
+                                    )}
+                                    {isOverdue && !isCompleted && (
+                                      <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                                        Overdue
+                                      </span>
+                                    )}
+                                    {group.label === 'Today' && !isCompleted && (
+                                      <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                        Due Today
+                                      </span>
+                                    )}
+                                    {group.label === 'Yesterday' && !isCompleted && (
+                                      <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                        Yesterday
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-500">{task.project || task.status}</p>
+                                </div>
+                                {isTodoColumn && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteTask(task.id)}
+                                    disabled={isDeleting || isUpdating}
+                                    className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
+                                    title="Delete task"
+                                  >
+                                    <span className="material-symbols-outlined text-red-500 dark:text-red-400" style={{ fontSize: '14px' }}>
+                                      {isDeleting ? 'schedule' : 'delete'}
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500">
+                                <div className="flex items-center gap-1">
+                                  <span className={`material-symbols-outlined text-base ${
+                                    isCompleted ? 'text-green-500' :
+                                    isOverdue ? 'text-red-500' : 'text-slate-400'
+                                  }`}>{isCompleted ? 'check_circle' : 'schedule'}</span>
+                                  <span className={
+                                    isCompleted ? 'text-green-600 dark:text-green-400' :
+                                    isOverdue ? 'text-red-600 dark:text-red-400' : ''
+                                  }>
+                                    {isCompleted && task.completedDate 
+                                      ? `Completed ${new Date(task.completedDate).toLocaleDateString('en-GB', { 
+                                          day: '2-digit', 
+                                          month: '2-digit', 
+                                          year: '2-digit' 
+                                        })}`
+                                      : task.dueDate 
+                                        ? new Date(task.dueDate).toLocaleDateString('en-GB', { 
+                                            day: '2-digit', 
+                                            month: '2-digit', 
+                                            year: '2-digit' 
+                                          })
+                                        : 'No due date'
+                                    }
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-base text-slate-400">chat</span>
+                                  {task.comments || 0}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-base text-slate-400">attach_file</span>
+                                  {task.attachments || 0}
+                                </div>
+                                <div className="flex items-center gap-1 ml-auto">
+                                  <span className="material-symbols-outlined text-base text-slate-400">update</span>
+                                  <span className="text-slate-500 dark:text-slate-400">
+                                    {getRelativeTime(task.completedDate || task.updatedAt || task.createdAt)}
+                                  </span>
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {groupTasksByDay(column.cards || []).length === 0 && (
                     <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
                       {isTodoColumn ? 'No tasks yet — start one.' : 'Nothing here yet.'}
                     </div>

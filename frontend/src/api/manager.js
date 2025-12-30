@@ -40,6 +40,10 @@ export const managerApi = {
     apiClient.put(`/api/dept/manager/leave/${leaveId}/approve`, {}, token),
   rejectLeave: (token, leaveId, rejectionReason) =>
     apiClient.put(`/api/dept/manager/leave/${leaveId}/reject`, { rejectionReason }, token),
+  getWorkReports: (token, params = {}) => {
+    const query = buildQueryString(params);
+    return apiClient.get(`/api/dept/manager/work-reports${query ? `?${query}` : ''}`, token);
+  },
   getTasks: (token, params = {}) => {
     const query = buildQueryString(params);
     return apiClient.get(`/api/dept/manager/tasks${query ? `?${query}` : ''}`, token);

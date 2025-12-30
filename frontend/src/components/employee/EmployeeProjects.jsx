@@ -495,8 +495,8 @@ const EmployeeProjects = () => {
       try {
         await employeeApi.updateTaskStatus(token, card.id, { status: nextStatus });
         
-        // Handle task status changes
-        if (nextStatus && (nextStatus.toLowerCase().includes('review') || nextStatus.toLowerCase().includes('complete') || nextStatus.toLowerCase().includes('done'))) {
+        // Handle completed tasks only (sends to manager + HR via work reports)
+        if (nextStatus && (nextStatus.toLowerCase().includes('complete') || nextStatus.toLowerCase().includes('done'))) {
           try {
             const departmentTarget = buildDepartmentTarget(user?.department);
             const taskData = {
@@ -508,15 +508,15 @@ const EmployeeProjects = () => {
               department: user?.department,
             };
             await employeeApi.notifyManagerTaskReview(token, card.id, taskData);
-            console.log('Notification sent to manager for task:', card.title);
+            console.log('Notification sent to manager for completed task:', card.title);
             
             // For demo purposes: Also trigger a local notification event
             // This simulates the real-time notification that would come from the backend
             const notificationData = {
               id: `notification-${Date.now()}`,
-              title: 'Task moved to review',
-              message: `${user?.firstName || 'Employee'} moved "${card.title}" to review status`,
-              type: 'task_review',
+              title: 'Task completed',
+              message: `${user?.firstName || 'Employee'} completed "${card.title}"`,
+              type: 'task_completed',
               metadata: {
                 taskId: card.id,
                 taskTitle: card.title,
@@ -540,45 +540,43 @@ const EmployeeProjects = () => {
             window.dispatchEvent(new CustomEvent('managerNotification', { detail: notificationData }));
             
             // Store completed work for manager work board
-            if (nextStatus.toLowerCase().includes('complete') || nextStatus.toLowerCase().includes('done')) {
-              const completedWork = {
-                id: `completed-${Date.now()}`,
-                taskId: card.id,
-                title: card.title,
-                description: `Completed task: ${card.title}`,
-                employee: {
-                  id: user?.id || user?._id,
-                  name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.name || 'Employee',
-                  avatar: `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}` || 'E',
-                  email: user?.email
-                },
-                project: card.project || 'General Project',
-                workType: 'Task Completion',
-                status: 'pending_review',
-                priority: card.priority || 'medium',
-                completedAt: new Date().toISOString(),
-                timeSpent: Math.floor(Math.random() * 20) + 5,
-                tags: ['completed', card.project || 'general'].filter(Boolean),
-                attachments: 0,
-                comments: 0,
-                dueDate: card.dueDate,
-                originalStatus: card.status,
-                department: user?.department || 'General',
-                target: departmentTarget
-              };
+            const completedWork = {
+              id: `completed-${Date.now()}`,
+              taskId: card.id,
+              title: card.title,
+              description: `Completed task: ${card.title}`,
+              employee: {
+                id: user?.id || user?._id,
+                name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.name || 'Employee',
+                avatar: `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}` || 'E',
+                email: user?.email
+              },
+              project: card.project || 'General Project',
+              workType: 'Task Completion',
+              status: 'pending_review',
+              priority: card.priority || 'medium',
+              completedAt: new Date().toISOString(),
+              timeSpent: Math.floor(Math.random() * 20) + 5,
+              tags: ['completed', card.project || 'general'].filter(Boolean),
+              attachments: 0,
+              comments: 0,
+              dueDate: card.dueDate,
+              originalStatus: card.status,
+              department: user?.department || 'General',
+              target: departmentTarget
+            };
               
-              // Store in localStorage for manager to see
-              const existingWork = JSON.parse(localStorage.getItem('completedEmployeeWork') || '[]');
-              existingWork.push(completedWork);
-              // Keep only last 50 items
-              if (existingWork.length > 50) {
-                existingWork.splice(0, existingWork.length - 50);
-              }
-              localStorage.setItem('completedEmployeeWork', JSON.stringify(existingWork));
-              
-              // Notify manager of completed work
-              window.dispatchEvent(new CustomEvent('employeeWorkCompleted', { detail: completedWork }));
+            // Store in localStorage for manager to see
+            const existingWork = JSON.parse(localStorage.getItem('completedEmployeeWork') || '[]');
+            existingWork.push(completedWork);
+            // Keep only last 50 items
+            if (existingWork.length > 50) {
+              existingWork.splice(0, existingWork.length - 50);
             }
+            localStorage.setItem('completedEmployeeWork', JSON.stringify(existingWork));
+            
+            // Notify manager of completed work
+            window.dispatchEvent(new CustomEvent('employeeWorkCompleted', { detail: completedWork }));
             
           } catch (notificationErr) {
             console.warn('Failed to send notification to manager (backend not implemented):', notificationErr);

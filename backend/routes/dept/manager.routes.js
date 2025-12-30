@@ -31,6 +31,9 @@ router.get('/leave', managerController.getLeaveRequests);
 router.put('/leave/:id/approve', managerController.approveLeave);
 router.put('/leave/:id/reject', managerController.rejectLeave);
 
+// Work Reports
+router.get('/work-reports', managerController.getWorkReports);
+
 // Notification routes
 router.get('/notifications', managerController.getNotifications);
 router.put('/notifications/:id/read', managerController.markNotificationRead);

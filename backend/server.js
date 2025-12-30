@@ -512,6 +512,14 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("hr:subscribe", () => {
+    socket.join("hr");
+  });
+
+  socket.on("hr:unsubscribe", () => {
+    socket.leave("hr");
+  });
+
   socket.on("disconnect", () => {
     managerIntervals.forEach((intervalId) => clearInterval(intervalId));
     managerIntervals.clear();

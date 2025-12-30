@@ -153,6 +153,20 @@ exports.updateTaskStatus = async (req, res) => {
   try {
     const { status, progress } = req.body;
 
+    const existingTask = await Task.findOne({
+      _id: req.params.id,
+      assignedTo: req.user._id
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    const wasCompleted = existingTask.status === 'completed';
+
     const updateData = { status };
     if (progress !== undefined) updateData.progress = progress;
     if (status === 'completed') updateData.completedDate = Date.now();
@@ -173,6 +187,51 @@ exports.updateTaskStatus = async (req, res) => {
         success: false,
         error: 'Task not found'
       });
+    }
+
+    const statusChanged = status && existingTask.status !== status;
+    if (statusChanged) {
+      const hoursSpent = task.actualHours ?? task.estimatedHours ?? 0;
+      const taskProgressStatus = status === 'completed' ? 'completed' : status === 'in-progress' ? 'in-progress' : 'pending';
+      await WorkReport.create({
+        employee: req.user._id,
+        reportType: task.project ? 'project' : 'daily',
+        taskId: task._id,
+        title: `Task ${status}: ${task.title}`,
+        description: task.description || `Task moved to ${status}: ${task.title}`,
+        taskStatus: status,
+        tasksCompleted: [
+          {
+            task: task.title,
+            hoursSpent,
+            status: taskProgressStatus
+          }
+        ],
+        project: task.project?._id || task.project,
+        status: 'submitted'
+      });
+
+      const io = req.app.get('io');
+      if (io) {
+        const managerId = (task.assignedBy && (task.assignedBy._id || task.assignedBy)) || null;
+        const payload = {
+          taskId: task._id,
+          title: task.title,
+          status,
+          project: task.project?.name || task.project || null,
+          employee: {
+            id: req.user._id,
+            name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+            email: req.user.email,
+            department: req.user.department || null
+          },
+          updatedAt: new Date().toISOString()
+        };
+        if (managerId) {
+          io.to(`manager:${managerId.toString()}`).emit('manager:work-update', payload);
+        }
+        io.to('hr').emit('hr:work-update', payload);
+      }
     }
 
     res.status(200).json({

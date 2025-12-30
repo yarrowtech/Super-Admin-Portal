@@ -5,6 +5,7 @@ const { buildManagerSnapshot } = require('../../modules/manager/services/metrics
 const User = require('../../models/User');
 const Task = require('../../models/Task');
 const Leave = require('../../models/Leave');
+const WorkReport = require('../../models/WorkReport');
 
 const sanitizeQueryValue = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -726,6 +727,110 @@ exports.rejectLeave = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to reject leave request',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * WORK REPORTS
+ */
+exports.getWorkReports = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, employee, reportType, status, uniqueTask } = req.query;
+    const query = {};
+
+    if (reportType) query.reportType = reportType;
+    if (status) query.status = status;
+
+    if (req.user?.department) {
+      const teamUsers = await User.find({ department: req.user.department }).select('_id');
+      const ids = teamUsers.map((user) => user._id);
+      if (employee && !ids.find((id) => id.toString() === employee)) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            reports: [],
+            totalPages: 1,
+            currentPage: parseInt(page),
+            total: 0
+          }
+        });
+      }
+      query.employee = employee ? employee : { $in: ids };
+    } else if (employee) {
+      query.employee = employee;
+    }
+
+    if (uniqueTask === 'true') {
+      const skip = (page - 1) * limit;
+      const basePipeline = [
+        { $match: query },
+        { $sort: { reportDate: -1, createdAt: -1 } },
+        {
+          $group: {
+            _id: { $ifNull: ['$taskId', '$_id'] },
+            doc: { $first: '$$ROOT' }
+          }
+        },
+        { $replaceRoot: { newRoot: '$doc' } }
+      ];
+
+      const reports = await WorkReport.aggregate([
+        ...basePipeline,
+        { $sort: { reportDate: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: Number(limit) }
+      ]);
+
+      await WorkReport.populate(reports, [
+        { path: 'employee', select: 'firstName lastName email department' },
+        { path: 'reviewedBy', select: 'firstName lastName' },
+        { path: 'project', select: 'name projectCode' }
+      ]);
+
+      const countResult = await WorkReport.aggregate([
+        ...basePipeline,
+        { $count: 'total' }
+      ]);
+      const count = countResult?.[0]?.total || 0;
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          reports,
+          totalPages: Math.ceil(count / limit),
+          currentPage: parseInt(page),
+          total: count
+        }
+      });
+    }
+
+    const reports = await WorkReport.find(query)
+      .populate('employee', 'firstName lastName email department')
+      .populate('reviewedBy', 'firstName lastName')
+      .populate('project', 'name projectCode')
+      .sort({ reportDate: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await WorkReport.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        reports,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    console.error('Get manager work reports error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch work reports',
       details: error.message
     });
   }

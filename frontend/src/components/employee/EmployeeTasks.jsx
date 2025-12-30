@@ -7,23 +7,69 @@ const EmployeeTasks = () => {
   const [buckets, setBuckets] = useState({ today: [], upcoming: [], blocked: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionTaskId, setActionTaskId] = useState(null);
 
-  useEffect(() => {
+  const buildBucketsFromTasks = (tasks = []) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const nextBuckets = { today: [], upcoming: [], blocked: [] };
+
+    tasks.forEach((task) => {
+      const status = task.status?.toLowerCase?.() || '';
+      if (status === 'cancelled' || status === 'blocked') {
+        nextBuckets.blocked.push(task);
+        return;
+      }
+      if (task.dueDate) {
+        const due = new Date(task.dueDate);
+        due.setHours(0, 0, 0, 0);
+        if (due.getTime() <= today.getTime()) {
+          nextBuckets.today.push(task);
+          return;
+        }
+      }
+      nextBuckets.upcoming.push(task);
+    });
+
+    return nextBuckets;
+  };
+
+  const fetchTasks = async () => {
     if (!token) return;
     setLoading(true);
     setError('');
-
-    (async () => {
-      try {
-        const res = await employeeApi.getTasks(token);
-        setBuckets(res?.data || res || { today: [], upcoming: [], blocked: [] });
-      } catch (err) {
-        setError(err.message || 'Failed to load tasks');
-      } finally {
-        setLoading(false);
+    try {
+      const res = await employeeApi.getTasks(token);
+      const payload = res?.data || res || {};
+      if (payload.tasks) {
+        setBuckets(buildBucketsFromTasks(payload.tasks));
+      } else {
+        setBuckets(payload || { today: [], upcoming: [], blocked: [] });
       }
-    })();
+    } catch (err) {
+      setError(err.message || 'Failed to load tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
   }, [token]);
+
+  const handleCompleteTask = async (taskId) => {
+    if (!token || !taskId) return;
+    setActionTaskId(taskId);
+    try {
+      await employeeApi.updateTaskStatus(token, taskId, { status: 'completed' });
+      await fetchTasks();
+    } catch (err) {
+      setError(err.message || 'Failed to update task');
+    } finally {
+      setActionTaskId(null);
+    }
+  };
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center text-neutral-600 dark:text-neutral-200">Loading tasks...</div>;
@@ -80,6 +126,19 @@ const EmployeeTasks = () => {
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200">
                       {task.priority || 'Normal'}
                     </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 capitalize">
+                      {task.status || 'pending'}
+                    </span>
+                    <button
+                      onClick={() => handleCompleteTask(task.id || task._id)}
+                      disabled={actionTaskId === (task.id || task._id)}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-600 transition hover:border-emerald-400 hover:text-emerald-700 disabled:opacity-50 dark:border-emerald-900/40 dark:text-emerald-300"
+                    >
+                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                      {actionTaskId === (task.id || task._id) ? 'Updating...' : 'Mark completed'}
+                    </button>
                   </div>
                 </div>
               ))}

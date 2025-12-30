@@ -1,24 +1,57 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/client';
 import { hrApi } from '../../api/hr';
 import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
 
+const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 const HRDashboard = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState(null);
   const [pendingLeaves, setPendingLeaves] = useState([]);
+  const [leaveListMode, setLeaveListMode] = useState('pending');
+  const [workUpdates, setWorkUpdates] = useState([]);
+  const [workUpdatesLoading, setWorkUpdatesLoading] = useState(false);
+  const [workUpdatesError, setWorkUpdatesError] = useState('');
+  const [workUpdatesTotal, setWorkUpdatesTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchPendingLeaves = async () => {
-    const response = await apiClient.get('/api/dept/hr/leave?status=pending&limit=3&page=1', token);
-    setPendingLeaves(response?.data?.leaves || []);
+    const pendingResponse = await hrApi.getLeaveRequests(token, { status: 'pending', limit: 3, page: 1 });
+    const pendingList = pendingResponse?.data?.leaves || [];
+    if (pendingList.length > 0) {
+      setPendingLeaves(pendingList);
+      setLeaveListMode('pending');
+      return;
+    }
+
+    const recentResponse = await hrApi.getLeaveRequests(token, { limit: 3, page: 1 });
+    setPendingLeaves(recentResponse?.data?.leaves || []);
+    setLeaveListMode('recent');
+  };
+
+  const fetchWorkUpdates = async () => {
+    if (!token) return;
+    setWorkUpdatesLoading(true);
+    setWorkUpdatesError('');
+    try {
+      const response = await hrApi.getWorkReports(token, { page: 1, limit: 3, uniqueTask: true });
+      const payload = response?.data || {};
+      setWorkUpdates(payload.reports || []);
+      setWorkUpdatesTotal(payload.total || 0);
+    } catch (err) {
+      setWorkUpdatesError(err.message || 'Failed to load work updates');
+    } finally {
+      setWorkUpdatesLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -28,6 +61,7 @@ const HRDashboard = () => {
         const response = await hrApi.getDashboard(token);
         setDashboardData(response.data);
         await fetchPendingLeaves();
+        await fetchWorkUpdates();
       } catch (err) {
         setError(err.message || 'Failed to load dashboard data');
       } finally {
@@ -38,6 +72,24 @@ const HRDashboard = () => {
     if (token) {
       fetchDashboard();
     }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+    });
+    socket.emit('hr:subscribe');
+
+    socket.on('hr:work-update', () => {
+      fetchWorkUpdates();
+    });
+
+    return () => {
+      socket.emit('hr:unsubscribe');
+      socket.disconnect();
+    };
   }, [token]);
 
   const handleApprove = async (leaveId) => {
@@ -68,6 +120,28 @@ const HRDashboard = () => {
   const activeEmployees = dashboardData?.activeEmployees || 0;
   const pendingApplicants = dashboardData?.pendingApplicants || 0;
   const openComplaints = dashboardData?.openComplaints || 0;
+  const leaveStatusStyles = {
+    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+    approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+    rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+    cancelled: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+  };
+  const workUpdateStatusStyles = {
+    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+    'in-progress': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+    review: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200',
+    completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+    cancelled: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
+    submitted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+    reviewed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+    approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+    rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+  };
+
+  const workUpdatesLabel = useMemo(() => {
+    if (workUpdatesTotal) return `${workUpdatesTotal} updates`;
+    return 'No updates yet';
+  }, [workUpdatesTotal]);
 
   if (loading) {
     return (
@@ -191,6 +265,23 @@ const HRDashboard = () => {
             </div>
           </div>
 
+          <div className="group relative overflow-hidden rounded-2xl border border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 dark:border-emerald-900/30 dark:from-emerald-950/40 dark:to-emerald-900/20 dark:hover:shadow-emerald-900/20">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-400/10 blur-2xl"></div>
+            <div className="relative">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20">
+                  <span className="material-symbols-outlined text-2xl text-emerald-600 dark:text-emerald-400">task_alt</span>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70">Work</span>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-3xl font-bold text-emerald-900 dark:text-emerald-100">{workUpdatesTotal}</h3>
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Work Updates</p>
+                <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">{workUpdatesLabel}</p>
+              </div>
+            </div>
+          </div>
+
           <div className="group relative overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50 to-purple-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-purple-100/50 dark:border-purple-900/30 dark:from-purple-950/40 dark:to-purple-900/20 dark:hover:shadow-purple-900/20">
             <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-purple-400/10 blur-2xl"></div>
             <div className="relative">
@@ -237,9 +328,12 @@ const HRDashboard = () => {
                       <span className="material-symbols-outlined text-xl text-orange-600 dark:text-orange-400">pending_actions</span>
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Pending Leave Approvals</h2>
+                      <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+                        {leaveListMode === 'pending' ? 'Pending Leave Approvals' : 'Recent Leave Requests'}
+                      </h2>
                       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        {pendingLeaves.length} request{pendingLeaves.length !== 1 ? 's' : ''} awaiting your review
+                        {pendingLeaves.length} request{pendingLeaves.length !== 1 ? 's' : ''}{' '}
+                        {leaveListMode === 'pending' ? 'awaiting your review' : 'submitted recently'}
                       </p>
                     </div>
                   </div>
@@ -267,6 +361,9 @@ const HRDashboard = () => {
                                 </h3>
                                 <span className="rounded-full bg-purple-100 px-3 py-0.5 text-xs font-bold capitalize text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                                   {leave.leaveType}
+                                </span>
+                                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${leaveStatusStyles[leave.status] || leaveStatusStyles.pending}`}>
+                                  {leave.status}
                                 </span>
                               </div>
                               <p className="text-sm text-neutral-600 dark:text-neutral-400">{leave.employee?.email}</p>
@@ -361,6 +458,57 @@ const HRDashboard = () => {
 
           {/* Sidebar */}
           <div className="flex flex-col gap-6 lg:col-span-1">
+            {/* Work Updates */}
+            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
+              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 p-4 dark:border-neutral-800/50 dark:from-emerald-950/20 dark:to-teal-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20">
+                    <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">task_alt</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Work Updates</h3>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400">Real-time task flow</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4">
+                {workUpdatesError && (
+                  <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+                    {workUpdatesError}
+                  </div>
+                )}
+                {workUpdatesLoading ? (
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading work updates...</p>
+                ) : workUpdates.length ? (
+                  <div className="space-y-3">
+                    {workUpdates.map((report) => {
+                      const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
+                      const reportStatus = report.taskStatus || report.status;
+                      return (
+                        <div key={report._id} className="rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-3 dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{employeeName}</p>
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400">{report.title || 'Task update'}</p>
+                              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                                {report.project?.name || report.project?.projectCode || 'General'} •{' '}
+                                {report.reportDate ? new Date(report.reportDate).toLocaleDateString() : 'Today'}
+                              </p>
+                            </div>
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${workUpdateStatusStyles[reportStatus] || workUpdateStatusStyles.submitted}`}>
+                              {reportStatus || 'submitted'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">No work updates available.</p>
+                )}
+              </div>
+            </section>
+
             {/* Quick Stats */}
             <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
               <div className="border-b border-neutral-200/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 p-4 dark:border-neutral-800/50 dark:from-purple-950/20 dark:to-pink-950/20">

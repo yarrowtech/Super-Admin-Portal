@@ -25,6 +25,14 @@ const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [realtimeStatus, setRealtimeStatus] = useState('connecting');
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveListMode, setLeaveListMode] = useState('pending');
+  const [leaveLoading, setLeaveLoading] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
+  const [workUpdates, setWorkUpdates] = useState([]);
+  const [workUpdatesLoading, setWorkUpdatesLoading] = useState(false);
+  const [workUpdatesError, setWorkUpdatesError] = useState('');
+  const [workUpdatesTotal, setWorkUpdatesTotal] = useState(0);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [selectedTaskData, setSelectedTaskData] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -92,6 +100,59 @@ const ManagerDashboard = () => {
     return () => {
       cancelled = true;
     };
+  }, [token]);
+
+  const fetchLeaveRequests = async () => {
+    if (!token) return;
+    setLeaveLoading(true);
+    setLeaveError('');
+    try {
+      const pendingResponse = await managerApi.getLeaveRequests(token, {
+        status: 'pending',
+        managerStatus: 'pending',
+        limit: 3,
+        page: 1,
+      });
+      const pendingList = pendingResponse?.data?.leaves || [];
+      if (pendingList.length > 0) {
+        setLeaveRequests(pendingList);
+        setLeaveListMode('pending');
+        return;
+      }
+      const recentResponse = await managerApi.getLeaveRequests(token, { limit: 3, page: 1 });
+      setLeaveRequests(recentResponse?.data?.leaves || []);
+      setLeaveListMode('recent');
+    } catch (err) {
+      setLeaveError(err.message || 'Failed to load leave requests');
+    } finally {
+      setLeaveLoading(false);
+    }
+  };
+
+  const fetchWorkUpdates = async () => {
+    if (!token) return;
+    setWorkUpdatesLoading(true);
+    setWorkUpdatesError('');
+    try {
+      const response = await managerApi.getWorkReports(token, { page: 1, limit: 3, uniqueTask: true });
+      const payload = response?.data || {};
+      setWorkUpdates(payload.reports || []);
+      setWorkUpdatesTotal(payload.total || 0);
+    } catch (err) {
+      setWorkUpdatesError(err.message || 'Failed to load work updates');
+    } finally {
+      setWorkUpdatesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    fetchLeaveRequests();
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchWorkUpdates();
   }, [token]);
 
   // Listen for real-time notifications from employee actions
@@ -169,6 +230,10 @@ const ManagerDashboard = () => {
       }
     });
 
+    socket.on('manager:work-update', () => {
+      fetchWorkUpdates();
+    });
+
     socket.emit('manager:subscribe', payload);
 
     return () => {
@@ -185,6 +250,23 @@ const ManagerDashboard = () => {
   const upcomingTasks = taskSummary?.upcoming || [];
   const recentProjects = projectSummary?.recent || [];
   const teamMembers = teamSummary?.members || [];
+  const leaveStatusStyles = {
+    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+    approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+    rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+    cancelled: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+  };
+  const workUpdateStatusStyles = {
+    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+    'in-progress': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+    review: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200',
+    completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+    cancelled: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
+    submitted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+    reviewed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+    approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+    rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+  };
 
   const handleTaskClick = (taskId, taskData = null) => {
     setSelectedTaskId(taskId);
@@ -196,6 +278,25 @@ const ManagerDashboard = () => {
     setIsTaskModalOpen(false);
     setSelectedTaskId(null);
     setSelectedTaskData(null);
+  };
+
+  const handleApproveLeave = async (leaveId) => {
+    try {
+      await managerApi.approveLeave(token, leaveId);
+      await fetchLeaveRequests();
+    } catch (err) {
+      setLeaveError(err.message || 'Failed to approve leave request');
+    }
+  };
+
+  const handleRejectLeave = async (leaveId) => {
+    const rejectionReason = window.prompt('Rejection reason (optional)') || undefined;
+    try {
+      await managerApi.rejectLeave(token, leaveId, rejectionReason);
+      await fetchLeaveRequests();
+    } catch (err) {
+      setLeaveError(err.message || 'Failed to reject leave request');
+    }
   };
 
   const realtimeLabel = useMemo(() => {
@@ -310,6 +411,12 @@ const ManagerDashboard = () => {
             trend={`${taskSummary.overdue || 0} overdue`}
             trendColor={taskSummary.overdue ? 'text-red-500' : 'text-green-500'}
             icon="checklist"
+          />
+          <StatCard
+            label="Work Updates"
+            value={numberFormatter.format(workUpdatesTotal || 0)}
+            trend="Latest task activity"
+            icon="task_alt"
           />
         </div>
 
@@ -432,6 +539,112 @@ const ManagerDashboard = () => {
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                    {leaveListMode === 'pending' ? 'Pending Leave Approvals' : 'Recent Leave Requests'}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {leaveListMode === 'pending' ? 'Awaiting your approval' : 'Latest submissions'}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{leaveRequests.length} items</span>
+              </div>
+              {leaveError && (
+                <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+                  {leaveError}
+                </div>
+              )}
+              {leaveLoading ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Loading leave requests...</p>
+              ) : leaveRequests.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No leave requests found.</p>
+              ) : (
+                <div className="space-y-3">
+                  {leaveRequests.map((leave) => (
+                    <div key={leave._id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                            {leave.employee?.firstName} {leave.employee?.lastName}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{leave.employee?.email || 'Employee'}</p>
+                          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            {leave.leaveType} • {leave.startDate ? new Date(leave.startDate).toLocaleDateString() : ''}
+                            {leave.endDate ? ` - ${new Date(leave.endDate).toLocaleDateString()}` : ''}
+                          </p>
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${leaveStatusStyles[leave.status] || leaveStatusStyles.pending}`}>
+                          {leave.status}
+                        </span>
+                      </div>
+                      {leave.status === 'pending' && leaveListMode === 'pending' && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            onClick={() => handleApproveLeave(leave._id)}
+                            className="rounded-md border border-emerald-500 px-2 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleRejectLeave(leave._id)}
+                            className="rounded-md border border-rose-500 px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Work Updates</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Latest task status changes</p>
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{workUpdates.length} items</span>
+              </div>
+              {workUpdatesError && (
+                <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+                  {workUpdatesError}
+                </div>
+              )}
+              {workUpdatesLoading ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Loading work updates...</p>
+              ) : workUpdates.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No updates available.</p>
+              ) : (
+                <div className="space-y-3">
+                  {workUpdates.map((report) => {
+                    const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
+                    const reportStatus = report.taskStatus || report.status;
+                    return (
+                      <div key={report._id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white">{employeeName}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{report.title || 'Task update'}</p>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {report.project?.name || report.project?.projectCode || 'General'} •{' '}
+                              {report.reportDate ? dateFormatter.format(new Date(report.reportDate)) : 'Today'}
+                            </p>
+                          </div>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${workUpdateStatusStyles[reportStatus] || workUpdateStatusStyles.submitted}`}>
+                            {reportStatus || 'submitted'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

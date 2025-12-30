@@ -18,6 +18,10 @@ const workReportSchema = new mongoose.Schema(
       enum: ['daily', 'weekly', 'monthly', 'project'],
       default: 'daily'
     },
+    taskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Task'
+    },
     title: {
       type: String,
       required: [true, 'Title is required'],
@@ -58,6 +62,10 @@ const workReportSchema = new mongoose.Schema(
       type: String,
       enum: ['submitted', 'reviewed', 'approved', 'rejected'],
       default: 'submitted'
+    },
+    taskStatus: {
+      type: String,
+      enum: ['pending', 'in-progress', 'review', 'completed', 'cancelled']
     },
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,

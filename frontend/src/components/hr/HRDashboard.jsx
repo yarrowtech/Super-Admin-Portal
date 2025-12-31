@@ -28,6 +28,7 @@ const HRDashboard = () => {
   const [error, setError] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const fetchPendingLeaves = async () => {
     const pendingResponse = await hrApi.getLeaveRequests(token, { status: 'pending', limit: 3, page: 1 });
@@ -96,6 +97,16 @@ const HRDashboard = () => {
       socket.disconnect();
     };
   }, [token]);
+
+  useEffect(() => {
+    const updateTime = () => setCurrentTime(new Date());
+    updateTime(); // Set initial time immediately
+    const interval = setInterval(updateTime, 1000);
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleApprove = async (leaveId) => {
     try {
@@ -192,12 +203,23 @@ const HRDashboard = () => {
   }
 
   const getGreeting = () => {
-    const hour = new Date().getHours();
+    const hour = currentTime ? currentTime.getHours() : new Date().getHours();
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
   };
 
+  const getTimeDisplay = () => {
+    const now = currentTime || new Date();
+    const day = now.toLocaleDateString(undefined, { weekday: 'long' });
+    const date = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    return { day, date, time };
+  };
+
+  const { day: dayName, date: dateLabel, time: timeLabel } = getTimeDisplay();
+  const greetingLabel = getGreeting();
   const userName = user?.firstName || user?.name || 'HR Manager';
 
   return (
@@ -219,8 +241,11 @@ const HRDashboard = () => {
         <div className="mb-8 overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 p-8 shadow-lg dark:border-purple-900/30">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <h1 className="text-3xl font-bold text-white">
-                {getGreeting()}, {userName}! 👋
+              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-purple-100">
+                {greetingLabel} • {dayName} • {dateLabel} • {timeLabel}
+              </p>
+              <h1 className="mt-2 text-3xl font-bold text-white">
+                {greetingLabel}, {userName}! 👋
               </h1>
               <p className="mt-2 text-lg text-purple-100">
                 Here's what's happening with your workforce today

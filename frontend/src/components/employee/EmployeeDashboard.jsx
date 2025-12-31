@@ -40,7 +40,8 @@ const EmployeeDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [projectHighlights, setProjectHighlights] = useState([]);
   const [teamPreview, setTeamPreview] = useState([]);
-  const [taskBuckets, setTaskBuckets] = useState({ today: [], upcoming: [], Done: [] });
+  const [taskBuckets, setTaskBuckets] = useState({ today: [], upcoming: [], overdue: [], completed: [] });
+  const [taskSummary, setTaskSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -103,14 +104,16 @@ const EmployeeDashboard = () => {
           employeeApi.getDashboard(token),
           employeeApi.getProjects(token),
           employeeApi.getTeam(token),
-          employeeApi.getTasks(token),
+          employeeApi.getTasks(token, { view: 'overview', limit: 6 }),
           employeeApi.getLeaves(token, { page: 1, limit: 5 }),
         ]);
 
         setDashboardData(dashboardRes?.data || dashboardRes);
         setProjectHighlights((projectsRes?.data?.projects || []).slice(0, 3));
         setTeamPreview((teamRes?.data?.members || []).slice(0, 3));
-        setTaskBuckets(tasksRes?.data || tasksRes || { today: [], upcoming: [], Done: [] });
+        const taskPayload = tasksRes?.data || tasksRes || {};
+        setTaskBuckets(taskPayload.buckets || { today: [], upcoming: [], overdue: [], completed: [] });
+        setTaskSummary(taskPayload.summary || null);
         setLeaveRequests(leavesRes?.data?.leaves || []);
         setAttendanceStatus(normalizeAttendance(dashboardRes?.data?.attendance || dashboardRes?.attendance));
       } catch (err) {
@@ -458,10 +461,33 @@ const EmployeeDashboard = () => {
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {taskSummary && (
+          <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 lg:col-span-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+              <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-white/10">Total {taskSummary.total ?? 0}</span>
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                Pending {taskSummary.pending ?? 0}
+              </span>
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                In progress {taskSummary.inProgress ?? 0}
+              </span>
+              <span className="rounded-full bg-purple-100 px-3 py-1 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
+                Review {taskSummary.review ?? 0}
+              </span>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
+                Completed {taskSummary.completed ?? 0}
+              </span>
+              <span className="rounded-full bg-rose-100 px-3 py-1 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200">
+                Overdue {taskSummary.overdue ?? 0}
+              </span>
+            </div>
+          </div>
+        )}
         {[
           { key: 'today', label: 'Today', icon: 'sunny' },
           { key: 'upcoming', label: 'Upcoming', icon: 'upcoming' },
-          { key: 'Done', label: 'Done', icon: 'Done' },
+          { key: 'overdue', label: 'Overdue', icon: 'error' },
+          { key: 'completed', label: 'Completed', icon: 'task_alt' },
         ].map((bucket) => (
           <div key={bucket.key} className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
             <div className="flex items-center justify-between">
@@ -477,7 +503,7 @@ const EmployeeDashboard = () => {
               {(taskBuckets[bucket.key] || []).map((task) => (
                 <div key={task.id} className="rounded-2xl border border-slate-100 p-4 shadow-sm transition hover:border-primary/30 dark:border-slate-700">
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">{task.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{task.project || task.status}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{task.project?.name || task.status}</p>
                   <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-base text-slate-400">schedule</span>

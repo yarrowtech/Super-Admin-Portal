@@ -2,55 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { hrApi } from '../../api/hr';
 import { useAuth } from '../../context/AuthContext';
 
-const calendarDays = [
-  { label: '26', muted: true },
-  { label: '27', muted: true },
-  { label: '28', muted: true },
-  { label: '29', muted: true },
-  { label: '30', muted: true },
-  { label: '31', muted: true },
-  { label: '1' },
-  { label: '2' },
-  { label: '3' },
-  { label: '4', pillClass: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200', bold: true },
-  { label: '5' },
-  { label: '6' },
-  { label: '7' },
-  { label: '8' },
-  { label: '9' },
-  { label: '10', pillClass: 'bg-primary text-white', bold: true },
-  { label: '11' },
-  { label: '12', pillClass: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200', bold: true },
-  { label: '13' },
-  { label: '14' },
-  { label: '15' },
-  { label: '16' },
-  { label: '17' },
-  { label: '18' },
-  { label: '19' },
-  { label: '20' },
-  { label: '21' },
-  { label: '22' },
-  { label: '23' },
-  { label: '24' },
-  { label: '25' },
-  { label: '26' },
-  { label: '27', pillClass: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200', bold: true },
-  { label: '28' },
-  { label: '29' },
-  { label: '30' },
-  { label: '1', muted: true },
-  { label: '2', muted: true },
-  { label: '3', muted: true },
-  { label: '4', muted: true },
-  { label: '5', muted: true },
-  { label: '6', muted: true },
-];
+const normalizeDate = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+const formatDateKey = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 const leaveLegend = [
   { label: 'Today', color: 'bg-primary' },
   { label: 'Approved Leave', color: 'bg-green-500' },
-  { label: 'Pending Request', color: 'bg-yellow-500' },
+  { label: 'Pending Request', color: 'bg-yellow-400' },
   { label: 'Public Holiday', color: 'bg-blue-500' },
 ];
 
@@ -104,6 +63,10 @@ const LeaveManagement = () => {
   });
   const [leaveFormError, setLeaveFormError] = useState('');
   const [leaveFormLoading, setLeaveFormLoading] = useState(false);
+  const [calendarDate, setCalendarDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   const fetchLeaveRequests = async () => {
     if (!token) return;
@@ -239,6 +202,88 @@ const LeaveManagement = () => {
     [leaveRequests]
   );
 
+  const monthLabel = useMemo(() => {
+    return calendarDate.toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric',
+    });
+  }, [calendarDate]);
+
+  const leaveHighlights = useMemo(() => {
+    const highlightMap = new Map();
+
+    leaveRequests.forEach((request) => {
+      if (!request.startDate) return;
+
+      const start = new Date(request.startDate);
+      const end = request.endDate ? new Date(request.endDate) : start;
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+
+      const normalizedStart = normalizeDate(start);
+      const normalizedEnd = normalizeDate(end);
+      if (normalizedStart > normalizedEnd) return;
+
+      const status = request.status === 'approved' ? 'approved' : request.status === 'pending' ? 'pending' : null;
+      if (!status) return;
+
+      const priority = status === 'approved' ? 2 : 1;
+      const className =
+        status === 'approved' ? 'bg-green-500 text-white' : 'bg-yellow-400 text-neutral-900 dark:text-neutral-900';
+
+      const cursor = new Date(normalizedStart);
+      while (cursor <= normalizedEnd) {
+        const key = formatDateKey(cursor);
+        const existing = highlightMap.get(key);
+        if (!existing || priority >= existing.priority) {
+          highlightMap.set(key, { className, priority });
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    });
+
+    return highlightMap;
+  }, [leaveRequests]);
+
+  const calendarDays = useMemo(() => {
+    const days = [];
+    const startOfMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+    const startDayOfWeek = startOfMonth.getDay();
+    const daysInMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate();
+    const totalCells = Math.ceil((startDayOfWeek + daysInMonth) / 7) * 7;
+    const today = normalizeDate(new Date());
+
+    for (let index = 0; index < totalCells; index += 1) {
+      const date = new Date(startOfMonth);
+      date.setDate(1 - startDayOfWeek + index);
+      const normalizedDate = normalizeDate(date);
+      const dateKey = formatDateKey(normalizedDate);
+      const highlight = leaveHighlights.get(dateKey);
+      const isCurrentMonth = normalizedDate.getMonth() === startOfMonth.getMonth();
+      const isToday = normalizedDate.getTime() === today.getTime();
+
+      let pillClass = '';
+      if (highlight) {
+        pillClass = highlight.className;
+      } else if (isToday) {
+        pillClass = 'bg-primary text-white';
+      }
+
+      days.push({
+        key: dateKey,
+        label: normalizedDate.getDate(),
+        muted: !isCurrentMonth,
+        bold: !pillClass && isCurrentMonth,
+        pillClass,
+      });
+    }
+
+    return days;
+  }, [calendarDate, leaveHighlights]);
+
+  const handleMonthChange = (direction) => {
+    setCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + direction, 1));
+  };
+
   return (
     <main className="flex-1 overflow-y-auto p-8">
       <div className="mx-auto max-w-7xl">
@@ -297,11 +342,19 @@ const LeaveManagement = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Leave Calendar</h2>
               <div className="flex items-center gap-2">
-                <button className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700">
+                <button
+                  onClick={() => handleMonthChange(-1)}
+                  aria-label="Previous month"
+                  className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
+                >
                   <span className="material-symbols-outlined text-xl">chevron_left</span>
                 </button>
-                <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">June 2024</p>
-                <button className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700">
+                <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{monthLabel}</p>
+                <button
+                  onClick={() => handleMonthChange(1)}
+                  aria-label="Next month"
+                  className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
+                >
                   <span className="material-symbols-outlined text-xl">chevron_right</span>
                 </button>
               </div>
@@ -312,10 +365,10 @@ const LeaveManagement = () => {
                   {day}
                 </div>
               ))}
-              {calendarDays.map((day, index) => (
+              {calendarDays.map((day) => (
                 <div
-                  key={`${day.label}-${index}`}
-                  className={`relative py-2 ${day.muted ? 'text-neutral-400 dark:text-neutral-600' : ''}`}
+                  key={day.key}
+                  className={`relative py-2 ${day.muted ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-800 dark:text-neutral-100'}`}
                 >
                   {day.pillClass ? (
                     <span

@@ -36,6 +36,27 @@ const HolidayCalendar = () => {
     fetchHolidays();
   }, [token]);
 
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (viewMode === 'calendar') {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          navigateMonth('prev');
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          navigateMonth('next');
+        } else if (e.key === 'Home') {
+          e.preventDefault();
+          setCurrentMonth(new Date().getMonth());
+          setCurrentYear(new Date().getFullYear());
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [viewMode]);
+
   const fetchHolidays = async () => {
     try {
       setLoading(true);
@@ -48,7 +69,7 @@ const HolidayCalendar = () => {
     }
   };
 
-  const handleOpenModal = (holiday = null) => {
+  const handleOpenModal = (holiday = null, selectedDate = null) => {
     if (holiday) {
       setEditingHoliday(holiday);
       setFormData({
@@ -61,9 +82,12 @@ const HolidayCalendar = () => {
       });
     } else {
       setEditingHoliday(null);
+      const dateStr = selectedDate 
+        ? selectedDate.toISOString().split('T')[0]
+        : '';
       setFormData({
         name: '',
-        date: '',
+        date: dateStr,
         type: 'public',
         department: '',
         description: '',
@@ -136,6 +160,46 @@ const HolidayCalendar = () => {
       const holidayDate = new Date(holiday.date);
       return holidayDate.getMonth() === currentMonth && holidayDate.getFullYear() === currentYear;
     });
+  };
+
+  const getCalendarDays = () => {
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const startDate = new Date(firstDay);
+    const endDate = new Date(lastDay);
+    
+    // Start from the beginning of the week containing the first day
+    startDate.setDate(startDate.getDate() - startDate.getDay());
+    // End at the end of the week containing the last day
+    endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
+    
+    const days = [];
+    const current = new Date(startDate);
+    
+    while (current <= endDate) {
+      const dayHolidays = holidays.filter(holiday => {
+        const holidayDate = new Date(holiday.date);
+        return (
+          holidayDate.getDate() === current.getDate() &&
+          holidayDate.getMonth() === current.getMonth() &&
+          holidayDate.getFullYear() === current.getFullYear()
+        );
+      });
+      
+      days.push({
+        date: new Date(current),
+        isCurrentMonth: current.getMonth() === currentMonth,
+        isToday: 
+          current.getDate() === new Date().getDate() &&
+          current.getMonth() === new Date().getMonth() &&
+          current.getFullYear() === new Date().getFullYear(),
+        holidays: dayHolidays,
+      });
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return days;
   };
 
   const getUpcomingHolidays = () => {
@@ -307,14 +371,14 @@ const HolidayCalendar = () => {
           ) : (
             /* Calendar View */
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">
+              <div className="mb-6 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">
                   {monthNames[currentMonth]} {currentYear}
                 </h3>
                 <div className="flex gap-2">
                   <button
                     onClick={() => navigateMonth('prev')}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 transition-all hover:border-primary hover:bg-primary hover:text-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:border-primary dark:hover:bg-primary"
                   >
                     <span className="material-symbols-outlined">chevron_left</span>
                   </button>
@@ -323,47 +387,128 @@ const HolidayCalendar = () => {
                       setCurrentMonth(new Date().getMonth());
                       setCurrentYear(new Date().getFullYear());
                     }}
-                    className="rounded-lg px-3 py-1 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                    className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 transition-all hover:border-primary hover:bg-primary hover:text-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:border-primary dark:hover:bg-primary"
                   >
                     Today
                   </button>
                   <button
                     onClick={() => navigateMonth('next')}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 transition-all hover:border-primary hover:bg-primary hover:text-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:border-primary dark:hover:bg-primary"
                   >
                     <span className="material-symbols-outlined">chevron_right</span>
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                {getHolidaysInMonth().length > 0 ? (
-                  getHolidaysInMonth().map((holiday) => {
-                    const holidayDate = new Date(holiday.date);
-                    const color = getHolidayColor(holiday.type);
+              {/* Calendar Grid */}
+              <div className="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
+                {/* Header - Days of Week */}
+                <div className="grid grid-cols-7 bg-neutral-100 dark:bg-neutral-800">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                    <div
+                      key={day}
+                      className="border-r border-neutral-200 p-3 text-center text-sm font-semibold text-neutral-600 last:border-r-0 dark:border-neutral-700 dark:text-neutral-400"
+                    >
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar Days */}
+                <div className="grid grid-cols-7">
+                  {getCalendarDays().map((day, index) => {
+                    const hasHolidays = day.holidays.length > 0;
+                    const primaryHoliday = day.holidays[0];
+                    const holidayColor = primaryHoliday ? getHolidayColor(primaryHoliday.type) : 'gray';
 
                     return (
                       <div
-                        key={holiday._id}
-                        className={`flex items-center gap-3 rounded-lg border border-${color}-200 bg-${color}-50 p-3 dark:border-${color}-800 dark:bg-${color}-900/20`}
+                        key={index}
+                        onClick={() => day.isCurrentMonth && handleOpenModal(null, day.date)}
+                        className={`group relative min-h-24 cursor-pointer border-b border-r border-neutral-200 p-2 last:border-r-0 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/50 ${
+                          !day.isCurrentMonth ? 'bg-neutral-50/50 opacity-50 dark:bg-neutral-800/30' : ''
+                        } ${day.isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${
+                          hasHolidays ? `bg-${holidayColor}-50/50 dark:bg-${holidayColor}-900/20` : ''
+                        } ${day.isCurrentMonth ? 'hover:shadow-sm' : 'cursor-default'}`}
+                        title={day.isCurrentMonth ? 'Click to add holiday' : ''}
                       >
-                        <span className="material-symbols-outlined text-2xl text-${color}-600 dark:text-${color}-400">
-                          celebration
-                        </span>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-neutral-800 dark:text-neutral-100">{holiday.name}</h4>
-                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                            {holidayDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric' })}
-                          </p>
+                        {/* Date Number */}
+                        <div
+                          className={`mb-1 flex h-6 w-6 items-center justify-center text-sm font-semibold ${
+                            day.isToday
+                              ? 'rounded-full bg-blue-600 text-white dark:bg-blue-500'
+                              : day.isCurrentMonth
+                              ? 'text-neutral-800 dark:text-neutral-200'
+                              : 'text-neutral-400 dark:text-neutral-600'
+                          }`}
+                        >
+                          {day.date.getDate()}
                         </div>
+
+                        {/* Holiday Indicators */}
+                        {hasHolidays && (
+                          <div className="space-y-1">
+                            {day.holidays.slice(0, 2).map((holiday, hIndex) => {
+                              const color = getHolidayColor(holiday.type);
+                              return (
+                                <div
+                                  key={hIndex}
+                                  className={`rounded-sm bg-${color}-100 px-1.5 py-0.5 text-xs font-medium text-${color}-700 dark:bg-${color}-900/40 dark:text-${color}-300`}
+                                  title={holiday.name}
+                                >
+                                  <div className="truncate">
+                                    {holiday.name.length > 12 ? holiday.name.slice(0, 12) + '...' : holiday.name}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {day.holidays.length > 2 && (
+                              <div className="text-xs text-neutral-600 dark:text-neutral-400">
+                                +{day.holidays.length - 2} more
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Hover Tooltip */}
+                        {hasHolidays && (
+                          <div className="invisible absolute bottom-full left-1/2 z-10 mb-2 w-48 -translate-x-1/2 rounded-lg bg-neutral-900 p-3 text-white shadow-lg group-hover:visible dark:bg-neutral-100 dark:text-neutral-900">
+                            <div className="space-y-1">
+                              {day.holidays.map((holiday, hIndex) => (
+                                <div key={hIndex} className="text-sm">
+                                  <div className="font-semibold">{holiday.name}</div>
+                                  <div className="text-xs opacity-75 capitalize">{holiday.type} holiday</div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-4 border-transparent border-t-neutral-900 dark:border-t-neutral-100"></div>
+                          </div>
+                        )}
                       </div>
                     );
-                  })
-                ) : (
-                  <p className="py-8 text-center text-sm text-neutral-600 dark:text-neutral-400">
-                    No holidays this month
-                  </p>
-                )}
+                  })}
+                </div>
+              </div>
+
+              {/* Legend and Quick Actions */}
+              <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-sm bg-purple-100 dark:bg-purple-900/40"></div>
+                    <span className="text-sm text-neutral-600 dark:text-neutral-400">Public Holiday</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-sm bg-blue-100 dark:bg-blue-900/40"></div>
+                    <span className="text-sm text-neutral-600 dark:text-neutral-400">Optional Holiday</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-blue-600"></div>
+                    <span className="text-sm text-neutral-600 dark:text-neutral-400">Today</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                  <span>Keyboard: ← → to navigate, Home to today</span>
+                </div>
               </div>
             </div>
           )}
@@ -373,7 +518,15 @@ const HolidayCalendar = () => {
         <div className="space-y-5">
           {/* Upcoming Holidays */}
           <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <h3 className="mb-4 text-lg font-bold text-neutral-800 dark:text-neutral-100">Upcoming Holidays</h3>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Upcoming Holidays</h3>
+              <button 
+                onClick={() => setViewMode('list')}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                View All
+              </button>
+            </div>
             <div className="space-y-3">
               {getUpcomingHolidays().length > 0 ? (
                 getUpcomingHolidays().map((holiday) => {
@@ -384,27 +537,60 @@ const HolidayCalendar = () => {
                   return (
                     <div
                       key={holiday._id}
-                      className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/50"
+                      onClick={() => {
+                        const month = holidayDate.getMonth();
+                        const year = holidayDate.getFullYear();
+                        setCurrentMonth(month);
+                        setCurrentYear(year);
+                        setViewMode('calendar');
+                      }}
+                      className="group cursor-pointer rounded-lg border border-neutral-200 bg-neutral-50 p-3 transition-all hover:border-primary/30 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-800/50 dark:hover:border-primary/50"
                     >
-                      <div className="flex items-start gap-2">
-                        <span className={`material-symbols-outlined text-lg text-${color}-600 dark:text-${color}-400`}>
-                          celebration
-                        </span>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-neutral-800 dark:text-neutral-100">{holiday.name}</h4>
-                          <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                            {holidayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                          <span className="mt-1 inline-block text-xs font-semibold text-primary">
-                            {daysUntil === 0 ? 'Today' : `In ${daysUntil} day${daysUntil > 1 ? 's' : ''}`}
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-${color}-100 dark:bg-${color}-900/30`}>
+                          <span className={`material-symbols-outlined text-lg text-${color}-600 dark:text-${color}-400`}>
+                            celebration
                           </span>
                         </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-neutral-800 group-hover:text-primary dark:text-neutral-100">{holiday.name}</h4>
+                          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                            {holidayDate.toLocaleDateString('en-US', { 
+                              weekday: 'short',
+                              month: 'short', 
+                              day: 'numeric',
+                              year: holidayDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                            })}
+                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                              {daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `In ${daysUntil} days`}
+                            </span>
+                            <span className={`inline-block rounded-full bg-${color}-100 px-2 py-0.5 text-xs font-medium capitalize text-${color}-700 dark:bg-${color}-900/40 dark:text-${color}-300`}>
+                              {holiday.type}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="material-symbols-outlined text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100">
+                          arrow_forward
+                        </span>
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">No upcoming holidays</p>
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <span className="material-symbols-outlined text-3xl text-neutral-300 dark:text-neutral-600">
+                    event_available
+                  </span>
+                  <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">No upcoming holidays</p>
+                  <button 
+                    onClick={() => handleOpenModal()}
+                    className="mt-2 text-xs font-semibold text-primary hover:underline"
+                  >
+                    Add one now
+                  </button>
+                </div>
               )}
             </div>
           </div>

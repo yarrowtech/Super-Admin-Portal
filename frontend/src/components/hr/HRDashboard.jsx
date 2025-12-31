@@ -225,17 +225,7 @@ const HRDashboard = () => {
   return (
     <main className="flex-1 overflow-y-auto bg-gradient-to-br from-purple-50/30 via-white to-blue-50/30 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <PortalHeader
-          title="HR Management Dashboard"
-          subtitle="Comprehensive overview of workforce, recruitment, and HR operations"
-          user={user}
-          icon="badge"
-          showSearch={true}
-          showNotifications={true}
-          showThemeToggle={true}
-          onSearchChange={(e) => setSearchQuery(e.target.value)}
-          searchPlaceholder="Search employees, applicants, or leaves..."
-        />
+
 
         {/* Welcome Banner */}
         <div className="mb-8 overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 p-8 shadow-lg dark:border-purple-900/30">

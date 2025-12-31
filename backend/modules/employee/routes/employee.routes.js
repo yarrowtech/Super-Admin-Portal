@@ -5,7 +5,7 @@ const tasksController = require('../controllers/tasks.controller');
 const documentsController = require('../controllers/documents.controller');
 const teamController = require('../controllers/team.controller');
 const chatController = require('../controllers/chat.controller');
-const { authenticate, authorize } = require('../../../middleware/auth');
+const { authenticate, authorize } = require('../../shared/middleware/auth');
 const { ROLES } = require('../../../config/roles');
 
 const router = express.Router();

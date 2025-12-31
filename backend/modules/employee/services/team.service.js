@@ -1,4 +1,4 @@
-const User = require('../../../models/User');
+const User = require('../../shared/models/User');
 
 const deriveStatus = (lastLogin) => {
   if (!lastLogin) {

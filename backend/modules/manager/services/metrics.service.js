@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
-const Project = require('../../../models/Project');
-const Task = require('../../../models/Task');
-const User = require('../../../models/User');
+const Project = require('../../shared/models/Project');
+const Task = require('../../shared/models/Task');
+const User = require('../../shared/models/User');
 
 const toObjectId = (value) => {
   if (!value) return null;

@@ -278,19 +278,19 @@ const connectDB = require("./config/db");
 const { seedDefaultUsers } = require("./utils/seedDefaultUsers");
 
 // Routes
-const authRoutes = require("./routes/auth.routes");
-const adminRoutes = require("./routes/dept/admin.routes");
-const ceoRoutes = require("./routes/dept/ceo.routes");
-const itRoutes = require("./routes/dept/it.routes");
-const hrRoutes = require("./routes/dept/hr.routes");
-const financeRoutes = require("./routes/dept/finance.routes");
-const lawRoutes = require("./routes/dept/law.routes");
-const mediaRoutes = require("./routes/dept/media.routes");
-const managerRoutes = require("./routes/dept/manager.routes");
-const employeeRoutes = require("./routes/dept/employee.routes");
+const authRoutes = require("./modules/auth/routes/auth.routes");
+const adminRoutes = require("./modules/admin/routes/admin.routes");
+const ceoRoutes = require("./modules/ceo/routes/ceo.routes");
+const itRoutes = require("./modules/it/routes/it.routes");
+const hrRoutes = require("./modules/hr/routes/hr.routes");
+const financeRoutes = require("./modules/finance/routes/finance.routes");
+const lawRoutes = require("./modules/law/routes/law.routes");
+const mediaRoutes = require("./modules/media/routes/media.routes");
+const managerRoutes = require("./modules/manager/routes/manager.routes");
+const employeeRoutes = require("./modules/employee/routes/employee.dept.routes");
 const employeePortalRoutes = require("./modules/employee");
 const { buildManagerSnapshot } = require("./modules/manager/services/metrics.service");
-const User = require("./models/User");
+const User = require("./modules/shared/models/User");
 const { ROLES } = require("./config/roles");
 
 const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")

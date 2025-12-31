@@ -1,4 +1,4 @@
-const Task = require('../../../models/Task');
+const Task = require('../../shared/models/Task');
 
 const buildTaskPayload = (task) => ({
   id: task._id,

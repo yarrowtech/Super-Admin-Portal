@@ -1,5 +1,5 @@
-const Task = require('../../../models/Task');
-const Project = require('../../../models/Project');
+const Task = require('../../shared/models/Task');
+const Project = require('../../shared/models/Project');
 
 const COLUMN_CONFIG = [
   { id: 'todo', title: 'To Do', statuses: ['pending', 'cancelled'] },

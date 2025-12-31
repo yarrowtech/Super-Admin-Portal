@@ -1,6 +1,6 @@
 const asyncHandler = require('../../../utils/asyncHandler');
 const chatService = require('../services/chat.service');
-const User = require('../../../models/User');
+const User = require('../../shared/models/User');
 
 exports.getThreads = asyncHandler(async (req, res) => {
   const data = await chatService.getThreads(req.user);

@@ -1,4 +1,4 @@
-const User = require('../models/User');
+const User = require('../modules/shared/models/User');
 const { ROLES } = require('../config/roles');
 
 // Default credentials used for auto-seeding in non-production environments

@@ -1,9 +1,9 @@
-const Task = require('../../../models/Task');
-const Project = require('../../../models/Project');
-const Leave = require('../../../models/Leave');
-const Attendance = require('../../../models/Attendance');
-const Notice = require('../../../models/Notice');
-const WorkReport = require('../../../models/WorkReport');
+const Task = require('../../shared/models/Task');
+const Project = require('../../shared/models/Project');
+const Leave = require('../../shared/models/Leave');
+const Attendance = require('../../shared/models/Attendance');
+const Notice = require('../../shared/models/Notice');
+const WorkReport = require('../../shared/models/WorkReport');
 
 const buildNoticeFilter = (user) => {
   const base = { isActive: true };

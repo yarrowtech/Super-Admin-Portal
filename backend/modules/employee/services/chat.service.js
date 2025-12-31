@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
-const ChatThread = require('../../../models/ChatThread');
-const ChatMessage = require('../../../models/ChatMessage');
-const User = require('../../../models/User');
+const ChatThread = require('../models/ChatThread');
+const ChatMessage = require('../models/ChatMessage');
+const User = require('../../shared/models/User');
 
 const threadFilter = (userId) => ({
   $or: [

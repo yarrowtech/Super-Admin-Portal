@@ -1,6 +1,6 @@
-const WorkReport = require('../../../models/WorkReport');
-const Leave = require('../../../models/Leave');
-const Notice = require('../../../models/Notice');
+const WorkReport = require('../../shared/models/WorkReport');
+const Leave = require('../../shared/models/Leave');
+const Notice = require('../../shared/models/Notice');
 
 const formatReport = (report) => ({
   id: report._id,

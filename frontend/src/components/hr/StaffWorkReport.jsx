@@ -2,6 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { hrApi } from '../../api/hr';
 import { useAuth } from '../../context/AuthContext';
 
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
 const statusLabels = {
   pending: 'Pending',
   'in-progress': 'In Progress',
@@ -38,12 +44,6 @@ const getStatusColor = (status) => {
   }
 };
 
-const getProductivityColor = (productivity) => {
-  if (productivity >= 85) return 'text-green-600 dark:text-green-400';
-  if (productivity >= 70) return 'text-yellow-600 dark:text-yellow-400';
-  return 'text-red-600 dark:text-red-400';
-};
-
 const getPeriodStart = (period) => {
   const now = new Date();
   const start = new Date(now);
@@ -75,6 +75,8 @@ const StaffWorkReport = () => {
   const { token } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,36 @@ const StaffWorkReport = () => {
     fetchReports();
   }, [token, page]);
 
+  const employeeFilterOptions = useMemo(() => {
+    const optionsMap = new Map();
+    reports.forEach((report) => {
+      const id =
+        report.employee?._id ||
+        report.employee?.id ||
+        report.employee?.email ||
+        `${report.employee?.firstName || ''}-${report.employee?.lastName || ''}` ||
+        'unknown';
+      if (optionsMap.has(id)) return;
+      const label =
+        `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() ||
+        report.employee?.email ||
+        'Employee';
+      optionsMap.set(id, { id, label });
+    });
+    return Array.from(optionsMap.values());
+  }, [reports]);
+
+  const projectFilterOptions = useMemo(() => {
+    const optionsMap = new Map();
+    reports.forEach((report) => {
+      const id = report.project?._id || report.project?.projectCode || report.project?.name || 'general';
+      if (optionsMap.has(id)) return;
+      const label = report.project?.name || report.project?.projectCode || 'General';
+      optionsMap.set(id, { id, label });
+    });
+    return Array.from(optionsMap.values());
+  }, [reports]);
+
   const filteredReports = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const startDate = getPeriodStart(selectedPeriod);
@@ -116,6 +148,19 @@ const StaffWorkReport = () => {
         const reportDate = new Date(report.reportDate);
         if (reportDate < startDate) return false;
       }
+      const employeeId =
+        report.employee?._id ||
+        report.employee?.id ||
+        report.employee?.email ||
+        `${report.employee?.firstName || ''}-${report.employee?.lastName || ''}` ||
+        'unknown';
+      if (selectedEmployeeFilter !== 'all' && employeeId !== selectedEmployeeFilter) {
+        return false;
+      }
+      const projectId = report.project?._id || report.project?.projectCode || report.project?.name || 'general';
+      if (selectedProjectFilter !== 'all' && projectId !== selectedProjectFilter) {
+        return false;
+      }
       if (query) {
         const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim().toLowerCase();
         const projectName = report.project?.name?.toLowerCase() || '';
@@ -126,7 +171,53 @@ const StaffWorkReport = () => {
       }
       return true;
     });
-  }, [reports, searchQuery, selectedPeriod, selectedStatus]);
+  }, [reports, searchQuery, selectedPeriod, selectedStatus, selectedEmployeeFilter, selectedProjectFilter]);
+
+  const groupedReports = useMemo(() => {
+    const groupMap = new Map();
+    filteredReports.forEach((report, index) => {
+      const employeeId =
+        report.employee?._id ||
+        report.employee?.id ||
+        report.employee?.email ||
+        `${report.employee?.firstName || ''}-${report.employee?.lastName || ''}` ||
+        'unknown';
+      const projectId =
+        report.project?._id || report.project?.projectCode || report.project?.name || 'general';
+      const key = `${employeeId}-${projectId}`;
+      const employeeName =
+        `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() ||
+        report.employee?.email ||
+        'Employee';
+      const employeeMeta = report.employee?.department || report.employee?.role || 'Team';
+      const projectLabel = report.project?.name || report.project?.projectCode || 'General';
+
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          key,
+          employeeName,
+          employeeMeta,
+          projectLabel,
+          order: index,
+          updates: [],
+        });
+      }
+
+      groupMap.get(key).updates.push(report);
+    });
+
+    const grouped = Array.from(groupMap.values());
+    grouped.forEach((group) => {
+      group.updates.sort((a, b) => {
+        const dateA = a.reportDate ? new Date(a.reportDate).getTime() : 0;
+        const dateB = b.reportDate ? new Date(b.reportDate).getTime() : 0;
+        return dateB - dateA;
+      });
+    });
+
+    grouped.sort((a, b) => a.order - b.order);
+    return grouped;
+  }, [filteredReports]);
 
   const stats = useMemo(() => {
     const submittedCount = reports.filter((report) => report.status === 'submitted').length;
@@ -227,6 +318,46 @@ const StaffWorkReport = () => {
                   expand_more
                 </span>
               </div>
+              <div className="relative">
+                <select
+                  value={selectedEmployeeFilter}
+                  onChange={(e) => {
+                    setSelectedEmployeeFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="appearance-none rounded-lg border-neutral-200 bg-background-light py-2 pl-3 pr-8 text-sm focus:border-primary focus:ring-primary dark:border-neutral-800 dark:bg-background-dark"
+                >
+                  <option value="all">All Employees</option>
+                  {employeeFilterOptions.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
+                  expand_more
+                </span>
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedProjectFilter}
+                  onChange={(e) => {
+                    setSelectedProjectFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="appearance-none rounded-lg border-neutral-200 bg-background-light py-2 pl-3 pr-8 text-sm focus:border-primary focus:ring-primary dark:border-neutral-800 dark:bg-background-dark"
+                >
+                  <option value="all">All Projects</option>
+                  {projectFilterOptions.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
+                  expand_more
+                </span>
+              </div>
             </div>
           </div>
 
@@ -236,54 +367,93 @@ const StaffWorkReport = () => {
                 <tr>
                   <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Employee</th>
                   <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Project</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Hours</th>
+                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Task Details</th>
                   <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Tasks</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Productivity</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Rating</th>
                   <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                    <td colSpan={5} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                       Loading work reports...
                     </td>
                   </tr>
                 )}
-                {!loading && filteredReports.length === 0 && (
+                {!loading && groupedReports.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                    <td colSpan={5} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                       No work reports found.
                     </td>
                   </tr>
                 )}
-                {!loading && filteredReports.map((report, index) => {
-                  const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
-                  const employeeMeta = report.employee?.department || report.employee?.role || 'Team';
-                  const tasks = report.tasksCompleted || [];
-                  const totalTasks = tasks.length;
-                  const completedTasks = tasks.filter((task) => (task.status || 'completed') === 'completed').length;
-                  const productivity = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                {!loading && groupedReports.map((group, index) => {
+                  const allTasks = group.updates.flatMap((update) => update.tasksCompleted || []);
+                  const totalTasks = allTasks.length;
+                  const completedTasks = allTasks.filter((task) => (task.status || 'completed') === 'completed').length;
                   const taskLabel = totalTasks ? `${completedTasks}/${totalTasks}` : '-';
                   const progressWidth = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                  const reportStatus = report.taskStatus || report.status;
+                  const latestUpdate = group.updates[0];
+                  const reportStatus = latestUpdate?.taskStatus || latestUpdate?.status;
                   return (
-                    <tr key={report._id} className={index !== filteredReports.length - 1 ? 'border-b border-neutral-200 dark:border-neutral-800' : ''}>
+                    <tr key={group.key} className={index !== groupedReports.length - 1 ? 'border-b border-neutral-200 dark:border-neutral-800' : ''}>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">
-                            {getInitials(employeeName)}
+                            {getInitials(group.employeeName)}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{employeeName}</p>
-                            <p className="text-xs text-neutral-600 dark:text-neutral-400">{employeeMeta}</p>
+                            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{group.employeeName}</p>
+                            <p className="text-xs text-neutral-600 dark:text-neutral-400">{group.employeeMeta}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400">{report.project?.name || report.project?.projectCode || 'General'}</td>
-                      <td className="p-4 text-sm text-neutral-800 dark:text-neutral-100 font-medium">{report.totalHours || 0}h</td>
+                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400">{group.projectLabel}</td>
+                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-300">
+                        <div className="space-y-3">
+                          {group.updates.map((update, updateIndex) => {
+                            const updateKey = update._id || update.id || `${group.key}-${updateIndex}`;
+                            const updateTasks = update.tasksCompleted || [];
+                            return (
+                              <div
+                                key={updateKey}
+                                className="rounded-xl border border-neutral-100/70 bg-neutral-50/80 p-3 dark:border-neutral-800/60 dark:bg-neutral-900/40"
+                              >
+                                <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  <span>{update.reportDate ? dateFormatter.format(new Date(update.reportDate)) : 'Recent'}</span>
+                                  <span className="font-semibold uppercase tracking-wide">{statusLabels[update.taskStatus || update.status] || 'Submitted'}</span>
+                                </div>
+                                <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                  {update.title || 'Task update'}
+                                </p>
+                                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                                  {update.description || update.summary || 'Latest changes shared by the employee'}
+                                </p>
+                                {updateTasks.length > 0 && (
+                                  <div className="mt-2 space-y-1 rounded-lg bg-white/70 p-2 text-xs dark:bg-neutral-800/60">
+                                    {updateTasks.slice(0, 3).map((task, taskIndex) => (
+                                      <div key={`${update._id}-task-${taskIndex}`} className="flex items-center gap-2">
+                                        <span className="size-1.5 rounded-full bg-primary"></span>
+                                        <div>
+                                          <p className="font-semibold text-neutral-800 dark:text-neutral-100">{task.title || task.name || 'Task'}</p>
+                                          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                            {statusLabels[task.status] || (task.status ? task.status : 'Completed')}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {updateTasks.length > 3 && (
+                                      <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                                        +{updateTasks.length - 3} more tasks
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-neutral-800 dark:text-neutral-100 font-medium">{taskLabel}</span>
@@ -296,24 +466,9 @@ const StaffWorkReport = () => {
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className={`text-sm font-semibold ${getProductivityColor(productivity)}`}>
-                          {productivity}%
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <span className="text-sm text-neutral-400">Not rated</span>
-                      </td>
-                      <td className="p-4">
                         <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(reportStatus)}`}>
                           {statusLabels[reportStatus] || 'Submitted'}
                         </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <button className="text-primary hover:text-primary/80">
-                            <span className="material-symbols-outlined text-xl">visibility</span>
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   );

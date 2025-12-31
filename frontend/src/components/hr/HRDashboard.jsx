@@ -136,23 +136,42 @@ const HRDashboard = () => {
   const activeEmployees = dashboardData?.activeEmployees || 0;
   const pendingApplicants = dashboardData?.pendingApplicants || 0;
   const openComplaints = dashboardData?.openComplaints || 0;
-  const leaveStatusStyles = {
-    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-    approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-    rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
-    cancelled: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
-  };
-  const workUpdateStatusStyles = {
-    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-    'in-progress': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
-    review: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200',
-    completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-    cancelled: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
-    submitted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-    reviewed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
-    approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-    rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
-  };
+const leaveStatusStyles = {
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+  cancelled: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+};
+const workUpdateStatusStyles = {
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+  'in-progress': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+  review: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200',
+  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+  cancelled: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
+  submitted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+  reviewed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
+};
+const workUpdateStatusLabels = {
+  pending: 'Pending',
+  'in-progress': 'In Progress',
+  review: 'In Review',
+  completed: 'Done',
+  cancelled: 'Cancelled',
+  submitted: 'Submitted',
+  reviewed: 'Reviewed',
+  approved: 'Approved',
+  rejected: 'Rejected',
+};
+const normalizeWorkUpdateStatus = (status) => {
+  if (!status) return 'submitted';
+  const normalized = status.toString().trim().toLowerCase();
+  if (['in review', 'in-review', 'review', 'in_review'].includes(normalized)) return 'review';
+  if (['done', 'completed', 'complete', 'finished'].includes(normalized)) return 'completed';
+  if (['in progress', 'in-progress', 'progress'].includes(normalized)) return 'in-progress';
+  return normalized;
+};
 
   const workUpdatesLabel = useMemo(() => {
     if (workUpdatesTotal) return `${workUpdatesTotal} updates`;
@@ -500,7 +519,10 @@ const HRDashboard = () => {
                 <div className="space-y-3">
                   {workUpdates.map((report) => {
                     const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
-                    const reportStatus = report.taskStatus || report.status;
+                    const rawStatus = report.taskStatus || report.status || 'submitted';
+                    const reportStatus = normalizeWorkUpdateStatus(rawStatus);
+                    const statusClass = workUpdateStatusStyles[reportStatus] || workUpdateStatusStyles.submitted;
+                    const statusLabel = workUpdateStatusLabels[reportStatus] || workUpdateStatusLabels.submitted;
                     return (
                       <div key={report._id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
                         <div className="flex items-start justify-between gap-3">
@@ -512,8 +534,8 @@ const HRDashboard = () => {
                               {report.reportDate ? dateFormatter.format(new Date(report.reportDate)) : 'Today'}
                             </p>
                           </div>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${workUpdateStatusStyles[reportStatus] || workUpdateStatusStyles.submitted}`}>
-                            {reportStatus || 'submitted'}
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass}`}>
+                            {statusLabel}
                           </span>
                         </div>
                       </div>

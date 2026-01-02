@@ -12,6 +12,8 @@ router.use(authorize(ROLES.MANAGER, ROLES.ADMIN));
 // Manager specific routes
 router.get('/dashboard', managerController.getDashboard);
 router.get('/team', managerController.getTeam);
+router.get('/project-teams', managerController.getProjectTeams);
+router.post('/project-teams', managerController.createProjectTeam);
 router.get('/projects', managerController.getProjects);
 router.get('/tasks', managerController.getTasks);
 router.post('/tasks', managerController.createTask);

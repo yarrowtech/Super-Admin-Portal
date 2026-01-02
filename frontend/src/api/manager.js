@@ -14,6 +14,9 @@ const buildQueryString = (params = {}) => {
 export const managerApi = {
   getDashboard: (token) => apiClient.get('/api/dept/manager/dashboard', token),
   getTeam: (token) => apiClient.get('/api/dept/manager/team', token),
+  getProjectTeams: (token) => apiClient.get('/api/dept/manager/project-teams', token),
+  createProjectTeam: (token, data) =>
+    apiClient.post('/api/dept/manager/project-teams', data, token),
   getProjects: (token) => apiClient.get('/api/dept/manager/projects', token),
   getNotifications: (token) => apiClient.get('/api/dept/manager/notifications', token),
   markNotificationRead: (token, notificationId) => 

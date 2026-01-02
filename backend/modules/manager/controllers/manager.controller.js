@@ -3,10 +3,15 @@
 const mongoose = require('mongoose');
 const { buildManagerSnapshot } = require('../services/metrics.service');
 const notificationService = require('../services/notification.service');
+const { ROLES } = require('../../../config/roles');
 const User = require('../../shared/models/User');
 const Task = require('../../shared/models/Task');
 const Leave = require('../../shared/models/Leave');
 const WorkReport = require('../../shared/models/WorkReport');
+const ProjectTeam = require('../models/ProjectTeam');
+const Notice = require('../../shared/models/Notice');
+const { createGroupThread } = require('../../employee/services/chat.service');
+const ChatMessage = require('../../employee/models/ChatMessage');
 
 const sanitizeQueryValue = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -20,6 +25,57 @@ const parsePositiveInt = (value, fallback) => {
   const parsed = parseInt(sanitized, 10);
   if (Number.isNaN(parsed) || parsed <= 0) return fallback;
   return parsed;
+};
+
+const formatProjectTeam = (teamDoc) => {
+  if (!teamDoc) return null;
+  const doc = typeof teamDoc.toObject === 'function' ? teamDoc.toObject() : teamDoc;
+  return {
+    id: doc._id?.toString?.() || doc.id,
+    name: doc.name,
+    description: doc.description,
+    projectCode: doc.projectCode,
+    dueDate: doc.dueDate,
+    department: doc.department,
+    chatThread: doc.chatThread
+      ? {
+          id:
+            doc.chatThread._id?.toString?.() ||
+            doc.chatThread.id ||
+            doc.chatThread?.toString?.() ||
+            doc.chatThread,
+          name: doc.chatThread.name || null,
+        }
+      : null,
+    members: (doc.members || []).map((member) => {
+      const employee =
+        typeof member.employee === 'object' && member.employee !== null
+          ? member.employee
+          : null;
+      return {
+        id: member._id?.toString?.() || member.id,
+        role: member.role || employee?.role || 'member',
+        assignedAt: member.assignedAt,
+        employee: employee
+          ? {
+              id: employee._id?.toString?.() || employee.id,
+              name:
+                `${employee.firstName || ''} ${employee.lastName || ''}`.trim() ||
+                employee.email,
+              email: employee.email,
+              department: employee.department,
+            }
+          : {
+              id: member.employee?.toString?.() || member.employee,
+              name: 'Employee',
+              email: '',
+              department: '',
+            },
+      };
+    }),
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
 };
 
 /**
@@ -77,6 +133,164 @@ exports.getTeam = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch team',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   GET /api/dept/manager/project-teams
+ * @desc    Get project teams created by manager
+ * @access  Private (MANAGER only)
+ */
+exports.getProjectTeams = async (req, res) => {
+  try {
+    const teams = await ProjectTeam.find({ manager: req.user._id })
+      .populate('members.employee', 'firstName lastName email department role')
+      .populate('chatThread', 'name')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: teams.map(formatProjectTeam)
+    });
+  } catch (error) {
+    console.error('Manager project teams error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch project teams',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   POST /api/dept/manager/project-teams
+ * @desc    Create a new project team and notify members
+ * @access  Private (MANAGER only)
+ */
+exports.createProjectTeam = async (req, res) => {
+  try {
+    const { name, description, dueDate, memberIds = [], projectCode } = req.body || {};
+    const trimmedName = name?.trim();
+    if (!trimmedName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Team or project name is required'
+      });
+    }
+
+    const normalizedMemberIds = Array.from(
+      new Set(
+        (Array.isArray(memberIds) ? memberIds : [])
+          .map((id) => (id ? id.toString() : null))
+          .filter(Boolean)
+      )
+    );
+
+    if (!normalizedMemberIds.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'Select at least one employee for the team'
+      });
+    }
+
+    const employees = await User.find({
+      _id: { $in: normalizedMemberIds },
+      role: ROLES.EMPLOYEE,
+      isActive: true
+    }).select('firstName lastName email department role');
+
+    if (employees.length !== normalizedMemberIds.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'One or more selected employees are invalid or inactive'
+      });
+    }
+
+    let chatThreadId = null;
+    try {
+      const chatGroup = await createGroupThread(req.user, {
+        name: trimmedName,
+        memberIds: normalizedMemberIds,
+        meta: projectCode ? `Project ${projectCode}` : `${trimmedName} team`
+      });
+      chatThreadId =
+        chatGroup?._id ||
+        chatGroup?.id ||
+        chatGroup?._id?.toString?.() ||
+        chatGroup?.id?.toString?.() ||
+        null;
+
+      if (chatThreadId) {
+        await ChatMessage.create({
+          thread: chatThreadId,
+          sender: req.user._id,
+          senderName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'Manager',
+          body: description?.trim()
+            ? `You have been assigned to "${trimmedName}". ${description.trim()}`
+            : `You have been assigned to project "${trimmedName}".`
+        });
+      }
+    } catch (chatError) {
+      console.warn('Failed to create chat group for project team:', chatError.message);
+    }
+
+    let parsedDueDate = null;
+    if (dueDate) {
+      const tentative = new Date(dueDate);
+      if (!Number.isNaN(tentative.getTime())) {
+        parsedDueDate = tentative;
+      }
+    }
+
+    const teamDoc = await ProjectTeam.create({
+      name: trimmedName,
+      description: description?.trim() || '',
+      manager: req.user._id,
+      department: req.user.department || null,
+      dueDate: parsedDueDate,
+      projectCode: projectCode?.trim() || undefined,
+      chatThread: chatThreadId,
+      members: employees.map((employee) => ({
+        employee: employee._id,
+        role: employee.role || 'member'
+      }))
+    });
+
+    const notice = await Notice.create({
+      title: `Project Assignment: ${trimmedName}`,
+      content: description?.trim()
+        ? description.trim()
+        : `You have been assigned to project "${trimmedName}".`,
+      type: 'meeting',
+      priority: 'medium',
+      publishedBy: req.user._id,
+      targetAudience: 'specific',
+      departments: req.user.department ? [req.user.department] : [],
+      specificEmployees: employees.map((employee) => employee._id)
+    });
+
+    teamDoc.notifications.push(notice._id);
+    await teamDoc.save();
+
+    const hydratedTeam = await ProjectTeam.findById(teamDoc._id)
+      .populate('members.employee', 'firstName lastName email department role')
+      .populate('chatThread', 'name');
+
+    res.status(201).json({
+      success: true,
+      data: formatProjectTeam(hydratedTeam),
+      meta: {
+        noticeId: notice._id,
+        chatThreadId
+      }
+    });
+  } catch (error) {
+    console.error('Create project team error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create project team',
       details: error.message
     });
   }

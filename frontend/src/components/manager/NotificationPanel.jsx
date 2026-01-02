@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNotifications } from '../../context/NotificationContext';
 
 const NotificationPanel = ({ onTaskClick }) => {
@@ -11,6 +11,19 @@ const NotificationPanel = ({ onTaskClick }) => {
   } = useNotifications();
   
   const [isOpen, setIsOpen] = useState(false);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleClickOutside = (event) => {
+      if (!panelRef.current) return;
+      if (!panelRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
 
   const handleNotificationClick = async (notification) => {
     if (!notification.read) {
@@ -50,7 +63,7 @@ const NotificationPanel = ({ onTaskClick }) => {
   };
 
   return (
-    <div className="relative flex items-center gap-1 sm:gap-2">
+    <div ref={panelRef} className="relative flex items-center gap-1 sm:gap-2">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative flex items-center gap-1.5 sm:gap-2 rounded-lg border border-gray-200 bg-white px-2 sm:px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"

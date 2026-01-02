@@ -7,6 +7,23 @@ const NotificationContext = createContext();
 const LEGACY_PENDING_KEY = 'pendingManagerNotification';
 const PENDING_QUEUE_KEY = 'pendingManagerNotifications';
 
+const getDateKey = (dateInput = new Date()) => {
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate()
+  ).padStart(2, '0')}`;
+};
+
+const isSameDayKey = (dateInput, key) => {
+  if (!key) return false;
+  const valueKey = getDateKey(dateInput);
+  return Boolean(valueKey && valueKey === key);
+};
+
+const filterNotificationsByDay = (items = [], key) =>
+  items.filter((item) => isSameDayKey(item?.createdAt, key));
+
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
   if (!context) {
@@ -20,6 +37,7 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [dayKey, setDayKey] = useState(() => getDateKey());
 
   const normalizeNotification = useCallback((notification) => {
     if (!notification) return null;
@@ -38,6 +56,7 @@ export const NotificationProvider = ({ children }) => {
   const addNotification = useCallback((notification) => {
     const normalized = normalizeNotification(notification);
     if (!normalized) return;
+    if (!isSameDayKey(normalized.createdAt, dayKey)) return;
     setNotifications((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === normalized.id);
       if (existingIndex !== -1) {
@@ -56,7 +75,7 @@ export const NotificationProvider = ({ children }) => {
       }
       return [normalized, ...prev];
     });
-  }, [normalizeNotification]);
+  }, [normalizeNotification, dayKey]);
 
   const fetchNotifications = useCallback(async () => {
     if (!token) return;
@@ -65,8 +84,9 @@ export const NotificationProvider = ({ children }) => {
     try {
       const response = await managerApi.getNotifications(token);
       const data = response?.data || response || [];
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.read).length);
+      const todaysNotifications = filterNotificationsByDay(data, dayKey);
+      setNotifications(todaysNotifications);
+      setUnreadCount(todaysNotifications.filter(n => !n.read).length);
     } catch (error) {
       console.warn('Failed to fetch notifications - backend not available:', error);
       // No mock data - only show real notifications from employee actions
@@ -75,7 +95,7 @@ export const NotificationProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, dayKey]);
 
   const markAsRead = useCallback(async (notificationId) => {
     if (!token) return;
@@ -155,7 +175,7 @@ export const NotificationProvider = ({ children }) => {
       fetchNotifications();
       flushPendingNotifications();
     }
-  }, [token, user?.role, fetchNotifications, flushPendingNotifications]);
+  }, [token, user?.role, fetchNotifications, flushPendingNotifications, dayKey]);
 
   useEffect(() => {
     if (!token || user?.role !== 'manager') return undefined;
@@ -185,6 +205,19 @@ export const NotificationProvider = ({ children }) => {
       window.removeEventListener('storage', handleStorage);
     };
   }, [token, user, addNotification, flushPendingNotifications]);
+
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timeout = nextMidnight.getTime() - now.getTime();
+    const timer = setTimeout(() => {
+      setNotifications([]);
+      setUnreadCount(0);
+      setDayKey(getDateKey());
+    }, timeout);
+    return () => clearTimeout(timer);
+  }, [dayKey]);
 
   const value = {
     notifications,

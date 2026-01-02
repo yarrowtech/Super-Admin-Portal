@@ -32,6 +32,30 @@ const formatTime = (value) => {
   return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const normalizeDateKey = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized.getTime();
+};
+
+const formatGroupLabel = (key) => {
+  const date = new Date(key);
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+const buildDateString = (date) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().split('T')[0];
+};
+
 const Attendance = () => {
   const { token } = useAuth();
   const [records, setRecords] = useState([]);
@@ -85,6 +109,46 @@ const Attendance = () => {
       return name.includes(term) || record.employee?.email?.toLowerCase().includes(term);
     });
   }, [records, filters.search]);
+
+  const groupedRecords = useMemo(() => {
+    if (!filteredRecords.length) return [];
+    const todayKey = normalizeDateKey(new Date());
+    const yesterdayKey = todayKey ? todayKey - 24 * 60 * 60 * 1000 : null;
+    const today = [];
+    const yesterday = [];
+    const othersMap = new Map();
+
+    filteredRecords.forEach((record) => {
+      const key = normalizeDateKey(record.date);
+      if (!key) return;
+      if (todayKey && key === todayKey) {
+        today.push(record);
+      } else if (yesterdayKey && key === yesterdayKey) {
+        yesterday.push(record);
+      } else {
+        if (!othersMap.has(key)) {
+          othersMap.set(key, []);
+        }
+        othersMap.get(key).push(record);
+      }
+    });
+
+    const groups = [];
+    if (today.length) {
+      groups.push({ label: 'Today', key: 'today', records: today });
+    }
+    if (yesterday.length) {
+      groups.push({ label: 'Yesterday', key: 'yesterday', records: yesterday });
+    }
+    const otherGroups = Array.from(othersMap.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([key, list]) => ({
+        label: formatGroupLabel(key),
+        key: key.toString(),
+        records: list,
+      }));
+    return [...groups, ...otherGroups];
+  }, [filteredRecords]);
 
   const analytics = useMemo(() => {
     const total = filteredRecords.length;
@@ -228,7 +292,7 @@ const Attendance = () => {
                 <option value="absent">Absent</option>
               </select>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <input
                 type="date"
                 value={filters.startDate}
@@ -242,6 +306,30 @@ const Attendance = () => {
                 onChange={(e) => handleFilterChange('endDate', e.target.value)}
                 className="h-10 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  const today = buildDateString(new Date());
+                  setFilters((prev) => ({ ...prev, startDate: today, endDate: today }));
+                  setPage(1);
+                }}
+                className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const yesterday = new Date();
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  const formatted = buildDateString(yesterday);
+                  setFilters((prev) => ({ ...prev, startDate: formatted, endDate: formatted }));
+                  setPage(1);
+                }}
+                className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              >
+                Yesterday
+              </button>
               {(filters.startDate || filters.endDate || filters.status) && (
                 <button
                   onClick={() => setFilters({ ...defaultFilters })}
@@ -281,7 +369,7 @@ const Attendance = () => {
                     </td>
                   </tr>
                 )}
-                {!loading && filteredRecords.length === 0 && (
+                {!loading && groupedRecords.length === 0 && (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-neutral-500 dark:text-neutral-400">
                       No attendance records found for the selected filters.
@@ -289,36 +377,53 @@ const Attendance = () => {
                   </tr>
                 )}
                 {!loading &&
-                  filteredRecords.map((record) => {
-                    const employeeName =
-                      `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() ||
-                      record.employee?.email ||
-                      'Employee';
-                    const statusMeta = statusLabels[record.status] || statusLabels.present;
-                    return (
-                      <tr key={record._id} className="border-b border-neutral-100 text-sm dark:border-neutral-800">
-                        <td className="p-3">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-neutral-800 dark:text-neutral-100">{employeeName}</span>
-                            <span className="text-xs text-neutral-500 dark:text-neutral-400">{record.employee?.email}</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatDate(record.date)}</td>
-                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatTime(record.checkIn)}</td>
-                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatTime(record.checkOut)}</td>
-                        <td className="p-3 text-neutral-600 dark:text-neutral-300">
-                          {record.workHours ? `${record.workHours}h` : '-'}
-                        </td>
-                        <td className="p-3">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badge}`}>
-                            {statusMeta.label}
-                          </span>
-                        </td>
-                        <td className="p-3 text-neutral-600 dark:text-neutral-300">{record.location || 'office'}</td>
-                        <td className="p-3 text-neutral-500 dark:text-neutral-400">{record.notes || '-'}</td>
+                  groupedRecords.map((group) => (
+                    <React.Fragment key={group.key}>
+                      <tr className="bg-neutral-50 text-xs font-semibold uppercase text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
+                        <td colSpan={8} className="p-2 pl-3">{group.label}</td>
                       </tr>
-                    );
-                  })}
+                      {group.records.map((record) => {
+                        const employeeName =
+                          `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() ||
+                          record.employee?.email ||
+                          'Employee';
+                        const statusMeta = statusLabels[record.status] || statusLabels.present;
+                        const locationLabel = record.location === 'remote' ? 'Work From Home' : 'In Office';
+                        const locationBadgeClass =
+                          record.location === 'remote'
+                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200'
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200';
+                        return (
+                          <tr key={record._id} className="border-b border-neutral-100 text-sm dark:border-neutral-800">
+                            <td className="p-3">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-neutral-800 dark:text-neutral-100">{employeeName}</span>
+                                <span className="text-xs text-neutral-500 dark:text-neutral-400">{record.employee?.email}</span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatDate(record.date)}</td>
+                            <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatTime(record.checkIn)}</td>
+                            <td className="p-3 text-neutral-600 dark:text-neutral-300">{formatTime(record.checkOut)}</td>
+                            <td className="p-3 text-neutral-600 dark:text-neutral-300">
+                              {record.workHours ? `${record.workHours}h` : '-'}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badge}`}>
+                                  {statusMeta.label}
+                                </span>
+                                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${locationBadgeClass}`}>
+                                  {locationLabel}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-neutral-600 dark:text-neutral-300">{locationLabel}</td>
+                            <td className="p-3 text-neutral-500 dark:text-neutral-400">{record.notes || '-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -356,7 +461,7 @@ const Attendance = () => {
             CSV for payroll or compliance audits.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+            <div className="rounded-xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-900/40 dark:bg-sky-900/30 dark:text-sky-100">
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                 Current Filters
               </p>
@@ -364,7 +469,7 @@ const Attendance = () => {
               <p>From: {filters.startDate || 'Any'} </p>
               <p>To: {filters.endDate || 'Any'}</p>
             </div>
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+            <div className="rounded-xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-900/40 dark:bg-sky-900/30 dark:text-sky-100">
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                 CSV Export
               </p>

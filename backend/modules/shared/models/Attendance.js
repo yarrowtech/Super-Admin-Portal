@@ -57,7 +57,9 @@ const attendanceSchema = new mongoose.Schema(
 attendanceSchema.pre('save', function (next) {
   if (this.checkIn && this.checkOut) {
     const hours = (this.checkOut - this.checkIn) / (1000 * 60 * 60);
-    this.workHours = Math.round(hours * 100) / 100;
+    if (!this.isModified('workHours')) {
+      this.workHours = Math.round(hours * 100) / 100;
+    }
   }
   next();
 });

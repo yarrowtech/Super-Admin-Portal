@@ -24,6 +24,19 @@ const PolicyAcknowledgement = require('../models/PolicyAcknowledgement');
 const SupportTicket = require('../../shared/models/SupportTicket');
 const ExitInterview = require('../models/ExitInterview');
 const { ROLES } = require('../../../config/roles');
+const { evaluateAttendanceRecord } = require('../../shared/utils/shiftRules');
+
+const enhanceAttendanceRecord = (record) => {
+  if (!record) return record;
+  const plain = typeof record.toObject === 'function' ? record.toObject() : record;
+  const computed = evaluateAttendanceRecord(plain);
+  if (computed) {
+    plain.status = computed.status;
+    plain.workHours = computed.workHours;
+    plain.notes = computed.notes;
+  }
+  return plain;
+};
 
 /**
  * @route   GET /api/dept/hr/dashboard
@@ -265,11 +278,12 @@ exports.getAttendance = async (req, res) => {
       .exec();
 
     const count = await Attendance.countDocuments(query);
+    const normalizedRecords = attendance.map(enhanceAttendanceRecord);
 
     res.status(200).json({
       success: true,
       data: {
-        attendance,
+        attendance: normalizedRecords,
         totalPages: Math.ceil(count / limit),
         currentPage: parseInt(page),
         total: count
@@ -371,7 +385,7 @@ exports.getEmployeeAttendance = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: attendance
+      data: attendance.map(enhanceAttendanceRecord)
     });
   } catch (error) {
     console.error('Get employee attendance error:', error);

@@ -35,6 +35,8 @@ export const employeeApi = {
     apiClient.post('/api/dept/employee/attendance/check-in', data, token),
   checkOut: (token) =>
     apiClient.put('/api/dept/employee/attendance/check-out', {}, token),
+  setAttendanceLocation: (token, data = {}) =>
+    apiClient.put('/api/dept/employee/attendance/location', data, token),
   getLeaves: (token, params = '') => {
     if (typeof params === 'string') {
       return apiClient.get(`/api/dept/employee/leave${params}`, token);

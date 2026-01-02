@@ -5,6 +5,14 @@ const Leave = require('../../shared/models/Leave');
 const Notice = require('../../shared/models/Notice');
 const WorkReport = require('../../shared/models/WorkReport');
 const Performance = require('../../shared/models/Performance');
+const {
+  determineShift,
+  buildShiftWindow,
+  formatTimeLabel,
+  formatDuration,
+  evaluateAttendanceRecord,
+  isITShift,
+} = require('../../shared/utils/shiftRules');
 
 /**
  * @route   GET /api/dept/employee/dashboard
@@ -327,13 +335,29 @@ exports.checkIn = async (req, res) => {
       });
     }
 
-    const attendance = await Attendance.create({
+    const now = new Date();
+    const shift = determineShift(req.user?.department);
+    const enforceShift = isITShift(shift);
+    const { expectedStart } = buildShiftWindow(now, shift);
+    const isLate = enforceShift && now > expectedStart;
+
+    const attendancePayload = {
       employee: req.user._id,
-      date: Date.now(),
-      checkIn: Date.now(),
+      date: now,
+      checkIn: now,
       location,
-      status: 'present'
-    });
+      status: isLate ? 'late' : 'present',
+    };
+
+    if (enforceShift) {
+      attendancePayload.notes = `${shift.label}: ${
+        isLate
+          ? `Arrived ${formatDuration(now - expectedStart)} late (after ${formatTimeLabel(expectedStart)})`
+          : `Arrived on time (expected ${formatTimeLabel(expectedStart)})`
+      }`;
+    }
+
+    const attendance = await Attendance.create(attendancePayload);
 
     await attendance.populate('employee', 'firstName lastName email');
 
@@ -362,17 +386,11 @@ exports.checkOut = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const attendance = await Attendance.findOneAndUpdate(
-      {
-        employee: req.user._id,
-        date: { $gte: today },
-        checkOut: null
-      },
-      {
-        checkOut: Date.now()
-      },
-      { new: true }
-    ).populate('employee', 'firstName lastName email');
+    const attendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: { $gte: today },
+      checkOut: null
+    }).populate('employee', 'firstName lastName email department');
 
     if (!attendance) {
       return res.status(404).json({
@@ -380,6 +398,28 @@ exports.checkOut = async (req, res) => {
         error: 'No check-in record found for today'
       });
     }
+
+    const now = new Date();
+    const shift = determineShift(attendance.employee?.department || req.user?.department);
+    const { expectedStart } = buildShiftWindow(attendance.checkIn || now, shift);
+    const enforceShift = isITShift(shift);
+    const durationHours = attendance.checkIn
+      ? Math.max(0, (now - attendance.checkIn) / (1000 * 60 * 60))
+      : 0;
+
+    attendance.checkOut = now;
+    attendance.workHours = Math.round(durationHours * 100) / 100;
+
+    if (enforceShift) {
+      const computed = evaluateAttendanceRecord(attendance, { force: true });
+      if (computed) {
+        attendance.status = computed.status;
+        attendance.workHours = computed.workHours;
+        attendance.notes = computed.notes;
+      }
+    }
+
+    await attendance.save();
 
     res.status(200).json({
       success: true,
@@ -434,6 +474,58 @@ exports.getMyAttendance = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch attendance',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/employee/attendance/location
+ * @desc    Update today's attendance location (office / remote)
+ * @access  Private (Employee only)
+ */
+exports.setAttendanceLocation = async (req, res) => {
+  try {
+    const { location } = req.body || {};
+    const normalized = (location || '').toString().toLowerCase();
+    if (!['office', 'remote'].includes(normalized)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid location value. Use "office" or "remote".'
+      });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const attendance = await Attendance.findOneAndUpdate(
+      {
+        employee: req.user._id,
+        date: { $gte: startOfDay, $lt: endOfDay }
+      },
+      { location: normalized },
+      { new: true }
+    ).populate('employee', 'firstName lastName email department');
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'No attendance record found for today. Please check in first.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Attendance location updated',
+      data: attendance
+    });
+  } catch (error) {
+    console.error('Update attendance location error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update attendance location',
       details: error.message
     });
   }

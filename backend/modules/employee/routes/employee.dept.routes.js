@@ -22,6 +22,7 @@ router.post('/tasks/:id/comment', employeeController.addTaskComment);
 router.post('/attendance/check-in', employeeController.checkIn);
 router.put('/attendance/check-out', employeeController.checkOut);
 router.get('/attendance', employeeController.getMyAttendance);
+router.put('/attendance/location', employeeController.setAttendanceLocation);
 
 // Leave Management
 router.post('/leave', employeeController.requestLeave);

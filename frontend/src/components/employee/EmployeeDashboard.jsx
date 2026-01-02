@@ -33,6 +33,7 @@ const leaveTypeOptions = [
 ];
 
 const STORAGE_KEY = 'employeeDarkMode';
+const WORK_MODE_KEY = 'employeeWorkMode';
 
 const EmployeeDashboard = () => {
   const { token, user } = useAuth();
@@ -57,6 +58,7 @@ const EmployeeDashboard = () => {
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [attendanceAction, setAttendanceAction] = useState({ loading: false, error: '', message: '' });
   const [currentTime, setCurrentTime] = useState(() => new Date());
+  const [workMode, setWorkMode] = useState('office');
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -76,6 +78,13 @@ const EmployeeDashboard = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const storedMode = localStorage.getItem(WORK_MODE_KEY);
+    if (storedMode === 'remote' || storedMode === 'office') {
+      setWorkMode(storedMode);
+    }
+  }, []);
+
   const toggleDarkMode = () => {
     const next = !isDarkMode;
     setIsDarkMode(next);
@@ -90,6 +99,7 @@ const EmployeeDashboard = () => {
     return {
       ...payload,
       checkedIn: payload.checkedIn ?? Boolean(payload.checkIn && !payload.checkOut),
+      location: payload.location || 'office',
     };
   };
 
@@ -125,6 +135,13 @@ const EmployeeDashboard = () => {
   }, [token]);
 
   useEffect(() => {
+    if (!attendanceStatus?.location) return;
+    const normalized = attendanceStatus.location === 'remote' ? 'remote' : 'office';
+    setWorkMode(normalized);
+    localStorage.setItem(WORK_MODE_KEY, normalized);
+  }, [attendanceStatus?.location]);
+
+  useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -138,14 +155,49 @@ const EmployeeDashboard = () => {
   const canCheckIn = !attendance?.checkedIn;
   const canCheckOut = Boolean(attendance?.checkedIn && !attendance?.checkOut);
   const attendanceCtaLabel = canCheckIn ? 'Check In' : canCheckOut ? 'Check Out' : 'Day Complete';
+  const workModeLabel = workMode === 'remote' ? 'Work From Home' : 'In Office';
+  const modeButtonClass = (value) =>
+    `inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+      workMode === value
+        ? 'bg-slate-900 text-white border-slate-900'
+        : 'bg-white/90 text-slate-800 border-slate-200 hover:border-slate-900'
+    }`;
   const formatTime = (value) =>
     value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const handleWorkModeChange = async (mode) => {
+    const normalized = mode === 'remote' ? 'remote' : 'office';
+    if (normalized === workMode && (!attendance?.checkedIn || attendance?.location === normalized)) {
+      return;
+    }
+    setWorkMode(normalized);
+    localStorage.setItem(WORK_MODE_KEY, normalized);
+
+    if (token && attendance?.checkedIn) {
+      try {
+        const res = await employeeApi.setAttendanceLocation(token, { location: normalized });
+        const updated = normalizeAttendance(res);
+        setAttendanceStatus(updated);
+        setAttendanceAction({
+          loading: false,
+          error: '',
+          message: normalized === 'remote' ? 'Switched to Work From Home' : 'Switched to In Office',
+        });
+      } catch (err) {
+        setAttendanceAction({
+          loading: false,
+          error: err.message || 'Failed to update work mode',
+          message: '',
+        });
+      }
+    }
+  };
 
   const handleCheckIn = async () => {
     if (!token || !canCheckIn) return;
     setAttendanceAction({ loading: true, error: '', message: '' });
     try {
-      const res = await employeeApi.checkIn(token);
+      const res = await employeeApi.checkIn(token, { location: workMode === 'remote' ? 'remote' : 'office' });
       const normalized = normalizeAttendance(res);
       setAttendanceStatus(normalized);
       setAttendanceAction({
@@ -487,7 +539,6 @@ const EmployeeDashboard = () => {
           { key: 'today', label: 'Today', icon: 'sunny' },
           { key: 'upcoming', label: 'Upcoming', icon: 'upcoming' },
           { key: 'overdue', label: 'Overdue', icon: 'error' },
-          { key: 'completed', label: 'Completed', icon: 'task_alt' },
         ].map((bucket) => (
           <div key={bucket.key} className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
             <div className="flex items-center justify-between">
@@ -548,7 +599,7 @@ const EmployeeDashboard = () => {
             {documents.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No reports submitted yet.</p>}
           </div>
         </div>
-        <div className="lg:col-span-2 rounded-3xl border border-slate-200  from-slate-900 to-slate-800 p-6 text-black shadow-xl">
+        <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 text-black shadow-xl dark:from-slate-900 dark:to-slate-800 dark:text-white">
           <p className="text-sm font-semibold uppercase tracking-widest text-black">Attendance</p>
           <h3 className="mt-2 text-2xl font-black">{attendance?.checkedIn ? 'You\'re checked in' : 'Check-in pending'}</h3>
           <p className="mt-1 text-sm text-black">
@@ -559,6 +610,31 @@ const EmployeeDashboard = () => {
           {attendance?.checkOut && (
             <p className="text-xs text-black">Checked out at {new Date(attendance.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
           )}
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/70">Working mode</p>
+            <p className="text-sm font-semibold text-black">{workModeLabel}</p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className={modeButtonClass('office')}
+                onClick={() => handleWorkModeChange('office')}
+              >
+                <span className="material-symbols-outlined text-base">business_center</span>
+                In Office
+              </button>
+              <button
+                type="button"
+                className={modeButtonClass('remote')}
+                onClick={() => handleWorkModeChange('remote')}
+              >
+                <span className="material-symbols-outlined text-base">home_work</span>
+                Work From Home
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-black/70">
+              HR sees this selection on your attendance record once you check in.
+            </p>
+          </div>
         </div>
       </section>
 

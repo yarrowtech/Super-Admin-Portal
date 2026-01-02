@@ -193,9 +193,16 @@ const EmployeeSidebar = () => {
             <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-indigo-400 text-white shadow-lg shadow-primary/30">
               <span className="material-symbols-outlined text-2xl">blur_on</span>
             </div>
-            <div className="flex flex-col">
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Employee</p>
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">Workplace</h1>
+            <div className="flex max-w-[180px] flex-col">
+              <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-slate-500" title={displayName}>
+                {displayName}
+              </p>
+              <h1
+                className="truncate text-[11px] font-semibold text-slate-900 dark:text-white leading-tight"
+                title={user?.email || 'Welcome'}
+              >
+                {user?.email || 'Welcome'}
+              </h1>
             </div>
           </div>
           <nav className="flex flex-col gap-1.5">
@@ -239,15 +246,6 @@ const EmployeeSidebar = () => {
           
         </div>
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
-            <div className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-purple-500 text-white font-semibold">
-              {initials}
-            </div>
-            <div className="flex flex-col">
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">{displayName}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{user?.role ? user.role.toUpperCase() : 'TEAM MEMBER'}</p>
-            </div>
-          </div>
           <button
             onClick={handleLogout}
             className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-500 hover:text-red-500 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-400 dark:hover:text-red-400"

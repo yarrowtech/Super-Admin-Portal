@@ -256,44 +256,6 @@ const ManagerDashboard = () => {
     fetchWorkUpdates();
   }, [token]);
 
-  // Listen for real-time notifications from employee actions
-  useEffect(() => {
-    const handleManagerNotification = (event) => {
-      const detail = event.detail;
-      if (!detail) return;
-      if (!shouldDeliverToManager(user, detail)) {
-        return;
-      }
-      console.log('Received real-time notification:', detail);
-      addNotification(detail);
-    };
-
-    // Listen for custom events (cross-component communication)
-    window.addEventListener('managerNotification', handleManagerNotification);
-
-    // Check for pending notifications in localStorage (cross-tab communication)
-    const checkPendingNotifications = () => {
-      const pending = localStorage.getItem('pendingManagerNotification');
-      if (pending) {
-        try {
-          const notificationData = JSON.parse(pending);
-          if (shouldDeliverToManager(user, notificationData)) {
-            addNotification(notificationData);
-          }
-          localStorage.removeItem('pendingManagerNotification');
-        } catch (err) {
-          console.error('Failed to parse pending notification:', err);
-        }
-      }
-    };
-
-    checkPendingNotifications();
-    
-    return () => {
-      window.removeEventListener('managerNotification', handleManagerNotification);
-    };
-  }, [addNotification, user]);
-
   useEffect(() => {
     if (!token || !user) return undefined;
     const managerId = user.id || user._id;

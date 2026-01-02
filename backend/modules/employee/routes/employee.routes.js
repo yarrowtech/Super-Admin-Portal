@@ -5,6 +5,7 @@ const tasksController = require('../controllers/tasks.controller');
 const documentsController = require('../controllers/documents.controller');
 const teamController = require('../controllers/team.controller');
 const chatController = require('../controllers/chat.controller');
+const notificationsController = require('../controllers/notifications.controller');
 const { authenticate, authorize } = require('../../shared/middleware/auth');
 const { ROLES } = require('../../../config/roles');
 
@@ -18,6 +19,7 @@ router.get('/projects', projectsController.getProjects);
 router.post('/projects/tasks', projectsController.createTask);
 router.delete('/projects/tasks/:taskId', projectsController.deleteTask);
 router.get('/tasks', tasksController.getTasks);
+router.post('/notify-manager/task-review/:taskId', notificationsController.notifyManagerTaskReview);
 router.get('/documents', documentsController.getDocuments);
 router.get('/team', teamController.getTeam);
 

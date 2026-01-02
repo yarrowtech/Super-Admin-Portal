@@ -17,7 +17,8 @@ const NotificationPanel = ({ onTaskClick }) => {
       await markAsRead(notification.id);
     }
     
-    if (notification.type === 'task_review' && notification.metadata?.taskId) {
+    const actionableTypes = ['task_review', 'task_completed', 'task_update'];
+    if (actionableTypes.includes(notification.type) && notification.metadata?.taskId) {
       onTaskClick(notification.metadata.taskId, notification.metadata);
     }
     

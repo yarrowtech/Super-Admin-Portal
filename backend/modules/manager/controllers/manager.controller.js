@@ -2,6 +2,7 @@
 
 const mongoose = require('mongoose');
 const { buildManagerSnapshot } = require('../services/metrics.service');
+const notificationService = require('../services/notification.service');
 const User = require('../../shared/models/User');
 const Task = require('../../shared/models/Task');
 const Leave = require('../../shared/models/Leave');
@@ -247,16 +248,20 @@ exports.rejectWork = async (req, res) => {
  */
 exports.getNotifications = async (req, res) => {
   try {
-    // TODO: Implement actual notification fetching
-    const notifications = [];
-
+    const result = await notificationService.getNotificationsForManager(req.user, req.query);
     res.status(200).json({
       success: true,
-      data: notifications
+      data: result.notifications,
+      meta: {
+        total: result.total,
+        unread: result.unread,
+        page: result.page,
+        limit: result.limit,
+      },
     });
   } catch (error) {
     console.error('Get notifications error:', error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       error: 'Failed to fetch notifications',
       details: error.message
@@ -272,17 +277,14 @@ exports.getNotifications = async (req, res) => {
 exports.markNotificationRead = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // TODO: Implement actual notification marking logic
-    console.log(`Marking notification ${id} as read for manager: ${req.user.id}`);
-
+    const notification = await notificationService.markNotificationRead(req.user, id);
     res.status(200).json({
       success: true,
-      message: 'Notification marked as read'
+      data: notification
     });
   } catch (error) {
     console.error('Mark notification read error:', error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       error: 'Failed to mark notification as read',
       details: error.message
@@ -297,16 +299,16 @@ exports.markNotificationRead = async (req, res) => {
  */
 exports.markAllNotificationsRead = async (req, res) => {
   try {
-    // TODO: Implement actual notification marking logic
-    console.log(`Marking all notifications as read for manager: ${req.user.id}`);
+    const summary = await notificationService.markAllNotificationsRead(req.user);
 
     res.status(200).json({
       success: true,
-      message: 'All notifications marked as read'
+      message: 'All notifications marked as read',
+      data: summary
     });
   } catch (error) {
     console.error('Mark all notifications read error:', error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       error: 'Failed to mark all notifications as read',
       details: error.message

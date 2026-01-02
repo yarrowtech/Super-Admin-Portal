@@ -1,8 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { managerApi } from '../api/manager';
 import { useAuth } from './AuthContext';
+import { shouldDeliverToManager } from '../utils/notificationRouting';
 
 const NotificationContext = createContext();
+const LEGACY_PENDING_KEY = 'pendingManagerNotification';
+const PENDING_QUEUE_KEY = 'pendingManagerNotifications';
 
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
@@ -17,6 +20,43 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  const normalizeNotification = useCallback((notification) => {
+    if (!notification) return null;
+    const fallbackId = `notification-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      read: Boolean(notification.read),
+      createdAt: notification.createdAt || new Date().toISOString(),
+      ...notification,
+      id: notification.id || fallbackId,
+      type: notification.type || 'task_completed',
+      title: notification.title || 'Task update',
+      message: notification.message || 'An employee task was updated.',
+    };
+  }, []);
+
+  const addNotification = useCallback((notification) => {
+    const normalized = normalizeNotification(notification);
+    if (!normalized) return;
+    setNotifications((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === normalized.id);
+      if (existingIndex !== -1) {
+        const existing = prev[existingIndex];
+        const next = [...prev];
+        next[existingIndex] = { ...existing, ...normalized };
+        if (existing.read && !normalized.read) {
+          setUnreadCount((count) => count + 1);
+        } else if (!existing.read && normalized.read) {
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+        return next;
+      }
+      if (!normalized.read) {
+        setUnreadCount((count) => count + 1);
+      }
+      return [normalized, ...prev];
+    });
+  }, [normalizeNotification]);
 
   const fetchNotifications = useCallback(async () => {
     if (!token) return;
@@ -69,12 +109,40 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(0);
   }, [token]);
 
-  const addNotification = useCallback((notification) => {
-    setNotifications(prev => [notification, ...prev]);
-    if (!notification.read) {
-      setUnreadCount(prev => prev + 1);
+  const flushPendingNotifications = useCallback(() => {
+    if (!user) return;
+
+    const deliverIfAllowed = (payload) => {
+      if (payload && shouldDeliverToManager(user, payload)) {
+        addNotification(payload);
+      }
+    };
+
+    const legacyValue = localStorage.getItem(LEGACY_PENDING_KEY);
+    if (legacyValue) {
+      try {
+        deliverIfAllowed(JSON.parse(legacyValue));
+      } catch (err) {
+        console.warn('Failed to parse legacy pending notification', err);
+      } finally {
+        localStorage.removeItem(LEGACY_PENDING_KEY);
+      }
     }
-  }, []);
+
+    const queueValue = localStorage.getItem(PENDING_QUEUE_KEY);
+    if (queueValue) {
+      try {
+        const queue = JSON.parse(queueValue);
+        if (Array.isArray(queue)) {
+          queue.forEach(deliverIfAllowed);
+        }
+      } catch (err) {
+        console.warn('Failed to parse pending notification queue', err);
+      } finally {
+        localStorage.removeItem(PENDING_QUEUE_KEY);
+      }
+    }
+  }, [user, addNotification]);
 
   useEffect(() => {
     console.log('NotificationContext: checking if should fetch notifications', { 
@@ -85,8 +153,38 @@ export const NotificationProvider = ({ children }) => {
     
     if (token && user?.role === 'manager') {
       fetchNotifications();
+      flushPendingNotifications();
     }
-  }, [token, user?.role, fetchNotifications]);
+  }, [token, user?.role, fetchNotifications, flushPendingNotifications]);
+
+  useEffect(() => {
+    if (!token || user?.role !== 'manager') return undefined;
+
+    const handleManagerNotification = (event) => {
+      const detail = event?.detail;
+      if (!detail) return;
+      if (!shouldDeliverToManager(user, detail)) return;
+      addNotification(detail);
+    };
+
+    const handleStorage = (event) => {
+      if (
+        event.key === PENDING_QUEUE_KEY ||
+        event.key === LEGACY_PENDING_KEY
+      ) {
+        flushPendingNotifications();
+      }
+    };
+
+    window.addEventListener('managerNotification', handleManagerNotification);
+    window.addEventListener('storage', handleStorage);
+
+    flushPendingNotifications();
+    return () => {
+      window.removeEventListener('managerNotification', handleManagerNotification);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [token, user, addNotification, flushPendingNotifications]);
 
   const value = {
     notifications,

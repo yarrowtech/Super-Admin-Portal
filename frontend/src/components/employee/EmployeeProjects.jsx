@@ -535,6 +535,15 @@ const EmployeeProjects = () => {
             
             // Store in localStorage for cross-tab communication (demo only)
             localStorage.setItem('pendingManagerNotification', JSON.stringify(notificationData));
+            try {
+              const queue =
+                JSON.parse(localStorage.getItem('pendingManagerNotifications') || '[]') || [];
+              queue.push(notificationData);
+              localStorage.setItem('pendingManagerNotifications', JSON.stringify(queue));
+            } catch (queueErr) {
+              console.warn('Failed to persist manager notification queue', queueErr);
+              localStorage.setItem('pendingManagerNotifications', JSON.stringify([notificationData]));
+            }
             
             // Dispatch a custom event to notify the manager dashboard
             window.dispatchEvent(new CustomEvent('managerNotification', { detail: notificationData }));

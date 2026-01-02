@@ -40,8 +40,11 @@ const uniqueArray = (items) => {
 export const buildDepartmentTarget = (department, overrides = {}) => {
   const normalizedDepartment = normalize(department) || 'general';
   const route = findRouteByDepartment(department) || null;
+  const includeGeneralAudience =
+    overrides.includeGeneralAudience !== false;
 
   const departments = uniqueArray([
+    ...(includeGeneralAudience ? ['general', 'all'] : []),
     normalizedDepartment,
     normalizedDepartment.replace(/\s+/g, ''),
     ...(overrides.departments || []),

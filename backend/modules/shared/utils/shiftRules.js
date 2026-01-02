@@ -103,7 +103,7 @@ const evaluateAttendanceRecord = (record, { force = false } = {}) => {
       : `Completed scheduled hours (to ${formatTimeLabel(expectedEnd)})`
     : 'Pending check-out';
 
-  const notes = `${shift.label}: ${arrivalNote} • ${departureNote}`;
+  const notes = `${arrivalNote} • ${departureNote}`;
 
   return {
     status,

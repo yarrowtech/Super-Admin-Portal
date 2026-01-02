@@ -21,10 +21,15 @@ const formatDate = (value, withTime = false) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
+  const dateFormatted = date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  });
   if (withTime) {
-    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    return `${dateFormatted} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }
-  return date.toLocaleDateString();
+  return dateFormatted;
 };
 
 const formatTime = (value) => {

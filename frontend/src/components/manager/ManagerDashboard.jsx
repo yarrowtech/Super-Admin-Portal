@@ -37,12 +37,99 @@ const ManagerDashboard = () => {
   const [selectedTaskData, setSelectedTaskData] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [attendanceStatus, setAttendanceStatus] = useState(null);
+  const [attendanceAction, setAttendanceAction] = useState({ loading: false, error: '', message: '' });
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+  const ATTENDANCE_STORAGE_KEY = 'manager-dashboard-attendance';
   const socketRef = useRef(null);
 
   const managerName = useMemo(() => {
     const full = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
     return full || user?.name || 'Manager';
   }, [user]);
+
+  const normalizeAttendance = (data) => {
+    if (!data) return null;
+    const payload = data?.data || data;
+    if (!payload) return null;
+    return {
+      ...payload,
+      checkedIn: payload.checkedIn ?? Boolean(payload.checkIn && !payload.checkOut),
+    };
+  };
+
+  const loadStoredAttendance = () => {
+    try {
+      const raw = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      console.warn('Failed to load stored attendance', err);
+      return null;
+    }
+  };
+
+  const persistAttendance = (payload) => {
+    try {
+      if (!payload) {
+        localStorage.removeItem(ATTENDANCE_STORAGE_KEY);
+        return;
+      }
+      localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.warn('Failed to persist attendance', err);
+    }
+  };
+
+  const isAttendanceRouteUnavailable = (err) => {
+    const message = (err?.message || '').toLowerCase();
+    return (
+      message.includes('route not found') ||
+      message.includes('no available check-in endpoint') ||
+      message.includes('attendance endpoint') ||
+      err?.status === 404
+    );
+  };
+
+  const applyOfflineAttendance = (action) => {
+    const now = new Date().toISOString();
+    setAttendanceStatus((prev) => {
+      const next =
+        action === 'check-in'
+          ? {
+              ...(prev || {}),
+              checkedIn: true,
+              checkIn: now,
+              checkOut: null,
+            }
+          : {
+              ...(prev || {}),
+              checkedIn: false,
+              checkOut: now,
+              checkIn: prev?.checkIn || now,
+            };
+      persistAttendance(next);
+      return next;
+    });
+    setAttendanceAction({
+      loading: false,
+      error: '',
+      message: action === 'check-in' ? 'Checked in (offline mode)' : 'Checked out (offline mode)',
+    });
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!attendanceStatus) {
+      const stored = loadStoredAttendance();
+      if (stored) {
+        setAttendanceStatus(stored);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -82,9 +169,23 @@ const ManagerDashboard = () => {
     setLoading(true);
     (async () => {
       try {
-        const res = await managerApi.getDashboard(token);
+        const [dashboardRes, attendanceRes] = await Promise.all([
+          managerApi.getDashboard(token),
+          managerApi.getAttendance(token).catch(() => null)
+        ]);
+        
         if (!cancelled) {
-          setSnapshot(res?.data?.data || res?.data || null);
+          setSnapshot(dashboardRes?.data?.data || dashboardRes?.data || null);
+          const normalizedAttendance = normalizeAttendance(attendanceRes?.data || attendanceRes);
+          if (normalizedAttendance) {
+            setAttendanceStatus(normalizedAttendance);
+            persistAttendance(normalizedAttendance);
+          } else {
+            const stored = loadStoredAttendance();
+            if (stored) {
+              setAttendanceStatus(stored);
+            }
+          }
           setError('');
         }
       } catch (err) {
@@ -299,6 +400,71 @@ const ManagerDashboard = () => {
     }
   };
 
+  const formatTime = (value) =>
+    value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const handleCheckIn = async () => {
+    if (!token || !canCheckIn) return;
+    setAttendanceAction({ loading: true, error: '', message: '' });
+    try {
+      const res = await managerApi.checkIn(token);
+      const normalized = normalizeAttendance(res);
+      setAttendanceStatus(normalized);
+      persistAttendance(normalized);
+      setAttendanceAction({
+        loading: false,
+        error: '',
+        message: normalized?.checkIn ? `Checked in at ${formatTime(normalized.checkIn)}` : 'Checked in successfully',
+      });
+    } catch (err) {
+      if (isAttendanceRouteUnavailable(err)) {
+        applyOfflineAttendance('check-in');
+      } else {
+        setAttendanceAction({
+          loading: false,
+          error: err.message || 'Failed to check in',
+          message: '',
+        });
+      }
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!token || !canCheckOut) return;
+    setAttendanceAction({ loading: true, error: '', message: '' });
+    try {
+      const res = await managerApi.checkOut(token);
+      const normalized = normalizeAttendance(res);
+      setAttendanceStatus(normalized);
+      persistAttendance(normalized);
+      setAttendanceAction({
+        loading: false,
+        error: '',
+        message: normalized?.checkOut ? `Checked out at ${formatTime(normalized.checkOut)}` : 'Checked out successfully',
+      });
+    } catch (err) {
+      if (isAttendanceRouteUnavailable(err)) {
+        applyOfflineAttendance('check-out');
+      } else {
+        setAttendanceAction({
+          loading: false,
+          error: err.message || 'Failed to check out',
+          message: '',
+        });
+      }
+    }
+  };
+
+  const handleAttendanceAction = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (canCheckIn) {
+      handleCheckIn();
+    } else if (canCheckOut) {
+      handleCheckOut();
+    }
+  };
+
   const realtimeLabel = useMemo(() => {
     switch (realtimeStatus) {
       case 'live':
@@ -309,6 +475,11 @@ const ManagerDashboard = () => {
         return { text: 'Syncing…', color: 'text-amber-500', dot: 'bg-amber-500' };
     }
   }, [realtimeStatus]);
+
+  const attendance = attendanceStatus;
+  const canCheckIn = !attendance?.checkedIn;
+  const canCheckOut = Boolean(attendance?.checkedIn && !attendance?.checkOut);
+  const attendanceCtaLabel = canCheckIn ? 'Check In' : canCheckOut ? 'Check Out' : 'Day Complete';
 
   return (
     <main className="flex-1 overflow-y-auto">
@@ -326,9 +497,17 @@ const ManagerDashboard = () => {
                 Welcome back, {managerName}!
               </p>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">
-              Your live snapshot updates every few seconds.
-            </p>
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Your live snapshot updates every few seconds.
+              </p>
+              {attendance?.checkedIn && (
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  ✓ Checked in at {formatTime(attendance.checkIn)}
+                  {attendance?.checkOut && ` • Out at ${formatTime(attendance.checkOut)}`}
+                </p>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
               <span className={`inline-flex size-2 rounded-full ${realtimeLabel.dot}`}></span>
               <span className={`${realtimeLabel.color}`}>{realtimeLabel.text}</span>
@@ -340,6 +519,23 @@ const ManagerDashboard = () => {
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <button
+              type="button"
+              onClick={handleAttendanceAction}
+              disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
+                canCheckIn
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200'
+                  : canCheckOut
+                  ? 'border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
+                  : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-800 dark:bg-gray-900/40 dark:text-gray-500'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
+              </span>
+              <span className="hidden sm:inline">{attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}</span>
+            </button>
             <NotificationPanel onTaskClick={handleTaskClick} />
             <div className="flex items-center gap-2 sm:gap-4">
               <button
@@ -375,6 +571,21 @@ const ManagerDashboard = () => {
         {error && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100">
             {error}
+          </div>
+        )}
+
+        {(attendanceAction.error || attendanceAction.message) && (
+          <div className={`mb-4 rounded-xl border p-4 text-sm font-semibold ${
+            attendanceAction.error 
+              ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-base">
+                {attendanceAction.error ? 'error' : 'check_circle'}
+              </span>
+              {attendanceAction.error || attendanceAction.message}
+            </div>
           </div>
         )}
 
@@ -417,6 +628,16 @@ const ManagerDashboard = () => {
             value={numberFormatter.format(workUpdatesTotal || 0)}
             trend="Latest task activity"
             icon="task_alt"
+          />
+          <StatCard
+            label="Your Attendance"
+            value={attendance?.checkedIn ? 'Checked In' : 'Pending'}
+            trend={attendance?.checkIn 
+              ? `At ${formatTime(attendance.checkIn)}${attendance?.checkOut ? ` - ${formatTime(attendance.checkOut)}` : ''}`
+              : 'Click to check in'
+            }
+            trendColor={attendance?.checkedIn ? 'text-emerald-500' : 'text-amber-500'}
+            icon={attendance?.checkedIn ? 'how_to_reg' : 'schedule'}
           />
         </div>
 

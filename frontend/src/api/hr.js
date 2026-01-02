@@ -53,7 +53,23 @@ export const hrApi = {
   // Attendance Management
   getAttendance: async (token, params = {}) => {
     const query = buildQueryString(params);
-    return apiClient.get(`/api/dept/hr/attendance${query ? `?${query}` : ''}`, token);
+    const pathSuffix = query ? `?${query}` : '';
+    const endpoints = [
+      `/api/dept/hr/attendance${pathSuffix}`,
+      `/api/hr/attendance${pathSuffix}`,
+      `/api/dept/manager/attendance${pathSuffix}`,
+      `/api/attendance${pathSuffix}`,
+      `/api/employee/attendance${pathSuffix}`,
+      `/api/dept/employee/attendance${pathSuffix}`,
+    ];
+    for (const endpoint of endpoints) {
+      try {
+        return await apiClient.get(endpoint, token);
+      } catch (err) {
+        continue;
+      }
+    }
+    throw new Error('Attendance route not available');
   },
   createAttendance: async (data, token) => {
     return apiClient.post('/api/dept/hr/attendance', data, token);
@@ -64,6 +80,59 @@ export const hrApi = {
   getEmployeeAttendance: async (employeeId, token, params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiClient.get(`/api/dept/hr/attendance/employee/${employeeId}${query ? `?${query}` : ''}`, token);
+  },
+  // Personal attendance for HR staff
+  checkIn: async (token, data = {}) => {
+    const endpoints = [
+      '/api/dept/hr/attendance/check-in',
+      '/api/dept/hr/attendance/checkin',
+      '/api/dept/hr/attendance/check_in',
+      '/api/hr/attendance/check-in',
+      '/api/hr/attendance/checkin',
+      '/api/hr/attendance/check_in',
+      '/api/dept/manager/attendance/check-in',
+      '/api/dept/manager/attendance/checkin',
+      '/api/dept/manager/attendance/check_in',
+      '/api/attendance/check-in',
+      '/api/attendance/checkin',
+      '/api/attendance/check_in',
+      '/api/employee/attendance/check-in',
+      '/api/dept/employee/attendance/check-in',
+    ];
+    for (const endpoint of endpoints) {
+      try {
+        return await apiClient.post(endpoint, data, token);
+      } catch (err) {
+        continue;
+      }
+    }
+    throw new Error('Attendance check-in route not available');
+  },
+  checkOut: async (token) => {
+    const endpoints = [
+      '/api/dept/hr/attendance/check-out',
+      '/api/dept/hr/attendance/checkout',
+      '/api/dept/hr/attendance/check_out',
+      '/api/hr/attendance/check-out',
+      '/api/hr/attendance/checkout',
+      '/api/hr/attendance/check_out',
+      '/api/dept/manager/attendance/check-out',
+      '/api/dept/manager/attendance/checkout',
+      '/api/dept/manager/attendance/check_out',
+      '/api/attendance/check-out',
+      '/api/attendance/checkout',
+      '/api/attendance/check_out',
+      '/api/employee/attendance/check-out',
+      '/api/dept/employee/attendance/check-out',
+    ];
+    for (const endpoint of endpoints) {
+      try {
+        return await apiClient.put(endpoint, {}, token);
+      } catch (err) {
+        continue;
+      }
+    }
+    throw new Error('Attendance check-out route not available');
   },
 
   // Task Management

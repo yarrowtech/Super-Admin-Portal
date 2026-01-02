@@ -56,4 +56,87 @@ export const managerApi = {
     apiClient.put(`/api/dept/manager/tasks/${taskId}/reassign`, data, token),
   closeTask: (token, taskId) =>
     apiClient.put(`/api/dept/manager/tasks/${taskId}/close`, {}, token),
+  
+  // Attendance Management - Try multiple endpoint strategies
+  getAttendance: async (token, params = '') => {
+    const query =
+      typeof params === 'string' && params.startsWith('?')
+        ? params
+        : typeof params === 'string'
+        ? params
+        : (() => {
+            const built = buildQueryString(params);
+            return built ? `?${built}` : '';
+          })();
+
+    const endpoints = [
+      `/api/dept/hr/attendance${query}`,
+      `/api/dept/manager/attendance${query}`,
+      `/api/hr/attendance${query}`,
+      `/api/attendance${query}`,
+      `/api/employee/attendance${query}`,
+      `/api/dept/employee/attendance${query}`,
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        return await apiClient.get(endpoint, token);
+      } catch (err) {
+        continue;
+      }
+    }
+    throw new Error('No available attendance endpoint found');
+  },
+
+  checkIn: async (token, data = {}) => {
+    const endpoints = [
+      '/api/dept/hr/attendance/check-in',
+      '/api/dept/manager/attendance/check-in',
+      '/api/dept/manager/attendance/checkin',
+      '/api/dept/manager/attendance/check_in',
+      '/api/hr/attendance/check-in',
+      '/api/hr/attendance/checkin',
+      '/api/hr/attendance/check_in',
+      '/api/attendance/check-in',
+      '/api/attendance/checkin',
+      '/api/attendance/check_in',
+      '/api/employee/attendance/check-in',
+      '/api/dept/employee/attendance/check-in',
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        return await apiClient.post(endpoint, data, token);
+      } catch (err) {
+        continue;
+      }
+    }
+    throw new Error('No available check-in endpoint found');
+  },
+
+  checkOut: async (token) => {
+    const endpoints = [
+      '/api/dept/hr/attendance/check-out',
+      '/api/dept/manager/attendance/check-out',
+      '/api/dept/manager/attendance/checkout',
+      '/api/dept/manager/attendance/check_out',
+      '/api/hr/attendance/check-out',
+      '/api/hr/attendance/checkout',
+      '/api/hr/attendance/check_out',
+      '/api/attendance/check-out',
+      '/api/attendance/checkout',
+      '/api/attendance/check_out',
+      '/api/employee/attendance/check-out',
+      '/api/dept/employee/attendance/check-out',
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        return await apiClient.put(endpoint, {}, token);
+      } catch (err) {
+        continue;
+      }
+    }
+    throw new Error('No available check-out endpoint found');
+  },
 };

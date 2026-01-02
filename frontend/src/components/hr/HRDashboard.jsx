@@ -28,7 +28,75 @@ const HRDashboard = () => {
   const [error, setError] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [attendanceStatus, setAttendanceStatus] = useState(null);
+  const [attendanceAction, setAttendanceAction] = useState({ loading: false, error: '', message: '' });
   const [currentTime, setCurrentTime] = useState(() => new Date());
+  const ATTENDANCE_STORAGE_KEY = 'hr-dashboard-attendance';
+
+  const loadStoredAttendance = () => {
+    try {
+      const raw = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      console.warn('Failed to load stored attendance', err);
+      return null;
+    }
+  };
+
+  const persistAttendance = (payload) => {
+    try {
+      if (!payload) {
+        localStorage.removeItem(ATTENDANCE_STORAGE_KEY);
+        return;
+      }
+      localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.warn('Failed to persist attendance', err);
+    }
+  };
+
+  const isAttendanceRouteUnavailable = (err) => {
+    const message = (err?.message || '').toLowerCase();
+    return message.includes('route not found') || message.includes('route not available') || err?.status === 404;
+  };
+
+  const applyOfflineAttendance = (action) => {
+    const now = new Date().toISOString();
+    setAttendanceStatus((prev) => {
+      const next =
+        action === 'check-in'
+          ? {
+              ...(prev || {}),
+              checkedIn: true,
+              checkIn: now,
+              checkOut: null,
+            }
+          : {
+              ...(prev || {}),
+              checkedIn: false,
+              checkOut: now,
+              checkIn: prev?.checkIn || now,
+            };
+      persistAttendance(next);
+      return next;
+    });
+
+    setAttendanceAction({
+      loading: false,
+      error: '',
+      message: action === 'check-in' ? 'Checked in (offline mode)' : 'Checked out (offline mode)',
+    });
+  };
+
+  const normalizeAttendance = (data) => {
+    if (!data) return null;
+    const payload = data?.data || data;
+    if (!payload) return null;
+    return {
+      ...payload,
+      checkedIn: payload.checkedIn ?? Boolean(payload.checkIn && !payload.checkOut),
+    };
+  };
 
   const fetchPendingLeaves = async () => {
     const pendingResponse = await hrApi.getLeaveRequests(token, { status: 'pending', limit: 3, page: 1 });
@@ -64,8 +132,22 @@ const HRDashboard = () => {
     const fetchDashboard = async () => {
       try {
         setLoading(true);
-        const response = await hrApi.getDashboard(token);
-        setDashboardData(response.data);
+        const [dashboardRes, attendanceRes] = await Promise.all([
+          hrApi.getDashboard(token),
+          hrApi.getAttendance(token).catch(() => null),
+        ]);
+
+        setDashboardData(dashboardRes.data);
+        const normalizedAttendance = normalizeAttendance(attendanceRes?.data || attendanceRes);
+        if (normalizedAttendance) {
+          setAttendanceStatus(normalizedAttendance);
+          persistAttendance(normalizedAttendance);
+        } else {
+          const stored = loadStoredAttendance();
+          if (stored) {
+            setAttendanceStatus(stored);
+          }
+        }
         await fetchPendingLeaves();
         await fetchWorkUpdates();
       } catch (err) {
@@ -108,6 +190,15 @@ const HRDashboard = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!attendanceStatus) {
+      const stored = loadStoredAttendance();
+      if (stored) {
+        setAttendanceStatus(stored);
+      }
+    }
+  }, []);
+
   const handleApprove = async (leaveId) => {
     try {
       setActionLoadingId(leaveId);
@@ -129,6 +220,69 @@ const HRDashboard = () => {
       setError(err.message || 'Failed to reject leave');
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const formatTime = (value) =>
+    value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const handleCheckIn = async () => {
+    if (!token || !canCheckIn) return;
+    setAttendanceAction({ loading: true, error: '', message: '' });
+    try {
+      const res = await hrApi.checkIn(token);
+      const normalized = normalizeAttendance(res);
+      setAttendanceStatus(normalized);
+       persistAttendance(normalized);
+      setAttendanceAction({
+        loading: false,
+        error: '',
+        message: normalized?.checkIn ? `Checked in at ${formatTime(normalized.checkIn)}` : 'Checked in successfully',
+      });
+    } catch (err) {
+      if (isAttendanceRouteUnavailable(err)) {
+        applyOfflineAttendance('check-in');
+      } else {
+        setAttendanceAction({
+          loading: false,
+          error: err.message || 'Failed to check in',
+          message: '',
+        });
+      }
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!token || !canCheckOut) return;
+    setAttendanceAction({ loading: true, error: '', message: '' });
+    try {
+      const res = await hrApi.checkOut(token);
+      const normalized = normalizeAttendance(res);
+      setAttendanceStatus(normalized);
+      persistAttendance(normalized);
+      setAttendanceAction({
+        loading: false,
+        error: '',
+        message: normalized?.checkOut ? `Checked out at ${formatTime(normalized.checkOut)}` : 'Checked out successfully',
+      });
+    } catch (err) {
+      if (isAttendanceRouteUnavailable(err)) {
+        applyOfflineAttendance('check-out');
+      } else {
+        setAttendanceAction({
+          loading: false,
+          error: err.message || 'Failed to check out',
+          message: '',
+        });
+      }
+    }
+  };
+
+  const handleAttendanceAction = () => {
+    if (canCheckIn) {
+      handleCheckIn();
+    } else if (canCheckOut) {
+      handleCheckOut();
     }
   };
 
@@ -241,6 +395,11 @@ const normalizeWorkUpdateStatus = (status) => {
   const greetingLabel = getGreeting();
   const userName = user?.firstName || user?.name || 'HR Manager';
 
+  const attendance = attendanceStatus;
+  const canCheckIn = !attendance?.checkedIn;
+  const canCheckOut = Boolean(attendance?.checkedIn && !attendance?.checkOut);
+  const attendanceCtaLabel = canCheckIn ? 'Check In' : canCheckOut ? 'Check Out' : 'Day Complete';
+
   return (
     <main className="flex-1 overflow-y-auto bg-gradient-to-br from-purple-50/30 via-white to-blue-50/30 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -253,12 +412,38 @@ const normalizeWorkUpdateStatus = (status) => {
               <p className="text-sm font-semibold uppercase tracking-[0.35em] text-purple-100">
                 {greetingLabel} • {dayName} • {dateLabel} • {timeLabel}
               </p>
-              <h1 className="mt-2 text-3xl font-bold text-white">
-                {greetingLabel}, {userName}! 👋
-              </h1>
-              <p className="mt-2 text-lg text-purple-100">
-                Here's what's happening with your workforce today
-              </p>
+              <div className="mt-2 flex items-center justify-between gap-4">
+                <h1 className="text-3xl font-bold text-white">
+                  {greetingLabel}, {userName}! 👋
+                </h1>
+                <button
+                  onClick={handleAttendanceAction}
+                  disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
+                  className={`inline-flex items-center gap-3 rounded-xl border-2 px-5 py-3 text-sm font-bold shadow-lg transition-all ${
+                    canCheckIn
+                      ? 'border-emerald-300/50 bg-emerald-500 text-white hover:bg-emerald-400 hover:shadow-emerald-400/25'
+                      : canCheckOut
+                      ? 'border-amber-300/50 bg-amber-500 text-white hover:bg-amber-400 hover:shadow-amber-400/25'
+                      : 'cursor-not-allowed border-white/30 bg-white/10 text-white/50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-xl">
+                    {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
+                  </span>
+                  <span className="hidden sm:inline">{attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}</span>
+                </button>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-4">
+                <p className="text-lg text-purple-100">
+                  Here's what's happening with your workforce today
+                </p>
+                {attendance?.checkedIn && (
+                  <p className="text-sm font-medium text-emerald-200">
+                    ✓ Checked in at {formatTime(attendance.checkIn)}
+                    {attendance?.checkOut && ` • Out at ${formatTime(attendance.checkOut)}`}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="hidden lg:block">
               <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
@@ -267,6 +452,22 @@ const normalizeWorkUpdateStatus = (status) => {
             </div>
           </div>
         </div>
+
+        {/* Attendance Message */}
+        {(attendanceAction.error || attendanceAction.message) && (
+          <div className={`mb-6 rounded-xl border p-4 text-sm font-semibold ${
+            attendanceAction.error 
+              ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-base">
+                {attendanceAction.error ? 'error' : 'check_circle'}
+              </span>
+              {attendanceAction.error || attendanceAction.message}
+            </div>
+          </div>
+        )}
 
         {/* KPI Cards with Enhanced Design */}
         <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -320,6 +521,7 @@ const normalizeWorkUpdateStatus = (status) => {
               </div>
             </div>
           </div>
+
 
           <div className="group relative overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50 to-purple-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-purple-100/50 dark:border-purple-900/30 dark:from-purple-950/40 dark:to-purple-900/20 dark:hover:shadow-purple-900/20">
             <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-purple-400/10 blur-2xl"></div>

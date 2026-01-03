@@ -5,9 +5,9 @@ import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
 import StatsCard from '../common/StatsCard';
 import UserFilterSidebar from './users/UserFilterSidebar';
-import UserListItem from './users/UserListItem';
 import UserDetailPanel from './users/UserDetailPanel';
 import UserFormModal from './users/UserFormModal';
+import UserDataTable from './users/UserDataTable';
 
 const initialForm = {
   firstName: '',
@@ -261,9 +261,9 @@ const UserRoleManagement = () => {
           )}
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
             {/* Left Sidebar - Filters */}
-            <div className="lg:col-span-3">
+            <div className="xl:col-span-3">
               <UserFilterSidebar
                 filters={filters}
                 setFilters={setFilters}
@@ -272,105 +272,39 @@ const UserRoleManagement = () => {
               />
             </div>
 
-            {/* Middle - User List */}
-            <div className="lg:col-span-4">
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 shadow-lg">
-                <div className="mb-4 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                      Users List
-                    </h2>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {users.length} {users.length === 1 ? 'user' : 'users'} found
-                    </p>
-                  </div>
-                  {loading && (
-                    <svg className="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  )}
+            {/* Main Content Area */}
+            <div className="xl:col-span-9">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                {/* Users Data Table */}
+                <div className="lg:col-span-8">
+                  <UserDataTable
+                    users={users}
+                    loading={loading}
+                    selectedUser={selectedUser}
+                    onSelectUser={setSelectedUser}
+                    onEditUser={openEditModal}
+                    onToggleStatus={handleToggleStatus}
+                    onDeleteUser={handleDelete}
+                    actionState={actionState}
+                    filters={filters}
+                    setFilters={setFilters}
+                    page={page}
+                    setPage={setPage}
+                    totalPages={totalPages}
+                  />
                 </div>
 
-                {users.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <div className="mb-4 flex justify-center">
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
-                        <span className="material-symbols-outlined text-5xl text-neutral-400 dark:text-neutral-600">
-                          group_off
-                        </span>
-                      </div>
-                    </div>
-                    <h3 className="mb-2 text-lg font-semibold text-neutral-800 dark:text-neutral-200">No users found</h3>
-                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                      Try adjusting your search or filters
-                    </p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="mt-4"
-                      onClick={() => setFilters({ search: '', role: '', isActive: '' })}
-                    >
-                      Clear all filters
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5 max-h-[calc(100vh-24rem)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700">
-                    {users.map((user) => (
-                      <UserListItem
-                        key={user._id || user.id}
-                        user={user}
-                        isSelected={
-                          (selectedUser?._id || selectedUser?.id) === (user._id || user.id)
-                        }
-                        onClick={setSelectedUser}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="mt-4 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                      disabled={page === 1}
-                      icon={<span className="material-symbols-outlined text-lg">chevron_left</span>}
-                    >
-                      Previous
-                    </Button>
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-lg bg-neutral-100 dark:bg-neutral-800 px-3 py-1 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                        {page}
-                      </span>
-                      <span className="text-sm text-neutral-500 dark:text-neutral-400">of</span>
-                      <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">{totalPages}</span>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                      disabled={page === totalPages}
-                      icon={<span className="material-symbols-outlined text-lg">chevron_right</span>}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
+                {/* Right - User Details Panel */}
+                <div className="lg:col-span-4">
+                  <UserDetailPanel
+                    user={selectedUser}
+                    onEdit={openEditModal}
+                    onToggleStatus={handleToggleStatus}
+                    onDelete={handleDelete}
+                    actionState={actionState}
+                  />
+                </div>
               </div>
-            </div>
-
-            {/* Right - User Details */}
-            <div className="lg:col-span-5">
-              <UserDetailPanel
-                user={selectedUser}
-                onEdit={openEditModal}
-                onToggleStatus={handleToggleStatus}
-                onDelete={handleDelete}
-                actionState={actionState}
-              />
             </div>
           </div>
         </div>

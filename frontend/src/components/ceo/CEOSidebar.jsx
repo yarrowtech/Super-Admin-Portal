@@ -1,6 +1,23 @@
-import React from "react";
+import React, { useState } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
-const CEOSidebar = () => {
+const CEOSidebar = ({ onViewChange }) => {
+  const [activeView, setActiveView] = useState('dashboard');
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleViewChange = (view) => {
+    setActiveView(view);
+    if (onViewChange) {
+      onViewChange(view);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
   return (
     <aside className="fixed left-0 top-0 h-screen flex w-64 flex-col border-r border-neutral-200 dark:border-neutral-700 bg-white dark:bg-background-dark p-4 shrink-0 z-10">
       <div className="flex h-full flex-col justify-between">
@@ -24,14 +41,39 @@ const CEOSidebar = () => {
             </div>
           </div>
           <nav className="flex flex-col gap-2 mt-4">
-            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+            <div 
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer ${
+                activeView === 'dashboard' 
+                  ? 'bg-primary/10 text-primary dark:bg-primary/20' 
+                  : 'hover:bg-neutral-100 dark:hover:bg-white/10 text-neutral-800 dark:text-neutral-100'
+              }`}
+              onClick={() => handleViewChange('dashboard')}
+            >
               <span
                 className="material-symbols-outlined"
-                style={{ fontVariationSettings: "'FILL' 1" }}
+                style={{ fontVariationSettings: activeView === 'dashboard' ? "'FILL' 1" : "'FILL' 0" }}
               >
                 dashboard
               </span>
               <p className="text-sm font-bold leading-normal">Dashboard</p>
+            </div>
+            <div 
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer ${
+                activeView === 'chat' 
+                  ? 'bg-primary/10 text-primary dark:bg-primary/20' 
+                  : 'hover:bg-neutral-100 dark:hover:bg-white/10 text-neutral-800 dark:text-neutral-100'
+              }`}
+              onClick={() => handleViewChange('chat')}
+            >
+              <span 
+                className="material-symbols-outlined"
+                style={{ fontVariationSettings: activeView === 'chat' ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                chat
+              </span>
+              <p className="text-sm font-medium leading-normal">
+                Chat
+              </p>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 cursor-pointer">
               <span className="material-symbols-outlined">gavel</span>
@@ -98,7 +140,10 @@ const CEOSidebar = () => {
                 Settings
               </p>
             </div>
-            <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 text-red-600 dark:text-red-400 cursor-pointer">
+            <div 
+              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10 text-red-600 dark:text-red-400 cursor-pointer"
+              onClick={handleLogout}
+            >
               <span className="material-symbols-outlined">logout</span>
               <p className="text-sm font-medium leading-normal">Logout</p>
             </div>

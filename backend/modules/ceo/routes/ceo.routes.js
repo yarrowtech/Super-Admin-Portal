@@ -12,5 +12,7 @@ router.use(authorize(ROLES.CEO, ROLES.ADMIN));
 // CEO specific routes
 router.get('/dashboard', ceoController.getDashboard);
 router.get('/reports', ceoController.getReports);
+router.get('/employees', ceoController.getAllEmployees);
+router.post('/alert', ceoController.createAlert);
 
 module.exports = router;

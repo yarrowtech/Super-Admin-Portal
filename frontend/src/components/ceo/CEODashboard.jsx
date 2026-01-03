@@ -1,6 +1,145 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
+import { ceoApi } from '../../api/ceo';
+
+const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const CEODashboard = () => {
+  const [dashboardData, setDashboardData] = useState({
+    totalRevenue: '$12.8M',
+    revenueChange: '+2.5%',
+    newCustomers: '1,450',
+    customersChange: '+1.8%',
+    projectCompletion: '89%',
+    completionChange: '-0.5%',
+    systemUptime: '99.98%',
+    uptimeChange: '+0.01%',
+    departmentStats: [],
+    totalEmployees: 0,
+    alerts: [
+      {
+        id: 1,
+        type: 'error',
+        icon: 'error',
+        title: 'Major System Outage',
+        description: 'Main auth server unresponsive. IT notified.',
+        time: '5m ago',
+        severity: 'high'
+      },
+      {
+        id: 2,
+        type: 'warning',
+        icon: 'warning',
+        title: 'Q3 Budget Overrun',
+        description: 'Marketing department has exceeded their quarterly budget by 15%.',
+        time: '2h ago',
+        severity: 'medium'
+      },
+      {
+        id: 3,
+        type: 'error',
+        icon: 'security',
+        title: 'High Severity Security Threat',
+        description: 'A new vulnerability has been detected in the primary database.',
+        time: '1d ago',
+        severity: 'high'
+      }
+    ],
+    campaigns: [
+      { name: 'Summer Sale 2024', roi: '320%' },
+      { name: 'Product Launch Webinar', roi: '250%' },
+      { name: 'Q3 Social Media Push', roi: '180%' }
+    ]
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setError('No authentication token found');
+          return;
+        }
+
+        const response = await ceoApi.getDashboard(token);
+        
+        if (response.success) {
+          const data = response.data;
+          setDashboardData(prev => ({
+            ...prev,
+            totalEmployees: data.totalEmployees,
+            departmentStats: data.departmentStats || [],
+            totalRevenue: data.totalRevenue || prev.totalRevenue,
+            revenueChange: data.revenueChange || prev.revenueChange,
+            newCustomers: data.newCustomers || prev.newCustomers,
+            customersChange: data.customersChange || prev.customersChange,
+            projectCompletion: data.projectCompletion || prev.projectCompletion,
+            completionChange: data.completionChange || prev.completionChange,
+            systemUptime: data.systemUptime || prev.systemUptime,
+            uptimeChange: data.uptimeChange || prev.uptimeChange,
+            lastUpdated: data.lastUpdated || new Date().toISOString()
+          }));
+        }
+      } catch (err) {
+        setError(err.message || 'Failed to fetch dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+    
+    // Set up real-time updates via socket
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('connect', () => {
+      console.log('CEO Dashboard connected to socket');
+    });
+
+    socket.on('dashboard-update', (data) => {
+      setDashboardData(prev => ({ ...prev, ...data }));
+    });
+
+    socket.on('alert-update', (alert) => {
+      setDashboardData(prev => ({
+        ...prev,
+        alerts: [alert, ...prev.alerts].slice(0, 5) // Keep latest 5 alerts
+      }));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const getAlertIconClass = (type, severity) => {
+    const baseClass = "flex items-center justify-center rounded-lg shrink-0 size-12";
+    if (type === 'error' || severity === 'high') {
+      return `${baseClass} text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/20`;
+    } else if (type === 'warning' || severity === 'medium') {
+      return `${baseClass} text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/20`;
+    }
+    return `${baseClass} text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20`;
+  };
+
+  if (loading) {
+    return (
+      <main className="flex-1 overflow-y-auto">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-neutral-600 dark:text-neutral-400">Loading dashboard...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-6xl p-6">
@@ -25,42 +164,45 @@ const CEODashboard = () => {
           </button>
         </div>
 
-        {/* Executive Snapshot */}
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <p className="text-red-800 dark:text-red-200">{error}</p>
+          </div>
+        )}
+
+        {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
           <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800">
             <p className="text-sm font-medium leading-normal text-neutral-600 dark:text-neutral-400">Revenue (QTD)</p>
             <p className="tracking-tight text-2xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">
-              $12.8M
+              {dashboardData.totalRevenue}
             </p>
-            <p className="text-sm font-medium leading-normal text-green-600 dark:text-green-400 flex items-center gap-1">
+            <p className={`text-sm font-medium leading-normal flex items-center gap-1 ${
+              dashboardData.revenueChange.startsWith('+') 
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-red-600 dark:text-red-400'
+            }`}>
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                arrow_upward
+                {dashboardData.revenueChange.startsWith('+') ? 'arrow_upward' : 'arrow_downward'}
               </span>
-              <span>+2.5%</span>
+              <span>{dashboardData.revenueChange}</span>
             </p>
           </div>
           <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800">
             <p className="text-sm font-medium leading-normal text-neutral-600 dark:text-neutral-400">Cost (QTD)</p>
             <p className="tracking-tight text-2xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">
-              $8.4M
+              {dashboardData.newCustomers}
             </p>
-            <p className="text-sm font-medium leading-normal text-red-600 dark:text-red-400 flex items-center gap-1">
+            <p className={`text-sm font-medium leading-normal flex items-center gap-1 ${
+              dashboardData.customersChange.startsWith('+') 
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-red-600 dark:text-red-400'
+            }`}>
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                arrow_upward
+                {dashboardData.customersChange.startsWith('+') ? 'arrow_upward' : 'arrow_downward'}
               </span>
-              <span>+1.1%</span>
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800">
-            <p className="text-sm font-medium leading-normal text-neutral-600 dark:text-neutral-400">Profit (QTD)</p>
-            <p className="tracking-tight text-2xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">
-              $4.4M
-            </p>
-            <p className="text-sm font-medium leading-normal text-green-600 dark:text-green-400 flex items-center gap-1">
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                arrow_upward
-              </span>
-              <span>+3.2%</span>
+              <span>{dashboardData.customersChange}</span>
             </p>
           </div>
           <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800">
@@ -89,7 +231,34 @@ const CEODashboard = () => {
           </div>
           <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800">
             <p className="text-sm font-medium leading-normal text-neutral-600 dark:text-neutral-400">
-              Critical Pending Approvals
+              Project Completion
+            </p>
+            <p className="tracking-tight text-2xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">{dashboardData.projectCompletion}</p>
+            <p className={`text-sm font-medium leading-normal flex items-center gap-1 ${
+              dashboardData.completionChange.startsWith('+') 
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-red-600 dark:text-red-400'
+            }`}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                {dashboardData.completionChange.startsWith('+') ? 'arrow_upward' : 'arrow_downward'}
+              </span>
+              <span>{dashboardData.completionChange}</span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800">
+            <p className="text-sm font-medium leading-normal text-neutral-600 dark:text-neutral-400">System Uptime</p>
+            <p className="tracking-tight text-2xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">
+              {dashboardData.systemUptime}
+            </p>
+            <p className={`text-sm font-medium leading-normal flex items-center gap-1 ${
+              dashboardData.uptimeChange.startsWith('+') 
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-red-600 dark:text-red-400'
+            }`}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                {dashboardData.uptimeChange.startsWith('+') ? 'arrow_upward' : 'arrow_downward'}
+              </span>
+              <span>{dashboardData.uptimeChange}</span>
             </p>
             <p className="tracking-tight text-2xl font-bold leading-tight text-neutral-800 dark:text-neutral-100">9</p>
             <p className="text-sm font-medium leading-normal text-red-600 dark:text-red-400">4 overdue</p>
@@ -552,54 +721,24 @@ const CEODashboard = () => {
                 Risk and Compliance Alerts
               </h3>
               <div className="flex flex-col gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="text-red-600 dark:text-red-400 flex items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/20 shrink-0 size-12">
-                    <span className="material-symbols-outlined">gpp_maybe</span>
+                {dashboardData.alerts.map((alert) => (
+                  <div key={alert.id} className="flex items-start gap-4">
+                    <div className={getAlertIconClass(alert.type, alert.severity)}>
+                      <span className="material-symbols-outlined">{alert.icon}</span>
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <p className="text-base font-medium leading-normal line-clamp-1 text-neutral-800 dark:text-neutral-100">
+                        {alert.title}
+                      </p>
+                      <p className="text-sm font-normal leading-normal line-clamp-2 text-neutral-600 dark:text-neutral-400">
+                        {alert.description}
+                      </p>
+                      <p className="text-xs font-normal leading-normal text-neutral-400 dark:text-neutral-500 mt-1">
+                        {alert.time}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex flex-col justify-center">
-                    <p className="text-base font-medium leading-normal line-clamp-1 text-neutral-800 dark:text-neutral-100">
-                      Data Security Risk Alert
-                    </p>
-                    <p className="text-sm font-normal leading-normal line-clamp-2 text-neutral-600 dark:text-neutral-400">
-                      Elevated privilege access detected in finance systems.
-                    </p>
-                    <p className="text-xs font-normal leading-normal text-neutral-400 dark:text-neutral-500 mt-1">
-                      20m ago
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="text-yellow-600 dark:text-yellow-400 flex items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/20 shrink-0 size-12">
-                    <span className="material-symbols-outlined">policy</span>
-                  </div>
-                  <div className="flex flex-col justify-center">
-                    <p className="text-base font-medium leading-normal line-clamp-1 text-neutral-800 dark:text-neutral-100">
-                      Policy Violation Report
-                    </p>
-                    <p className="text-sm font-normal leading-normal line-clamp-2 text-neutral-600 dark:text-neutral-400">
-                      Unapproved vendor onboarding in Media department.
-                    </p>
-                    <p className="text-xs font-normal leading-normal text-neutral-400 dark:text-neutral-500 mt-1">
-                      3h ago
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="text-red-600 dark:text-red-400 flex items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/20 shrink-0 size-12">
-                    <span className="material-symbols-outlined">warning</span>
-                  </div>
-                  <div className="flex flex-col justify-center">
-                    <p className="text-base font-medium leading-normal line-clamp-1 text-neutral-800 dark:text-neutral-100">
-                      Pending Legal Issue
-                    </p>
-                    <p className="text-sm font-normal leading-normal line-clamp-2 text-neutral-600 dark:text-neutral-400">
-                      Contract dispute escalated with regional partner.
-                    </p>
-                    <p className="text-xs font-normal leading-normal text-neutral-400 dark:text-neutral-500 mt-1">
-                      1d ago
-                    </p>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
@@ -608,80 +747,31 @@ const CEODashboard = () => {
               <h3 className="text-lg font-bold mb-4 text-neutral-800 dark:text-neutral-100">
                 Critical Pending Approvals
               </h3>
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">Budget: APAC Expansion</p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">$480k - 2 days pending</p>
-                  </div>
-                  <span className="text-xs font-semibold text-red-600 dark:text-red-400">Overdue</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">High-Value Expense: Data Lake</p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">$320k - 18h pending</p>
-                  </div>
-                  <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Review</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">Exception: Vendor SLA</p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Finance - 1 day pending</p>
-                  </div>
-                  <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Review</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Compliance and Risk Oversight */}
-            <div className="bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 rounded-xl p-5">
-              <h3 className="text-lg font-bold mb-4 text-neutral-800 dark:text-neutral-100">
-                Compliance and Risk Oversight
-              </h3>
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Legal Compliance Status</p>
-                  <p className="text-sm font-semibold text-green-600 dark:text-green-400">98.6%</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Pending Legal Issues</p>
-                  <p className="text-sm font-semibold text-red-600 dark:text-red-400">3</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Audit Summaries</p>
-                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">2 open</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">High-risk Action Alerts</p>
-                  <p className="text-sm font-semibold text-red-600 dark:text-red-400">4</p>
-                </div>
-              </div>
-            </div>
-
-            {/* System Health */}
-            <div className="bg-white dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 rounded-xl p-5">
-              <h3 className="text-lg font-bold mb-4 text-neutral-800 dark:text-neutral-100">System Health</h3>
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">System Uptime</p>
-                  <p className="text-sm font-semibold text-green-600 dark:text-green-400">99.98%</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Major Incidents</p>
-                  <p className="text-sm font-semibold text-red-600 dark:text-red-400">1 active</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Backup Status</p>
-                  <p className="text-sm font-semibold text-green-600 dark:text-green-400">Last run 2h ago</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Security Alerts</p>
-                  <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">3 warnings</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Disaster Recovery</p>
-                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">Ready</p>
-                </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                      <th className="py-2 pr-2 text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+                        Campaign
+                      </th>
+                      <th className="py-2 px-2 text-sm font-semibold text-neutral-600 dark:text-neutral-400 text-right">
+                        ROI
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboardData.campaigns.map((campaign, index) => (
+                      <tr key={index} className={index < dashboardData.campaigns.length - 1 ? "border-b border-neutral-200 dark:border-neutral-700" : ""}>
+                        <td className="py-3 pr-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                          {campaign.name}
+                        </td>
+                        <td className="py-3 px-2 text-sm font-medium text-green-600 dark:text-green-400 text-right">
+                          {campaign.roi}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

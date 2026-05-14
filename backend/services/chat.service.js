@@ -1,0 +1,236 @@
+const mongoose = require('mongoose');
+const ChatThread = require('../models/common/Chat');
+const ChatMessage = require('../models/common/Message');
+const User = require('../models/auth/User');
+
+const formatRoleMeta = (userDoc = {}) => {
+  const role = userDoc.role;
+  if (typeof role === 'string' && role.trim()) {
+    return role.trim().toUpperCase();
+  }
+  const department = userDoc.department;
+  if (typeof department === 'string' && department.trim()) {
+    const normalized =
+      department.trim().charAt(0).toUpperCase() + department.trim().slice(1);
+    return `${normalized} team`;
+  }
+  return 'Team chat';
+};
+
+const threadFilter = (userId) => ({
+  $or: [
+    { members: { $exists: false } },
+    { members: { $size: 0 } },
+    { members: userId },
+  ],
+});
+
+const enrichThread = (thread) => {
+  const plain = thread.toObject ? thread.toObject() : thread;
+  const members = plain.members || [];
+  const unread =
+    typeof plain.unreadCount === 'number'
+      ? plain.unreadCount
+      : typeof plain.unread === 'number'
+        ? plain.unread
+        : 0;
+  return {
+    ...plain,
+    unread,
+    members: members.map((member) => ({
+      id: member._id,
+      _id: member._id,
+      name: `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email,
+      email: member.email,
+      department: member.department,
+      role: member.role,
+    })),
+  };
+};
+
+const getThreads = async (user) => {
+  const threads = await ChatThread.find(threadFilter(user._id))
+    .sort({ updatedAt: -1 })
+    .populate('members', 'firstName lastName email department role')
+    .lean();
+  
+  const threadIds = threads.map((thread) => thread._id);
+  let lastMessageMap = {};
+
+  if (threadIds.length > 0) {
+    const lastMessages = await ChatMessage.aggregate([
+      { $match: { thread: { $in: threadIds } } },
+      { $sort: { sentAt: -1, _id: -1 } },
+      {
+        $group: {
+          _id: '$thread',
+          doc: { $first: '$$ROOT' },
+        },
+      },
+    ]);
+
+    lastMessageMap = lastMessages.reduce((acc, entry) => {
+      if (entry?._id && entry?.doc) {
+        acc[entry._id.toString()] = entry.doc;
+      }
+      return acc;
+    }, {});
+  }
+
+  return threads.map((thread) => {
+    const enriched = enrichThread(thread);
+    const last = lastMessageMap[thread._id.toString()];
+    const lastSenderId = last?.sender ? last.sender.toString() : enriched.lastSenderId || null;
+    const lastSenderName = last?.senderName || enriched.lastSenderName || '';
+    return {
+      ...enriched,
+      lastMessage: last?.body || enriched.lastMessage || '',
+      lastTime: last?.sentAt || enriched.lastTime || thread.updatedAt,
+      lastSenderId,
+      lastSenderName,
+    };
+  });
+};
+
+const getThreadOrThrow = async (user, threadId) => {
+  const thread = await ChatThread.findOne({
+    _id: threadId,
+    ...threadFilter(user._id),
+  });
+  if (!thread) {
+    const error = new Error('Thread not found or access denied');
+    error.statusCode = 404;
+    throw error;
+  }
+  return thread;
+};
+
+const mapMessage = (userId) => (message) => ({
+  id: message._id,
+  from: message.senderName,
+  text: message.body,
+  time: message.sentAt,
+  me: message.sender?.toString() === userId.toString(),
+  thread: message.thread?.toString(),
+  senderId: message.sender?.toString() || null,
+});
+
+const getMessages = async (user, threadId) => {
+  await getThreadOrThrow(user, threadId);
+  const messages = await ChatMessage.find({ thread: threadId })
+    .sort({ sentAt: 1 })
+    .lean();
+  return messages.map(mapMessage(user._id));
+};
+
+const postMessage = async (user, threadId, text) => {
+  await getThreadOrThrow(user, threadId);
+
+  const message = await ChatMessage.create({
+    thread: threadId,
+    sender: user._id,
+    senderName: `${user.firstName} ${user.lastName}`.trim(),
+    body: text,
+    sentAt: new Date(),
+  });
+
+  await ChatThread.findByIdAndUpdate(threadId, { updatedAt: new Date() });
+
+  return mapMessage(user._id)(message);
+};
+
+const createDirectThread = async (user, targetUserId) => {
+  if (!targetUserId) {
+    const err = new Error('Target user is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (user._id.toString() === targetUserId.toString()) {
+    const err = new Error('Cannot start a chat with yourself');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const target = await User.findById(targetUserId);
+  if (!target) {
+    const err = new Error('Target user not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const existing = await ChatThread.findOne({
+    isDirect: true,
+    members: { $all: [user._id, targetUserId] },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  const thread = await ChatThread.create({
+    name: `${user.firstName || 'User'} & ${target.firstName || 'User'}`,
+    meta: formatRoleMeta(target),
+    members: [user._id, targetUserId],
+    isDirect: true,
+    createdBy: user._id,
+  });
+
+  return thread;
+};
+
+const createGroupThread = async (user, payload = {}) => {
+  const name = payload.name?.trim();
+  const rawMemberIds = Array.isArray(payload.memberIds) ? payload.memberIds : [];
+  const meta = payload.meta?.trim?.() || null;
+
+  if (!name) {
+    const err = new Error('Group name is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const normalizedIds = new Set(
+    rawMemberIds
+      .map((id) => (id ? id.toString() : null))
+      .filter(Boolean)
+  );
+
+  normalizedIds.add(user._id.toString());
+  const uniqueIds = Array.from(normalizedIds);
+
+  if (uniqueIds.length < 2) {
+    const err = new Error('Select at least one teammate for the group');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const objectIds = uniqueIds.map((id) => new mongoose.Types.ObjectId(id));
+  const members = await User.find({ _id: { $in: objectIds } });
+
+  if (members.length < uniqueIds.length) {
+    const err = new Error('One or more selected members were not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const thread = await ChatThread.create({
+    name,
+    meta: meta || `${uniqueIds.length} members`,
+    members: objectIds,
+    isDirect: false,
+    createdBy: user._id,
+  });
+
+  const populated = await ChatThread.findById(thread._id)
+    .populate('members', 'firstName lastName email department role');
+
+  return enrichThread(populated);
+};
+
+module.exports = {
+  getThreads,
+  getMessages,
+  postMessage,
+  createDirectThread,
+  createGroupThread,
+};

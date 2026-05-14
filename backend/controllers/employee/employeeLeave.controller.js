@@ -1,0 +1,989 @@
+const logger = require('../../utils/logger');
+// backend/controllers/dept/employee.controller.js
+const Task = require('../../models/common/Task');
+const Attendance = require('../../models/hr/Attendance');
+const Leave = require('../../models/hr/Leave');
+const Notice = require('../../models/common/Notification');
+const WorkReport = require('../../models/hr/StaffWorkReport');
+const Performance = require('../../models/hr/StaffWorkReport');
+const {
+  validateLeaveRequest,
+  recomputeLeaveBalance,
+  logLeaveAction,
+} = require('../../services/leaveManagement.service');
+const {
+  determineShift,
+  buildShiftWindow,
+  formatTimeLabel,
+  formatDuration,
+  evaluateAttendanceRecord,
+  isITShift,
+} = require('../../utils/shiftRules');
+
+/**
+ * @route   GET /api/dept/employee/dashboard
+ * @desc    Get Employee dashboard with statistics
+ * @access  Private (Employee only)
+ */
+exports.getDashboard = async (req, res) => {
+  try {
+    const employeeId = req.user._id;
+
+    const myTasks = await Task.countDocuments({ assignedTo: employeeId, status: { $ne: 'completed' } });
+    const completedTasks = await Task.countDocuments({ assignedTo: employeeId, status: 'completed' });
+    const overdueTasks = await Task.countDocuments({ assignedTo: employeeId, isOverdue: true, status: { $ne: 'completed' } });
+    const pendingLeaves = await Leave.countDocuments({ employee: employeeId, status: 'pending' });
+    const todayAttendance = await Attendance.findOne({
+      employee: employeeId,
+      date: {
+        $gte: new Date().setHours(0, 0, 0, 0),
+        $lt: new Date().setHours(23, 59, 59, 999)
+      }
+    });
+
+    // Get recent notices
+    const recentNotices = await Notice.find({
+      isActive: true,
+      $or: [
+        { targetAudience: 'all' },
+        { specificEmployees: employeeId }
+      ]
+    })
+      .sort({ publishDate: -1 })
+      .limit(5)
+      .select('title type priority publishDate');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        myTasks,
+        completedTasks,
+        overdueTasks,
+        pendingLeaves,
+        hasCheckedInToday: !!todayAttendance,
+        todayCheckIn: todayAttendance?.checkIn,
+        recentNotices,
+        permissions: ['view_own_profile', 'view_tasks', 'submit_work_reports', 'view_attendance', 'request_leave']
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Employee dashboard error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch employee dashboard',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * TASK MANAGEMENT
+ */
+
+/**
+ * @route   GET /api/dept/employee/tasks
+ * @desc    Get all tasks assigned to employee
+ * @access  Private (Employee only)
+ */
+exports.getMyTasks = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, priority } = req.query;
+    const query = { assignedTo: req.user._id };
+
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+
+    const tasks = await Task.find(query)
+      .populate('assignedBy', 'firstName lastName email')
+      .populate('project', 'name projectCode')
+      .sort({ priority: -1, dueDate: 1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Task.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tasks,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get my tasks error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch tasks',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   GET /api/dept/employee/tasks/:id
+ * @desc    Get task by ID
+ * @access  Private (Employee only)
+ */
+exports.getTaskById = async (req, res) => {
+  try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      assignedTo: req.user._id
+    })
+      .populate('assignedBy', 'firstName lastName email')
+      .populate('project', 'name projectCode')
+      .populate('comments.commentedBy', 'firstName lastName');
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: task
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get task error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch task',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/employee/tasks/:id/status
+ * @desc    Update task status
+ * @access  Private (Employee only)
+ */
+exports.updateTaskStatus = async (req, res) => {
+  try {
+    const { status, progress } = req.body;
+
+    const existingTask = await Task.findOne({
+      _id: req.params.id,
+      assignedTo: req.user._id
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    const wasCompleted = existingTask.status === 'completed';
+
+    const updateData = { status };
+    if (progress !== undefined) updateData.progress = progress;
+    if (status === 'completed') updateData.completedDate = Date.now();
+
+    const task = await Task.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        assignedTo: req.user._id
+      },
+      updateData,
+      { new: true, runValidators: true }
+    )
+      .populate('assignedBy', 'firstName lastName email')
+      .populate('project', 'name projectCode');
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    const statusChanged = status && existingTask.status !== status;
+    if (statusChanged) {
+      const hoursSpent = task.actualHours ?? task.estimatedHours ?? 0;
+      const taskProgressStatus = status === 'completed' ? 'completed' : status === 'in-progress' ? 'in-progress' : 'pending';
+      await WorkReport.create({
+        employee: req.user._id,
+        reportType: task.project ? 'project' : 'daily',
+        taskId: task._id,
+        title: `Task ${status}: ${task.title}`,
+        description: task.description || `Task moved to ${status}: ${task.title}`,
+        taskStatus: status,
+        tasksCompleted: [
+          {
+            task: task.title,
+            hoursSpent,
+            status: taskProgressStatus
+          }
+        ],
+        project: task.project?._id || task.project,
+        status: 'submitted'
+      });
+
+      const io = req.app.get('io');
+      if (io) {
+        const managerId = (task.assignedBy && (task.assignedBy._id || task.assignedBy)) || null;
+        const payload = {
+          taskId: task._id,
+          title: task.title,
+          status,
+          project: task.project?.name || task.project || null,
+          employee: {
+            id: req.user._id,
+            name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+            email: req.user.email,
+            department: req.user.department || null
+          },
+          updatedAt: new Date().toISOString()
+        };
+        if (managerId) {
+          io.to(`manager:${managerId.toString()}`).emit('manager:work-update', payload);
+        }
+        io.to('hr').emit('hr:work-update', payload);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Task status updated successfully',
+      data: task
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Update task status error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update task status',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   POST /api/dept/employee/tasks/:id/comment
+ * @desc    Add comment to task
+ * @access  Private (Employee only)
+ */
+exports.addTaskComment = async (req, res) => {
+  try {
+    const { comment } = req.body;
+
+    const task = await Task.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        assignedTo: req.user._id
+      },
+      {
+        $push: {
+          comments: {
+            commentedBy: req.user._id,
+            comment,
+            commentedAt: Date.now()
+          }
+        }
+      },
+      { new: true }
+    )
+      .populate('assignedBy', 'firstName lastName email')
+      .populate('comments.commentedBy', 'firstName lastName');
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Comment added successfully',
+      data: task
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Add task comment error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add comment',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * ATTENDANCE MANAGEMENT
+ */
+
+/**
+ * @route   POST /api/dept/employee/attendance/check-in
+ * @desc    Check in for attendance
+ * @access  Private (Employee only)
+ */
+exports.checkIn = async (req, res) => {
+  try {
+    const { location = 'office' } = req.body;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if already checked in today
+    const existingAttendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: { $gte: today }
+    });
+
+    if (existingAttendance) {
+      return res.status(400).json({
+        success: false,
+        error: 'Already checked in today'
+      });
+    }
+
+    const now = new Date();
+    const shift = determineShift(req.user?.department);
+    const enforceShift = isITShift(shift);
+    const { expectedStart } = buildShiftWindow(now, shift);
+    const isLate = enforceShift && now > expectedStart;
+
+    const attendancePayload = {
+      employee: req.user._id,
+      date: now,
+      checkIn: now,
+      location,
+      status: isLate ? 'late' : 'present',
+    };
+
+    if (enforceShift) {
+      attendancePayload.notes = `${shift.label}: ${
+        isLate
+          ? `Arrived ${formatDuration(now - expectedStart)} late (after ${formatTimeLabel(expectedStart)})`
+          : `Arrived on time (expected ${formatTimeLabel(expectedStart)})`
+      }`;
+    }
+
+    const attendance = await Attendance.create(attendancePayload);
+
+    await attendance.populate('employee', 'firstName lastName email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Checked in successfully',
+      data: attendance
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Check-in error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check in',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/employee/attendance/check-out
+ * @desc    Check out from attendance
+ * @access  Private (Employee only)
+ */
+exports.checkOut = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: { $gte: today },
+      checkOut: null
+    }).populate('employee', 'firstName lastName email department');
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'No check-in record found for today'
+      });
+    }
+
+    const now = new Date();
+    const shift = determineShift(attendance.employee?.department || req.user?.department);
+    const { expectedStart } = buildShiftWindow(attendance.checkIn || now, shift);
+    const enforceShift = isITShift(shift);
+    const durationHours = attendance.checkIn
+      ? Math.max(0, (now - attendance.checkIn) / (1000 * 60 * 60))
+      : 0;
+
+    attendance.checkOut = now;
+    attendance.workHours = Math.round(durationHours * 100) / 100;
+
+    if (enforceShift) {
+      const computed = evaluateAttendanceRecord(attendance, { force: true });
+      if (computed) {
+        attendance.status = computed.status;
+        attendance.workHours = computed.workHours;
+        attendance.notes = computed.notes;
+      }
+    }
+
+    await attendance.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Checked out successfully',
+      data: attendance
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Check-out error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check out',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   GET /api/dept/employee/attendance
+ * @desc    Get employee's attendance history
+ * @access  Private (Employee only)
+ */
+exports.getMyAttendance = async (req, res) => {
+  try {
+    const { startDate, endDate, page = 1, limit = 20 } = req.query;
+    const query = { employee: req.user._id };
+
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate);
+    }
+
+    const attendance = await Attendance.find(query)
+      .sort({ date: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Attendance.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        attendance,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get attendance error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch attendance',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/employee/attendance/location
+ * @desc    Update today's attendance location (office / remote)
+ * @access  Private (Employee only)
+ */
+exports.setAttendanceLocation = async (req, res) => {
+  try {
+    const { location } = req.body || {};
+    const normalized = (location || '').toString().toLowerCase();
+    if (!['office', 'remote'].includes(normalized)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid location value. Use "office" or "remote".'
+      });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const attendance = await Attendance.findOneAndUpdate(
+      {
+        employee: req.user._id,
+        date: { $gte: startOfDay, $lt: endOfDay }
+      },
+      { location: normalized },
+      { new: true }
+    ).populate('employee', 'firstName lastName email department');
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'No attendance record found for today. Please check in first.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Attendance location updated',
+      data: attendance
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Update attendance location error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update attendance location',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * LEAVE MANAGEMENT
+ */
+
+/**
+ * @route   POST /api/dept/employee/leave
+ * @desc    Request leave
+ * @access  Private (Employee only)
+ */
+exports.requestLeave = async (req, res) => {
+  try {
+    const {
+      leaveType,
+      startDate,
+      endDate,
+      reason,
+      isHalfDay = false,
+      halfDaySession = null,
+      handoverNotes,
+      emergencyContact,
+    } = req.body || {};
+
+    const validation = await validateLeaveRequest({
+      employeeId: req.user._id,
+      leaveType,
+      startDate,
+      endDate,
+      isHalfDay,
+    });
+
+    const leave = await Leave.create({
+      employee: req.user._id,
+      leaveType,
+      startDate,
+      endDate,
+      totalDays: validation.totalDays,
+      deductedDays: validation.deductedDays,
+      year: validation.year,
+      isHalfDay: Boolean(isHalfDay || leaveType === 'half_day'),
+      halfDaySession: isHalfDay || leaveType === 'half_day' ? halfDaySession : null,
+      isPaidLeave: validation.isPaidLeave,
+      reason,
+      handoverNotes,
+      emergencyContact,
+      managerApprovalStatus: 'pending',
+      status: 'pending',
+    });
+
+    await leave.populate('employee', 'firstName lastName email');
+    await logLeaveAction({
+      leave,
+      reviewer: req.user._id,
+      role: req.user.role || 'employee',
+      action: 'applied',
+      comment: reason,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Leave request submitted successfully',
+      data: leave
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Request leave error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to request leave',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   GET /api/dept/employee/leave
+ * @desc    Get employee's leave requests
+ * @access  Private (Employee only)
+ */
+exports.getMyLeaves = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, year } = req.query;
+    const query = { employee: req.user._id };
+
+    if (status) query.status = status;
+    if (year) query.year = Number(year);
+
+    const leaves = await Leave.find(query)
+      .populate('approvedBy', 'firstName lastName')
+      .populate('managerApprovedBy', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Leave.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        leaves,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get leaves error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch leave requests',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   GET /api/dept/employee/leave/balance
+ * @desc    Get employee leave balance
+ * @access  Private (Employee only)
+ */
+exports.getMyLeaveBalance = async (req, res) => {
+  try {
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const { balance, policy } = await recomputeLeaveBalance(req.user._id, year);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        year,
+        policy,
+        balance,
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get leave balance error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch leave balance',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/employee/leave/:id/cancel
+ * @desc    Cancel leave request
+ * @access  Private (Employee only)
+ */
+exports.cancelLeave = async (req, res) => {
+  try {
+    const { cancellationReason } = req.body || {};
+    const leave = await Leave.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        employee: req.user._id,
+        status: { $in: ['pending', 'manager-approved'] }
+      },
+      {
+        status: 'cancelled',
+        cancellationReason,
+        attendanceSyncStatus: 'reverted',
+      },
+      { new: true }
+    ).populate('employee', 'firstName lastName email');
+
+    if (!leave) {
+      return res.status(404).json({
+        success: false,
+        error: 'Leave request not found or cannot be cancelled'
+      });
+    }
+
+    await logLeaveAction({
+      leave,
+      reviewer: req.user._id,
+      role: req.user.role || 'employee',
+      action: 'cancelled',
+      comment: cancellationReason,
+    });
+
+    if (leave.year) {
+      await recomputeLeaveBalance(req.user._id, leave.year);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Leave request cancelled successfully',
+      data: leave
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Cancel leave error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cancel leave request',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * WORK REPORTS
+ */
+
+/**
+ * @route   POST /api/dept/employee/work-reports
+ * @desc    Submit work report
+ * @access  Private (Employee only)
+ */
+exports.submitWorkReport = async (req, res) => {
+  try {
+    const report = await WorkReport.create({
+      ...req.body,
+      employee: req.user._id
+    });
+
+    await report.populate('employee', 'firstName lastName email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Work report submitted successfully',
+      data: report
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Submit work report error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit work report',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   GET /api/dept/employee/work-reports
+ * @desc    Get employee's work reports
+ * @access  Private (Employee only)
+ */
+exports.getMyWorkReports = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, reportType, status } = req.query;
+    const query = { employee: req.user._id };
+
+    if (reportType) query.reportType = reportType;
+    if (status) query.status = status;
+
+    const reports = await WorkReport.find(query)
+      .populate('reviewedBy', 'firstName lastName')
+      .populate('project', 'name projectCode')
+      .sort({ reportDate: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await WorkReport.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        reports,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get work reports error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch work reports',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * NOTICES
+ */
+
+/**
+ * @route   GET /api/dept/employee/notices
+ * @desc    Get notices for employee
+ * @access  Private (Employee only)
+ */
+exports.getNotices = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, type } = req.query;
+    const query = {
+      isActive: true,
+      $or: [
+        { targetAudience: 'all' },
+        { specificEmployees: req.user._id }
+      ]
+    };
+
+    if (type) query.type = type;
+
+    const notices = await Notice.find(query)
+      .populate('publishedBy', 'firstName lastName')
+      .sort({ publishDate: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Notice.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        notices,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get notices error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch notices',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/employee/notices/:id/mark-read
+ * @desc    Mark notice as read
+ * @access  Private (Employee only)
+ */
+exports.markNoticeAsRead = async (req, res) => {
+  try {
+    const notice = await Notice.findByIdAndUpdate(
+      req.params.id,
+      {
+        $addToSet: {
+          readBy: {
+            employee: req.user._id,
+            readAt: Date.now()
+          }
+        }
+      },
+      { new: true }
+    );
+
+    if (!notice) {
+      return res.status(404).json({
+        success: false,
+        error: 'Notice not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Notice marked as read'
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Mark notice as read error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark notice as read',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * PERFORMANCE
+ */
+
+/**
+ * @route   GET /api/dept/employee/performance
+ * @desc    Get employee's performance reviews
+ * @access  Private (Employee only)
+ */
+exports.getMyPerformance = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const query = { employee: req.user._id };
+
+    const reviews = await Performance.find(query)
+      .populate('reviewer', 'firstName lastName')
+      .sort({ 'reviewPeriod.endDate': -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+
+    const count = await Performance.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        reviews,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page),
+        total: count
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get performance error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch performance reviews',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/employee/performance/:id/acknowledge
+ * @desc    Acknowledge performance review
+ * @access  Private (Employee only)
+ */
+exports.acknowledgePerformance = async (req, res) => {
+  try {
+    const { employeeComments } = req.body;
+
+    const review = await Performance.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        employee: req.user._id
+      },
+      {
+        status: 'acknowledged',
+        acknowledgedDate: Date.now(),
+        employeeComments
+      },
+      { new: true }
+    )
+      .populate('reviewer', 'firstName lastName');
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        error: 'Performance review not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Performance review acknowledged successfully',
+      data: review
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Acknowledge performance error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to acknowledge performance review',
+      details: error.message
+    });
+  }
+};

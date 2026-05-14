@@ -1,0 +1,16 @@
+import React from 'react';
+import AdminSidebar from './AdminSidebar';
+
+const AdminPortal = ({ children }) => {
+  return (
+    <div
+      className="portal-shell relative flex min-h-screen w-full font-display bg-background-light text-neutral-800 dark:bg-background-dark dark:text-neutral-100"
+      data-role="admin"
+    >
+      <AdminSidebar />
+      <div className="portal-content flex-1 overflow-x-hidden pt-16 md:ml-[250px] md:pt-0">{children}</div>
+    </div>
+  );
+};
+
+export default AdminPortal;

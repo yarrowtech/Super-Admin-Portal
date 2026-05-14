@@ -3,6 +3,7 @@ import Button from '../../common/Button';
 
 const roles = [
   { value: 'employee', label: 'Employee' },
+  { value: 'freelancer', label: 'Freelancer' },
   { value: 'manager', label: 'Manager' },
   { value: 'hr', label: 'Human Resources' },
   { value: 'finance', label: 'Finance' },
@@ -15,7 +16,7 @@ const roles = [
   { value: 'admin', label: 'Administrator' },
 ];
 
-const departmentSuggestions = ['IT & Engineering', 'Human Resources', 'Finance', 'Operations', 'Sales', 'Media & Communications', 'Law Department', 'Research & Development', 'Customer Success'];
+const departmentSuggestions = ['IT & Engineering', 'Human Resources', 'Finance', 'Operations', 'Sales', 'Media & Communications', 'Law Department', 'Research & Development', 'Customer Success', 'Outsourcing'];
 const statusOptions = [
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },

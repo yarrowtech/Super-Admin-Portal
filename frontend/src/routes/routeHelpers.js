@@ -1,8 +1,25 @@
 export const getDefaultRoute = (user) => {
   const role = user?.role;
-  const outsourcingType = user?.metadata?.outsourcingType;
+  const outsourcingType = String(user?.metadata?.outsourcingType || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  const department = String(user?.department || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
 
-  if (outsourcingType === 'third_party_worker' || outsourcingType === 'freelancer') {
+  if (
+    role === 'freelancer' ||
+    department === 'outsourcing' ||
+    department === 'outsource' ||
+    department === 'external_workforce' ||
+    outsourcingType === 'third_party_worker' ||
+    outsourcingType === '3rd_party_worker' ||
+    outsourcingType === 'thirdpartyworker' ||
+    outsourcingType === 'freelancer' ||
+    outsourcingType === 'freelaner'
+  ) {
     return '/outsourcing/dashboard';
   }
 

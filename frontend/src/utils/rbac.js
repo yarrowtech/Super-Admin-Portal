@@ -34,6 +34,12 @@ const normalizeOutsourcingType = (value) =>
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
 
+const normalizeDepartment = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
+
 export const canAccessPortal = (user, portal) => {
   if (!user || !portal) return false;
   const role = String(user.role || '').toLowerCase();
@@ -42,7 +48,19 @@ export const canAccessPortal = (user, portal) => {
 
   if (portal === PORTALS.OUTSOURCING) {
     const type = normalizeOutsourcingType(user?.metadata?.outsourcingType);
-    return type === 'third_party_worker' || type === '3rd_party_worker' || type === 'thirdpartyworker' || type === 'freelancer';
+    const role = String(user?.role || '').trim().toLowerCase();
+    const department = normalizeDepartment(user?.department);
+    return (
+      role === 'freelancer' ||
+      department === 'outsourcing' ||
+      department === 'outsource' ||
+      department === 'external_workforce' ||
+      type === 'third_party_worker' ||
+      type === '3rd_party_worker' ||
+      type === 'thirdpartyworker' ||
+      type === 'freelancer' ||
+      type === 'freelaner'
+    );
   }
   return false;
 };

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/admin';
 import Button from '../common/Button';
 
-const roles = ['admin', 'hr', 'employee', 'manager', 'finance', 'it', 'law', 'media', 'sales', 'research_operator', 'ceo'];
+const roles = ['admin', 'hr', 'employee', 'manager', 'freelancer', 'finance', 'it', 'law', 'media', 'sales', 'research_operator', 'ceo'];
 const perms = ['HR', 'Payroll', 'Reports', 'Settings'];
 
 const AdminDashboardEnterprise = () => {

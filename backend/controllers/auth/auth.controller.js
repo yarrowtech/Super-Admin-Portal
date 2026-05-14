@@ -268,9 +268,15 @@ const normalizeOutsourcingType = (value) => {
   if (['third_party_worker', '3rd_party_worker', 'thirdpartyworker', 'third_party'].includes(raw)) {
     return 'third_party_worker';
   }
-  if (raw === 'freelancer') return 'freelancer';
+  if (raw === 'freelancer' || raw === 'freelaner') return 'freelancer';
   return raw;
 };
+
+const normalizeDepartment = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
 
 /**
  * @route   POST /api/auth/register
@@ -448,8 +454,15 @@ exports.outsourcingLogin = async (req, res) => {
 
     const user = await User.findByCredentials(emailInput, password);
     const outsourcingType = normalizeOutsourcingType(user?.metadata?.outsourcingType || null);
+    const normalizedDepartment = normalizeDepartment(user?.department || null);
+    const hasOutsourcingDepartment =
+      normalizedDepartment === 'outsourcing' ||
+      normalizedDepartment === 'outsource' ||
+      normalizedDepartment === 'external_workforce';
     const allowed =
       user.role === ROLES.ADMIN ||
+      user.role === ROLES.FREELANCER ||
+      hasOutsourcingDepartment ||
       outsourcingType === 'third_party_worker' ||
       outsourcingType === 'freelancer';
 

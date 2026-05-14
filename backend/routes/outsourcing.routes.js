@@ -20,9 +20,15 @@ const normalizeOutsourcingType = (value) => {
   if (['third_party_worker', '3rd_party_worker', 'thirdpartyworker', 'third_party'].includes(raw)) {
     return 'third_party_worker';
   }
-  if (raw === 'freelancer') return 'freelancer';
+  if (raw === 'freelancer' || raw === 'freelaner') return 'freelancer';
   return raw;
 };
+
+const normalizeDepartment = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
 
 router.use(authenticate);
 
@@ -30,9 +36,19 @@ router.use(async (req, res, next) => {
   try {
     if (req.user?.role === ROLES.ADMIN) return next();
     if ([ROLES.LAW, ROLES.FINANCE, ROLES.IT].includes(req.user?.role)) return next();
-    const actor = await User.findById(req.user?._id).select('metadata');
+    const actor = await User.findById(req.user?._id).select('role department metadata');
     const type = normalizeOutsourcingType(actor?.metadata?.outsourcingType);
-    if (type === 'third_party_worker' || type === 'freelancer') return next();
+    const department = normalizeDepartment(actor?.department);
+    if (
+      actor?.role === ROLES.FREELANCER ||
+      department === 'outsourcing' ||
+      department === 'outsource' ||
+      department === 'external_workforce' ||
+      type === 'third_party_worker' ||
+      type === 'freelancer'
+    ) {
+      return next();
+    }
     return res.status(403).json({
       success: false,
       error: 'Outsourcing portal access denied'

@@ -21,6 +21,7 @@ const routes = require("./routes");
 const requestLogger = require("./logger/requestLogger");
 const { ensureSuperAdminDefaults } = require("./utils/bootstrapSuperAdminData");
 const { buildManagerSnapshot } = require("./services/dashboard.service");
+const { startLawExpiryTracker } = require("./modules/law/law.cron");
 const { User } = require("./models/auth");
 const errorMiddleware = require("./middlewares/error.middleware");
 const jwtConfig = require("./config/jwt");
@@ -38,6 +39,7 @@ const onlineUsers = new Map();
 connectDB().then(async () => {
   try {
     await ensureSuperAdminDefaults();
+    startLawExpiryTracker();
     logger.info("Super Admin defaults ensured");
   } catch (err) {
     logger.error({ err }, "Super Admin defaults bootstrap failed");
@@ -102,6 +104,7 @@ app.use("/api/dept/it", routes.itRoutes);
 app.use("/api/dept/hr", routes.hrRoutes);
 app.use("/api/dept/finance", routes.financeRoutes);
 app.use("/api/dept/law", routes.lawRoutes);
+app.use("/api/law", routes.lawRoutes);
 app.use("/api/dept/media", routes.mediaRoutes);
 app.use("/api/dept/sales", routes.salesRoutes);
 app.use("/api/dept/research", routes.researchRoutes);

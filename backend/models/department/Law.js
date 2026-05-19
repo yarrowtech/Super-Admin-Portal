@@ -83,6 +83,11 @@ const lawSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      index: true
+    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {}
@@ -92,6 +97,7 @@ const lawSchema = new mongoose.Schema(
 );
 
 lawSchema.index({ section: 1, createdAt: -1 });
+lawSchema.index({ section: 1, projectId: 1, createdAt: -1 });
 lawSchema.index({ title: 'text', description: 'text', notes: 'text', referenceNumber: 'text' });
 
 module.exports = mongoose.models.Law || mongoose.model('Law', lawSchema);

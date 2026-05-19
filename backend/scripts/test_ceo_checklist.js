@@ -1,18 +1,17 @@
 const BASE_URL = "http://127.0.0.1:5000";
 
 const ceoCredentialOptions = [
-  { email: "ceo@gmail.com", password: "Pass123" },
-  { email: "Ceo@gmail.com", password: "Pass123" },
-  { email: "admin@test.com", password: "admin123" },
+  { email: "raphael@test.com", password: "raphael@test.com" },
+  { email: "admin@test.com", password: "admin@test.com" },
   { email: "ceo@example.com", password: "Password123!" },
   { email: "admin@example.com", password: "Password123!" },
   { email: "sangeet@gmail.com", password: "Pass123" },
 ];
 
 const employeeCredentialOptions = [
-  { email: "santu@gmail.com", password: "Pass123" },
+  { email: "santu@test.com", password: "santu@test.com" },
   { email: "employee@example.com", password: "Password123!" },
-  { email: "admin@test.com", password: "admin123" },
+  { email: "admin@test.com", password: "admin@test.com" },
 ];
 
 const request = async (path, { method = "GET", token, body } = {}) => {
@@ -94,8 +93,16 @@ async function run() {
   const departments = await request("/api/dept/ceo/departments", { token: ceoToken });
 
   const dashboardData = dashboard.data?.data || {};
-  const employeesRows = employees.data?.data || [];
-  const deptRows = departments.data?.data || [];
+  const employeesRows = Array.isArray(employees.data?.data)
+    ? employees.data.data
+    : Array.isArray(employees.data?.data?.employees)
+      ? employees.data.data.employees
+      : [];
+  const deptRows = Array.isArray(departments.data?.data)
+    ? departments.data.data
+    : Array.isArray(departments.data?.data?.departments)
+      ? departments.data.data.departments
+      : [];
 
   const dashboardEmployeeCount =
     dashboardData?.people?.totalEmployeesNumeric ??

@@ -3,12 +3,12 @@ const path = require("path");
 
 const backendRoot = path.resolve(__dirname, "..");
 const scripts = [
-  "test_admin_checklist.js",
+  "test_superadmin_checklist.js",
   "test_manager_checklist.js",
   "test_hr_checklist.js",
   "test_ceo_checklist.js",
   "test_employee_checklist.js",
-  "test_finance_department_checklist.js",
+  "test_finance_checklist.js",
 ];
 
 const runNode = (args, cwd = backendRoot) =>

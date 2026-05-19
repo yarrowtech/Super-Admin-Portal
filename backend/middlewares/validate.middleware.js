@@ -56,7 +56,7 @@ const registerValidation = [
     .trim()
     .notEmpty()
     .withMessage('Role is required')
-    .isIn(['admin', 'ceo', 'it', 'law', 'hr', 'media', 'finance', 'manager', 'sales', 'research_operator', 'employee', 'freelancer'])
+    .isIn(['admin', 'super_admin', 'ceo', 'it', 'it_admin', 'system_operator', 'security_analyst', 'devops_engineer', 'law', 'legal_head', 'hr', 'media', 'finance', 'finance_manager', 'accountant', 'auditor', 'manager', 'sales', 'research_operator', 'employee', 'freelancer'])
     .withMessage('Invalid role specified'),
   body('department')
     .optional()

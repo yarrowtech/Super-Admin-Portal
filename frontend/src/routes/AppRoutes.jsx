@@ -210,7 +210,7 @@ export default function AppRoutes() {
           }
         />
         <Route
-          path="/law/dashboard"
+          path="/law/*"
           element={
             <PortalRoute portal={PORTALS.LAW}>
               <PrivateRoute roles={allow('law')}>

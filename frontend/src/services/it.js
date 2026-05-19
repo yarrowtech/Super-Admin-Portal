@@ -26,6 +26,13 @@ export const itApi = {
   getAccessRequests: async (token) => apiClient.get('/api/dept/it/access-requests', token),
   getDeployments: async (token) => apiClient.get('/api/dept/it/deployments', token),
   getEventIntegrations: async (token) => apiClient.get('/api/dept/it/events', token),
+  getMonitoring: async (token) => apiClient.get('/api/dept/it/monitoring', token, { cache: false }),
+  getAssets: async (token, params = {}) => apiClient.get(buildUrl('/api/dept/it/assets', params), token, { cache: false }),
+  getNetworkInfra: async (token) => apiClient.get('/api/dept/it/network-infra', token, { cache: false }),
+  getThreatLogs: async (token, params = {}) => apiClient.get(buildUrl('/api/dept/it/threat-logs', params), token, { cache: false }),
+  getDevopsCicd: async (token) => apiClient.get('/api/dept/it/devops-cicd', token, { cache: false }),
+  getBackupRecovery: async (token) => apiClient.get('/api/dept/it/backup-recovery', token, { cache: false }),
+  getAuditLogs: async (token, params = {}) => apiClient.get(buildUrl('/api/dept/it/audit-logs', params), token, { cache: false }),
 
   getProjects: async (token, params = {}) =>
     apiClient.get(buildUrl('/api/dept/it/projects', params), token),

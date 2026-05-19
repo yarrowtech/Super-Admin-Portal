@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import ITSidebar from './ITSidebar';
 import ITDashboard from './ITDashboard';
-import MobilePortalNav from '../common/MobilePortalNav';
+import AppLayout from '../../layouts/AppLayout';
+import { useAuth } from '../../context/AuthContext';
 
 const IT_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -16,15 +17,28 @@ const IT_SECTIONS = [
 ];
 
 const ITPortal = () => {
+  const { user } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
+  const mobileItems = IT_SECTIONS.map((item) => ({
+    key: item.id,
+    label: item.label,
+    icon: item.icon,
+    active: activeSection === item.id,
+    onClick: () => setActiveSection(item.id),
+  }));
   return (
-    <div className="portal-shell min-h-screen w-full font-display bg-neutral-100 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-100">
-      <MobilePortalNav title="IT Portal" subtitle="System Control Layer" icon="computer" items={IT_SECTIONS.map((item) => ({ key: item.id, label: item.label, icon: item.icon, active: activeSection === item.id, onClick: () => setActiveSection(item.id) }))} />
-      <ITSidebar activeSection={activeSection} onSelect={setActiveSection} sections={IT_SECTIONS} />
-      <div className="pt-16 md:ml-64 md:pt-0 portal-content">
+    <AppLayout
+      sidebar={<ITSidebar activeSection={activeSection} onSelect={setActiveSection} sections={IT_SECTIONS} />}
+      title="IT Portal"
+      subtitle="System Control Layer"
+      mobileIcon="computer"
+      mobileItems={mobileItems}
+      user={user}
+    >
+      <div className="portal-content p-0">
         <ITDashboard activeSection={activeSection} onSectionChange={setActiveSection} />
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

@@ -107,12 +107,13 @@ exports.getDashboard = async (req, res) => {
 
 exports.getRecords = async (req, res) => {
   try {
-    const { section, status, priority, search } = req.query;
+    const { section, status, priority, search, projectId } = req.query;
     const query = {};
 
     if (section) query.section = section;
     if (status) query.status = status;
     if (priority) query.priority = priority;
+    if (projectId) query.projectId = projectId;
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
@@ -133,6 +134,7 @@ exports.getRecords = async (req, res) => {
 exports.createRecord = async (req, res) => {
   try {
     const payload = buildPayload(req.body, req.user?.id || req.user?._id);
+    if (req.body?.projectId) payload.projectId = req.body.projectId;
 
     if (!payload.section || !payload.title) {
       return res.status(400).json({
@@ -156,6 +158,7 @@ exports.createRecord = async (req, res) => {
 exports.updateRecord = async (req, res) => {
   try {
     const payload = buildPayload(req.body, req.user?.id || req.user?._id);
+    if (req.body?.projectId) payload.projectId = req.body.projectId;
     if (!payload.dueDate) delete payload.dueDate;
 
     const record = await Law.findByIdAndUpdate(req.params.id, payload, {

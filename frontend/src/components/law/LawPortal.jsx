@@ -1,38 +1,66 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import LawDashboard from './LawDashboard';
 import LawSidebar from './LawSidebar';
-import { LAW_SECTIONS } from './lawModuleConfig';
-import MobilePortalNav from '../common/MobilePortalNav';
+import AppLayout from '../../layouts/AppLayout';
+import { useAuth } from '../../context/AuthContext';
+import { lawApi } from '../../services/law';
 
 const LawPortal = () => {
-  const [activeSection, setActiveSection] = useState(LAW_SECTIONS[0].id);
+  const { user, token } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [projects, setProjects] = useState([]);
+  const [counts, setCounts] = useState({ activeCases: 0, expiring: 0 });
+
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      if (!token) return;
+      try {
+        const [projectsRes, dashboardRes] = await Promise.all([
+          lawApi.getProjects(token, { limit: 100 }),
+          lawApi.getDashboard(token),
+        ]);
+        if (!alive) return;
+        setProjects(projectsRes?.data?.items || []);
+        setCounts({
+          activeCases: dashboardRes?.data?.totals?.needsAttention || 0,
+          expiring: dashboardRes?.data?.totals?.expiringSoon || 0,
+        });
+      } catch {
+        if (alive) setProjects([]);
+      }
+    };
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  const mobileItems = useMemo(
+    () => [
+      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', active: location.pathname === '/law/dashboard', onClick: () => navigate('/law/dashboard') },
+      { key: 'agreements', label: 'Agreements', icon: 'contract', active: location.pathname.startsWith('/law/agreements'), onClick: () => navigate('/law/agreements') },
+      { key: 'policy', label: 'Policy', icon: 'policy', active: location.pathname.startsWith('/law/policy'), onClick: () => navigate('/law/policy') },
+      { key: 'disputes', label: 'Disputes', icon: 'balance', active: location.pathname.startsWith('/law/disputes'), onClick: () => navigate('/law/disputes') },
+    ],
+    [location.pathname, navigate]
+  );
 
   return (
-    <div className="portal-shell min-h-screen w-full bg-background-light font-display text-neutral-800 dark:bg-background-dark dark:text-neutral-100">
-      <MobilePortalNav
-        title="Law Portal"
-        subtitle="Legal operations"
-        icon="gavel"
-        items={LAW_SECTIONS.map((section) => ({
-          key: section.id,
-          label: section.label,
-          icon: section.icon || 'gavel',
-          active: activeSection === section.id,
-          onClick: () => setActiveSection(section.id),
-        }))}
-      />
-      <LawSidebar
-        activeSection={activeSection}
-        sections={LAW_SECTIONS}
-        onSelect={setActiveSection}
-      />
-      <div className="pt-16 md:ml-64 md:pt-0 portal-content">
-        <LawDashboard
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-        />
+    <AppLayout
+      sidebar={<LawSidebar projects={projects} counts={counts} />}
+      title="Law Portal"
+      subtitle="Legal operations"
+      mobileIcon="gavel"
+      mobileItems={mobileItems}
+      user={user}
+    >
+      <div className="portal-content p-0">
+        <LawDashboard />
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

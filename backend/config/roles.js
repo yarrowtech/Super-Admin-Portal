@@ -1,11 +1,20 @@
 const ROLES = {
   ADMIN: "admin",
+  SUPER_ADMIN: "super_admin",
   CEO: "ceo",
   IT: "it",
+  IT_ADMIN: "it_admin",
+  SYSTEM_OPERATOR: "system_operator",
+  SECURITY_ANALYST: "security_analyst",
+  DEVOPS_ENGINEER: "devops_engineer",
   LAW: "law",
+  LEGAL_HEAD: "legal_head",
   HR: "hr",
   MEDIA: "media",
   FINANCE: "finance",
+  FINANCE_MANAGER: "finance_manager",
+  ACCOUNTANT: "accountant",
+  AUDITOR: "auditor",
   MANAGER: "manager",
   SALES: "sales",
   RESEARCH_OPERATOR: "research_operator",
@@ -14,8 +23,14 @@ const ROLES = {
 };
 
 const ROLE_HIERARCHY = {
+  [ROLES.SUPER_ADMIN]: 110,
   [ROLES.ADMIN]: 100,
   [ROLES.CEO]: 90,
+  [ROLES.IT_ADMIN]: 60,
+  [ROLES.LEGAL_HEAD]: 60,
+  [ROLES.FINANCE_MANAGER]: 60,
+  [ROLES.SECURITY_ANALYST]: 55,
+  [ROLES.DEVOPS_ENGINEER]: 55,
   [ROLES.IT]: 50,
   [ROLES.LAW]: 50,
   [ROLES.HR]: 50,
@@ -23,12 +38,23 @@ const ROLE_HIERARCHY = {
   [ROLES.FINANCE]: 50,
   [ROLES.SALES]: 50,
   [ROLES.RESEARCH_OPERATOR]: 50,
+  [ROLES.SYSTEM_OPERATOR]: 45,
+  [ROLES.ACCOUNTANT]: 45,
+  [ROLES.AUDITOR]: 40,
   [ROLES.MANAGER]: 40,
   [ROLES.EMPLOYEE]: 10,
   [ROLES.FREELANCER]: 5,
 };
 
 const ROLE_PERMISSIONS = {
+  [ROLES.SUPER_ADMIN]: [
+    "manage_all_users",
+    "manage_all_departments",
+    "view_all_data",
+    "system_settings",
+    "audit_logs",
+    "strategic_decisions",
+  ],
   [ROLES.ADMIN]: [
     "manage_all_users",
     "users:read",
@@ -55,11 +81,28 @@ const ROLE_PERMISSIONS = {
     "technical_support",
     "security_management",
   ],
+  [ROLES.IT_ADMIN]: [
+    "manage_tech_infrastructure",
+    "system_access",
+    "technical_support",
+    "security_management",
+    "manage_it_assets",
+  ],
+  [ROLES.SYSTEM_OPERATOR]: ["system_access", "technical_support"],
+  [ROLES.SECURITY_ANALYST]: ["security_management", "audit_logs", "compliance_management"],
+  [ROLES.DEVOPS_ENGINEER]: ["manage_tech_infrastructure", "technical_support", "deployment_management"],
   [ROLES.LAW]: [
     "legal_documents",
     "compliance_management",
     "contract_review",
     "legal_advice",
+  ],
+  [ROLES.LEGAL_HEAD]: [
+    "legal_documents",
+    "compliance_management",
+    "contract_review",
+    "legal_advice",
+    "approve_legal_workflows",
   ],
   [ROLES.HR]: [
     "manage_employees",
@@ -81,6 +124,16 @@ const ROLE_PERMISSIONS = {
     "financial_reports",
     "invoice_management",
   ],
+  [ROLES.FINANCE_MANAGER]: [
+    "financial_records",
+    "budget_management",
+    "expense_approval",
+    "financial_reports",
+    "invoice_management",
+    "approve_finance_workflows",
+  ],
+  [ROLES.ACCOUNTANT]: ["financial_records", "invoice_management", "expense_approval"],
+  [ROLES.AUDITOR]: ["financial_reports", "audit_logs", "view_all_data"],
   [ROLES.MANAGER]: [
     "team_management",
     "project_oversight",
@@ -107,11 +160,7 @@ const ROLE_PERMISSIONS = {
     "view_attendance",
     "request_leave",
   ],
-  [ROLES.FREELANCER]: [
-    "view_own_profile",
-    "view_tasks",
-    "submit_work_reports",
-  ],
+  [ROLES.FREELANCER]: ["view_own_profile", "view_tasks", "submit_work_reports"],
 };
 
 const isValidRole = (role) => Object.values(ROLES).includes(role);

@@ -57,6 +57,12 @@ const getDefaultHeaders = (token) => {
   const headers = {
     'Content-Type': 'application/json',
   };
+  try {
+    const activeProjectId = localStorage.getItem('activeProjectId');
+    if (activeProjectId) headers['x-project-id'] = activeProjectId;
+  } catch {
+    // ignore storage access errors
+  }
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }

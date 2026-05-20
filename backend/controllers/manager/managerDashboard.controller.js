@@ -19,6 +19,9 @@ const {
   logLeaveAction,
   syncLeaveAttendance,
 } = require('../../services/leaveManagement.service');
+const STRICT_PROJECT_NAMES = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS'];
+const isStrictProjectName = (value) =>
+  STRICT_PROJECT_NAMES.includes(String(value || '').trim().toUpperCase());
 
 const sanitizeQueryValue = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -348,7 +351,7 @@ exports.getProjects = async (req, res) => {
     const statusFilter = sanitizeQueryValue(req.query.status);
     const searchTerm = sanitizeQueryValue(req.query.search);
 
-    const query = { projectManager: req.user._id };
+    const query = { projectManager: req.user._id, name: { $in: STRICT_PROJECT_NAMES } };
     if (statusFilter) {
       query.status = statusFilter;
     }
@@ -406,6 +409,12 @@ exports.createProject = async (req, res) => {
         error: 'name, description and startDate are required'
       });
     }
+    if (!isStrictProjectName(trimmedName)) {
+      return res.status(400).json({
+        success: false,
+        error: `Project name must be one of: ${STRICT_PROJECT_NAMES.join(', ')}`
+      });
+    }
 
     const memberIds = Array.from(
       new Set(
@@ -429,7 +438,7 @@ exports.createProject = async (req, res) => {
     }
 
     const project = await Project.create({
-      name: trimmedName,
+      name: trimmedName.toUpperCase(),
       description: trimmedDescription,
       startDate: new Date(startDate),
       deadline: deadline ? new Date(deadline) : undefined,
@@ -454,6 +463,86 @@ exports.createProject = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to create project',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/manager/projects/:id
+ * @desc    Update project details
+ * @access  Private (MANAGER only)
+ */
+exports.updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid project id'
+      });
+    }
+
+    const {
+      name,
+      description,
+      startDate,
+      deadline,
+      priority,
+      status,
+      progress,
+      notes
+    } = req.body || {};
+
+    const project = await Project.findOne({ _id: id, projectManager: req.user._id });
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    if (typeof name === 'string' && name.trim()) {
+      if (!isStrictProjectName(name)) {
+        return res.status(400).json({
+          success: false,
+          error: `Project name must be one of: ${STRICT_PROJECT_NAMES.join(', ')}`
+        });
+      }
+      project.name = name.trim().toUpperCase();
+    }
+    if (typeof description === 'string' && description.trim()) project.description = description.trim();
+    if (typeof priority === 'string' && priority) project.priority = priority;
+    if (typeof status === 'string' && status) project.status = status;
+    if (typeof notes === 'string') project.notes = notes.trim();
+    if (startDate) project.startDate = new Date(startDate);
+    if (deadline) project.deadline = new Date(deadline);
+    if (progress !== undefined && progress !== null && !Number.isNaN(Number(progress))) {
+      project.progress = Number(progress);
+    }
+
+    if (project.status === 'completed' && project.progress < 100) {
+      project.progress = 100;
+      project.endDate = new Date();
+    }
+
+    await project.save();
+
+    const hydrated = await Project.findById(project._id).populate(
+      'teamMembers.employee',
+      'firstName lastName email department role'
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Project updated successfully',
+      data: hydrated
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Update manager project error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update project',
       details: error.message
     });
   }
@@ -511,6 +600,43 @@ exports.updateProjectStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update project status',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   DELETE /api/dept/manager/projects/:id
+ * @desc    Delete project
+ * @access  Private (MANAGER only)
+ */
+exports.deleteProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid project id'
+      });
+    }
+
+    const deleted = await Project.findOneAndDelete({ _id: id, projectManager: req.user._id });
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Project deleted successfully'
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Delete manager project error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete project',
       details: error.message
     });
   }

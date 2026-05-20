@@ -12,6 +12,8 @@ const pageComponents = {
 const AGREEMENTS_CACHE_KEY = 'law_agreements_cache_v1';
 const CACHE_TTL = 5 * 60 * 1000;
 const RECORDS_CACHE_TTL = 60 * 1000;
+const LAW_STRICT_PROJECTS = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS'];
+const LAW_PROJECT_FALLBACK_ORDER = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS'];
 
 const moduleToSection = (pathname = '') => {
   if (pathname.startsWith('/law/agreements')) return 'agreements';
@@ -106,10 +108,28 @@ const LawDashboard = () => {
     try {
       const projectsRes = await lawApi.getProjects(token, { limit: 100 });
       const projectItems = projectsRes?.data?.items || [];
-      setProjects(projectItems);
-      const effectiveProjectId = selectedProjectId || projectItems[0]?._id || projectItems[0]?.id || '';
+      const strictProjects = LAW_STRICT_PROJECTS.map((name) => {
+        const matched = projectItems.find(
+          (p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase()
+        );
+        return matched || { _id: `virtual-${name}`, name };
+      });
+      setProjects(strictProjects);
+
+      const fallbackProject = LAW_PROJECT_FALLBACK_ORDER.map((name) =>
+        strictProjects.find((p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase())
+      ).find(Boolean);
+      const effectiveProjectId =
+        selectedProjectId ||
+        fallbackProject?._id ||
+        fallbackProject?.id ||
+        strictProjects[0]?._id ||
+        strictProjects[0]?.id ||
+        '';
+      const hasRealProjectId = effectiveProjectId && !String(effectiveProjectId).startsWith('virtual-');
       if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
         setSearchParams({ projectId: effectiveProjectId });
+        try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch {}
       }
 
       const recordsCacheKey = buildRecordsCacheKey();
@@ -121,7 +141,7 @@ const LawDashboard = () => {
 
       const recordsPromise = activeSection === 'agreements'
         ? Promise.resolve({ data: [] })
-        : effectiveProjectId && activeSection !== 'dashboard'
+        : hasRealProjectId && activeSection !== 'dashboard'
           ? lawApi.getProjectModuleData(
               token,
               activeSection === 'privacy-policy' ? 'policy' : activeSection === 'disputes-fraud' ? 'disputes' : activeSection === 'ip-copyright' ? 'ip' : activeSection,
@@ -131,10 +151,10 @@ const LawDashboard = () => {
 
       const contractsPromise = activeSection === 'dashboard' || !effectiveProjectId
         ? Promise.resolve({ data: { contracts: [] } })
-        : lawApi.getContracts(token, { projectId: effectiveProjectId });
+        : hasRealProjectId ? lawApi.getContracts(token, { projectId: effectiveProjectId }) : Promise.resolve({ data: { contracts: [] } });
       const compliancePromise = activeSection === 'dashboard' || !effectiveProjectId
         ? Promise.resolve({ data: { compliance: [] } })
-        : lawApi.getCompliance(token, { projectId: effectiveProjectId });
+        : hasRealProjectId ? lawApi.getCompliance(token, { projectId: effectiveProjectId }) : Promise.resolve({ data: { compliance: [] } });
 
       const [dashboardRes, recordsRes, contractsRes, complianceRes] = await Promise.allSettled([
         lawApi.getDashboard(token),
@@ -191,7 +211,8 @@ const LawDashboard = () => {
   }, [token, activeSection]);
 
   useEffect(() => {
-    if (!token || activeSection !== 'agreements' || !selectedProjectId) return;
+    if (!token || activeSection !== 'agreements' || !selectedProjectId || String(selectedProjectId).startsWith('virtual-')) return;
+    try { localStorage.setItem('activeProjectId', String(selectedProjectId)); } catch {}
     fetchAgreementsByProject(selectedProjectId).catch((err) => {
       setAgreementsLoading(false);
       setError(err.message || 'Failed to load agreements.');
@@ -270,7 +291,12 @@ const LawDashboard = () => {
           records={sectionRecords}
           projects={projects}
           selectedProjectId={selectedProjectId}
-          onProjectChange={(projectId) => setSearchParams(projectId ? { projectId } : {})}
+          onProjectChange={(projectId) => {
+            if (projectId) {
+              try { localStorage.setItem('activeProjectId', String(projectId)); } catch {}
+            }
+            setSearchParams(projectId ? { projectId } : {});
+          }}
           loading={agreementsLoading}
           lastUpdatedAt={lastUpdatedAt}
           saving={saving}

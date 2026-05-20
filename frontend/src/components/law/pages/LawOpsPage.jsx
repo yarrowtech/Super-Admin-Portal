@@ -3,6 +3,45 @@ import LawRecordManager from '../LawRecordManager';
 import { LAW_FORM_CONFIG, getLawSection } from '../lawModuleConfig';
 
 const FIXED_PROJECT_OPTIONS = [];
+const PRIVACY_SECTIONS = [
+  {
+    title: 'Information We Collect',
+    points: [
+      'Account Information: Name, email address, phone number, and role used to create and manage user accounts.',
+      'Usage Data: Pages visited, features used, quiz results, time spent, and browser/device information.',
+      'Content You Provide: Answers, notes, feedback, and uploaded study material for service delivery and personalization.',
+    ],
+  },
+  {
+    title: 'How We Use Your Information',
+    points: [
+      'Provide and maintain platform services.',
+      'Improve product performance and user experience.',
+      'Send updates, legal notices, and service communication.',
+    ],
+  },
+  {
+    title: 'Data Sharing',
+    points: [
+      'Shared only with trusted processors and service providers under legal controls.',
+      'Never sold as commercial personal data.',
+    ],
+  },
+  {
+    title: 'Data Security',
+    points: [
+      'Encryption in transit and at rest.',
+      'Access control and audit logs enforced.',
+    ],
+  },
+  {
+    title: 'Your Rights',
+    points: [
+      'Access, correction, portability, and deletion requests.',
+      'Consent withdrawal and communication preference controls.',
+    ],
+  },
+];
 
 const LawOpsPage = ({
   sectionId,
@@ -88,16 +127,13 @@ const LawOpsPage = ({
           <button
             type="button"
             onClick={() => setIsProjectOpen((prev) => !prev)}
-            className="flex h-11 min-w-[220px] items-center justify-between rounded-xl bg-neutral-200 px-4 text-base font-medium text-neutral-900 hover:bg-neutral-300"
+            className="flex h-10 min-w-[200px] items-center justify-between rounded-xl bg-neutral-200 px-3.5 text-[15px] font-medium leading-none text-neutral-900 transition-colors hover:bg-neutral-300"
           >
             <span>{projectOptions.find((item) => item.value === selectedProjectId)?.label || 'Select Project'}</span>
-            <span className="material-symbols-outlined text-2xl">expand_more</span>
+            <span className="material-symbols-outlined text-[22px] leading-none">expand_more</span>
           </button>
           {isProjectOpen && (
-            <div className="absolute left-0 top-[54px] z-20 w-[260px] rounded-2xl bg-neutral-300 p-3 shadow-lg">
-              {projectOptions.length === 0 ? (
-                <p className="rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-600">No projects available</p>
-              ) : null}
+            <div className="absolute left-0 top-[46px] z-20 w-[240px] rounded-xl border border-neutral-200 bg-neutral-200 p-2 shadow-lg">
               {projectOptions.map((project) => (
                 <button
                   key={project.value}
@@ -106,7 +142,7 @@ const LawOpsPage = ({
                     onProjectChange?.(project.value);
                     setIsProjectOpen(false);
                   }}
-                  className="mb-2 flex h-10 w-full items-center justify-center rounded-xl bg-neutral-100 text-xl font-medium text-neutral-900 hover:bg-white"
+                  className="mb-1.5 flex h-9 w-full items-center justify-center rounded-lg bg-white px-3 text-[15px] font-medium leading-none text-neutral-900 transition-colors hover:bg-neutral-50 last:mb-0"
                 >
                   {project.label}
                 </button>
@@ -130,6 +166,31 @@ const LawOpsPage = ({
           )}
           {error && <p className="mt-3 text-sm text-yellow-600 dark:text-yellow-300">{error}</p>}
         </section>
+
+        {sectionId === 'privacy-policy' && (
+          <section className="mt-6 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {PRIVACY_SECTIONS.map((item) => (
+                <span
+                  key={item.title}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                >
+                  {item.title}
+                </span>
+              ))}
+            </div>
+            {PRIVACY_SECTIONS.map((item) => (
+              <article key={item.title} className="rounded-2xl border border-rose-100 bg-rose-50/40 p-5 dark:border-neutral-800 dark:bg-neutral-900">
+                <h3 className="text-xl font-black text-neutral-900 dark:text-white">{item.title}</h3>
+                <div className="mt-3 space-y-2">
+                  {item.points.map((point) => (
+                    <p key={point} className="text-sm text-neutral-700 dark:text-neutral-300">{point}</p>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
 
         <div className="mt-6">
           <LawRecordManager

@@ -7,13 +7,14 @@ import { useAuth } from '../../context/AuthContext';
 const IT_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'user-access', label: 'User Access', icon: 'manage_accounts' },
-  { id: 'roles-permissions', label: 'Roles & Permissions', icon: 'admin_panel_settings' },
-  { id: 'api-integrations', label: 'API & Integrations', icon: 'integration_instructions' },
-  { id: 'infrastructure', label: 'Infrastructure', icon: 'dns' },
+  { id: 'assets', label: 'Asset Management', icon: 'inventory_2' },
+  { id: 'network-infra', label: 'Network & Infra', icon: 'dns' },
   { id: 'security-logs', label: 'Security Logs', icon: 'security' },
   { id: 'audit-logs', label: 'Audit Logs', icon: 'history' },
-  { id: 'access-requests', label: 'Access Requests', icon: 'approval' },
   { id: 'deployments', label: 'Deployments', icon: 'deployed_code' },
+  { id: 'support', label: 'Support & Tickets', icon: 'support_agent' },
+  { id: 'backup', label: 'Backup & Recovery', icon: 'backup' },
+  { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
 const ITPortal = () => {

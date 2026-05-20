@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { itApi } from '../../services/it';
 import { useAuth } from '../../context/AuthContext';
 import PortalHeader from '../common/PortalHeader';
@@ -18,6 +18,7 @@ const SECTION_META = {
 };
 
 const cardClass = 'rounded-xl border border-neutral-800 bg-neutral-900 p-4';
+const IT_CACHE_TTL_MS = 60 * 1000;
 
 const KeyValueGrid = ({ items }) => (
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -33,13 +34,51 @@ const KeyValueGrid = ({ items }) => (
 
 const ITDashboard = ({ activeSection }) => {
   const { token, user } = useAuth();
+  const dataCacheRef = useRef({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState({});
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    let ignore = false;
+    const loadProjects = async () => {
+      try {
+        const res = await itApi.getProjects(token, { page: 1, limit: 100 });
+        const list = res?.data?.projects || [];
+        if (ignore) return;
+        setProjects(list);
+        const stored = localStorage.getItem('activeProjectId');
+        const defaultProject = stored || list[0]?._id || '';
+        if (defaultProject) {
+          setSelectedProjectId(defaultProject);
+          localStorage.setItem('activeProjectId', defaultProject);
+        }
+      } catch {
+        if (!ignore) {
+          setProjects([]);
+          setSelectedProjectId(localStorage.getItem('activeProjectId') || '');
+        }
+      }
+    };
+    loadProjects();
+    return () => {
+      ignore = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     const load = async () => {
       if (!token) return;
+      const projectKey = selectedProjectId || 'global';
+      const cached = dataCacheRef.current[projectKey];
+      if (cached && Date.now() - cached.timestamp < IT_CACHE_TTL_MS) {
+        setData(cached.payload);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError('');
       try {
@@ -60,7 +99,7 @@ const ITDashboard = ({ activeSection }) => {
           itApi.getSupportTickets(token, { page: 1, limit: 10 }),
           itApi.getAuditLogs(token, { page: 1, limit: 10 }),
         ]);
-        setData({
+        const payload = {
           overview: overview?.data || {},
           monitoring: monitoring?.data || {},
           userAccess: userAccess?.data || {},
@@ -76,7 +115,9 @@ const ITDashboard = ({ activeSection }) => {
           backupRecovery: backupRecovery?.data || {},
           supportTickets: supportTickets?.data || {},
           auditLogs: auditLogs?.data || {},
-        });
+        };
+        dataCacheRef.current[projectKey] = { payload, timestamp: Date.now() };
+        setData(payload);
       } catch (err) {
         setError(err.message || 'Failed to load IT system layer data');
       } finally {
@@ -84,7 +125,7 @@ const ITDashboard = ({ activeSection }) => {
       }
     };
     load();
-  }, [token]);
+  }, [token, selectedProjectId]);
 
   const meta = SECTION_META[activeSection] || SECTION_META.dashboard;
 
@@ -103,7 +144,7 @@ const ITDashboard = ({ activeSection }) => {
       return <KeyValueGrid items={[['Total Users', x.totalUsers || 0, 'group'], ['Temporary Access', x.temporaryAccess || 0, 'timer'], ['Blocked Users', x.blockedUsers || 0, 'block'], ['Role Buckets', (x.roleBreakdown || []).length, 'schema']]} />;
     }
     if (activeSection === 'assets') {
-      const rows = data.assets?.items || [];
+      const rows = data.assets?.items || data.assets?.assets || [];
       return <div className="space-y-3">{rows.map((row) => <article key={row.id} className={cardClass}><div className="flex items-center justify-between"><p className="font-semibold text-white">{row.name}</p><span className={`rounded-full px-2 py-0.5 text-xs ${row.status === 'warning' ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/20 text-emerald-200'}`}>{row.status}</span></div><p className="text-sm text-neutral-400">{row.type} • {row.assignedTo}</p></article>)}</div>;
     }
     if (activeSection === 'network-infra') {
@@ -150,7 +191,24 @@ const ITDashboard = ({ activeSection }) => {
           showNotifications
           showThemeToggle
           searchPlaceholder="Search users, logs, infra, APIs..."
-        />
+        >
+          <select
+            value={selectedProjectId}
+            onChange={(e) => {
+              const projectId = e.target.value;
+              setSelectedProjectId(projectId);
+              if (projectId) localStorage.setItem('activeProjectId', projectId);
+            }}
+            className="h-10 rounded-xl border border-neutral-300 bg-neutral-200 px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+          >
+            <option value="">{projects.length ? 'Select Project' : 'No Projects'}</option>
+            {projects.map((project) => (
+              <option key={project._id} value={project._id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </PortalHeader>
         <section className="mb-4 rounded-xl border border-cyan-600/30 bg-cyan-500/10 p-4 text-sm text-cyan-100">
           Event bus: <span className="font-semibold">employee.created</span>, <span className="font-semibold">access.requested</span>, <span className="font-semibold">fraud.detected</span>, <span className="font-semibold">employee.terminated</span>
         </section>

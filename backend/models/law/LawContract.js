@@ -9,6 +9,7 @@ const lawContractSchema = new mongoose.Schema(
     expiryDate: { type: Date, required: true },
     linkedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: "Invoice", default: null },
     linkedEmployeeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", index: true, default: null },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
@@ -17,5 +18,6 @@ const lawContractSchema = new mongoose.Schema(
 );
 
 lawContractSchema.index({ expiryDate: 1, status: 1 });
+lawContractSchema.index({ projectId: 1, expiryDate: 1 });
 
 module.exports = mongoose.models.LawContract || mongoose.model("LawContract", lawContractSchema);

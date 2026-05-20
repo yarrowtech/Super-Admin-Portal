@@ -11,6 +11,7 @@ const pageComponents = {
 };
 const AGREEMENTS_CACHE_KEY = 'law_agreements_cache_v1';
 const CACHE_TTL = 5 * 60 * 1000;
+const RECORDS_CACHE_TTL = 60 * 1000;
 
 const moduleToSection = (pathname = '') => {
   if (pathname.startsWith('/law/agreements')) return 'agreements';
@@ -49,6 +50,7 @@ const LawDashboard = () => {
   const [agreementsLoading, setAgreementsLoading] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const agreementCache = useRef({});
+  const recordsCache = useRef({});
 
   const readCache = (projectId) => {
     const row = agreementCache.current?.[projectId];
@@ -85,26 +87,60 @@ const LawDashboard = () => {
     setAgreementsLoading(false);
   };
 
+  const buildRecordsCacheKey = () => `${activeSection}::${selectedProjectId || 'all'}`;
+
+  const readRecordsCache = (key) => {
+    const entry = recordsCache.current[key];
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > RECORDS_CACHE_TTL) return null;
+    return entry;
+  };
+
+  const writeRecordsCache = (key, data) => {
+    recordsCache.current[key] = { data, timestamp: Date.now() };
+  };
+
   const loadLawData = async () => {
     if (!token) return;
     setError('');
     try {
+      const projectsRes = await lawApi.getProjects(token, { limit: 100 });
+      const projectItems = projectsRes?.data?.items || [];
+      setProjects(projectItems);
+      const effectiveProjectId = selectedProjectId || projectItems[0]?._id || projectItems[0]?.id || '';
+      if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
+        setSearchParams({ projectId: effectiveProjectId });
+      }
+
+      const recordsCacheKey = buildRecordsCacheKey();
+      const cached = readRecordsCache(recordsCacheKey);
+      if (cached && activeSection !== 'agreements') {
+        setRecords(cached.data || []);
+        setLastUpdatedAt(cached.timestamp);
+      }
+
       const recordsPromise = activeSection === 'agreements'
         ? Promise.resolve({ data: [] })
-        : selectedProjectId && activeSection !== 'dashboard'
+        : effectiveProjectId && activeSection !== 'dashboard'
           ? lawApi.getProjectModuleData(
               token,
               activeSection === 'privacy-policy' ? 'policy' : activeSection === 'disputes-fraud' ? 'disputes' : activeSection === 'ip-copyright' ? 'ip' : activeSection,
-              selectedProjectId
+              effectiveProjectId
             )
-          : lawApi.getRecords(token, activeSection !== 'dashboard' ? { section: activeSection } : {});
+          : lawApi.getRecords(token, activeSection !== 'dashboard' ? { section: activeSection, projectId: effectiveProjectId } : {});
 
-      const [dashboardRes, recordsRes, contractsRes, complianceRes, projectsRes] = await Promise.allSettled([
+      const contractsPromise = activeSection === 'dashboard' || !effectiveProjectId
+        ? Promise.resolve({ data: { contracts: [] } })
+        : lawApi.getContracts(token, { projectId: effectiveProjectId });
+      const compliancePromise = activeSection === 'dashboard' || !effectiveProjectId
+        ? Promise.resolve({ data: { compliance: [] } })
+        : lawApi.getCompliance(token, { projectId: effectiveProjectId });
+
+      const [dashboardRes, recordsRes, contractsRes, complianceRes] = await Promise.allSettled([
         lawApi.getDashboard(token),
         recordsPromise,
-        lawApi.getContracts(token),
-        lawApi.getCompliance(token),
-        activeSection === 'dashboard' ? Promise.resolve({ data: { items: [] } }) : lawApi.getProjects(token, { limit: 100 }),
+        contractsPromise,
+        compliancePromise,
       ]);
 
       setApiSummary({
@@ -124,17 +160,12 @@ const LawDashboard = () => {
       });
 
       if (recordsRes.status === 'fulfilled') {
-        setRecords(recordsRes.value?.data?.items || recordsRes.value?.data || []);
+        const items = recordsRes.value?.data?.items || recordsRes.value?.data || [];
+        setRecords(items);
+        writeRecordsCache(recordsCacheKey, items);
         setLastUpdatedAt(Date.now());
       }
-      if (projectsRes.status === 'fulfilled') {
-        const items = projectsRes.value?.data?.items || [];
-        setProjects(items);
-        if (activeSection !== 'dashboard' && !selectedProjectId && items.length) {
-          setSearchParams({ projectId: items[0]._id || items[0].id });
-        }
-      }
-      const failed = [dashboardRes, recordsRes, contractsRes, complianceRes, projectsRes].find(
+      const failed = [dashboardRes, recordsRes, contractsRes, complianceRes].find(
         (result) => result.status === 'rejected'
       );
       if (failed) {
@@ -178,6 +209,26 @@ const LawDashboard = () => {
     setError('');
     try {
       const requestPayload = { ...payload, projectId: selectedProjectId || payload.projectId };
+      if (!requestPayload.projectId) {
+        throw new Error('Please select a project before creating or updating records.');
+      }
+      const referenceFiles = Array.isArray(requestPayload.referenceFiles) ? requestPayload.referenceFiles : [];
+      delete requestPayload.referenceFiles;
+
+      if (referenceFiles.length > 0) {
+        const uploadRes = await lawApi.uploadReferencePdfs(token, requestPayload.projectId, referenceFiles);
+        const uploadedPdfs = uploadRes?.data || [];
+        requestPayload.metadata = {
+          ...(requestPayload.metadata || {}),
+          referencePdfs: [
+            ...((requestPayload.metadata?.referencePdfs && Array.isArray(requestPayload.metadata.referencePdfs))
+              ? requestPayload.metadata.referencePdfs
+              : []),
+            ...uploadedPdfs,
+          ],
+        };
+      }
+
       if (recordId) {
         const res = await lawApi.updateRecord(token, recordId, requestPayload);
         setRecords((prev) => prev.map((record) => (record._id === recordId ? res.data : record)));

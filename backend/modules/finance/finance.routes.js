@@ -1,5 +1,6 @@
 const express = require("express");
 const { authenticate, authorize, authorizePortalAccess } = require("../../middlewares/auth.middleware");
+const { requireProjectContext, attachOptionalProjectContext } = require("../../middlewares/project.middleware");
 const { validate } = require("../../middlewares/validate.middleware");
 const { ROLES } = require("../../config/roles");
 const controller = require("./finance.controller");
@@ -28,8 +29,9 @@ router.use(
   )
 );
 router.use(authorizePortalAccess("finance"));
+router.use(attachOptionalProjectContext);
 
-router.get("/overview", controller.getOverview);
+router.get("/overview", requireProjectContext, controller.getOverview);
 const canDecideFinance = (req, res, next) => {
   const role = String(req.user?.role || "").toLowerCase();
   if (["manager", "finance_manager", "admin", "super_admin"].includes(role)) return next();
@@ -41,10 +43,10 @@ const canTriggerPayroll = (req, res, next) => {
   return res.status(403).json({ success: false, error: "Role cannot trigger payroll" });
 };
 
-router.get("/transactions", v.listValidation, validate, controller.getTransactions);
-router.post("/expenses", canWriteFinance, v.createExpenseValidation, validate, controller.createExpenseRequest);
-router.patch("/expenses/:workflowId/decision", canDecideFinance, v.decisionValidation, validate, controller.decideExpenseRequest);
-router.post("/payroll/hr-trigger", canTriggerPayroll, v.payrollTriggerValidation, validate, controller.triggerPayrollFromHr);
-router.post("/invoices/:invoiceId/link-contract", canWriteFinance, v.linkContractValidation, validate, controller.createContractLinkedInvoice);
+router.get("/transactions", requireProjectContext, v.listValidation, validate, controller.getTransactions);
+router.post("/expenses", requireProjectContext, canWriteFinance, v.createExpenseValidation, validate, controller.createExpenseRequest);
+router.patch("/expenses/:workflowId/decision", requireProjectContext, canDecideFinance, v.decisionValidation, validate, controller.decideExpenseRequest);
+router.post("/payroll/hr-trigger", requireProjectContext, canTriggerPayroll, v.payrollTriggerValidation, validate, controller.triggerPayrollFromHr);
+router.post("/invoices/:invoiceId/link-contract", requireProjectContext, canWriteFinance, v.linkContractValidation, validate, controller.createContractLinkedInvoice);
 
 module.exports = router;

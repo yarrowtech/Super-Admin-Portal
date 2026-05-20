@@ -3,7 +3,7 @@ const financeService = require("./finance.service");
 
 exports.getOverview = async (req, res) => {
   try {
-    const data = await financeService.getOverview();
+    const data = await financeService.getOverview(req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Finance module getOverview error");
@@ -13,7 +13,7 @@ exports.getOverview = async (req, res) => {
 
 exports.getTransactions = async (req, res) => {
   try {
-    const data = await financeService.listTransactions(req.query || {});
+    const data = await financeService.listTransactions(req.query || {}, req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Finance module getTransactions error");
@@ -31,6 +31,7 @@ exports.createExpenseRequest = async (req, res) => {
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       },
+      projectId: req.projectId,
     });
     res.status(201).json({ success: true, data });
   } catch (err) {
@@ -46,6 +47,7 @@ exports.decideExpenseRequest = async (req, res) => {
       decision: req.body?.decision,
       remarks: req.body?.remarks || "",
       actor: { id: req.user?.id || req.user?._id, role: req.user?.role },
+      projectId: req.projectId,
     });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -59,6 +61,7 @@ exports.triggerPayrollFromHr = async (req, res) => {
     const data = await financeService.triggerPayrollFromHr({
       payload: req.body || {},
       actor: { id: req.user?.id || req.user?._id, role: req.user?.role },
+      projectId: req.projectId,
     });
     res.status(201).json({ success: true, data });
   } catch (err) {
@@ -73,6 +76,7 @@ exports.createContractLinkedInvoice = async (req, res) => {
       invoiceId: req.params.invoiceId,
       payload: req.body || {},
       actor: { id: req.user?.id || req.user?._id, role: req.user?.role },
+      projectId: req.projectId,
     });
     res.status(201).json({ success: true, data });
   } catch (err) {

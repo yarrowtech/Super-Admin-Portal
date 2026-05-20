@@ -12,24 +12,26 @@ const withPagination = (query = {}) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
-const getOverview = async () => {
+const getOverview = async (projectId) => {
+  const scope = projectId ? { projectId } : {};
   const [records, contracts, expiringSoon, disputes] = await Promise.all([
-    Law.countDocuments(),
-    LawContract.countDocuments(),
+    Law.countDocuments(scope),
+    LawContract.countDocuments(scope),
     LawContract.countDocuments({
+      ...scope,
       expiryDate: {
         $gte: new Date(),
         $lte: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
       },
     }),
-    Law.countDocuments({ section: { $in: ["cases", "disputes-fraud"] } }),
+    Law.countDocuments({ ...scope, section: { $in: ["cases", "disputes-fraud"] } }),
   ]);
   return { records, contracts, expiringSoon, disputes };
 };
 
-const listContracts = async (query = {}) => {
+const listContracts = async (query = {}, projectId) => {
   const { page, limit, skip } = withPagination(query);
-  const filter = {};
+  const filter = projectId ? { projectId } : {};
   if (query.status) filter.status = query.status;
   const [items, total] = await Promise.all([
     LawContract.find(filter).sort({ expiryDate: 1 }).skip(skip).limit(limit).lean(),
@@ -38,17 +40,18 @@ const listContracts = async (query = {}) => {
   return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
 };
 
-const createContract = async (payload = {}, actorId) =>
-  LawContract.create({ ...payload, createdBy: actorId, updatedBy: actorId });
-const getContractById = async (id) => LawContract.findById(id).lean();
-const updateContract = async (id, payload = {}, actorId) =>
-  LawContract.findByIdAndUpdate(id, { ...payload, updatedBy: actorId }, { new: true });
-const deleteContract = async (id) => LawContract.findByIdAndDelete(id);
+const createContract = async (payload = {}, actorId, projectId) =>
+  LawContract.create({ ...payload, projectId, createdBy: actorId, updatedBy: actorId });
+const getContractById = async (id, projectId) => LawContract.findOne({ _id: id, projectId }).lean();
+const updateContract = async (id, payload = {}, actorId, projectId) =>
+  LawContract.findOneAndUpdate({ _id: id, projectId }, { ...payload, updatedBy: actorId }, { new: true });
+const deleteContract = async (id, projectId) => LawContract.findOneAndDelete({ _id: id, projectId });
 
-const complianceSnapshot = async () => {
+const complianceSnapshot = async (projectId) => {
+  const scope = projectId ? { projectId } : {};
   const [complianceRows, invoices] = await Promise.all([
-    Law.find({ section: { $in: ["compliance", "privacy-policy"] } }).sort({ updatedAt: -1 }).limit(10).lean(),
-    Invoice.find({ status: { $in: ["overdue", "pending"] } }).sort({ createdAt: -1 }).limit(10).lean(),
+    Law.find({ ...scope, section: { $in: ["compliance", "privacy-policy"] } }).sort({ updatedAt: -1 }).limit(10).lean(),
+    Invoice.find({ ...scope, status: { $in: ["overdue", "pending"] } }).sort({ createdAt: -1 }).limit(10).lean(),
   ]);
   return { complianceRows, financeInvoices: invoices };
 };
@@ -97,8 +100,9 @@ const decideContractApproval = async ({ workflowId, actorId, actorRole, decision
   return workflow;
 };
 
-const raiseDispute = async ({ payload = {}, actor }) => {
+const raiseDispute = async ({ payload = {}, actor, projectId }) => {
   const row = await Law.create({
+    projectId,
     section: "disputes-fraud",
     title: payload.title || "Dispute Request",
     description: payload.description || "",
@@ -123,9 +127,10 @@ const raiseDispute = async ({ payload = {}, actor }) => {
   return row;
 };
 
-const getSecurityComplianceLogs = async (query = {}) => {
+const getSecurityComplianceLogs = async (query = {}, projectId) => {
   const { page, limit, skip } = withPagination(query);
   const filter = { module: { $in: ["it", "law"] }, action: { $regex: "security|compliance|login|access", $options: "i" } };
+  if (projectId) filter.$or = [{ projectId }, { "metadata.projectId": projectId }];
   const [items, total] = await Promise.all([
     ActivityLog.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     ActivityLog.countDocuments(filter),

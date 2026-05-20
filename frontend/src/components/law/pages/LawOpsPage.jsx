@@ -2,13 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import LawRecordManager from '../LawRecordManager';
 import { LAW_FORM_CONFIG, getLawSection } from '../lawModuleConfig';
 
-const FIXED_PROJECT_OPTIONS = [
-  { label: 'EEC', value: 'EEC' },
-  { label: 'EDIFIGHT8', value: 'EDIFIGHT8' },
-  { label: 'EFMB', value: 'EFMB' },
-  { label: 'RMS', value: 'RMS' },
-  { label: 'THE BETTER PASS', value: 'THE_BETTER_PASS' },
-];
+const FIXED_PROJECT_OPTIONS = [];
 
 const LawOpsPage = ({
   sectionId,
@@ -17,6 +11,9 @@ const LawOpsPage = ({
   error,
   subtitle = '',
   records = [],
+  projects = [],
+  selectedProjectId = '',
+  onProjectChange,
   loading = false,
   lastUpdatedAt,
   saving,
@@ -26,7 +23,6 @@ const LawOpsPage = ({
   const section = getLawSection(sectionId);
   const config = LAW_FORM_CONFIG[sectionId] || {};
   const [searchInput, setSearchInput] = useState(searchTerm);
-  const [projectNameFilter, setProjectNameFilter] = useState('');
   const [isProjectOpen, setIsProjectOpen] = useState(false);
 
   useEffect(() => {
@@ -42,13 +38,15 @@ const LawOpsPage = ({
     const textMatch = `${record.title || ''} ${record.description || ''} ${record.referenceNumber || ''}`
       .toLowerCase()
       .includes(searchTerm.trim().toLowerCase());
-    if (!textMatch) return false;
-    if (!projectNameFilter) return true;
-    const candidate = String(record.projectName || record.project?.name || record.metadata?.product || '')
-      .toUpperCase()
-      .replace(/\s+/g, '_');
-    return candidate === projectNameFilter.toUpperCase();
-  }), [records, searchTerm, projectNameFilter]);
+    return textMatch;
+  }), [records, searchTerm]);
+
+  const projectOptions = useMemo(() => {
+    return projects.map((project) => ({
+      label: project.name || 'Untitled Project',
+      value: String(project._id || project.id || ''),
+    })).filter((item) => item.value);
+  }, [projects]);
 
   return (
     <main className="flex-1 overflow-y-auto p-6">
@@ -92,17 +90,20 @@ const LawOpsPage = ({
             onClick={() => setIsProjectOpen((prev) => !prev)}
             className="flex h-11 min-w-[220px] items-center justify-between rounded-xl bg-neutral-200 px-4 text-base font-medium text-neutral-900 hover:bg-neutral-300"
           >
-            <span>{FIXED_PROJECT_OPTIONS.find((item) => item.value === projectNameFilter)?.label || 'Select Project'}</span>
+            <span>{projectOptions.find((item) => item.value === selectedProjectId)?.label || 'Select Project'}</span>
             <span className="material-symbols-outlined text-2xl">expand_more</span>
           </button>
           {isProjectOpen && (
             <div className="absolute left-0 top-[54px] z-20 w-[260px] rounded-2xl bg-neutral-300 p-3 shadow-lg">
-              {FIXED_PROJECT_OPTIONS.map((project) => (
+              {projectOptions.length === 0 ? (
+                <p className="rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-600">No projects available</p>
+              ) : null}
+              {projectOptions.map((project) => (
                 <button
                   key={project.value}
                   type="button"
                   onClick={() => {
-                    setProjectNameFilter(project.value);
+                    onProjectChange?.(project.value);
                     setIsProjectOpen(false);
                   }}
                   className="mb-2 flex h-10 w-full items-center justify-center rounded-xl bg-neutral-100 text-xl font-medium text-neutral-900 hover:bg-white"

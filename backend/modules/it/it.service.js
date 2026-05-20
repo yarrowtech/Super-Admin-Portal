@@ -11,19 +11,20 @@ const withPagination = (query = {}) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
-const getOverview = async () => {
+const getOverview = async (projectId) => {
+  const scope = projectId ? { projectId } : {};
   const [activeUsers, assets, openTickets, securityAlerts] = await Promise.all([
     User.countDocuments({ isActive: true }),
-    ITAsset.countDocuments(),
-    ITTicket.countDocuments({ status: { $in: ["open", "in-progress"] } }),
+    ITAsset.countDocuments(scope),
+    ITTicket.countDocuments({ ...scope, status: { $in: ["open", "in-progress"] } }),
     ActivityLog.countDocuments({ action: { $regex: "failed|blocked|suspicious", $options: "i" } }),
   ]);
   return { activeUsers, assets, openTickets, securityAlerts };
 };
 
-const listAssets = async (query = {}) => {
+const listAssets = async (query = {}, projectId) => {
   const { page, limit, skip } = withPagination(query);
-  const filter = {};
+  const filter = projectId ? { projectId } : {};
   if (query.status) filter.status = query.status;
   if (query.type) filter.type = query.type;
   const [items, total] = await Promise.all([
@@ -33,16 +34,16 @@ const listAssets = async (query = {}) => {
   return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
 };
 
-const createAsset = async (payload = {}, actorId) =>
-  ITAsset.create({ ...payload, createdBy: actorId, updatedBy: actorId });
-const getAssetById = async (id) => ITAsset.findById(id).lean();
-const updateAsset = async (id, payload = {}, actorId) =>
-  ITAsset.findByIdAndUpdate(id, { ...payload, updatedBy: actorId }, { new: true });
-const deleteAsset = async (id) => ITAsset.findByIdAndDelete(id);
+const createAsset = async (payload = {}, actorId, projectId) =>
+  ITAsset.create({ ...payload, projectId, createdBy: actorId, updatedBy: actorId });
+const getAssetById = async (id, projectId) => ITAsset.findOne({ _id: id, projectId }).lean();
+const updateAsset = async (id, payload = {}, actorId, projectId) =>
+  ITAsset.findOneAndUpdate({ _id: id, projectId }, { ...payload, updatedBy: actorId }, { new: true });
+const deleteAsset = async (id, projectId) => ITAsset.findOneAndDelete({ _id: id, projectId });
 
-const listTickets = async (query = {}) => {
+const listTickets = async (query = {}, projectId) => {
   const { page, limit, skip } = withPagination(query);
-  const filter = {};
+  const filter = projectId ? { projectId } : {};
   if (query.status) filter.status = query.status;
   if (query.priority) filter.priority = query.priority;
   const [items, total] = await Promise.all([
@@ -58,13 +59,13 @@ const listTickets = async (query = {}) => {
   return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
 };
 
-const createTicket = async (payload = {}, requesterId) => ITTicket.create({ ...payload, requester: requesterId });
-const getTicketById = async (id) => ITTicket.findById(id).populate("requester assignedTo", "firstName lastName email").lean();
-const updateTicket = async (id, payload = {}) => ITTicket.findByIdAndUpdate(id, payload, { new: true });
-const deleteTicket = async (id) => ITTicket.findByIdAndDelete(id);
+const createTicket = async (payload = {}, requesterId, projectId) => ITTicket.create({ ...payload, projectId, requester: requesterId });
+const getTicketById = async (id, projectId) => ITTicket.findOne({ _id: id, projectId }).populate("requester assignedTo", "firstName lastName email").lean();
+const updateTicket = async (id, payload = {}, projectId) => ITTicket.findOneAndUpdate({ _id: id, projectId }, payload, { new: true });
+const deleteTicket = async (id, projectId) => ITTicket.findOneAndDelete({ _id: id, projectId });
 
-const updateTicketStatus = async ({ id, status, actor }) => {
-  const updated = await ITTicket.findByIdAndUpdate(id, { status }, { new: true });
+const updateTicketStatus = async ({ id, status, actor, projectId }) => {
+  const updated = await ITTicket.findOneAndUpdate({ _id: id, projectId }, { status }, { new: true });
   if (!updated) return null;
   await writeAuditTrail({
     userId: actor.id,

@@ -40,11 +40,13 @@ const invoiceSchema = new mongoose.Schema(
     balanceDue: { type: Number, default: 0 },
     notes: { type: String, trim: true },
     terms: { type: String, trim: true },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null }
   },
   { timestamps: true }
 );
 
 invoiceSchema.index({ status: 1 });
+invoiceSchema.index({ projectId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.models['FinanceInvoice'] || mongoose.model('FinanceInvoice', invoiceSchema);

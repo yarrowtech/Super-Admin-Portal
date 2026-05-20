@@ -6,15 +6,18 @@ const performanceSystemController = require('../controllers/hr/performanceSystem
 const exportSystemController = require('../controllers/hr/exportSystem.controller');
 const attendanceExportController = require('../controllers/hr/attendanceExport.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
+const { requireProjectContext, attachOptionalProjectContext } = require('../middlewares/project.middleware');
 const { ROLES } = require('../config/roles');
 
 // All routes require authentication and HR role
 router.use(authenticate);
 router.use(authorize(ROLES.HR, ROLES.ADMIN));
 router.use(authorizePortalAccess('hr'));
+router.use(attachOptionalProjectContext);
 
 // Dashboard
 router.get('/dashboard', hrController.getDashboard);
+router.use(requireProjectContext);
 
 // Applicants Management
 router.get('/applicants', hrController.getApplicants);

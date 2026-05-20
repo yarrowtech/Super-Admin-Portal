@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const lawController = require('../controllers/department/law.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
+const { requireProjectContext, attachOptionalProjectContext } = require('../middlewares/project.middleware');
+const { uploadMany } = require('../middlewares/upload.middleware');
 const { ROLES } = require('../config/roles');
 const modularLawRoutes = require('../modules/law/law.routes');
 const Project = require('../models/common/Project');
@@ -11,6 +13,7 @@ const Project = require('../models/common/Project');
 router.use(authenticate);
 router.use(authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN));
 router.use(authorizePortalAccess('law'));
+router.use(attachOptionalProjectContext);
 router.use('/module', modularLawRoutes);
 
 router.get('/projects', async (req, res) => {
@@ -38,11 +41,12 @@ router.get('/projects', async (req, res) => {
 
 // Law/Legal specific routes
 router.get('/dashboard', lawController.getDashboard);
-router.get('/records', lawController.getRecords);
-router.post('/records', lawController.createRecord);
-router.put('/records/:id', lawController.updateRecord);
-router.delete('/records/:id', lawController.deleteRecord);
-router.get('/contracts', lawController.getContracts);
-router.get('/compliance', lawController.getCompliance);
+router.post('/references/upload', requireProjectContext, uploadMany('files', 10), lawController.uploadReferencePdfs);
+router.get('/records', requireProjectContext, lawController.getRecords);
+router.post('/records', requireProjectContext, lawController.createRecord);
+router.put('/records/:id', requireProjectContext, lawController.updateRecord);
+router.delete('/records/:id', requireProjectContext, lawController.deleteRecord);
+router.get('/contracts', requireProjectContext, lawController.getContracts);
+router.get('/compliance', requireProjectContext, lawController.getCompliance);
 
 module.exports = router;

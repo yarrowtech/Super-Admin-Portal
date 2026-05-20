@@ -3,7 +3,7 @@ const lawService = require("./law.service");
 
 exports.getOverview = async (req, res) => {
   try {
-    const data = await lawService.getOverview();
+    const data = await lawService.getOverview(req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Law module getOverview error");
@@ -13,7 +13,7 @@ exports.getOverview = async (req, res) => {
 
 exports.getContracts = async (req, res) => {
   try {
-    const data = await lawService.listContracts(req.query || {});
+    const data = await lawService.listContracts(req.query || {}, req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Law module getContracts error");
@@ -23,7 +23,7 @@ exports.getContracts = async (req, res) => {
 
 exports.createContract = async (req, res) => {
   try {
-    const data = await lawService.createContract(req.body || {}, req.user?.id || req.user?._id);
+    const data = await lawService.createContract(req.body || {}, req.user?.id || req.user?._id, req.projectId);
     res.status(201).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Law module createContract error");
@@ -33,7 +33,7 @@ exports.createContract = async (req, res) => {
 
 exports.getContractById = async (req, res) => {
   try {
-    const data = await lawService.getContractById(req.params.id);
+    const data = await lawService.getContractById(req.params.id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Contract not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -44,7 +44,7 @@ exports.getContractById = async (req, res) => {
 
 exports.updateContract = async (req, res) => {
   try {
-    const data = await lawService.updateContract(req.params.id, req.body || {}, req.user?.id || req.user?._id);
+    const data = await lawService.updateContract(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Contract not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -55,7 +55,7 @@ exports.updateContract = async (req, res) => {
 
 exports.deleteContract = async (req, res) => {
   try {
-    const data = await lawService.deleteContract(req.params.id);
+    const data = await lawService.deleteContract(req.params.id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Contract not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -66,7 +66,7 @@ exports.deleteContract = async (req, res) => {
 
 exports.getComplianceSnapshot = async (req, res) => {
   try {
-    const data = await lawService.complianceSnapshot();
+    const data = await lawService.complianceSnapshot(req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Law module getComplianceSnapshot error");
@@ -113,6 +113,7 @@ exports.raiseDispute = async (req, res) => {
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       },
+      projectId: req.projectId,
     });
     res.status(201).json({ success: true, data });
   } catch (err) {
@@ -123,7 +124,7 @@ exports.raiseDispute = async (req, res) => {
 
 exports.getSecurityComplianceLogs = async (req, res) => {
   try {
-    const data = await lawService.getSecurityComplianceLogs(req.query || {});
+    const data = await lawService.getSecurityComplianceLogs(req.query || {}, req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Law module getSecurityComplianceLogs error");

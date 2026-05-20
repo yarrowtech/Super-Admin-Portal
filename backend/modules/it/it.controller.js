@@ -6,7 +6,7 @@ const fail = (res, err, message) =>
 
 exports.getOverview = async (req, res) => {
   try {
-    const data = await itService.getOverview();
+    const data = await itService.getOverview(req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "IT module getOverview error");
@@ -16,7 +16,7 @@ exports.getOverview = async (req, res) => {
 
 exports.getAssets = async (req, res) => {
   try {
-    const data = await itService.listAssets(req.query || {});
+    const data = await itService.listAssets(req.query || {}, req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "IT module getAssets error");
@@ -26,7 +26,7 @@ exports.getAssets = async (req, res) => {
 
 exports.createAsset = async (req, res) => {
   try {
-    const data = await itService.createAsset(req.body || {}, req.user?.id || req.user?._id);
+    const data = await itService.createAsset(req.body || {}, req.user?.id || req.user?._id, req.projectId);
     res.status(201).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "IT module createAsset error");
@@ -36,7 +36,7 @@ exports.createAsset = async (req, res) => {
 
 exports.getAssetById = async (req, res) => {
   try {
-    const data = await itService.getAssetById(req.params.id);
+    const data = await itService.getAssetById(req.params.id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Asset not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -47,7 +47,7 @@ exports.getAssetById = async (req, res) => {
 
 exports.updateAsset = async (req, res) => {
   try {
-    const data = await itService.updateAsset(req.params.id, req.body || {}, req.user?.id || req.user?._id);
+    const data = await itService.updateAsset(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Asset not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -58,7 +58,7 @@ exports.updateAsset = async (req, res) => {
 
 exports.deleteAsset = async (req, res) => {
   try {
-    const data = await itService.deleteAsset(req.params.id);
+    const data = await itService.deleteAsset(req.params.id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Asset not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -69,7 +69,7 @@ exports.deleteAsset = async (req, res) => {
 
 exports.getTickets = async (req, res) => {
   try {
-    const data = await itService.listTickets(req.query || {});
+    const data = await itService.listTickets(req.query || {}, req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "IT module getTickets error");
@@ -79,7 +79,7 @@ exports.getTickets = async (req, res) => {
 
 exports.createTicket = async (req, res) => {
   try {
-    const data = await itService.createTicket(req.body || {}, req.user?.id || req.user?._id);
+    const data = await itService.createTicket(req.body || {}, req.user?.id || req.user?._id, req.projectId);
     res.status(201).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "IT module createTicket error");
@@ -89,7 +89,7 @@ exports.createTicket = async (req, res) => {
 
 exports.getTicketById = async (req, res) => {
   try {
-    const data = await itService.getTicketById(req.params.id);
+    const data = await itService.getTicketById(req.params.id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Ticket not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -100,7 +100,7 @@ exports.getTicketById = async (req, res) => {
 
 exports.updateTicket = async (req, res) => {
   try {
-    const data = await itService.updateTicket(req.params.id, req.body || {});
+    const data = await itService.updateTicket(req.params.id, req.body || {}, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Ticket not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -111,7 +111,7 @@ exports.updateTicket = async (req, res) => {
 
 exports.deleteTicket = async (req, res) => {
   try {
-    const data = await itService.deleteTicket(req.params.id);
+    const data = await itService.deleteTicket(req.params.id, req.projectId);
     if (!data) return res.status(404).json({ success: false, error: "Ticket not found" });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -131,6 +131,7 @@ exports.updateTicketStatus = async (req, res) => {
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       },
+      projectId: req.projectId,
     });
     if (!data) return res.status(404).json({ success: false, error: "Ticket not found" });
     res.status(200).json({ success: true, data });

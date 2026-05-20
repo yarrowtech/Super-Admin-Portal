@@ -13,22 +13,23 @@ const withPagination = (query = {}) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
-const getOverview = async () => {
+const getOverview = async (projectId) => {
+  const scope = projectId ? { projectId } : {};
   const [invoiceCount, expenseCount, budgetCount, payrollCount, pendingApprovals] = await Promise.all([
-    Invoice.countDocuments(),
-    Expense.countDocuments(),
-    Budget.countDocuments(),
-    Payroll.countDocuments(),
-    ApprovalWorkflow.countDocuments({ status: "pending" }),
+    Invoice.countDocuments(scope),
+    Expense.countDocuments(scope),
+    Budget.countDocuments(scope),
+    Payroll.countDocuments(scope),
+    ApprovalWorkflow.countDocuments({ ...scope, status: "pending" }),
   ]);
   return { invoiceCount, expenseCount, budgetCount, payrollCount, pendingApprovals };
 };
 
-const listTransactions = async (query = {}) => {
+const listTransactions = async (query = {}, projectId) => {
   const { page, limit, skip } = withPagination(query);
   const [invoices, expenses] = await Promise.all([
-    Invoice.find().sort({ createdAt: -1 }).lean(),
-    Expense.find().sort({ createdAt: -1 }).lean(),
+    Invoice.find(projectId ? { projectId } : {}).sort({ createdAt: -1 }).lean(),
+    Expense.find(projectId ? { projectId } : {}).sort({ createdAt: -1 }).lean(),
   ]);
   const merged = [
     ...invoices.map((row) => ({ type: "income", amount: Number(row.total || 0), status: row.status, at: row.createdAt })),
@@ -38,9 +39,10 @@ const listTransactions = async (query = {}) => {
   return { items, pagination: { page, limit, total: merged.length, totalPages: Math.ceil(merged.length / limit) || 1 } };
 };
 
-const createExpenseRequest = async ({ payload = {}, actor }) => {
+const createExpenseRequest = async ({ payload = {}, actor, projectId }) => {
   const expense = await Expense.create({
     ...payload,
+    projectId,
     submittedBy: actor.id,
     status: "submitted",
   });
@@ -65,7 +67,7 @@ const createExpenseRequest = async ({ payload = {}, actor }) => {
   return { expense, workflow };
 };
 
-const decideExpenseRequest = async ({ workflowId, decision, remarks, actor }) => {
+const decideExpenseRequest = async ({ workflowId, decision, remarks, actor, projectId }) => {
   const workflow = await decideApprovalRequest({
     workflowId,
     role: actor.role,
@@ -76,7 +78,7 @@ const decideExpenseRequest = async ({ workflowId, decision, remarks, actor }) =>
 
   if (workflow.entityType === "expense") {
     const status = workflow.status === "approved" ? "verified" : workflow.status === "rejected" ? "rejected" : "submitted";
-    await Expense.findByIdAndUpdate(workflow.entityId, { status, verifiedBy: actor.id });
+    await Expense.findOneAndUpdate({ _id: workflow.entityId, projectId }, { status, verifiedBy: actor.id });
   }
 
   await writeAuditTrail({
@@ -91,9 +93,10 @@ const decideExpenseRequest = async ({ workflowId, decision, remarks, actor }) =>
   return workflow;
 };
 
-const triggerPayrollFromHr = async ({ payload = {}, actor }) => {
+const triggerPayrollFromHr = async ({ payload = {}, actor, projectId }) => {
   const payroll = await Payroll.create({
     ...payload,
+    projectId,
     status: "processed",
   });
   await writeAuditTrail({
@@ -108,8 +111,8 @@ const triggerPayrollFromHr = async ({ payload = {}, actor }) => {
   return payroll;
 };
 
-const createContractLinkedInvoice = async ({ invoiceId, payload = {}, actor }) => {
-  const invoice = await Invoice.findById(invoiceId);
+const createContractLinkedInvoice = async ({ invoiceId, payload = {}, actor, projectId }) => {
+  const invoice = await Invoice.findOne({ _id: invoiceId, projectId });
   if (!invoice) {
     const err = new Error("Invoice not found");
     err.statusCode = 404;
@@ -118,6 +121,7 @@ const createContractLinkedInvoice = async ({ invoiceId, payload = {}, actor }) =
   const contract = await LawContract.create({
     title: payload.title || `Contract for ${invoice.invoiceNumber}`,
     expiryDate: payload.expiryDate || new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
+    projectId,
     status: "draft",
     linkedInvoiceId: invoice._id,
     createdBy: actor.id,

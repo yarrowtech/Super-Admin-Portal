@@ -5,7 +5,7 @@ const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { ROLES } = require('../config/roles');
 
 router.use(authenticate);
-router.use(authorize(ROLES.HR, ROLES.ADMIN));
+router.use(authorize(ROLES.HR, ROLES.ADMIN, ROLES.MANAGER, ROLES.IT));
 
 router.get('/users', hrController.getUserProfiles);
 router.get('/user/:id', hrController.getUserProfileById);
@@ -15,4 +15,3 @@ router.post('/note/:userId', (req, res, next) => {
 });
 
 module.exports = router;
-

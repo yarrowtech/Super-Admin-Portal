@@ -29,6 +29,16 @@ const ensureSuperAdminDefaults = async () => {
     { role: 'admin', portal: 'media', canAccess: true },
     { role: 'admin', portal: 'finance', canAccess: true },
     { role: 'manager', portal: 'manager', canAccess: true },
+    { role: 'manager', portal: 'admin', canAccess: true },
+    { role: 'manager', portal: 'hr', canAccess: true },
+    { role: 'manager', portal: 'it', canAccess: true },
+    { role: 'manager', portal: 'law', canAccess: true },
+    { role: 'manager', portal: 'employee', canAccess: true },
+    { role: 'it', portal: 'admin', canAccess: true },
+    { role: 'it', portal: 'hr', canAccess: true },
+    { role: 'it', portal: 'law', canAccess: true },
+    { role: 'it', portal: 'employee', canAccess: true },
+    { role: 'it', portal: 'manager', canAccess: true },
     { role: 'ceo', portal: 'ceo', canAccess: true },
     { role: 'hr', portal: 'hr', canAccess: true },
     { role: 'it', portal: 'it', canAccess: true },
@@ -73,4 +83,3 @@ const ensureSuperAdminDefaults = async () => {
 module.exports = {
   ensureSuperAdminDefaults
 };
-

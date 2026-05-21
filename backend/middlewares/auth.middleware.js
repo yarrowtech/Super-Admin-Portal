@@ -6,6 +6,9 @@ const PortalAccess = require('../models/superAdmin/PortalAccess');
 const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
 
+const DEFAULT_MANAGER_PORTALS = new Set(['manager', 'admin', 'hr', 'it', 'law', 'employee']);
+const DEFAULT_IT_PORTALS = new Set(['it', 'admin', 'hr', 'law', 'employee', 'manager']);
+
 /**
  * Universal JWT Authentication Middleware
  * Verifies JWT token and attaches user to request
@@ -152,6 +155,12 @@ const authorizePortalAccess = (portal) => {
       }).select('canAccess');
 
       if (!rule && req.user.role === 'admin') return next();
+      if (!rule && req.user.role === 'manager' && DEFAULT_MANAGER_PORTALS.has(portal)) {
+        return next();
+      }
+      if (!rule && req.user.role === 'it' && DEFAULT_IT_PORTALS.has(portal)) {
+        return next();
+      }
       // Fail-open for first-party same-role portal access when rule seeding is missing.
       // Explicit stored deny rules still take precedence.
       if (!rule && req.user.role === portal) return next();

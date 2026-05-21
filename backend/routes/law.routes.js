@@ -12,7 +12,7 @@ const STRICT_PROJECT_NAMES = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PAS
 
 // All routes require authentication and LAW role
 router.use(authenticate);
-router.use(authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN));
+router.use(authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.IT));
 router.use(authorizePortalAccess('law'));
 router.use(attachOptionalProjectContext);
 router.use('/module', modularLawRoutes);

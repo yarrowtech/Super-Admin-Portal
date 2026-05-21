@@ -22,6 +22,9 @@ const {
 const STRICT_PROJECT_NAMES = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS'];
 const isStrictProjectName = (value) =>
   STRICT_PROJECT_NAMES.includes(String(value || '').trim().toUpperCase());
+const hasGlobalManagerAccess = (user) =>
+  [ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(user?.role);
+const shouldScopeByDepartment = (user) => Boolean(user?.department) && !hasGlobalManagerAccess(user);
 
 const sanitizeQueryValue = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -120,17 +123,9 @@ exports.getTeam = async (req, res) => {
     const searchTerm = sanitizeQueryValue(req.query.search);
     const roleFilter = sanitizeQueryValue(req.query.role);
 
-    if (!req.user?.department) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          message: 'No department assigned for manager',
-          team: []
-        }
-      });
-    }
-
-    const query = { department: req.user.department, isActive: true };
+    const query = shouldScopeByDepartment(req.user)
+      ? { department: req.user.department, isActive: true }
+      : { isActive: true };
     if (roleFilter) {
       query.role = roleFilter;
     }
@@ -426,11 +421,14 @@ exports.createProject = async (req, res) => {
 
     let teamMembers = [];
     if (memberIds.length) {
-      const employees = await User.find({
+      const employeeQuery = {
         _id: { $in: memberIds },
-        isActive: true,
-        ...(req.user.department ? { department: req.user.department } : {})
-      }).select('_id role');
+        isActive: true
+      };
+      if (shouldScopeByDepartment(req.user)) {
+        employeeQuery.department = req.user.department;
+      }
+      const employees = await User.find(employeeQuery).select('_id role');
       teamMembers = employees.map((employee) => ({
         employee: employee._id,
         role: employee.role || 'member'
@@ -704,9 +702,9 @@ exports.getCompletedTasks = async (req, res) => {
     const { employeeId, status, search } = req.query;
     const pageNum = parsePositiveInt(req.query.page, 1);
     const limitNum = parsePositiveInt(req.query.limit, 10);
-    const teamUsers = req.user?.department
+    const teamUsers = shouldScopeByDepartment(req.user)
       ? await User.find({ department: req.user.department, isActive: true }).select('_id')
-      : [];
+      : await User.find({ role: ROLES.EMPLOYEE, isActive: true }).select('_id');
 
     const teamUserIds = teamUsers.map((user) => user._id);
     const query = {
@@ -764,7 +762,7 @@ exports.getEmployeeWork = async (req, res) => {
     if (reportStatus) {
       query.status = reportStatus;
     }
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       query.employee = { $in: teamUsers.map((user) => user._id) };
     }
@@ -840,7 +838,7 @@ exports.approveWork = async (req, res) => {
         error: 'Work report not found'
       });
     }
-    if (req.user?.department && workReport.employee?.department !== req.user.department) {
+    if (shouldScopeByDepartment(req.user) && workReport.employee?.department !== req.user.department) {
       return res.status(403).json({
         success: false,
         error: 'You do not have access to this work report'
@@ -891,7 +889,7 @@ exports.rejectWork = async (req, res) => {
         error: 'Work report not found'
       });
     }
-    if (req.user?.department && workReport.employee?.department !== req.user.department) {
+    if (shouldScopeByDepartment(req.user) && workReport.employee?.department !== req.user.department) {
       return res.status(403).json({
         success: false,
         error: 'You do not have access to this work report'
@@ -1029,7 +1027,7 @@ exports.getTasks = async (req, res) => {
     }
 
     let scopeFilter = { assignedBy: req.user._id };
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       const ids = teamUsers.map((user) => user._id);
       scopeFilter = { $or: [{ assignedTo: { $in: ids } }, { assignedBy: req.user._id }] };
@@ -1081,7 +1079,7 @@ exports.createTask = async (req, res) => {
       });
     }
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const assignee = await User.findById(assignedTo).select('department');
       if (!assignee || assignee.department !== req.user.department) {
         return res.status(400).json({
@@ -1138,7 +1136,7 @@ exports.updateTask = async (req, res) => {
       });
     }
 
-    if (req.user?.department && task.assignedBy?.toString() !== req.user._id.toString()) {
+    if (shouldScopeByDepartment(req.user) && task.assignedBy?.toString() !== req.user._id.toString()) {
       if (task.assignedTo?.department && task.assignedTo.department !== req.user.department) {
         return res.status(403).json({
           success: false,
@@ -1147,7 +1145,7 @@ exports.updateTask = async (req, res) => {
       }
     }
 
-    if (assignedTo && req.user?.department) {
+    if (assignedTo && shouldScopeByDepartment(req.user)) {
       const assignee = await User.findById(assignedTo).select('department');
       if (!assignee || assignee.department !== req.user.department) {
         return res.status(400).json({
@@ -1209,7 +1207,7 @@ exports.reassignTask = async (req, res) => {
       });
     }
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const assignee = await User.findById(assignedTo).select('department');
       if (!assignee || assignee.department !== req.user.department) {
         return res.status(400).json({
@@ -1285,7 +1283,7 @@ exports.getLeaveRequests = async (req, res) => {
     if (status) query.status = status;
     if (managerStatus) query.managerApprovalStatus = managerStatus;
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       const ids = teamUsers.map((user) => user._id);
       query.employee = { $in: ids };
@@ -1434,7 +1432,7 @@ exports.getWorkReports = async (req, res) => {
     if (reportType) query.reportType = reportType;
     if (status) query.status = status;
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       const ids = teamUsers.map((user) => user._id);
       if (employee && !ids.find((id) => id.toString() === employee)) {

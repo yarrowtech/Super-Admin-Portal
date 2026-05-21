@@ -8,7 +8,7 @@ const { ROLES } = require('../config/roles');
 
 // All routes require authentication and MANAGER role
 router.use(authenticate);
-router.use(authorize(ROLES.MANAGER, ROLES.ADMIN));
+router.use(authorize(ROLES.MANAGER, ROLES.ADMIN, ROLES.IT));
 router.use(authorizePortalAccess('manager'));
 
 // Manager specific routes

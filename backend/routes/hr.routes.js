@@ -11,7 +11,7 @@ const { ROLES } = require('../config/roles');
 
 // All routes require authentication and HR role
 router.use(authenticate);
-router.use(authorize(ROLES.HR, ROLES.ADMIN));
+router.use(authorize(ROLES.HR, ROLES.ADMIN, ROLES.MANAGER, ROLES.IT));
 router.use(authorizePortalAccess('hr'));
 router.use(attachOptionalProjectContext);
 

@@ -1,17 +1,46 @@
 const logger = require('../../utils/logger');
 // backend/controllers/dept/it.controller.js
 const Project = require('../../models/common/Project');
-const SupportTicket = require('../../models/common/Notification');
+const ITTicket = require('../../models/it/ITTicket');
 const User = require('../../models/auth/User');
 const Session = require('../../models/auth/Session');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const AuditLog = require('../../models/admin/AuditLog');
+const { ROLES } = require('../../config/roles');
 
 const paged = (query = {}) => {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(query.limit, 10) || 20, 1), 200);
   return { page, limit, skip: (page - 1) * limit };
 };
+
+const IT_MANAGEMENT_ROLES = new Set([
+  ROLES.IT,
+  ROLES.IT_ADMIN,
+  ROLES.ADMIN,
+  ROLES.SUPER_ADMIN,
+  ROLES.SYSTEM_OPERATOR,
+  ROLES.SECURITY_ANALYST,
+  ROLES.DEVOPS_ENGINEER,
+]);
+
+const canManageIt = (req) => IT_MANAGEMENT_ROLES.has(String(req.user?.role || '').toLowerCase());
+const canUseItPortal = (req) =>
+  Boolean(req.user) &&
+  [
+    ROLES.IT,
+    ROLES.IT_ADMIN,
+    ROLES.ADMIN,
+    ROLES.SUPER_ADMIN,
+    ROLES.SYSTEM_OPERATOR,
+    ROLES.SECURITY_ANALYST,
+    ROLES.DEVOPS_ENGINEER,
+    ROLES.HR,
+    ROLES.MANAGER,
+    ROLES.LAW,
+    ROLES.EMPLOYEE,
+    ROLES.CEO,
+  ].includes(req.user.role);
 
 /**
  * @route   GET /api/dept/it/dashboard
@@ -22,9 +51,9 @@ exports.getDashboard = async (req, res) => {
   try {
     const totalProjects = await Project.countDocuments();
     const activeProjects = await Project.countDocuments({ status: 'in-progress' });
-    const totalTickets = await SupportTicket.countDocuments();
-    const openTickets = await SupportTicket.countDocuments({ status: { $in: ['open', 'in-progress'] } });
-    const criticalTickets = await SupportTicket.countDocuments({ priority: 'critical', status: { $ne: 'closed' } });
+    const totalTickets = await ITTicket.countDocuments();
+    const openTickets = await ITTicket.countDocuments({ status: { $in: ['open', 'in-progress'] } });
+    const criticalTickets = await ITTicket.countDocuments({ priority: 'critical', status: { $ne: 'closed' } });
 
     res.status(200).json({
       success: true,
@@ -58,6 +87,12 @@ exports.getDashboard = async (req, res) => {
  */
 exports.getProjects = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT project management'
+      });
+    }
     const { page = 1, limit = 10, status, priority, projectManager } = req.query;
     const query = {};
 
@@ -101,6 +136,12 @@ exports.getProjects = async (req, res) => {
  */
 exports.createProject = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT project management'
+      });
+    }
     const project = await Project.create(req.body);
     await project.populate('projectManager', 'firstName lastName email');
 
@@ -126,6 +167,12 @@ exports.createProject = async (req, res) => {
  */
 exports.getProjectById = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT project management'
+      });
+    }
     const project = await Project.findById(req.params.id)
       .populate('projectManager', 'firstName lastName email')
       .populate('teamMembers.employee', 'firstName lastName email department');
@@ -158,6 +205,12 @@ exports.getProjectById = async (req, res) => {
  */
 exports.updateProject = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT project management'
+      });
+    }
     const project = await Project.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -195,6 +248,12 @@ exports.updateProject = async (req, res) => {
  */
 exports.deleteProject = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT project management'
+      });
+    }
     const project = await Project.findByIdAndDelete(req.params.id);
 
     if (!project) {
@@ -225,6 +284,12 @@ exports.deleteProject = async (req, res) => {
  */
 exports.addProjectMember = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT project management'
+      });
+    }
     const { employee, role } = req.body;
 
     const project = await Project.findByIdAndUpdate(
@@ -272,6 +337,12 @@ exports.addProjectMember = async (req, res) => {
  */
 exports.updateProjectProgress = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT project management'
+      });
+    }
     const { progress } = req.body;
 
     const project = await Project.findByIdAndUpdate(
@@ -311,8 +382,14 @@ exports.updateProjectProgress = async (req, res) => {
  * @desc    Get all support tickets with filtering and pagination
  * @access  Private (IT only)
  */
-exports.getSupportTickets = async (req, res) => {
+exports.getITTickets = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT support queue access'
+      });
+    }
     const { page = 1, limit = 10, status, priority, category, assignedTo } = req.query;
     const query = {};
 
@@ -321,7 +398,7 @@ exports.getSupportTickets = async (req, res) => {
     if (category) query.category = category;
     if (assignedTo) query.assignedTo = assignedTo;
 
-    const tickets = await SupportTicket.find(query)
+    const tickets = await ITTicket.find(query)
       .populate('requester', 'firstName lastName email department')
       .populate('assignedTo', 'firstName lastName email')
       .sort({ createdAt: -1 })
@@ -329,7 +406,7 @@ exports.getSupportTickets = async (req, res) => {
       .skip((page - 1) * limit)
       .exec();
 
-    const count = await SupportTicket.countDocuments(query);
+    const count = await ITTicket.countDocuments(query);
 
     res.status(200).json({
       success: true,
@@ -355,9 +432,13 @@ exports.getSupportTickets = async (req, res) => {
  * @desc    Create a new support ticket
  * @access  Private (IT only)
  */
-exports.createSupportTicket = async (req, res) => {
+exports.createITTicket = async (req, res) => {
   try {
-    const ticket = await SupportTicket.create(req.body);
+    const payload = {
+      ...req.body,
+      requester: req.user._id,
+    };
+    const ticket = await ITTicket.create(payload);
     await ticket.populate('requester', 'firstName lastName email');
 
     res.status(201).json({
@@ -380,13 +461,17 @@ exports.createSupportTicket = async (req, res) => {
  * @desc    Get support ticket by ID
  * @access  Private (IT only)
  */
-exports.getSupportTicketById = async (req, res) => {
+exports.getITTicketById = async (req, res) => {
   try {
-    const ticket = await SupportTicket.findById(req.params.id)
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT support queue access'
+      });
+    }
+    const ticket = await ITTicket.findById(req.params.id)
       .populate('requester', 'firstName lastName email department')
-      .populate('assignedTo', 'firstName lastName email')
-      .populate('comments.commentedBy', 'firstName lastName')
-      .populate('relatedTickets');
+      .populate('assignedTo', 'firstName lastName email');
 
     if (!ticket) {
       return res.status(404).json({
@@ -414,11 +499,26 @@ exports.getSupportTicketById = async (req, res) => {
  * @desc    Update support ticket
  * @access  Private (IT only)
  */
-exports.updateSupportTicket = async (req, res) => {
+exports.updateITTicket = async (req, res) => {
   try {
-    const ticket = await SupportTicket.findByIdAndUpdate(
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT support queue access'
+      });
+    }
+    const { title, description, priority, status, category, assignedTo, metadata } = req.body || {};
+    const payload = {};
+    if (title !== undefined) payload.title = title;
+    if (description !== undefined) payload.description = description;
+    if (priority !== undefined) payload.priority = priority;
+    if (status !== undefined) payload.status = status;
+    if (category !== undefined) payload.category = category;
+    if (assignedTo !== undefined) payload.assignedTo = assignedTo;
+    if (metadata && typeof metadata === 'object') payload.metadata = metadata;
+    const ticket = await ITTicket.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      payload,
       { new: true, runValidators: true }
     )
       .populate('requester', 'firstName lastName email')
@@ -451,16 +551,25 @@ exports.updateSupportTicket = async (req, res) => {
  * @desc    Assign support ticket to IT personnel
  * @access  Private (IT only)
  */
-exports.assignSupportTicket = async (req, res) => {
+exports.assignITTicket = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT support queue access'
+      });
+    }
     const { assignedTo } = req.body;
 
-    const ticket = await SupportTicket.findByIdAndUpdate(
+    const ticket = await ITTicket.findByIdAndUpdate(
       req.params.id,
       {
         assignedTo,
         status: 'in-progress',
-        assignedDate: Date.now()
+        metadata: {
+          assignedAt: new Date(),
+          ...(req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {})
+        }
       },
       { new: true }
     )
@@ -494,16 +603,25 @@ exports.assignSupportTicket = async (req, res) => {
  * @desc    Resolve support ticket
  * @access  Private (IT only)
  */
-exports.resolveSupportTicket = async (req, res) => {
+exports.resolveITTicket = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT support queue access'
+      });
+    }
     const { solution } = req.body;
 
-    const ticket = await SupportTicket.findByIdAndUpdate(
+    const ticket = await ITTicket.findByIdAndUpdate(
       req.params.id,
       {
         status: 'resolved',
-        solution,
-        resolvedDate: Date.now()
+        metadata: {
+          solution,
+          resolvedAt: new Date(),
+          ...(req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {})
+        }
       },
       { new: true }
     )
@@ -537,13 +655,22 @@ exports.resolveSupportTicket = async (req, res) => {
  * @desc    Close support ticket
  * @access  Private (IT only)
  */
-exports.closeSupportTicket = async (req, res) => {
+exports.closeITTicket = async (req, res) => {
   try {
-    const ticket = await SupportTicket.findByIdAndUpdate(
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT support queue access'
+      });
+    }
+    const ticket = await ITTicket.findByIdAndUpdate(
       req.params.id,
       {
         status: 'closed',
-        closedDate: Date.now()
+        metadata: {
+          closedAt: new Date(),
+          ...(req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {})
+        }
       },
       { new: true }
     )
@@ -579,31 +706,34 @@ exports.closeSupportTicket = async (req, res) => {
  */
 exports.addTicketComment = async (req, res) => {
   try {
+    if (!canManageIt(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient role for IT support queue access'
+      });
+    }
     const { comment, isInternal } = req.body;
-
-    const ticket = await SupportTicket.findByIdAndUpdate(
-      req.params.id,
-      {
-        $push: {
-          comments: {
-            commentedBy: req.user._id,
-            comment,
-            isInternal: isInternal || false,
-            commentedAt: Date.now()
-          }
-        }
-      },
-      { new: true }
-    )
-      .populate('requester', 'firstName lastName email')
-      .populate('comments.commentedBy', 'firstName lastName');
-
+    const ticket = await ITTicket.findById(req.params.id);
     if (!ticket) {
       return res.status(404).json({
         success: false,
         error: 'Support ticket not found'
       });
     }
+
+    const currentMetadata = ticket.metadata && typeof ticket.metadata === 'object' ? ticket.metadata : {};
+    const comments = Array.isArray(currentMetadata.comments) ? currentMetadata.comments : [];
+    currentMetadata.comments = [
+      ...comments,
+      {
+        commentedBy: req.user._id,
+        comment,
+        isInternal: Boolean(isInternal),
+        commentedAt: new Date()
+      }
+    ];
+    ticket.metadata = currentMetadata;
+    await ticket.save();
 
     res.status(200).json({
       success: true,
@@ -628,18 +758,23 @@ exports.addTicketComment = async (req, res) => {
 exports.getMyTickets = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
-    const query = { assignedTo: req.user._id };
+    const query = {
+      $or: [
+        { assignedTo: req.user._id },
+        { requester: req.user._id }
+      ]
+    };
 
     if (status) query.status = status;
 
-    const tickets = await SupportTicket.find(query)
+    const tickets = await ITTicket.find(query)
       .populate('requester', 'firstName lastName email department')
       .sort({ priority: -1, createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .exec();
 
-    const count = await SupportTicket.countDocuments(query);
+    const count = await ITTicket.countDocuments(query);
 
     res.status(200).json({
       success: true,
@@ -736,7 +871,7 @@ exports.getInfrastructureSummary = async (req, res) => {
   try {
     const [projectCount, openTickets, sessionCount] = await Promise.all([
       Project.countDocuments(),
-      SupportTicket.countDocuments({ status: { $in: ['open', 'in-progress', 'waiting'] } }),
+      ITTicket.countDocuments({ status: { $in: ['open', 'in-progress', 'waiting'] } }),
       Session.countDocuments({ revokedAt: null }),
     ]);
 
@@ -885,7 +1020,7 @@ exports.getEventIntegrations = async (req, res) => {
 exports.getSystemMonitoring = async (req, res) => {
   try {
     const [openTickets, totalProjects, activeSessions] = await Promise.all([
-      SupportTicket.countDocuments({ status: { $in: ['open', 'in-progress'] } }),
+      ITTicket.countDocuments({ status: { $in: ['open', 'in-progress'] } }),
       Project.countDocuments(),
       Session.countDocuments({ revokedAt: null }),
     ]);
@@ -1033,3 +1168,11 @@ exports.getAuditLogs = async (req, res) => {
     sendFailure(res, error, 'Failed to fetch IT audit logs');
   }
 };
+
+exports.getSupportTickets = exports.getITTickets;
+exports.createSupportTicket = exports.createITTicket;
+exports.getSupportTicketById = exports.getITTicketById;
+exports.updateSupportTicket = exports.updateITTicket;
+exports.assignSupportTicket = exports.assignITTicket;
+exports.resolveSupportTicket = exports.resolveITTicket;
+exports.closeSupportTicket = exports.closeITTicket;

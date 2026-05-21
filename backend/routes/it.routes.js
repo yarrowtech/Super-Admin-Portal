@@ -8,7 +8,7 @@ const modularItRoutes = require('../modules/it/it.routes');
 
 // All routes require authentication and IT role
 router.use(authenticate);
-router.use(authorize(ROLES.IT, ROLES.ADMIN, ROLES.CEO, ROLES.HR, 'super_admin', 'it_admin', 'system_operator', 'security_analyst', 'devops_engineer', ROLES.EMPLOYEE));
+router.use(authorize(ROLES.IT, ROLES.ADMIN, ROLES.CEO, ROLES.HR, ROLES.MANAGER, 'super_admin', 'it_admin', 'system_operator', 'security_analyst', 'devops_engineer', ROLES.EMPLOYEE));
 router.use(authorizePortalAccess('it'));
 router.use('/module', modularItRoutes);
 

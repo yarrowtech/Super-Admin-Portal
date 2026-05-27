@@ -53,6 +53,11 @@ import {
   MediaDashboardPage,
   SalesDashboardPage,
   ResearchDashboardPage,
+  // Legal Document Management
+  LegalDocManagementPage,
+  LSWLegalLibraryPage,
+  AdminLegalRegistryPage,
+  AdminLegalLibraryPage,
 } from '../pages';
 import {
   AdminLayout,
@@ -218,7 +223,10 @@ export default function AppRoutes() {
               </PrivateRoute>
             </PortalRoute>
           }
-        />
+        >
+          <Route path="legal-docs" element={<LegalDocManagementPage />} />
+          <Route path="legal-library" element={<LSWLegalLibraryPage />} />
+        </Route>
 
         <Route
           path="/finance"
@@ -611,6 +619,28 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.EMPLOYEE}>
               <PrivateRoute roles={allow('employee')}>
                 {withPortal(EmployeeLayout, EmployeeProfilePage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+
+        {/* ── Legal Document Management — Admin ── */}
+        <Route
+          path="/admin/legal-docs"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={['admin']}>
+                {withPortal(AdminLayout, AdminLegalRegistryPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/admin/legal-library"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={['admin']}>
+                {withPortal(AdminLayout, AdminLegalLibraryPage)}
               </PrivateRoute>
             </PortalRoute>
           }

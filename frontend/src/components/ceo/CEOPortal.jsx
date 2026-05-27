@@ -9,6 +9,7 @@ const CEOProjectUpdates = lazy(() => import('./CEOProjectUpdates'));
 const CEORevenueAnalytics = lazy(() => import('./CEORevenueAnalytics'));
 const CEOProductInsights = lazy(() => import('./CEOProductInsights'));
 const CEONotifications = lazy(() => import('./CEONotifications'));
+const CEOLegalApproval = lazy(() => import('./CEOLegalApproval'));
 import { NotificationProvider } from '../../context/NotificationContext';
 import MobilePortalNav from '../common/MobilePortalNav';
 
@@ -20,6 +21,7 @@ const ceoMobileItems = [
   { key: 'departmentStats', label: 'Department Insights', icon: 'monitoring' },
   { key: 'reports', label: 'Reports', icon: 'summarize' },
   { key: 'projectUpdates', label: 'Project Updates', icon: 'update' },
+  { key: 'legalApproval', label: 'Legal Approval', icon: 'gavel' },
   { key: 'chat', label: 'Chat', icon: 'forum' },
   { key: 'notifications', label: 'Notifications', icon: 'notifications' },
 ];
@@ -59,6 +61,8 @@ const CEOPortal = () => {
         return <CEOProjectUpdates />;
       case 'notifications':
         return <CEONotifications />;
+      case 'legalApproval':
+        return <CEOLegalApproval />;
       default:
         return <CEODashboard />;
     }

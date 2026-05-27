@@ -12,10 +12,10 @@ const LawPortal = () => {
 
   const mobileItems = useMemo(
     () => [
-      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', active: location.pathname === '/law/dashboard', onClick: () => navigate('/law/dashboard') },
+      { key: 'dashboard', label: 'Workflow', icon: 'gavel', active: location.pathname === '/law/dashboard', onClick: () => navigate('/law/dashboard') },
+      { key: 'legal-docs', label: 'Legal Docs', icon: 'description', active: location.pathname.startsWith('/law/legal-docs'), onClick: () => navigate('/law/legal-docs') },
+      { key: 'legal-library', label: 'Approved', icon: 'library_books', active: location.pathname.startsWith('/law/legal-library'), onClick: () => navigate('/law/legal-library') },
       { key: 'agreements', label: 'Agreements', icon: 'contract', active: location.pathname.startsWith('/law/agreements'), onClick: () => navigate('/law/agreements') },
-      { key: 'policy', label: 'Policy', icon: 'policy', active: location.pathname.startsWith('/law/policy'), onClick: () => navigate('/law/policy') },
-      { key: 'disputes', label: 'Disputes', icon: 'balance', active: location.pathname.startsWith('/law/disputes'), onClick: () => navigate('/law/disputes') },
     ],
     [location.pathname, navigate]
   );

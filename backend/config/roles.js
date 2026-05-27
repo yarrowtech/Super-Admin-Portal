@@ -9,6 +9,7 @@ const ROLES = {
   DEVOPS_ENGINEER: "devops_engineer",
   LAW: "law",
   LEGAL_HEAD: "legal_head",
+  LSW: "lsw",
   HR: "hr",
   MEDIA: "media",
   FINANCE: "finance",
@@ -104,6 +105,13 @@ const ROLE_PERMISSIONS = {
     "legal_advice",
   ],
   [ROLES.LEGAL_HEAD]: [
+    "legal_documents",
+    "compliance_management",
+    "contract_review",
+    "legal_advice",
+    "approve_legal_workflows",
+  ],
+  [ROLES.LSW]: [
     "legal_documents",
     "compliance_management",
     "contract_review",

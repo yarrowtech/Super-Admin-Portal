@@ -3,11 +3,14 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { lawApi } from '../../services/law';
 import { useAuth } from '../../context/AuthContext';
 import { getLawSection } from './lawModuleConfig';
-import LawHomePage from './pages/LawHomePage';
+import LegalDocManagement from './LegalDocManagement';
+import LSWLegalLibrary from './LSWLegalLibrary';
 import LawOpsPage from './pages/LawOpsPage';
 
 const pageComponents = {
-  dashboard: LawHomePage,
+  dashboard: LegalDocManagement,
+  'legal-docs': LegalDocManagement,
+  'legal-library': LSWLegalLibrary,
 };
 const AGREEMENTS_CACHE_KEY = 'law_agreements_cache_v1';
 const CACHE_TTL = 5 * 60 * 1000;
@@ -16,6 +19,8 @@ const LAW_STRICT_PROJECTS = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS
 const LAW_PROJECT_FALLBACK_ORDER = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS'];
 
 const moduleToSection = (pathname = '') => {
+  if (pathname.startsWith('/law/legal-docs')) return 'legal-docs';
+  if (pathname.startsWith('/law/legal-library')) return 'legal-library';
   if (pathname.startsWith('/law/agreements')) return 'agreements';
   if (pathname.startsWith('/law/policy')) return 'privacy-policy';
   if (pathname.startsWith('/law/disputes')) return 'disputes-fraud';
@@ -26,6 +31,8 @@ const moduleToSection = (pathname = '') => {
 };
 
 const sectionToPath = (section = 'dashboard') => {
+  if (section === 'legal-docs') return '/law/legal-docs';
+  if (section === 'legal-library') return '/law/legal-library';
   if (section === 'agreements') return '/law/agreements';
   if (section === 'privacy-policy') return '/law/policy';
   if (section === 'disputes-fraud') return '/law/disputes';

@@ -10,15 +10,15 @@ const LawSidebar = () => {
   if (!canAccessPortal(user, PORTALS.LAW)) return null;
 
   const menus = [
-    { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', path: '/law/dashboard' },
+    { key: 'dashboard', label: 'Workflow', icon: 'gavel', path: '/law/dashboard' },
+    { key: 'legal-docs', label: 'Legal Documents', icon: 'description', path: '/law/legal-docs' },
+    { key: 'legal-library', label: 'Approved Library', icon: 'library_books', path: '/law/legal-library' },
     { key: 'agreements', label: 'Agreements', icon: 'contract', path: '/law/agreements' },
     { key: 'policy', label: 'Privacy & Policy', icon: 'policy', path: '/law/policy' },
     { key: 'disputes', label: 'Disputes & Fraud', icon: 'balance', path: '/law/disputes' },
     { key: 'ip', label: 'IP & Copyright', icon: 'copyright', path: '/law/ip' },
     { key: 'work-hire', label: 'Work on Hire', icon: 'assignment_ind', path: '/law/work-hire' },
     { key: 'third-party', label: 'Third Party', icon: 'handshake', path: '/law/third-party' },
-    { key: 'reports', label: 'Reports', icon: 'summarize', path: '/law/reporting' },
-    { key: 'alerts', label: 'Alerts', icon: 'notification_important', path: '/law/alerts' },
   ];
 
   const onLogout = () => {

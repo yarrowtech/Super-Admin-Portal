@@ -121,6 +121,7 @@ app.use("/api/outsourcing", routes.outsourcingRoutes);
 app.use("/api/dashboard", routes.dashboardRoutes);
 app.use("/api/profile", routes.profileRoutes);
 app.use("/api/hr", routes.hrProfileRoutes);
+app.use("/api/legal", routes.legalDocRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

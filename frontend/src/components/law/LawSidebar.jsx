@@ -11,6 +11,8 @@ const LawSidebar = () => {
 
   const menus = [
     { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', path: '/law/dashboard' },
+    { key: 'legal-docs', label: 'Legal Documents', icon: 'description', path: '/law/legal-docs', highlight: true },
+    { key: 'legal-library', label: 'Approved Library', icon: 'library_books', path: '/law/legal-library' },
     { key: 'agreements', label: 'Agreements', icon: 'contract', path: '/law/agreements' },
     { key: 'policy', label: 'Privacy & Policy', icon: 'policy', path: '/law/policy' },
     { key: 'disputes', label: 'Disputes & Fraud', icon: 'balance', path: '/law/disputes' },

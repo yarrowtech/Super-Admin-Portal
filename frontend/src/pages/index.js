@@ -64,3 +64,9 @@ export {
   SalesDepartmentPortal as SalesDashboardPage,
   ResearchDepartmentPortal as ResearchDashboardPage,
 } from '../components/department/DepartmentPortals';
+
+// ── Legal Document Management System ──────────────────────────────────────────
+export { default as LegalDocManagementPage } from '../components/law/LegalDocManagement';
+export { default as LSWLegalLibraryPage } from '../components/law/LSWLegalLibrary';
+export { default as AdminLegalRegistryPage } from '../components/admin/AdminLegalRegistry';
+export { default as AdminLegalLibraryPage } from '../components/law/LSWLegalLibrary';

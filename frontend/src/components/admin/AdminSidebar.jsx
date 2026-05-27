@@ -68,6 +68,18 @@ const navItems = [
       { label: 'Reports', path: '/admin/outsourcing/reports' },
     ]
   },
+  {
+    label: 'Legal Registry',
+    icon: 'gavel',
+    path: '/admin/legal-docs',
+    description: 'Legal document registry'
+  },
+  {
+    label: 'Legal Library',
+    icon: 'library_books',
+    path: '/admin/legal-library',
+    description: 'Approved legal documents'
+  },
 ];
 
 const menuConfig = {

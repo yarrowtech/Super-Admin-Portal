@@ -59,7 +59,7 @@ import {
   OutsourcingNotificationsPage,
 } from '../components/outsourcing/OutsourcingPages';
 
-import MediaDashboardPage from '../components/media/MediaDashboard';
+import MediaDashboardPage from '../components/media/MediaPortal';
 
 import {
   SalesDepartmentPortal,
@@ -122,6 +122,7 @@ export {
   OutsourcingPaymentsPage,
   OutsourcingNotificationsPage,
   MediaDashboardPage,
+  MediaDashboardPage as MediaPortalPage,
   LegalDocManagementPage,
   LSWLegalLibraryPage,
   AdminLegalRegistryPage,

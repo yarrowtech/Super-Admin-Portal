@@ -44,6 +44,9 @@ export const portalMenuConfig = {
   law: [
     { label: 'Dashboard', icon: 'gavel', path: '/law/dashboard', description: 'Legal operations' },
   ],
+  media: [
+    { label: 'Dashboard', icon: 'campaign', path: '/media/dashboard', description: 'Media command center' },
+  ],
   outsourcing: [
     { label: 'Dashboard', icon: 'dashboard', path: '/outsourcing/dashboard', description: 'Freelancer overview' },
     { label: 'Jobs', icon: 'work', path: '/outsourcing/jobs', description: 'Assigned jobs' },

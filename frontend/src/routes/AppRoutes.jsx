@@ -257,6 +257,16 @@ export default function AppRoutes() {
             </PortalRoute>
           }
         />
+        <Route
+          path="/media"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media')}>
+                <Navigate to="/media/dashboard" replace />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
 
         <Route
           path="/sales/dashboard"

@@ -66,7 +66,7 @@ const apiLimiter = rateLimit({
 if (isProd) {
   app.use(apiLimiter);
 } else {
-  logger.info("Rate limiting disabled in development");
+  logger.info({ env: env.NODE_ENV }, "Rate limiting disabled in development");
 }
 
 app.get("/health", (req, res) => {

@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const swaggerAutogen = require("swagger-autogen")({ openapi: "3.0.0" });
 const env = require("./config/env");
+const logger = require("./utils/logger");
 
 const outputFile = "./swagger-output.json";
 const endpointsFiles = ["./swagger.entry.js"];
@@ -149,9 +150,9 @@ const enrichSpec = () => {
 swaggerAutogen(outputFile, endpointsFiles, doc)
   .then(() => {
     enrichSpec();
-    console.log(`Swagger spec generated at ${outputFile}`);
+    logger.info({ outputFile }, "Swagger spec generated");
   })
   .catch((err) => {
-    console.error("Swagger generation failed:", err);
+    logger.error({ err }, "Swagger generation failed");
     process.exit(1);
   });

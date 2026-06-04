@@ -49,6 +49,17 @@ export const defaultRolePath = (user) => {
       return '/finance/dashboard';
     case 'media':
       return '/media/dashboard';
+    case 'marketing_head':
+    case 'media_manager':
+    case 'content_writer':
+    case 'graphic_designer':
+    case 'video_editor':
+    case 'seo_specialist':
+    case 'social_media_manager':
+    case 'project_manager':
+    case 'department_head':
+    case 'client_viewer':
+      return '/media/dashboard';
     case 'sales':
       return '/sales/dashboard';
     case 'research_operator':

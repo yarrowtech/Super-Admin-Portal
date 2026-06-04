@@ -21,6 +21,16 @@ const baseRoleAccess = {
   it: [PORTALS.IT],
   law: [PORTALS.LAW],
   media: [PORTALS.MEDIA],
+  marketing_head: [PORTALS.MEDIA],
+  media_manager: [PORTALS.MEDIA],
+  content_writer: [PORTALS.MEDIA],
+  graphic_designer: [PORTALS.MEDIA],
+  video_editor: [PORTALS.MEDIA],
+  seo_specialist: [PORTALS.MEDIA],
+  social_media_manager: [PORTALS.MEDIA],
+  project_manager: [PORTALS.MEDIA],
+  department_head: [PORTALS.MEDIA],
+  client_viewer: [PORTALS.MEDIA],
   finance: [PORTALS.FINANCE],
   sales: [PORTALS.SALES],
   research_operator: [PORTALS.RESEARCH],
@@ -61,6 +71,21 @@ export const canAccessPortal = (user, portal) => {
       type === 'freelancer' ||
       type === 'freelaner'
     );
+  }
+  if (portal === PORTALS.MEDIA) {
+    return [
+      'media',
+      'marketing_head',
+      'media_manager',
+      'content_writer',
+      'graphic_designer',
+      'video_editor',
+      'seo_specialist',
+      'social_media_manager',
+      'project_manager',
+      'department_head',
+      'client_viewer',
+    ].includes(role);
   }
   return false;
 };

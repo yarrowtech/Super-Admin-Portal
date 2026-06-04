@@ -1,293 +1,515 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+} from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/admin';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
 import Button from '../common/Button';
 
-const roles = ['admin', 'hr', 'employee', 'manager', 'freelancer', 'finance', 'it', 'law', 'media', 'sales', 'research_operator', 'ceo'];
-const perms = ['HR', 'Payroll', 'Reports', 'Settings'];
+const moduleCards = [
+  { title: 'User Management', description: 'Accounts, roles, permissions, status controls, and exports.', icon: 'group', route: '/admin/users', tone: 'blue', status: 'Live' },
+  { title: 'Departments', description: 'Portal access, routing, and module operations.', icon: 'corporate_fare', route: '/admin/departments', tone: 'green', status: 'Live' },
+  { title: 'Security', description: 'Security policy, account risk, login controls, and sessions.', icon: 'security', route: '/admin/security', tone: 'red', status: 'Review' },
+  { title: 'Reports', description: 'Operational analytics, exports, and business intelligence.', icon: 'bar_chart', route: '/admin/reports', tone: 'purple', status: 'Live' },
+  { title: 'Workflows', description: 'Workflow rules and process automation.', icon: 'account_tree', route: '/admin/workflows', tone: 'indigo', status: 'Configured' },
+  { title: 'Super Admin', description: 'Global platform controls, flags, portals, and system health.', icon: 'admin_panel_settings', route: '/admin/super-admin', tone: 'orange', status: 'Restricted' },
+];
 
-const AdminDashboardEnterprise = () => {
+const toneClasses = {
+  blue: 'bg-blue-500/10 text-blue-200 border-blue-500/20',
+  green: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20',
+  red: 'bg-rose-500/10 text-rose-200 border-rose-500/20',
+  purple: 'bg-violet-500/10 text-violet-200 border-violet-500/20',
+  indigo: 'bg-indigo-500/10 text-indigo-200 border-indigo-500/20',
+  orange: 'bg-amber-500/10 text-amber-200 border-amber-500/20',
+};
+
+const roleLabels = {
+  admin: 'Admin',
+  ceo: 'CEO',
+  it: 'IT',
+  law: 'Law',
+  hr: 'HR',
+  media: 'Media',
+  finance: 'Finance',
+  manager: 'Manager',
+  sales: 'Sales',
+  research_operator: 'Research',
+  employee: 'Employee',
+  freelancer: 'Freelancer',
+};
+
+const COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#22d3ee', '#fb7185', '#facc15', '#818cf8'];
+
+const formatDate = (value) => {
+  if (!value) return 'Never';
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatPct = (value) => `${Number(value || 0).toFixed(0)}%`;
+
+const AdminDashboard = () => {
   const navigate = useNavigate();
   const { token, user } = useAuth();
+  const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [dashboard, setDashboard] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [selected, setSelected] = useState([]);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  const [sortBy, setSortBy] = useState('createdAt');
-  const [sortDir, setSortDir] = useState('desc');
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [permissionMatrix, setPermissionMatrix] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [period, setPeriod] = useState('30d');
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(t);
-  }, [search]);
+    let alive = true;
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await adminApi.getDashboard(token);
+        if (alive) setDashboardData(response?.data || null);
+      } catch (err) {
+        if (alive) setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
 
-  const load = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const [d, u, dept] = await Promise.all([
-        adminApi.getDashboard(token),
-        adminApi.getAllUsers(token, {
-          page,
-          limit,
-          search: debouncedSearch,
-          role: roleFilter,
-          accountStatus: statusFilter,
-          department: departmentFilter,
-        }),
-        adminApi.getDepartmentsOverview(token).catch(() => ({ data: [] })),
-      ]);
-      setDashboard(d?.data || {});
-      setUsers(u?.data?.users || []);
-      setDepartments(dept?.data || []);
-    } catch (e) {
-      setError(e.message || 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (token) fetchDashboard();
+    return () => {
+      alive = false;
+    };
+  }, [token]);
 
-  useEffect(() => {
-    if (token) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, page, limit, debouncedSearch, roleFilter, statusFilter, departmentFilter]);
+  const metrics = useMemo(() => {
+    const totalUsers = dashboardData?.totalUsers || 0;
+    const activeUsers = dashboardData?.activeUsers || 0;
+    const inactiveUsers = dashboardData?.inactiveUsers || 0;
+    const activeRate = dashboardData?.summary?.activeUserRate || (totalUsers ? Math.round((activeUsers / totalUsers) * 100) : 0);
+    return {
+      totalUsers,
+      activeUsers,
+      inactiveUsers,
+      activeRate,
+      totalDepartments: dashboardData?.totalDepartments || 0,
+      newUsersLast7Days: dashboardData?.summary?.newUsersLast7Days || 0,
+      roleCoverage: dashboardData?.summary?.roleCoverage || 0,
+      systemHealth: dashboardData?.summary?.systemHealth || 'good',
+      employeeCount: dashboardData?.workforce?.employees || 0,
+      managerCount: dashboardData?.workforce?.managers || 0,
+      outsourcingOpenJobs: dashboardData?.workforce?.externalWorkload?.openJobs || 0,
+      recentLoginCount: dashboardData?.summary?.recentLoginCount || 0,
+    };
+  }, [dashboardData]);
 
-  const sortedUsers = useMemo(() => {
-    const list = [...users];
-    list.sort((a, b) => {
-      const av = a?.[sortBy] ?? '';
-      const bv = b?.[sortBy] ?? '';
-      if (av < bv) return sortDir === 'asc' ? -1 : 1;
-      if (av > bv) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-    return list;
-  }, [users, sortBy, sortDir]);
+  const filteredModules = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return moduleCards;
+    return moduleCards.filter((item) => `${item.title} ${item.description} ${item.status}`.toLowerCase().includes(q));
+  }, [searchQuery]);
 
-  const kpis = useMemo(() => {
-    const total = dashboard?.totalUsers || 0;
-    const active = dashboard?.activeUsers || 0;
-    const inactive = dashboard?.inactiveUsers || 0;
-    const newUsers = dashboard?.summary?.newUsersLast7Days || 0;
-    const roleDist = (dashboard?.usersByRole || []).slice(0, 3).map((x) => `${x._id}:${x.count}`).join(' • ') || 'N/A';
-    return [
-      { label: 'Total Users', value: total, icon: 'groups', trend: '+4.2%' },
-      { label: 'Active Users', value: active, icon: 'verified_user', trend: total ? `${Math.round((active / total) * 100)}%` : '0%' },
-      { label: 'Inactive Users', value: inactive, icon: 'person_off', trend: inactive > 0 ? 'needs action' : 'healthy' },
-      { label: 'New Users (Month)', value: newUsers, icon: 'person_add', trend: '↑' },
-      { label: 'Role Distribution', value: roleDist, icon: 'hub', trend: `${dashboard?.summary?.roleCoverage || 0} roles` },
-    ];
-  }, [dashboard]);
+  const usersByRole = dashboardData?.usersByRole || [];
+  const departmentStats = dashboardData?.departmentStats || [];
+  const recentUsers = dashboardData?.users?.recent || [];
+  const largestRole = dashboardData?.insights?.largestRole;
+  const topDepartment = dashboardData?.insights?.topDepartment;
+  const maxRoleCount = Math.max(...usersByRole.map((item) => item.count), 1);
+  const maxDeptCount = Math.max(...departmentStats.map((item) => item.count), 1);
 
-  const toggleSelected = (id) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  const toggleAll = () => setSelected((prev) => (prev.length === sortedUsers.length ? [] : sortedUsers.map((u) => u._id || u.id)));
-  const bulkActivate = async () => { await Promise.all(selected.map((id) => adminApi.setUserStatus(token, id, 'active'))); setSelected([]); await load(); };
-  const bulkDelete = async () => { await Promise.all(selected.map((id) => adminApi.deleteUser(token, id))); setSelected([]); await load(); };
-  const bulkAssignEmployee = async () => { await Promise.all(selected.map((id) => adminApi.updateUser(token, id, { role: 'employee' }))); setSelected([]); await load(); };
-  const inlineUpdate = async (id, payload) => { await adminApi.updateUser(token, id, payload); await load(); };
-
-  const activeSessions = dashboard?.summary?.activeSessions || Math.max(Math.round((dashboard?.activeUsers || 0) * 0.6), 0);
-  const activityLogs = (dashboard?.users?.recent || []).slice(0, 5).map((u, i) => ({
-    id: u._id || i,
-    actor: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-    action: 'User profile updated',
-    time: new Date(u.createdAt || Date.now()).toLocaleString(),
+  const rolePie = usersByRole.slice(0, 6).map((row) => ({
+    name: roleLabels[row._id] || row._id || 'Unknown',
+    value: row.count || 0,
   }));
 
+  const departmentBars = departmentStats.slice(0, 8).map((row) => ({
+    name: row._id,
+    value: row.count,
+  }));
+
+  const recentActivityTrend = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - index));
+      return date;
+    });
+    const counts = days.map((day) => {
+      const key = day.toDateString();
+      return recentUsers.filter((userItem) => new Date(userItem.createdAt || 0).toDateString() === key).length;
+    });
+    return days.map((day, index) => ({
+      day: day.toLocaleDateString('en-US', { weekday: 'short' }),
+      newUsers: counts[index],
+    }));
+  }, [recentUsers]);
+
+  const roleBreakdown = usersByRole.map((item) => ({
+    name: roleLabels[item._id] || item._id,
+    count: item.count,
+  }));
+
+  const topInsights = useMemo(() => [
+    `Active rate ${formatPct(metrics.activeRate)}`,
+    `New users ${metrics.newUsersLast7Days}`,
+    `Role coverage ${metrics.roleCoverage}`,
+    `Uptime ${dashboardData?.summary?.systemHealth === 'critical' ? 'needs review' : 'healthy'}`,
+  ], [dashboardData?.summary?.systemHealth, metrics.activeRate, metrics.newUsersLast7Days, metrics.roleCoverage]);
+
   if (loading) {
-    return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">{Array.from({ length: 10 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-neutral-200 dark:bg-neutral-800" />)}</div>;
+    return (
+      <main className="min-h-screen flex-1 overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
+        <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
+          <div className="mb-4 h-36 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />)}
+          </div>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+            <div className="space-y-4 xl:col-span-8">
+              <div className="h-80 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+            </div>
+            <div className="space-y-4 xl:col-span-4">
+              <div className="h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
   }
-  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>;
+
+  if (error) {
+    return (
+      <main className="min-h-screen flex-1 overflow-y-auto bg-neutral-50 p-4 dark:bg-neutral-900">
+        <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center">
+          <div className="w-full rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-800 dark:bg-red-900/20">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-3xl text-red-600">error</span>
+              <div className="min-w-0">
+                <p className="font-semibold text-red-900 dark:text-red-200">Error Loading Dashboard</p>
+                <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
+              </div>
+            </div>
+            <Button variant="danger" size="sm" className="mt-4 min-h-11" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto flex max-w-[1700px] flex-col gap-6">
-      <section className="app-card-pad">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm text-neutral-500">Enterprise Admin Control Panel</p>
-            <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-100">{user?.firstName || 'Admin'} Dashboard</h1>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{user?.role || 'admin'}</span>
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />All Systems Operational</span>
+    <main className="min-h-screen flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_36%),linear-gradient(180deg,#f8fafc_0%,#ffffff_38%,#f8fafc_100%)] dark:bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.14),_transparent_36%),linear-gradient(180deg,#0f172a_0%,#111827_100%)]">
+      <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
+        <PortalHeader
+          title="Admin Analytics"
+          subtitle="Executive platform overview"
+          user={user}
+          icon="dashboard"
+          showSearch
+          showNotifications
+          showThemeToggle
+          onSearchChange={(e) => setSearchQuery(e.target.value)}
+          searchPlaceholder="Search admin modules..."
+        >
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            {['7d', '30d', '90d'].map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setPeriod(item)}
+                className={`min-h-9 rounded-lg px-3 text-xs font-bold uppercase transition-colors ${
+                  period === item
+                    ? 'bg-primary text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </PortalHeader>
+
+        <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KPICard title="Registered Users" value={metrics.totalUsers} icon="group" colorScheme="blue" subtitle="TOTAL" compact className="min-h-[150px]" />
+          <KPICard title="Active Accounts" value={metrics.activeUsers} icon="verified_user" colorScheme="green" subtitle={`${metrics.activeRate}% ACTIVE`} compact className="min-h-[150px]" />
+          <KPICard title="Departments" value={metrics.totalDepartments} icon="corporate_fare" colorScheme="purple" subtitle="MODULES" compact className="min-h-[150px]" />
+          <KPICard title="System Health" value={metrics.systemHealth} icon="monitor_heart" colorScheme={metrics.systemHealth === 'critical' ? 'red' : metrics.systemHealth === 'warning' ? 'orange' : 'green'} subtitle="PLATFORM" compact className="min-h-[150px]" />
+        </section>
+
+        <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Employees</p>
+            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-neutral-100">{metrics.employeeCount}</p>
+          </div>
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Managers</p>
+            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-neutral-100">{metrics.managerCount}</p>
+          </div>
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Outsourcing Open Jobs</p>
+            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-neutral-100">{metrics.outsourcingOpenJobs}</p>
+          </div>
+        </section>
+
+        <section className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-2 lg:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase text-primary">Executive Focus</p>
+                <h2 className="mt-1 text-xl font-black text-neutral-900 dark:text-neutral-100 sm:text-2xl">Decision signals</h2>
+                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                  Monitor users, departments, roles, security posture, and workforce health from one analytics workspace.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                size="md"
+                className="min-h-11"
+                onClick={() => navigate('/admin/users')}
+                icon={<span className="material-symbols-outlined text-lg">person_add</span>}
+              >
+                Create User
+              </Button>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="primary" onClick={() => navigate('/admin/users')}>Add User</Button>
-            <Button size="sm" variant="secondary" onClick={() => navigate('/admin/departments')}>Add Department</Button>
-            <Button size="sm" variant="ghost" onClick={() => navigate('/admin/security')}>System Settings</Button>
-          </div>
-        </div>
-        <div className="mt-4">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} className="app-input" placeholder="Search users, roles, departments..." />
-        </div>
-      </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {kpis.map((k) => (
-          <article key={k.label} className="app-card-pad">
-            <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-neutral-500">{k.label}</p><span className="material-symbols-outlined text-primary">{k.icon}</span></div>
-            <p className="mt-2 text-xl font-black text-neutral-900 dark:text-neutral-100">{k.value}</p>
-            <p className="mt-1 text-xs text-emerald-600">{k.trend}</p>
-          </article>
-        ))}
-      </section>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {topInsights.map((item) => (
+                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-[11px] font-semibold text-neutral-700 dark:border-neutral-800 dark:bg-neutral-800/60 dark:text-neutral-200">
+                  {item}
+                </div>
+              ))}
+            </div>
 
-      <section className="app-card-pad">
-        <div className="app-table-toolbar">
-          <h2 className="text-lg font-bold">User Management</h2>
-          <div className="flex flex-wrap gap-2">
-            <select className="app-input max-w-[160px]" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}><option value="">Role</option>{roles.map((r) => <option key={r} value={r}>{r}</option>)}</select>
-            <select className="app-input max-w-[170px]" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Status</option>{['active', 'inactive', 'suspended', 'blocked', 'pending_verification'].map((s) => <option key={s} value={s}>{s}</option>)}</select>
-            <select className="app-input max-w-[180px]" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}><option value="">Department</option>{departments.map((d) => <option key={d._id || d.name} value={d.name}>{d.name}</option>)}</select>
-          </div>
-        </div>
-        {selected.length > 0 ? (
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-            <span className="text-sm font-semibold">{selected.length} selected</span>
-            <Button size="sm" variant="secondary" onClick={bulkActivate}>Activate</Button>
-            <Button size="sm" variant="secondary" onClick={bulkAssignEmployee}>Assign Role</Button>
-            <Button size="sm" variant="danger" onClick={bulkDelete}>Delete</Button>
-          </div>
-        ) : null}
-        <div className="app-table-wrap">
-          <table className="app-table">
-            <thead>
-              <tr>
-                <th><input type="checkbox" checked={selected.length > 0 && selected.length === sortedUsers.length} onChange={toggleAll} /></th>
-                {['firstName', 'email', 'role', 'department', 'accountStatus', 'createdAt'].map((c) => (
-                  <th key={c}><button className="inline-flex items-center gap-1" onClick={() => { setSortBy(c); setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); }}>{c}<span className="material-symbols-outlined text-sm">swap_vert</span></button></th>
-                ))}
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedUsers.map((u) => {
-                const id = u._id || u.id;
-                return (
-                  <tr key={id} className="border-b border-neutral-100 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50">
-                    <td><input type="checkbox" checked={selected.includes(id)} onChange={() => toggleSelected(id)} /></td>
-                    <td>{u.firstName} {u.lastName}</td>
-                    <td>{u.email}</td>
-                    <td><select className="rounded-md border border-neutral-200 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-900" value={u.role || 'employee'} onChange={(e) => inlineUpdate(id, { role: e.target.value })}>{roles.map((r) => <option key={r} value={r}>{r}</option>)}</select></td>
-                    <td>{u.department || '-'}</td>
-                    <td><select className="rounded-md border border-neutral-200 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-900" value={u.accountStatus || 'active'} onChange={(e) => inlineUpdate(id, { accountStatus: e.target.value })}>{['active', 'inactive', 'suspended', 'blocked', 'pending_verification'].map((s) => <option key={s} value={s}>{s}</option>)}</select></td>
-                    <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'}</td>
-                    <td><button className="text-xs font-semibold text-rose-600" onClick={() => adminApi.deleteUser(token, id).then(load)}>Delete</button></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="app-table-pagination">
-          <span>Page {page}</span>
-          <div className="flex gap-2">
-            <button className="rounded-md border border-neutral-200 px-3 py-1 text-sm disabled:opacity-50 dark:border-neutral-700" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
-            <button className="rounded-md border border-neutral-200 px-3 py-1 text-sm dark:border-neutral-700" onClick={() => setPage((p) => p + 1)}>Next</button>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <article className="app-card-pad">
-          <h2 className="text-lg font-bold">Role & Permission System</h2>
-          <div className="mt-3 space-y-3">
-            {roles.slice(0, 6).map((role) => (
-              <div key={role} className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                <p className="mb-2 text-sm font-semibold capitalize">{role}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {perms.map((perm) => {
-                    const key = `${role}:${perm}`;
-                    const checked = permissionMatrix[key] ?? ['HR', 'Reports'].includes(perm);
-                    return (
-                      <label key={perm} className="flex items-center gap-2 text-xs">
-                        <input type="checkbox" checked={checked} onChange={(e) => setPermissionMatrix((prev) => ({ ...prev, [key]: e.target.checked }))} />
-                        {perm}
-                      </label>
-                    );
-                  })}
+            <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/30">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">User Trend</p>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">New accounts created over the last 7 days</p>
+                  </div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={recentActivityTrend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
+                      <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
+                      <YAxis stroke="#94a3b8" fontSize={12} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="newUsers" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
-            ))}
-          </div>
-        </article>
 
-        <article className="app-card-pad">
-          <h2 className="text-lg font-bold">Department Management</h2>
-          <p className="text-sm text-neutral-500">Hierarchy, manager, and workforce mapping</p>
-          <div className="mt-3 space-y-2">
-            {(departments.length ? departments : [{ name: 'IT > Development > Backend', manager: 'Unassigned', count: 0 }]).slice(0, 8).map((d, i) => (
-              <div key={d._id || `${d.name}-${i}`} className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                <p className="text-sm font-semibold">{d.name}</p>
-                <p className="text-xs text-neutral-500">Manager: {d.manager || 'Unassigned'}</p>
-                <p className="text-xs text-neutral-500">Employees: {d.count || 0}</p>
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/30">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Department Load</p>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">User concentration across departments</p>
+                  </div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={departmentBars}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                      <YAxis stroke="#94a3b8" fontSize={12} />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="#16a34a" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="app-card-pad">
-          <h2 className="text-lg font-bold">System Monitoring</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800"><p className="text-xs text-neutral-500">Active Sessions</p><p className="font-bold">{activeSessions}</p></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800"><p className="text-xs text-neutral-500">Logged-in Users</p><p className="font-bold">{dashboard?.activeUsers || 0}</p></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800"><p className="text-xs text-neutral-500">System Logs</p><p className="font-bold">{activityLogs.length * 3}</p></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800"><p className="text-xs text-neutral-500">Audit Trail</p><p className="font-bold">{activityLogs.length}</p></div>
-          </div>
-          <div className="mt-3 space-y-2">
-            {activityLogs.map((log) => (
-              <div key={log.id} className="rounded-lg border border-neutral-200 p-2 text-xs dark:border-neutral-800">
-                <p className="font-semibold">{log.actor}</p>
-                <p className="text-neutral-500">{log.action}</p>
-                <p className="text-neutral-400">{log.time}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <article className="app-card-pad xl:col-span-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Reports & Analytics</h2>
-            <div className="flex gap-2">
-              <Button size="sm" variant="secondary" onClick={() => navigate('/admin/reports')}>Open Reports</Button>
-              <Button size="sm" variant="ghost" onClick={() => adminApi.exportUsers(token)}>Export CSV</Button>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800"><p className="text-xs text-neutral-500">User Growth</p><p className="text-xl font-black">{dashboard?.summary?.newUsersLast7Days || 0}</p></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800"><p className="text-xs text-neutral-500">Role Coverage</p><p className="text-xl font-black">{dashboard?.summary?.roleCoverage || 0}</p></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800"><p className="text-xs text-neutral-500">Activity Logs</p><p className="text-xl font-black">{activityLogs.length * 3}</p></div>
-          </div>
-          <div className="mt-4 rounded-xl border border-neutral-200 p-3 text-sm dark:border-neutral-800">
-            Outsourcing / External users: Open jobs {dashboard?.workforce?.externalWorkload?.openJobs || 0} • Use Outsourcing module for freelancer access controls.
-          </div>
-        </article>
-        <article className="app-card-pad">
-          <h2 className="text-lg font-bold">Security Module</h2>
-          <div className="mt-3 space-y-2 text-sm">
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">Password Policies: <span className="font-semibold">Enabled</span></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">2FA: <span className="font-semibold">Configurable</span></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">IP Restriction: <span className="font-semibold">Optional</span></div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">Session Timeout: <span className="font-semibold">Active</span></div>
-          </div>
-          <Button className="mt-3 min-h-11" variant="secondary" onClick={() => navigate('/admin/security')}>Manage Security</Button>
-        </article>
-      </section>
+
+          <aside className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Executive Snapshot</h2>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-300">Largest Role</span>
+                <span className="max-w-36 truncate text-sm font-bold capitalize text-neutral-900 dark:text-neutral-100">{roleLabels[largestRole?._id] || largestRole?._id || 'N/A'}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-300">Top Department</span>
+                <span className="max-w-36 truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{topDepartment?._id || 'N/A'}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-300">Recent Logins</span>
+                <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{metrics.recentLoginCount}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-300">Generated</span>
+                <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{formatDate(dashboardData?.summary?.generatedAt)}</span>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-7 lg:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Role Distribution</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Current user allocation by RBAC role.</p>
+              </div>
+            </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={roleBreakdown} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
+                  <XAxis type="number" stroke="#94a3b8" fontSize={12} />
+                  <YAxis type="category" dataKey="name" width={120} stroke="#94a3b8" fontSize={12} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="count" fill="#2563eb" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-5 lg:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Department Mix</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Share of users by department.</p>
+              </div>
+            </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={departmentStats.slice(0, 8)} dataKey="count" nameKey="_id" outerRadius={110} innerRadius={62} paddingAngle={3} label>
+                    {departmentStats.slice(0, 8).map((entry, index) => (
+                      <Cell key={entry._id} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </article>
+        </section>
+
+        <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-7 lg:p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Recent Users</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Latest accounts created in the system.</p>
+              </div>
+              <Button variant="secondary" size="sm" className="min-h-10" onClick={() => navigate('/admin/users')}>
+                Manage
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {recentUsers.length > 0 ? recentUsers.map((item) => {
+                const initials = `${item.firstName?.[0] || ''}${item.lastName?.[0] || ''}`.toUpperCase() || '?';
+                return (
+                  <div key={item._id || item.email} className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary dark:bg-primary/20">{initials}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{item.firstName} {item.lastName}</p>
+                      <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{item.email}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold capitalize text-neutral-700 dark:text-neutral-200">{roleLabels[item.role] || item.role}</p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">{formatDate(item.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <p className="rounded-lg border border-neutral-200 p-4 text-sm text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">No recent users available.</p>
+              )}
+            </div>
+          </article>
+
+          <aside className="space-y-4 xl:col-span-5">
+            <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Security Posture</h2>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20">
+                  <p className="text-xs font-bold uppercase text-green-700 dark:text-green-300">Auth</p>
+                  <p className="mt-1 text-sm font-semibold text-green-900 dark:text-green-100">Protected Routes</p>
+                </div>
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+                  <p className="text-xs font-bold uppercase text-blue-700 dark:text-blue-300">RBAC</p>
+                  <p className="mt-1 text-sm font-semibold text-blue-900 dark:text-blue-100">Permissions Active</p>
+                </div>
+                <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-800 dark:bg-orange-900/20">
+                  <p className="text-xs font-bold uppercase text-orange-700 dark:text-orange-300">Review</p>
+                  <p className="mt-1 text-sm font-semibold text-orange-900 dark:text-orange-100">{metrics.inactiveUsers} inactive users</p>
+                </div>
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/60">
+                  <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Sessions</p>
+                  <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">JWT Enabled</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Quick Actions</h2>
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {[
+                  ['person_add', 'Add User', '/admin/users'],
+                  ['download', 'Export Users', '/admin/users'],
+                  ['security', 'Security', '/admin/security'],
+                  ['bar_chart', 'Reports', '/admin/reports'],
+                ].map(([icon, label, route]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => navigate(route)}
+                    className="flex min-h-11 items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-700 transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-primary/10"
+                  >
+                    <span className="material-symbols-outlined text-lg">{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </aside>
+        </section>
+
+        <section className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+          {filteredModules.map((item) => (
+            <button
+              key={item.title}
+              type="button"
+              onClick={() => navigate(item.route)}
+              className="group min-h-[140px] rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-neutral-800 dark:bg-neutral-900 lg:p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${toneClasses[item.tone]}`}>
+                  <span className="material-symbols-outlined text-2xl">{item.icon}</span>
+                </div>
+                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{item.status}</span>
+              </div>
+              <h3 className="mt-4 text-lg font-bold text-neutral-900 dark:text-neutral-100">{item.title}</h3>
+              <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-400">{item.description}</p>
+              <div className="mt-4 flex items-center text-sm font-bold text-primary">
+                Open module
+                <span className="material-symbols-outlined ml-1 text-lg transition-transform group-hover:translate-x-1">arrow_forward</span>
+              </div>
+            </button>
+          ))}
+        </section>
+      </div>
     </main>
   );
 };
 
-export default AdminDashboardEnterprise;
+export default AdminDashboard;

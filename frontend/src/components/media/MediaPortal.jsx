@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import MediaSidebar from './MediaSidebar';
-import MediaDashboard, { MEDIA_SECTIONS } from './MediaDashboard';
+import MediaWorkspace, { MEDIA_SECTIONS } from './MediaWorkspace';
 
 const MediaPortal = () => {
   const { user } = useAuth();
@@ -30,7 +30,7 @@ const MediaPortal = () => {
       user={user}
     >
       <div className="portal-content p-0">
-        <MediaDashboard activeSection={activeSection} onSectionChange={setActiveSection} />
+        <MediaWorkspace activeSection={activeSection} onSectionChange={setActiveSection} />
       </div>
     </AppLayout>
   );

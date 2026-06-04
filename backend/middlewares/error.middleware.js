@@ -36,7 +36,7 @@ const mapMongoAndJwtError = (err) => {
 
 const errorMiddleware = (err, req, res, next) => {
   const mapped = mapMongoAndJwtError(err);
-  errorLogger({ ...err, statusCode: mapped.statusCode }, req);
+  errorLogger(err, req, mapped.statusCode);
 
   res.status(mapped.statusCode).json({
     success: false,

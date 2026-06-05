@@ -53,6 +53,7 @@ const MEDIA_SECTIONS = [
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'Controls and access rules' },
 ];
 
+const MEDIA_STRICT_PROJECTS = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS'];
 const cardClass = 'rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm';
 const MEDIA_CACHE_TTL = 45 * 1000;
 
@@ -90,7 +91,7 @@ const normalizeStatus = (value = '') => String(value || '').trim().toLowerCase()
 const toCount = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const pickValue = (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '-';
 
-const MediaDashboard = ({ activeSection, onSectionChange }) => {
+const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = '', onProjectChange }) => {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -113,21 +114,45 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
       setLoading(true);
       setError('');
       try {
-        const [dashboardRes, projectsRes, assetsRes, campaignsRes, contentRes, brandRes, approvalsRes, reportingRes] = await Promise.all([
-          departmentApi.getMediaDashboard(token),
-          departmentApi.getMediaProjects(token, { limit: 12 }),
-          departmentApi.getMediaAssets(token, { limit: 12 }),
-          departmentApi.getMediaCampaigns(token),
-          departmentApi.getMediaContent(token),
-          departmentApi.getMediaBrandAssets(token, { limit: 12 }),
-          departmentApi.getMediaApprovals(token, { limit: 12 }),
-          departmentApi.getMediaReportingSummary(token),
+        const projectsRes = await departmentApi.getMediaProjects(token, { limit: 12 });
+        const projectItems = projectsRes?.data?.items || [];
+        const strictProjects = MEDIA_STRICT_PROJECTS.map((name) => {
+          const matched = projectItems.find(
+            (p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase()
+          );
+          return matched || { _id: `virtual-${name}`, name };
+        });
+
+        const fallbackProject = strictProjects.find(Boolean);
+        const effectiveProjectId =
+          selectedProjectId ||
+          fallbackProject?._id ||
+          fallbackProject?.id ||
+          strictProjects[0]?._id ||
+          strictProjects[0]?.id ||
+          '';
+        const hasRealProjectId = effectiveProjectId && !String(effectiveProjectId).startsWith('virtual-');
+
+        if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
+          onProjectChange?.(effectiveProjectId);
+        }
+
+        const projectParams = effectiveProjectId ? { projectId: effectiveProjectId } : {};
+        const scopedParams = hasRealProjectId ? projectParams : {};
+
+        const [dashboardRes, assetsRes, campaignsRes, contentRes, brandRes, approvalsRes, reportingRes] = await Promise.all([
+          departmentApi.getMediaDashboard(token, scopedParams),
+          departmentApi.getMediaAssets(token, scopedParams),
+          departmentApi.getMediaCampaigns(token, scopedParams),
+          departmentApi.getMediaContent(token, scopedParams),
+          departmentApi.getMediaBrandAssets(token, scopedParams),
+          departmentApi.getMediaApprovals(token, scopedParams),
+          departmentApi.getMediaReportingSummary(token, scopedParams),
         ]);
 
         if (ignore) return;
 
         const dashboardData = dashboardRes?.data || {};
-        const projectItems = projectsRes?.data?.items || [];
         const assetItems = assetsRes?.data?.items || [];
         const campaignItems = campaignsRes?.data?.campaigns || [];
         const contentItems = contentRes?.data?.content || [];
@@ -135,7 +160,7 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
         const approvalItems = approvalsRes?.data?.items || [];
 
         setDashboard(dashboardData);
-        setProjects(Array.isArray(projectItems) ? projectItems : []);
+        setProjects(strictProjects);
         setAssets(Array.isArray(assetItems) ? assetItems : []);
         setCampaigns(Array.isArray(campaignItems) ? campaignItems : []);
         setContent(Array.isArray(contentItems) ? contentItems : []);
@@ -143,6 +168,15 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
         setApprovals(Array.isArray(approvalItems) ? approvalItems : []);
         setReporting(reportingRes?.data || null);
         setUpdatedAt(Date.now());
+        try {
+          if (effectiveProjectId) {
+            localStorage.setItem('activeProjectId', String(effectiveProjectId));
+          } else {
+            localStorage.removeItem('activeProjectId');
+          }
+        } catch {
+          // ignore storage issues
+        }
       } catch (err) {
         if (!ignore) {
           setError(err.message || 'Failed to load Media portal data.');
@@ -156,7 +190,7 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
     return () => {
       ignore = true;
     };
-  }, [token]);
+  }, [token, selectedProjectId, activeSection, onProjectChange]);
 
   const summary = useMemo(() => {
     const permissions = Array.isArray(dashboard?.permissions) ? dashboard.permissions : [];
@@ -253,6 +287,17 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
   }, [approvals, assets, brandAssets, campaigns, content, dashboard, projects, reporting]);
 
   const meta = SECTION_META[activeSection] || SECTION_META.dashboard;
+  const projectOptions = useMemo(
+    () =>
+      projects
+        .map((project) => ({
+          label: project?.name || project?.projectName || project?.title || 'Untitled Project',
+          value: String(project?._id || project?.id || ''),
+        }))
+        .filter((item) => item.value),
+    [projects]
+  );
+  const selectedProjectLabel = projectOptions.find((item) => item.value === selectedProjectId)?.label || 'All Projects';
 
   const renderEmptyCard = (title, description) => (
     <article className={cardClass}>
@@ -516,6 +561,18 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
           >
             <div className="flex flex-wrap gap-2">
               <select
+                value={selectedProjectId}
+                onChange={(e) => onProjectChange?.(e.target.value)}
+                className="h-10 rounded-xl border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary"
+              >
+                <option value="">All Projects</option>
+                {projectOptions.map((project) => (
+                  <option key={project.value} value={project.value}>
+                    {project.label}
+                  </option>
+                ))}
+              </select>
+              <select
                 value={activeSection}
                 onChange={(e) => onSectionChange?.(e.target.value)}
                 className="h-10 rounded-xl border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary"
@@ -562,7 +619,7 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
                   </p>
                 </div>
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                  Healthy
+                  {selectedProjectLabel}
                 </span>
               </div>
 

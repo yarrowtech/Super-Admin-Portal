@@ -1,3 +1,5 @@
+import logger from '../utils/logger';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const CACHE_PREFIX = 'sap_http_cache_v1:';
 const DEFAULT_TTL_MS = 30 * 1000;
@@ -5,9 +7,25 @@ const inflight = new Map();
 
 const now = () => Date.now();
 
-const buildCacheKey = (method, path, token) => {
+const getStoredProjectId = () => {
+  try {
+    return localStorage.getItem('activeProjectId') || '';
+  } catch {
+    return '';
+  }
+};
+
+const createRequestId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `req_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+};
+
+const buildCacheKey = (method, path, token, projectId = getStoredProjectId()) => {
   const tokenPart = token ? token.slice(0, 24) : 'anon';
-  return `${CACHE_PREFIX}${method}:${path}:${tokenPart}`;
+  const projectPart = projectId || 'all';
+  return `${CACHE_PREFIX}${method}:${projectPart}:${path}:${tokenPart}`;
 };
 
 const readCache = (key) => {
@@ -42,6 +60,7 @@ const writeCache = (key, value, ttlMs = DEFAULT_TTL_MS) => {
 
 const clearApiCache = () => {
   try {
+    inflight.clear();
     for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
       const key = sessionStorage.key(i);
       if (key && key.startsWith(CACHE_PREFIX)) {
@@ -53,13 +72,17 @@ const clearApiCache = () => {
   }
 };
 
-const getDefaultHeaders = (token) => {
+const getDefaultHeaders = (token, requestId = createRequestId()) => {
   const headers = {
     'Content-Type': 'application/json',
+    'x-request-id': requestId,
+    'x-client-source': 'frontend',
   };
   try {
-    const activeProjectId = localStorage.getItem('activeProjectId');
-    if (activeProjectId) headers['x-project-id'] = activeProjectId;
+    const activeProjectId = getStoredProjectId();
+    if (activeProjectId && activeProjectId.toLowerCase() !== 'all') {
+      headers['x-project-id'] = activeProjectId;
+    }
   } catch {
     // ignore storage access errors
   }
@@ -69,16 +92,16 @@ const getDefaultHeaders = (token) => {
   return headers;
 };
 
-const parseResponse = async (res) => {
+const parseResponse = async (res, requestId) => {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    console.error('API Error Response:', {
+    logger.error({
+      requestId,
       status: res.status,
       statusText: res.statusText,
       url: res.url,
-      headers: Object.fromEntries(res.headers.entries()),
-      data: data
-    });
+      data,
+    }, 'API request failed');
     const error = new Error(data?.error || data?.message || `HTTP ${res.status}: ${res.statusText}`);
     error.status = res.status;
     error.code = data?.code;
@@ -97,6 +120,7 @@ export const apiClient = {
       ttlMs = DEFAULT_TTL_MS,
       forceRefresh = false
     } = options || {};
+    const requestId = createRequestId();
     const cacheKey = buildCacheKey('GET', path, token);
 
     if (cache && !forceRefresh) {
@@ -111,10 +135,10 @@ export const apiClient = {
     const requestPromise = (async () => {
       const res = await fetch(`${API_BASE_URL}${path}`, {
         method: 'GET',
-        headers: getDefaultHeaders(token),
+        headers: getDefaultHeaders(token, requestId),
         credentials: 'include',
       });
-      const parsed = await parseResponse(res);
+      const parsed = await parseResponse(res, requestId);
       if (cache) {
         writeCache(cacheKey, parsed, ttlMs);
       }
@@ -129,43 +153,49 @@ export const apiClient = {
     }
   },
   async post(path, body, token) {
+    const requestId = createRequestId();
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
-      headers: getDefaultHeaders(token),
+      headers: getDefaultHeaders(token, requestId),
       body: JSON.stringify(body),
       credentials: 'include',
     });
-    const parsed = await parseResponse(res);
+    const parsed = await parseResponse(res, requestId);
     clearApiCache();
     return parsed;
   },
   async put(path, body, token) {
+    const requestId = createRequestId();
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method: 'PUT',
-      headers: getDefaultHeaders(token),
+      headers: getDefaultHeaders(token, requestId),
       body: JSON.stringify(body),
       credentials: 'include',
     });
-    const parsed = await parseResponse(res);
+    const parsed = await parseResponse(res, requestId);
     clearApiCache();
     return parsed;
   },
   async patch(path, body, token) {
+    const requestId = createRequestId();
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method: 'PATCH',
-      headers: getDefaultHeaders(token),
+      headers: getDefaultHeaders(token, requestId),
       body: JSON.stringify(body),
       credentials: 'include',
     });
-    return parseResponse(res);
+    const parsed = await parseResponse(res, requestId);
+    clearApiCache();
+    return parsed;
   },
   async delete(path, token) {
+    const requestId = createRequestId();
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method: 'DELETE',
-      headers: getDefaultHeaders(token),
+      headers: getDefaultHeaders(token, requestId),
       credentials: 'include',
     });
-    const parsed = await parseResponse(res);
+    const parsed = await parseResponse(res, requestId);
     clearApiCache();
     return parsed;
   },

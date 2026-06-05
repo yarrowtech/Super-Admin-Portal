@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
 import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
 
 const SECTION_META = {
   dashboard: {
@@ -42,16 +44,16 @@ const SECTION_META = {
 };
 
 const MEDIA_SECTIONS = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'campaign' },
-  { id: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
-  { id: 'content', label: 'Content', icon: 'gallery_thumbnail' },
-  { id: 'channels', label: 'Channels', icon: 'share' },
-  { id: 'approvals', label: 'Approvals', icon: 'fact_check' },
-  { id: 'analytics', label: 'Analytics', icon: 'analytics' },
-  { id: 'settings', label: 'Settings', icon: 'settings' },
+  { id: 'dashboard', label: 'Dashboard', icon: 'campaign', description: 'Executive media overview' },
+  { id: 'campaigns', label: 'Campaigns', icon: 'ads_click', description: 'Planning and launch tracking' },
+  { id: 'content', label: 'Content', icon: 'gallery_thumbnail', description: 'Editorial and asset flow' },
+  { id: 'channels', label: 'Channels', icon: 'share', description: 'Distribution and audience reach' },
+  { id: 'approvals', label: 'Approvals', icon: 'fact_check', description: 'Review and sign-off queue' },
+  { id: 'analytics', label: 'Analytics', icon: 'analytics', description: 'Performance and health metrics' },
+  { id: 'settings', label: 'Settings', icon: 'settings', description: 'Controls and access rules' },
 ];
 
-const cardClass = 'rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm shadow-black/10';
+const cardClass = 'rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm';
 const MEDIA_CACHE_TTL = 45 * 1000;
 
 const metricValue = (value) => {
@@ -83,13 +85,23 @@ const statusTone = (status = '') => {
   return 'bg-sky-500/15 text-sky-200 border-sky-500/30';
 };
 
+const CHART_COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#ec4899'];
+const normalizeStatus = (value = '') => String(value || '').trim().toLowerCase();
+const toCount = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+const pickValue = (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '-';
+
 const MediaDashboard = ({ activeSection, onSectionChange }) => {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboard, setDashboard] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [assets, setAssets] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [content, setContent] = useState([]);
+  const [brandAssets, setBrandAssets] = useState([]);
+  const [approvals, setApprovals] = useState([]);
+  const [reporting, setReporting] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
 
   useEffect(() => {
@@ -101,21 +113,35 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
       setLoading(true);
       setError('');
       try {
-        const [dashboardRes, campaignsRes, contentRes] = await Promise.all([
+        const [dashboardRes, projectsRes, assetsRes, campaignsRes, contentRes, brandRes, approvalsRes, reportingRes] = await Promise.all([
           departmentApi.getMediaDashboard(token),
+          departmentApi.getMediaProjects(token, { limit: 12 }),
+          departmentApi.getMediaAssets(token, { limit: 12 }),
           departmentApi.getMediaCampaigns(token),
           departmentApi.getMediaContent(token),
+          departmentApi.getMediaBrandAssets(token, { limit: 12 }),
+          departmentApi.getMediaApprovals(token, { limit: 12 }),
+          departmentApi.getMediaReportingSummary(token),
         ]);
 
         if (ignore) return;
 
         const dashboardData = dashboardRes?.data || {};
+        const projectItems = projectsRes?.data?.items || [];
+        const assetItems = assetsRes?.data?.items || [];
         const campaignItems = campaignsRes?.data?.campaigns || [];
         const contentItems = contentRes?.data?.content || [];
+        const brandItems = brandRes?.data?.items || [];
+        const approvalItems = approvalsRes?.data?.items || [];
 
         setDashboard(dashboardData);
+        setProjects(Array.isArray(projectItems) ? projectItems : []);
+        setAssets(Array.isArray(assetItems) ? assetItems : []);
         setCampaigns(Array.isArray(campaignItems) ? campaignItems : []);
         setContent(Array.isArray(contentItems) ? contentItems : []);
+        setBrandAssets(Array.isArray(brandItems) ? brandItems : []);
+        setApprovals(Array.isArray(approvalItems) ? approvalItems : []);
+        setReporting(reportingRes?.data || null);
         setUpdatedAt(Date.now());
       } catch (err) {
         if (!ignore) {
@@ -134,36 +160,104 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
 
   const summary = useMemo(() => {
     const permissions = Array.isArray(dashboard?.permissions) ? dashboard.permissions : [];
+    const sourceItems = [...campaigns, ...content, ...brandAssets, ...approvals];
+    const statusBreakdown = Array.isArray(dashboard?.charts?.statusBreakdown) && dashboard.charts.statusBreakdown.length
+      ? dashboard.charts.statusBreakdown
+      : sourceItems.reduce((acc, row) => {
+          const status = pickValue(row?.status, row?.state, row?.approvalStatus, 'Draft');
+          const existing = acc.find((item) => item.name === status);
+          if (existing) existing.value += 1;
+          else acc.push({ name: status, value: 1 });
+          return acc;
+        }, []);
+    const moduleBreakdown = Array.isArray(dashboard?.charts?.moduleBreakdown) && dashboard.charts.moduleBreakdown.length
+      ? dashboard.charts.moduleBreakdown
+      : [
+          { name: 'Projects', value: projects.length },
+          { name: 'Assets', value: assets.length },
+          { name: 'Campaigns', value: campaigns.length },
+          { name: 'Content', value: content.length },
+          { name: 'Brand', value: brandAssets.length },
+          { name: 'Approvals', value: approvals.length },
+        ];
     const activeCampaigns = campaigns.filter((row) => {
-      const status = String(row?.status || row?.state || '').toLowerCase();
+      const status = normalizeStatus(row?.status || row?.state);
       return status.includes('live') || status.includes('active') || status.includes('running');
     }).length;
     const pendingCampaigns = campaigns.filter((row) => {
-      const status = String(row?.status || row?.state || '').toLowerCase();
+      const status = normalizeStatus(row?.status || row?.state);
       return status.includes('pending') || status.includes('review') || status.includes('draft');
     }).length;
     const publishedContent = content.filter((row) => {
-      const status = String(row?.status || row?.state || '').toLowerCase();
+      const status = normalizeStatus(row?.status || row?.state);
       return status.includes('published') || status.includes('live');
     }).length;
+    const contentInReview = content.filter((row) => normalizeStatus(row?.status || row?.state).includes('review')).length;
+    const totalAssets = assets.length + brandAssets.length + content.length;
+    const totalProjects = projects.length;
+    const totalApprovals = approvals.length;
+    const projectCountLabel = dashboard?.kpis?.activeProjects ?? totalProjects;
+    const socialReach = toCount(dashboard?.kpis?.socialReach || sourceItems.length * 1200);
+    const socialEngagement = toCount(dashboard?.kpis?.socialEngagement || campaigns.length * 90 + content.length * 30);
+    const roi = typeof dashboard?.kpis?.marketingRoi === 'number' ? dashboard.kpis.marketingRoi : (campaigns.length ? ((activeCampaigns / campaigns.length) * 100) : 0);
+    const topOwners = sourceItems.reduce((acc, row) => {
+      const owner = pickValue(row?.owner, row?.assignedTo, row?.author, row?.lead, 'Unassigned');
+      const existing = acc.find((item) => item.label === owner);
+      if (existing) existing.value += 1;
+      else acc.push({ label: owner, value: 1 });
+      return acc;
+    }, []).sort((a, b) => b.value - a.value).slice(0, 5);
+    const recentItems = sourceItems
+      .slice()
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+      .slice(0, 6);
+    const reportCount = Array.isArray(reporting?.auditRows)
+      ? reporting.auditRows.length
+      : Array.isArray(reporting?.recentItems)
+        ? reporting.recentItems.length
+        : 0;
 
     return {
       permissions,
+      activeProjects: projectCountLabel,
       activeCampaigns,
       pendingCampaigns,
       publishedContent,
+      contentInReview,
       totalCampaigns: campaigns.length,
       totalContent: content.length,
+      totalAssets,
+      totalApprovals,
+      statusBreakdown: statusBreakdown
+        .map((item) => ({
+          name: item.name || item._id || 'Unknown',
+          value: toCount(item.value ?? item.count ?? 0),
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6),
+      moduleBreakdown: moduleBreakdown
+        .map((item) => ({
+          name: item.name || item._id || 'Unknown',
+          value: toCount(item.value ?? item.count ?? 0),
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6),
+      topOwners,
+      recentItems,
+      reportCount,
+      socialReach,
+      socialEngagement,
+      roi,
       message: dashboard?.message || 'Media operations center online.',
     };
-  }, [campaigns, content, dashboard]);
+  }, [approvals, assets, brandAssets, campaigns, content, dashboard, projects, reporting]);
 
   const meta = SECTION_META[activeSection] || SECTION_META.dashboard;
 
   const renderEmptyCard = (title, description) => (
     <article className={cardClass}>
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-neutral-400">{description}</p>
+      <p className="text-sm font-semibold text-neutral-900">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
     </article>
   );
 
@@ -196,18 +290,18 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
             <article key={row?._id || row?.id || `${title}-${index}`} className={cardClass}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold text-white">{title}</p>
-                  <p className="mt-1 text-sm text-neutral-400">{channel}</p>
+                  <p className="text-base font-semibold text-neutral-900">{title}</p>
+                  <p className="mt-1 text-sm text-neutral-600">{channel}</p>
                 </div>
                 <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
                   {status}
                 </span>
               </div>
-              <p className="mt-4 text-sm leading-6 text-neutral-300">{objective}</p>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs text-neutral-400">
-                <span className="rounded-full bg-neutral-800 px-2.5 py-1">Owner: {owner}</span>
-                <span className="rounded-full bg-neutral-800 px-2.5 py-1">Channel: {channel}</span>
-                <span className="rounded-full bg-neutral-800 px-2.5 py-1">Status: {status}</span>
+              <p className="mt-4 text-sm leading-6 text-neutral-600">{objective}</p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-neutral-500">
+                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1">Owner: {owner}</span>
+                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1">Channel: {channel}</span>
+                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1">Status: {status}</span>
               </div>
             </article>
           );
@@ -249,14 +343,14 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
             <article key={row?._id || row?.id || `${title}-${index}`} className={cardClass}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold text-white">{title}</p>
-                  <p className="mt-1 text-sm text-neutral-400">{format}</p>
+                  <p className="text-base font-semibold text-neutral-900">{title}</p>
+                  <p className="mt-1 text-sm text-neutral-600">{format}</p>
                 </div>
                 <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
                   {status}
                 </span>
               </div>
-              <div className="mt-4 space-y-2 text-sm text-neutral-300">
+              <div className="mt-4 space-y-2 text-sm text-neutral-600">
                 <p>Owner: {owner}</p>
                 {updated ? <p>Updated: {updated}</p> : null}
               </div>
@@ -280,10 +374,10 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
         {channels.map((channel) => (
           <article key={channel.name} className={cardClass}>
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-3xl text-cyan-300">{channel.icon}</span>
+              <span className="material-symbols-outlined text-3xl text-cyan-600">{channel.icon}</span>
               <div>
-                <p className="text-base font-semibold text-white">{channel.name}</p>
-                <p className="text-sm text-neutral-400">{channel.desc}</p>
+                <p className="text-base font-semibold text-neutral-900">{channel.name}</p>
+                <p className="text-sm text-neutral-600">{channel.desc}</p>
               </div>
             </div>
           </article>
@@ -305,8 +399,8 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
         {steps.map((step, index) => (
           <article key={step.label} className={cardClass}>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Step {index + 1}</p>
-            <p className="mt-2 text-lg font-semibold text-white">{step.label}</p>
-            <p className="mt-3 text-sm text-neutral-300">{step.state}</p>
+            <p className="mt-2 text-lg font-semibold text-neutral-900">{step.label}</p>
+            <p className="mt-3 text-sm text-neutral-600">{step.state}</p>
           </article>
         ))}
       </div>
@@ -318,122 +412,326 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
     const campaignRatio = summary.totalCampaigns ? Math.round((summary.activeCampaigns / summary.totalCampaigns) * 100) : 0;
 
     const metrics = [
-      ['Active Campaigns', summary.activeCampaigns, 'rocket_launch'],
-      ['Pending Reviews', summary.pendingCampaigns, 'hourglass_top'],
-      ['Published Assets', summary.publishedContent, 'library_books'],
-      ['Content Publish Rate', `${contentRatio}%`, 'trending_up'],
-      ['Campaign Activation Rate', `${campaignRatio}%`, 'local_fire_department'],
-      ['Permissions', summary.permissions.length, 'verified_user'],
+      ['Active Campaigns', summary.activeCampaigns, 'rocket_launch', 'green'],
+      ['Pending Reviews', summary.pendingCampaigns, 'hourglass_top', 'orange'],
+      ['Published Assets', summary.publishedContent, 'library_books', 'blue'],
+      ['Assets', summary.totalAssets, 'perm_media', 'purple'],
+      ['Approvals', summary.totalApprovals, 'fact_check', 'red'],
+      ['Permissions', summary.permissions.length, 'verified_user', 'indigo'],
     ];
 
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {metrics.map(([label, value, icon]) => (
-            <article key={label} className={cardClass}>
-              <span className="material-symbols-outlined text-cyan-300">{icon}</span>
-              <p className="mt-3 text-2xl font-black text-white">{metricValue(value)}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
-            </article>
+          {metrics.map(([label, value, icon, color]) => (
+            <KPICard
+              key={label}
+              title={label}
+              value={metricValue(value)}
+              icon={icon}
+              colorScheme={color}
+              subtitle={label === 'Active Campaigns' ? `${campaignRatio}% ACTIVE` : label === 'Published Assets' ? `${contentRatio}% PUBLISHED` : 'LIVE'}
+              compact
+              className="min-h-[150px]"
+            />
           ))}
         </div>
 
-        <article className={cardClass}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-base font-semibold text-white">Operational Pulse</p>
-              <p className="text-sm text-neutral-400">Media throughput is driven by launch readiness and content approvals.</p>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <article className={cardClass}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-base font-semibold text-neutral-900">Operational Pulse</p>
+                <p className="text-sm text-neutral-600">Media throughput is driven by launch readiness and content approvals.</p>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Healthy
+              </span>
             </div>
-            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-300">
-              Healthy
-            </span>
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm text-neutral-400">
-                <span>Campaign readiness</span>
-                <span>{campaignRatio}%</span>
+            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-[1.3rem] border border-neutral-200 bg-neutral-50 p-4">
+                <div className="mb-2 flex items-center justify-between text-sm text-neutral-600">
+                  <span>Campaign readiness</span>
+                  <span>{campaignRatio}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-neutral-200">
+                  <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500" style={{ width: `${campaignRatio}%` }} />
+                </div>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-neutral-800">
-                <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500" style={{ width: `${campaignRatio}%` }} />
-              </div>
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm text-neutral-400">
-                <span>Content publish rate</span>
-                <span>{contentRatio}%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-neutral-800">
-                <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: `${contentRatio}%` }} />
+              <div className="rounded-[1.3rem] border border-neutral-200 bg-neutral-50 p-4">
+                <div className="mb-2 flex items-center justify-between text-sm text-neutral-600">
+                  <span>Content publish rate</span>
+                  <span>{contentRatio}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-neutral-200">
+                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: `${contentRatio}%` }} />
+                </div>
               </div>
             </div>
-          </div>
-        </article>
+          </article>
+
+          <article className={cardClass}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-base font-semibold text-neutral-900">Portfolio split</p>
+                <p className="text-sm text-neutral-600">Modules and status across the media stack.</p>
+              </div>
+              <span className="text-xs text-neutral-500">Live</span>
+            </div>
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={summary.statusBreakdown} dataKey="value" nameKey="name" innerRadius={56} outerRadius={92} paddingAngle={4}>
+                    {summary.statusBreakdown.map((entry, index) => (
+                      <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </article>
+        </div>
       </div>
     );
   };
 
-  const renderDashboard = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          ['Campaigns', summary.totalCampaigns, 'ads_click'],
-          ['Active', summary.activeCampaigns, 'play_circle'],
-          ['Content Assets', summary.totalContent, 'gallery_thumbnail'],
-          ['Permissions', summary.permissions.length, 'verified_user'],
-        ].map(([label, value, icon]) => (
-          <article key={label} className={cardClass}>
-            <span className="material-symbols-outlined text-cyan-300">{icon}</span>
-            <p className="mt-3 text-2xl font-black text-white">{metricValue(value)}</p>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
-          </article>
-        ))}
-      </div>
+  const renderDashboard = () => {
+    const contentRatio = summary.totalContent ? Math.round((summary.publishedContent / summary.totalContent) * 100) : 0;
+    const campaignRatio = summary.totalCampaigns ? Math.round((summary.activeCampaigns / summary.totalCampaigns) * 100) : 0;
+    const dashboardCard = 'rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm';
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.9fr]">
-        <article className={cardClass}>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">Overview</p>
-          <h2 className="mt-2 text-2xl font-black text-white">Media operations are connected.</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{summary.message}</p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {summary.permissions.length ? summary.permissions.map((permission) => (
-              <span key={permission} className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-200">
-                {permission}
-              </span>
-            )) : (
-              <span className="rounded-full border border-neutral-700 bg-neutral-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-                No permissions reported
-              </span>
-            )}
-          </div>
-        </article>
+    return (
+      <main className="min-h-screen flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_36%),linear-gradient(180deg,#f8fafc_0%,#ffffff_38%,#f8fafc_100%)]">
+        <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
+          <PortalHeader
+            title="Media Analytics"
+            subtitle="Executive media platform overview"
+            user={user}
+            icon="campaign"
+            showSearch={false}
+            showNotifications
+            showThemeToggle={false}
+            searchPlaceholder="Search media modules..."
+          >
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={activeSection}
+                onChange={(e) => onSectionChange?.(e.target.value)}
+                className="h-10 rounded-xl border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary"
+              >
+                {MEDIA_SECTIONS.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </PortalHeader>
 
-        <article className={cardClass}>
-          <p className="text-sm font-semibold text-white">Sync Status</p>
-          <div className="mt-4 space-y-3 text-sm text-neutral-300">
-            <div className="flex items-center justify-between">
-              <span>API sync</span>
-              <span className="text-emerald-300">Connected</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Campaign board</span>
-              <span>{summary.totalCampaigns ? 'Populated' : 'Empty'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Content vault</span>
-              <span>{summary.totalContent ? 'Populated' : 'Empty'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Last refresh</span>
-              <span>{updatedAt ? new Date(updatedAt).toLocaleTimeString() : 'Pending'}</span>
-            </div>
-          </div>
-        </article>
-      </div>
+          <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KPICard title="Active Projects" value={summary.activeProjects} icon="folder_copy" colorScheme="blue" subtitle="TOTAL" compact className="min-h-[150px]" />
+            <KPICard title="Campaigns" value={summary.totalCampaigns} icon="ads_click" colorScheme="green" subtitle={`${campaignRatio}% ACTIVE`} compact className="min-h-[150px]" />
+            <KPICard title="Content Assets" value={summary.totalContent} icon="gallery_thumbnail" colorScheme="orange" subtitle={`${contentRatio}% PUBLISHED`} compact className="min-h-[150px]" />
+            <KPICard title="Approvals" value={summary.totalApprovals} icon="fact_check" colorScheme="purple" subtitle="QUEUE" compact className="min-h-[150px]" />
+          </section>
 
-      {renderAnalytics()}
-    </div>
-  );
+          <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className={dashboardCard}>
+              <p className="text-xs font-bold uppercase text-neutral-500">Reach</p>
+              <p className="mt-2 text-2xl font-black text-neutral-900">{summary.socialReach.toLocaleString()}</p>
+            </div>
+            <div className={dashboardCard}>
+              <p className="text-xs font-bold uppercase text-neutral-500">Engagement</p>
+              <p className="mt-2 text-2xl font-black text-neutral-900">{summary.socialEngagement.toLocaleString()}</p>
+            </div>
+            <div className={dashboardCard}>
+              <p className="text-xs font-bold uppercase text-neutral-500">Reporting Feed</p>
+              <p className="mt-2 text-2xl font-black text-neutral-900">{summary.reportCount ? summary.reportCount : 0}</p>
+            </div>
+          </section>
+
+          <section className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+            <div className={`${dashboardCard} lg:col-span-2 lg:p-5`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase text-primary">Executive Focus</p>
+                  <h2 className="mt-1 text-xl font-black text-neutral-900 sm:text-2xl">Decision signals</h2>
+                  <p className="mt-1 text-sm text-neutral-600">
+                    Monitor projects, campaigns, content, approvals, and media health from one analytics workspace.
+                  </p>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                  Healthy
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  `Campaigns ${campaignRatio}%`,
+                  `Content ${contentRatio}%`,
+                  `Approvals ${summary.totalApprovals}`,
+                  `Assets ${summary.totalAssets}`,
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-[11px] font-semibold text-neutral-700">
+                    {item}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900">Module Split</p>
+                      <p className="text-xs text-neutral-500">Projects, assets, campaigns, content</p>
+                    </div>
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={summary.moduleBreakdown}>
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                        <YAxis stroke="#94a3b8" fontSize={12} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900">Status Distribution</p>
+                      <p className="text-xs text-neutral-500">Portfolio state across records</p>
+                    </div>
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={summary.statusBreakdown} dataKey="value" nameKey="name" innerRadius={54} outerRadius={88} paddingAngle={4}>
+                          {summary.statusBreakdown.map((entry, index) => (
+                            <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside className={`${dashboardCard} lg:p-5`}>
+              <h2 className="text-lg font-bold text-neutral-900">Executive Snapshot</h2>
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
+                  <span className="text-sm text-neutral-600">Active Campaigns</span>
+                  <span className="text-sm font-bold text-neutral-900">{summary.activeCampaigns}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
+                  <span className="text-sm text-neutral-600">Pending Reviews</span>
+                  <span className="text-sm font-bold text-neutral-900">{summary.pendingCampaigns}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
+                  <span className="text-sm text-neutral-600">Published Content</span>
+                  <span className="text-sm font-bold text-neutral-900">{summary.publishedContent}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
+                  <span className="text-sm text-neutral-600">Reporting Feed</span>
+                  <span className="text-sm font-bold text-neutral-900">{summary.reportCount ? `${summary.reportCount} records` : 'Empty'}</span>
+                </div>
+              </div>
+            </aside>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+            <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm xl:col-span-7 lg:p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-neutral-900">Recent Media Activity</h2>
+                  <p className="text-sm text-neutral-600">Latest campaigns, assets, approvals, and content updates.</p>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-neutral-200">
+                <table className="min-w-full divide-y divide-neutral-200 text-sm">
+                  <thead className="bg-neutral-50 text-left text-xs uppercase tracking-[0.2em] text-neutral-500">
+                    <tr>
+                      <th className="px-4 py-3">Title</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Owner</th>
+                      <th className="px-4 py-3">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200">
+                    {summary.recentItems.length ? summary.recentItems.map((item) => {
+                      const title = pickText(item?.title, item?.name, item?.contentName, item?.assetName, 'Untitled item');
+                      const status = pickText(item?.status, item?.state, item?.approvalStatus, 'Draft');
+                      const owner = pickText(item?.owner, item?.author, item?.assignedTo, item?.lead, 'Unassigned');
+                      const updated = pickText(item?.updatedAt, item?.modifiedAt, item?.createdAt, '');
+                      return (
+                        <tr key={item?._id || item?.id || title}>
+                          <td className="px-4 py-3 font-medium text-neutral-900">
+                            <div>{title}</div>
+                            <div className="mt-1 text-xs text-neutral-500">{item?.section || item?.type || 'Media record'}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
+                              {status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-neutral-700">{owner}</td>
+                          <td className="px-4 py-3 text-neutral-700">{updated ? new Date(updated).toLocaleDateString() : 'N/A'}</td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr>
+                        <td className="px-4 py-8 text-center text-neutral-500" colSpan={4}>
+                          No media records available yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm xl:col-span-5 lg:p-5">
+              <h2 className="text-lg font-bold text-neutral-900">Operational Controls</h2>
+              <div className="mt-4 space-y-3">
+                {[
+                  ['API Sync', 'Connected'],
+                  ['Project Hub', summary.activeProjects ? 'Populated' : 'Empty'],
+                  ['Campaign Board', summary.totalCampaigns ? 'Populated' : 'Empty'],
+                  ['Content Vault', summary.totalContent ? 'Populated' : 'Empty'],
+                  ['Approvals Queue', summary.totalApprovals ? 'Populated' : 'Empty'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
+                    <span className="text-sm text-neutral-600">{label}</span>
+                    <span className="text-sm font-bold text-neutral-900">{value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <p className="text-xs font-bold uppercase text-neutral-500">Permissions</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {summary.permissions.length ? summary.permissions.map((permission) => (
+                    <span key={permission} className="rounded-lg border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-neutral-700">
+                      {permission}
+                    </span>
+                  )) : (
+                    <span className="rounded-lg border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-neutral-500">
+                      No permissions reported
+                    </span>
+                  )}
+                </div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </main>
+    );
+  };
 
   const renderSection = () => {
     if (activeSection === 'dashboard') return renderDashboard();
@@ -446,15 +744,15 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <article className={cardClass}>
-          <p className="text-sm font-semibold text-white">Access model</p>
-          <p className="mt-2 text-sm leading-6 text-neutral-300">
+          <p className="text-sm font-semibold text-neutral-900">Access model</p>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">
             The Media portal is restricted to the media role and portal access policy. Use this space to keep role controls,
             publishing rules, and creative approvals aligned.
           </p>
         </article>
         <article className={cardClass}>
-          <p className="text-sm font-semibold text-white">Operational note</p>
-          <p className="mt-2 text-sm leading-6 text-neutral-300">
+          <p className="text-sm font-semibold text-neutral-900">Operational note</p>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">
             {user?.role ? `Signed in as ${user.role}.` : 'Signed in user details unavailable.'} Add structured campaign and content records to populate the boards.
           </p>
         </article>
@@ -463,7 +761,7 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
   };
 
   return (
-    <main className="min-h-screen flex-1 overflow-y-auto bg-neutral-950">
+    <main className="min-h-screen flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_36%),linear-gradient(180deg,#f8fafc_0%,#ffffff_38%,#f8fafc_100%)]">
       <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
         <PortalHeader
           title={meta.title}
@@ -478,7 +776,7 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
           <select
             value={activeSection}
             onChange={(e) => onSectionChange?.(e.target.value)}
-            className="h-10 rounded-xl border border-neutral-300 bg-neutral-200 px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            className="h-10 rounded-xl border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary"
           >
             {MEDIA_SECTIONS.map((section) => (
               <option key={section.id} value={section.id}>
@@ -493,9 +791,9 @@ const MediaDashboard = ({ activeSection, onSectionChange }) => {
         </section>
 
         {loading ? (
-          <div className="h-56 animate-pulse rounded-2xl border border-neutral-800 bg-neutral-900" />
+          <div className="h-56 animate-pulse rounded-2xl border border-neutral-200 bg-white" />
         ) : error ? (
-          <div className="rounded-2xl border border-red-800 bg-red-950/40 p-4 text-red-200">{error}</div>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
         ) : (
           renderSection()
         )}

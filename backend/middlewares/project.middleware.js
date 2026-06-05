@@ -11,8 +11,15 @@ const extractProjectId = (req) =>
   req.params?.projectId ||
   null;
 
+const normalizeProjectId = (projectId) => {
+  if (!projectId) return null;
+  const normalized = String(projectId).trim();
+  if (!normalized || normalized.toLowerCase() === 'all') return null;
+  return normalized;
+};
+
 const requireProjectContext = (req, res, next) => {
-  const projectId = extractProjectId(req);
+  const projectId = normalizeProjectId(extractProjectId(req));
   if (!projectId) {
     return res.status(400).json({ success: false, error: "ProjectId required" });
   }
@@ -25,7 +32,7 @@ const requireProjectContext = (req, res, next) => {
 };
 
 const attachOptionalProjectContext = (req, _res, next) => {
-  const projectId = extractProjectId(req);
+  const projectId = normalizeProjectId(extractProjectId(req));
   if (projectId && hasProjectAccess(req.user, projectId)) {
     req.projectId = String(projectId);
     req.query = { ...(req.query || {}), projectId: req.projectId };
@@ -37,4 +44,3 @@ module.exports = {
   requireProjectContext,
   attachOptionalProjectContext,
 };
-

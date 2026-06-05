@@ -9,6 +9,7 @@ const roleBadgeTone = {
   ceo: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
   law: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
   outsourcing: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-200',
+  media: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-200',
 };
 
 const roleQuickMeta = {
@@ -19,6 +20,7 @@ const roleQuickMeta = {
   manager: 'Team delivery monitor active',
   law: 'Compliance checkpoints enabled',
   outsourcing: 'External operations connected',
+  media: 'Campaign analytics online',
 };
 
 const PortalRoleHeader = ({ role = 'employee', title = 'Workspace', subtitle = '', user }) => {

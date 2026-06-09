@@ -24,6 +24,13 @@ export const useOutsourcingDashboardPage = () => {
     staleTime: 60 * 1000,
   });
 
+  const workspaceQuery = useQuery({
+    queryKey: [...outsourcingKeys.all, 'workspace', user?.role || 'anonymous'],
+    queryFn: () => outsourcingApi.getMyWorkspace(token),
+    enabled: Boolean(token),
+    staleTime: 30 * 1000,
+  });
+
   const [jobsQuery, contractsQuery, timeLogsQuery] = useQueries({
     queries: [
       {
@@ -48,6 +55,7 @@ export const useOutsourcingDashboardPage = () => {
   const jobs = jobsQuery.data?.data || [];
   const contracts = contractsQuery.data?.data || [];
   const logs = timeLogsQuery.data?.data || [];
+  const workspace = workspaceQuery.data?.data || null;
 
   const derivedData = useMemo(() => ({
     users: { freelancers: 0 },
@@ -62,6 +70,7 @@ export const useOutsourcingDashboardPage = () => {
   }), [contracts.length, jobs.length, logs]);
 
   const dashboard = dashboardQuery.data?.data || derivedData;
+  const workspaceSummary = workspace?.summary || {};
 
   const kpis = useMemo(() => {
     const next = [
@@ -83,16 +92,26 @@ export const useOutsourcingDashboardPage = () => {
     return next;
   }, [dashboard, user?.role]);
 
+  const workspaceKpis = useMemo(() => [
+    { label: 'Assigned Projects', value: workspaceSummary.projects || jobs.length, icon: 'work' },
+    { label: 'Active Contracts', value: workspaceSummary.activeContracts || contracts.filter((c) => c.status === 'active').length, icon: 'contract' },
+    { label: 'Notifications', value: workspaceSummary.notifications || 0, icon: 'notifications' },
+    { label: 'Pending Logs', value: workspaceSummary.pendingLogs ?? logs.filter((entry) => entry.verificationStatus === 'pending').length, icon: 'schedule' },
+  ], [contracts, jobs.length, logs, workspaceSummary.activeContracts, workspaceSummary.notifications, workspaceSummary.pendingLogs, workspaceSummary.projects]);
+
   return {
     isWorker,
     loading:
       jobsQuery.isLoading ||
       contractsQuery.isLoading ||
       timeLogsQuery.isLoading ||
+      workspaceQuery.isLoading ||
       (!isWorker && dashboardQuery.isLoading),
-    error: dashboardQuery.error || jobsQuery.error || contractsQuery.error || timeLogsQuery.error,
+    error: dashboardQuery.error || jobsQuery.error || contractsQuery.error || timeLogsQuery.error || workspaceQuery.error,
     contracts,
     kpis,
+    workspace,
+    workspaceKpis,
     recentJobs: jobs.slice(0, 5),
     pendingVerification: logs.filter((entry) => entry.verificationStatus === 'pending').length,
     approvedLogs: logs.filter((entry) => entry.verificationStatus === 'approved').length,

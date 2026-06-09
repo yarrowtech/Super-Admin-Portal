@@ -28,6 +28,7 @@ export const itApi = {
   getEventIntegrations: async (token) => apiClient.get('/api/dept/it/events', token),
   getMonitoring: async (token) => apiClient.get('/api/dept/it/monitoring', token, { cache: false }),
   getAssets: async (token, params = {}) => apiClient.get(buildUrl('/api/dept/it/assets', params), token, { cache: false }),
+  getAssetById: async (token, assetId) => apiClient.get(`/api/dept/it/assets/${assetId}`, token),
   getNetworkInfra: async (token) => apiClient.get('/api/dept/it/network-infra', token, { cache: false }),
   getThreatLogs: async (token, params = {}) => apiClient.get(buildUrl('/api/dept/it/threat-logs', params), token, { cache: false }),
   getDevopsCicd: async (token) => apiClient.get('/api/dept/it/devops-cicd', token, { cache: false }),
@@ -36,6 +37,18 @@ export const itApi = {
 
   getProjects: async (token, params = {}) =>
     apiClient.get(buildUrl('/api/dept/it/projects', params), token),
+
+  getProjectById: async (token, projectId) =>
+    apiClient.get(`/api/dept/it/projects/${projectId}`, token),
+
+  getModuleOverview: async (token, params = {}) =>
+    apiClient.get(buildUrl('/api/dept/it/module/overview', params), token, { cache: false }),
+
+  getModuleAssets: async (token, params = {}) =>
+    apiClient.get(buildUrl('/api/dept/it/module/assets', params), token, { cache: false }),
+
+  getModuleTickets: async (token, params = {}) =>
+    apiClient.get(buildUrl('/api/dept/it/module/tickets', params), token, { cache: false }),
 
   createProject: async (token, projectData) =>
     apiClient.post('/api/dept/it/projects', projectData, token),

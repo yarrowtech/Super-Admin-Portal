@@ -63,20 +63,27 @@ router.get('/payments', outsourcingController.getMyPayments);
 router.get('/invoices', outsourcingController.getMyInvoices);
 router.get('/profile', outsourcingController.getMyProfile);
 router.put('/profile', outsourcingController.updateMyProfile);
+router.get('/workspace/me', outsourcingController.getMyWorkspace);
 router.get('/activity-feed', outsourcingController.getMyActivityFeed);
 router.get('/analytics/me', outsourcingController.getMyAnalytics);
 router.get('/workflow/me', outsourcingController.getMyWorkflow);
 router.get('/sessions/me', outsourcingController.getMySessionStatus);
 router.post('/sessions/check-in', outsourcingController.checkIn);
 router.post('/sessions/check-out', outsourcingController.checkOut);
+router.post('/sessions/pause', outsourcingController.pauseWorkSession);
+router.post('/sessions/resume', outsourcingController.resumeWorkSession);
+router.post('/sessions/stop', outsourcingController.stopWorkSession);
 router.post('/files/upload', uploadSingle('file'), outsourcingController.uploadFreelancerFile);
 router.post('/invoices/generate', outsourcingController.generateInvoice);
 
 router.get('/jobs', outsourcingController.listJobs);
 router.put('/jobs/:id/accept', outsourcingController.acceptJob);
+router.put('/jobs/:id/reject', outsourcingController.rejectJob);
 router.put('/jobs/:id/status', outsourcingController.updateJobStatus);
 
 router.get('/contracts', outsourcingController.listContracts);
+router.get('/contracts/:contractId/history', outsourcingController.getContractHistory);
+router.put('/contracts/:contractId/terms', outsourcingController.updateContractTerms);
 router.put('/contracts/:contractId/law-validate', authorize(ROLES.ADMIN, ROLES.LAW), outsourcingController.validateContractByLaw);
 router.post('/time-logs', outsourcingTimeLogValidation, validate, outsourcingController.logTime);
 router.get('/time-logs', outsourcingController.listTimeLogs);

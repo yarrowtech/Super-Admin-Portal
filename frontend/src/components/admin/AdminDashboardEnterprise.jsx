@@ -27,7 +27,6 @@ const moduleCards = [
   { title: 'Security', description: 'Security policy, account risk, login controls, and sessions.', icon: 'security', route: '/admin/security', tone: 'red', status: 'Review' },
   { title: 'Reports', description: 'Operational analytics, exports, and business intelligence.', icon: 'bar_chart', route: '/admin/reports', tone: 'purple', status: 'Live' },
   { title: 'Workflows', description: 'Workflow rules and process automation.', icon: 'account_tree', route: '/admin/workflows', tone: 'indigo', status: 'Configured' },
-  { title: 'Super Admin', description: 'Global platform controls, flags, portals, and system health.', icon: 'admin_panel_settings', route: '/admin/super-admin', tone: 'orange', status: 'Restricted' },
 ];
 
 const toneClasses = {

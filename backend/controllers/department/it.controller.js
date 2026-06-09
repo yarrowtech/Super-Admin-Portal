@@ -93,22 +93,54 @@ exports.getProjects = async (req, res) => {
         error: 'Insufficient role for IT project management'
       });
     }
-    const { page = 1, limit = 10, status, priority, projectManager } = req.query;
+    const { page = 1, limit = 10, status, priority, projectManager, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     const query = {};
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
     if (projectManager) query.projectManager = projectManager;
+    if (search) {
+      const regex = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [
+        { name: regex },
+        { description: regex },
+        { projectCode: regex },
+        { 'client.name': regex },
+        { 'client.company': regex },
+      ];
+    }
 
-    const projects = await Project.find(query)
+    const projectDocs = await Project.find(query)
       .populate('projectManager', 'firstName lastName email')
       .populate('teamMembers.employee', 'firstName lastName email')
-      .sort({ createdAt: -1 })
+      .sort({ [sortBy]: String(sortOrder).toLowerCase() === 'asc' ? 1 : -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .exec();
 
+    const projects = projectDocs.map((project) => {
+      const raw = typeof project.toObject === 'function' ? project.toObject() : project;
+      const progress = Math.max(0, Math.min(100, Number(raw.progress || 0)));
+      const statusScore = {
+        planning: 60,
+        'in-progress': 78,
+        'on-hold': 54,
+        completed: 96,
+        cancelled: 18,
+      }[String(raw.status || '').toLowerCase()] || 72;
+      return {
+        ...raw,
+        healthScore: Math.max(20, Math.min(100, Math.round((progress * 0.65) + (statusScore * 0.35)))),
+      };
+    });
+
     const count = await Project.countDocuments(query);
+    const [planning, inProgress, completed, cancelled] = await Promise.all([
+      Project.countDocuments({ ...query, status: 'planning' }),
+      Project.countDocuments({ ...query, status: 'in-progress' }),
+      Project.countDocuments({ ...query, status: 'completed' }),
+      Project.countDocuments({ ...query, status: 'cancelled' }),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -116,7 +148,8 @@ exports.getProjects = async (req, res) => {
         projects,
         totalPages: Math.ceil(count / limit),
         currentPage: parseInt(page),
-        total: count
+        total: count,
+        summary: { total: count, planning, inProgress, completed, cancelled },
       }
     });
   } catch (error) {

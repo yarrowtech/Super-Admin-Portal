@@ -4,7 +4,6 @@ export const portalMenuConfig = {
     { label: 'HR Management', icon: 'badge', path: '/hr/dashboard', description: 'People operations workspace' },
     { label: 'Employees', icon: 'group', path: '/admin/users', description: 'Users and role management' },
     { label: 'Reports', icon: 'bar_chart', path: '/admin/reports', description: 'Company performance reports' },
-    { label: 'Settings', icon: 'settings', path: '/admin/super-admin', description: 'System controls and policies' },
   ],
   hr: [
     { label: 'Dashboard', icon: 'dashboard', path: '/hr/dashboard', description: 'HR command center' },

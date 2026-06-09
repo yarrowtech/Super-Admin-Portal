@@ -50,12 +50,6 @@ const navItems = [
     description: 'Process management'
   },
   {
-    label: 'Super Admin',
-    icon: 'admin_panel_settings',
-    path: '/admin/super-admin',
-    description: 'Global controls'
-  },
-  {
     label: 'Outsourcing',
     icon: 'work',
     path: '/admin/outsourcing/dashboard',

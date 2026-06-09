@@ -47,14 +47,6 @@ const moduleCards = [
     tone: 'indigo',
     status: 'Configured',
   },
-  {
-    title: 'Super Admin',
-    description: 'Global platform controls, flags, portals, and system health.',
-    icon: 'admin_panel_settings',
-    route: '/admin/super-admin',
-    tone: 'orange',
-    status: 'Restricted',
-  },
 ];
 
 const toneClasses = {

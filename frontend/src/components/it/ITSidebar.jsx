@@ -9,8 +9,8 @@ const ITSidebar = ({ activeSection, onSelect, sections = [] }) => {
 
   return (
     <SectionSidebar
-      title="IT Admin"
-      subtitle="Infrastructure & Technology"
+      title="IT Portal"
+      subtitle="Executive technology control center"
       icon="memory"
       items={sections}
       activeId={activeSection}

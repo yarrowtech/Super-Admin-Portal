@@ -10,8 +10,19 @@ const MediaPortal = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSection, setActiveSection] = useState('dashboard');
   const selectedProjectId = searchParams.get('projectId') || '';
+  const isVirtualProjectId = selectedProjectId.startsWith('virtual-');
 
   useEffect(() => {
+    if (isVirtualProjectId) {
+      try {
+        localStorage.removeItem('activeProjectId');
+      } catch {
+        // ignore storage issues
+      }
+      setSearchParams({});
+      return;
+    }
+
     if (selectedProjectId) {
       try {
         localStorage.setItem('activeProjectId', selectedProjectId);
@@ -23,31 +34,38 @@ const MediaPortal = () => {
 
     try {
       const stored = localStorage.getItem('activeProjectId');
-      if (stored && stored !== 'all') {
+      if (stored && stored !== 'all' && !stored.startsWith('virtual-')) {
         setSearchParams({ projectId: stored });
+      } else if (stored && stored.startsWith('virtual-')) {
+        localStorage.removeItem('activeProjectId');
       }
     } catch {
       // ignore storage issues
     }
-  }, [selectedProjectId, setSearchParams]);
+  }, [isVirtualProjectId, selectedProjectId, setSearchParams]);
 
   const handleProjectChange = (projectId) => {
-    if (projectId) {
+    const nextProjectId = String(projectId || '').startsWith('virtual-') ? '' : projectId;
+
+    if (!nextProjectId) {
       try {
-        localStorage.setItem('activeProjectId', projectId);
+        localStorage.removeItem('activeProjectId');
       } catch {
         // ignore storage issues
       }
-      setSearchParams({ projectId });
+      setSearchParams({});
       return;
     }
 
-    try {
-      localStorage.removeItem('activeProjectId');
-    } catch {
-      // ignore storage issues
+    if (projectId) {
+      try {
+        localStorage.setItem('activeProjectId', nextProjectId);
+      } catch {
+        // ignore storage issues
+      }
+      setSearchParams({ projectId: nextProjectId });
+      return;
     }
-    setSearchParams({});
   };
 
   const mobileItems = useMemo(
@@ -75,7 +93,7 @@ const MediaPortal = () => {
         <MediaDashboard
           activeSection={activeSection}
           onSectionChange={setActiveSection}
-          selectedProjectId={selectedProjectId}
+          selectedProjectId={isVirtualProjectId ? '' : selectedProjectId}
           onProjectChange={handleProjectChange}
         />
       </div>

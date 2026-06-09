@@ -26,6 +26,7 @@ export default function OutsourcingJobsRoute() {
     error,
     busyJobId,
     acceptJob,
+    rejectJob,
     setJobStatus,
     retry,
   } = useOutsourcingJobsPage();
@@ -39,6 +40,11 @@ export default function OutsourcingJobsRoute() {
     normalizedOutsourcingType === '3rd_party_worker' ||
     normalizedOutsourcingType === 'thirdpartyworker' ||
     normalizedOutsourcingType === 'freelancer';
+  const promptRejectReason = async (jobId) => {
+    const rejectionReason = window.prompt('Enter rejection reason for this task');
+    if (!rejectionReason || !rejectionReason.trim()) return;
+    await rejectJob({ jobId, rejectionReason: rejectionReason.trim() });
+  };
 
   return (
     <>
@@ -168,13 +174,16 @@ export default function OutsourcingJobsRoute() {
                 </thead>
                 <tbody>
                   {rows.map((job) => {
-                    const hasActiveContract = activeContractJobIds.has(String(job?._id));
-                    const isBusy = busyJobId === job._id;
-                    return (
+                        const hasActiveContract = activeContractJobIds.has(String(job?._id));
+                        const isBusy = busyJobId === job._id;
+                        return (
                       <tr key={job._id} className="border-b border-neutral-100 align-top dark:border-neutral-900">
                         <td className="px-3 py-4">
                           <p className="font-semibold text-neutral-900 dark:text-white">{job.title}</p>
                           <p className="mt-1 max-w-2xl text-xs leading-5 text-neutral-500 dark:text-neutral-400">{job.description || 'No description'}</p>
+                          {job.acceptanceStatus === 'rejected' && job.rejectionReason ? (
+                            <p className="mt-2 max-w-2xl text-xs font-medium text-rose-600 dark:text-rose-300">{job.rejectionReason}</p>
+                          ) : null}
                         </td>
                         <td className="px-3 py-4">
                           <OutsourcingBadge value={job.status} />
@@ -189,6 +198,11 @@ export default function OutsourcingJobsRoute() {
                             {isWorker && job.status === 'pending' ? (
                               <Button onClick={() => acceptJob(job._id)} disabled={isBusy} variant="primary" size="sm" className="min-h-10 rounded-xl">
                                 {isBusy ? 'Working...' : 'Accept'}
+                              </Button>
+                            ) : null}
+                            {isWorker && job.status === 'pending' ? (
+                              <Button onClick={() => promptRejectReason(job._id)} disabled={isBusy} variant="secondary" size="sm" className="min-h-10 rounded-xl">
+                                Reject
                               </Button>
                             ) : null}
                             {isWorker && hasActiveContract ? (
@@ -220,6 +234,9 @@ export default function OutsourcingJobsRoute() {
                       <div>
                         <h3 className="text-base font-semibold text-neutral-900 dark:text-white">{job.title}</h3>
                         <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{job.description || 'No description'}</p>
+                        {job.acceptanceStatus === 'rejected' && job.rejectionReason ? (
+                          <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-300">{job.rejectionReason}</p>
+                        ) : null}
                       </div>
                       <OutsourcingBadge value={job.status} />
                     </div>
@@ -232,6 +249,11 @@ export default function OutsourcingJobsRoute() {
                       {isWorker && job.status === 'pending' ? (
                         <Button onClick={() => acceptJob(job._id)} disabled={isBusy} variant="primary" size="sm" className="min-h-10 rounded-xl">
                           {isBusy ? 'Working...' : 'Accept'}
+                        </Button>
+                      ) : null}
+                      {isWorker && job.status === 'pending' ? (
+                        <Button onClick={() => promptRejectReason(job._id)} disabled={isBusy} variant="secondary" size="sm" className="min-h-10 rounded-xl">
+                          Reject
                         </Button>
                       ) : null}
                       {isWorker && hasActiveContract ? (

@@ -6,6 +6,31 @@ import Button from '../common/Button';
 
 const wrap = 'rounded-xl border border-neutral-200 bg-white p-4 shadow-sm min-h-[170px] dark:border-neutral-800 dark:bg-neutral-900 lg:p-5';
 
+const normalizeOutsourcingType = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+
+const isFreelancerWorker = (user) => {
+  const type = normalizeOutsourcingType(user?.metadata?.outsourcingType);
+  const department = String(user?.department || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
+  return (
+    user?.role === 'freelancer' ||
+    department === 'outsourcing' ||
+    department === 'outsource' ||
+    department === 'external_workforce' ||
+    type === 'third_party_worker' ||
+    type === '3rd_party_worker' ||
+    type === 'thirdpartyworker' ||
+    type === 'freelancer' ||
+    type === 'freelaner'
+  );
+};
+
 export const FreelancerStatsCards = ({ stats }) => (
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <KPICard title="Total Earnings" value={`INR ${stats.totalEarnings}`} icon="payments" colorScheme="green" subtitle="LIFETIME" compact className="min-h-[150px]" />
@@ -85,15 +110,17 @@ export const TaskDetailsView = ({ task }) => (
   </section>
 );
 
-export const TimeTracker = ({ isCheckedIn, onCheckIn, onCheckOut }) => (
+export const TimeTracker = ({ session, onCheckIn, onPause, onResume, onStop }) => (
   <section className={`${wrap} min-h-[130px]`}>
     <h3 className="mb-3 font-semibold text-neutral-900 dark:text-white">Time Tracker</h3>
     <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center">
-      <span className={`rounded-full px-2 py-1 text-xs ${isCheckedIn ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-600'}`}>
-        {isCheckedIn ? 'Checked In' : 'Checked Out'}
+      <span className={`rounded-full px-2 py-1 text-xs ${session?.status === 'active' ? 'bg-emerald-100 text-emerald-800' : session?.status === 'paused' ? 'bg-amber-100 text-amber-800' : 'bg-neutral-100 text-neutral-600'}`}>
+        {session?.status === 'active' ? 'Checked In' : session?.status === 'paused' ? 'Paused' : 'Checked Out'}
       </span>
-      <button onClick={onCheckIn} disabled={isCheckedIn} className="min-h-11 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Check In</button>
-      <button onClick={onCheckOut} disabled={!isCheckedIn} className="min-h-11 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Check Out</button>
+      <button onClick={onCheckIn} disabled={Boolean(session)} className="min-h-11 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Check In</button>
+      <button onClick={onPause} disabled={session?.status !== 'active'} className="min-h-11 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Pause</button>
+      <button onClick={onResume} disabled={session?.status !== 'paused'} className="min-h-11 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Resume</button>
+      <button onClick={onStop} disabled={!session} className="min-h-11 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Stop</button>
     </div>
   </section>
 );
@@ -101,17 +128,23 @@ export const TimeTracker = ({ isCheckedIn, onCheckIn, onCheckOut }) => (
 const WorkflowGuide = ({ workflow, onAction }) => {
   const labels = {
     accept_job: 'Accept an assigned job',
-    contract_active: 'Wait for admin to activate contract',
+    legal_agreement: 'Complete legal agreement setup',
+    work_execution: 'Work can begin after legal approval',
     check_in: 'Check in to start work session',
-    check_out: 'Check out after work session',
+    pause_work: 'Pause the current work session',
+    resume_work: 'Resume the paused work session',
+    stop_work: 'Stop the current work session',
     await_verification: 'Await admin verification of submitted log',
     generate_invoice: 'Generate invoice for approved logs'
   };
   const actionLabel = {
     accept_job: 'Go to Jobs',
-    contract_active: 'View Contracts',
+    legal_agreement: 'View Contracts',
+    work_execution: 'View Contracts',
     check_in: 'Check In Now',
-    check_out: 'Check Out Now',
+    pause_work: 'Pause Now',
+    resume_work: 'Resume Now',
+    stop_work: 'Stop Now',
     await_verification: 'View Time Logs',
     generate_invoice: 'Go to Invoices'
   };
@@ -310,6 +343,7 @@ export default function FreelancerDashboard({ token, user }) {
   const [contracts, setContracts] = useState([]);
   const [logs, setLogs] = useState([]);
   const [sessions, setSessions] = useState({ isCheckedIn: false, activeSession: null, sessions: [] });
+  const [workspace, setWorkspace] = useState(null);
   const [openSubmit, setOpenSubmit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -319,18 +353,38 @@ export default function FreelancerDashboard({ token, user }) {
     try {
       setLoading(true);
       setError('');
-      const [j, c, l, s, w] = await Promise.all([
+      const [j, c, l, s, w] = await Promise.allSettled([
         outsourcingApi.getJobs(token),
         outsourcingApi.getContracts(token),
         outsourcingApi.getTimeLogs(token),
         outsourcingApi.getMySessions(token),
         outsourcingApi.getMyWorkflow(token)
       ]);
-      setJobs(j.data || []);
-      setContracts(c.data || []);
-      setLogs(l.data || []);
-      setSessions(s.data || { isCheckedIn: false, activeSession: null, sessions: [] });
-      setWorkflow(w.data || null);
+      const workspaceResult = await Promise.allSettled([
+        outsourcingApi.getMyWorkspace(token)
+      ]);
+
+      const jobsData = j.status === 'fulfilled' ? j.value?.data || [] : [];
+      const contractsData = c.status === 'fulfilled' ? c.value?.data || [] : [];
+      const logsData = l.status === 'fulfilled' ? l.value?.data || [] : [];
+      const sessionsData = s.status === 'fulfilled' ? s.value?.data || { isCheckedIn: false, activeSession: null, sessions: [] } : { isCheckedIn: false, activeSession: null, sessions: [] };
+      const workflowData = w.status === 'fulfilled' ? w.value?.data || null : null;
+      const workspaceData = workspaceResult[0]?.status === 'fulfilled' ? workspaceResult[0].value?.data || null : null;
+
+      setJobs(Array.isArray(jobsData) ? jobsData : []);
+      setContracts(Array.isArray(contractsData) ? contractsData : []);
+      setLogs(Array.isArray(logsData) ? logsData : []);
+      setSessions(sessionsData);
+      setWorkflow(workflowData);
+      setWorkspace(workspaceData);
+
+      const failures = [j, c, l, s, w].filter((result) => result.status === 'rejected');
+      if (failures.length === [j, c, l, s, w].length) {
+        throw new Error('Failed to load freelancer dashboard data.');
+      }
+      if (failures.length > 0) {
+        setError('Some dashboard data could not be loaded. Showing available information.');
+      }
     } catch (e) {
       setError(e.message || 'Failed to load dashboard');
     } finally {
@@ -347,13 +401,27 @@ export default function FreelancerDashboard({ token, user }) {
       await load();
       return;
     }
-    if (step === 'check_out') {
-      await outsourcingApi.checkOut(token, {});
+    if (step === 'pause_work') {
+      await outsourcingApi.pauseSession(token, {});
+      await load();
+      return;
+    }
+    if (step === 'resume_work') {
+      await outsourcingApi.resumeSession(token, {});
+      await load();
+      return;
+    }
+    if (step === 'stop_work') {
+      await outsourcingApi.stopSession(token, {});
       await load();
       return;
     }
     if (step === 'accept_job') {
       setError('Open Jobs page and accept an available assigned job.');
+      return;
+    }
+    if (step === 'legal_agreement' || step === 'work_execution') {
+      setError('Open Contracts page to complete and activate the agreement before work can begin.');
       return;
     }
     if (step === 'generate_invoice') {
@@ -390,6 +458,13 @@ export default function FreelancerDashboard({ token, user }) {
     };
   }, [jobs, logs, contracts]);
 
+  const workspaceStats = useMemo(() => ({
+    projects: workspace?.summary?.projects ?? jobs.length,
+    contracts: workspace?.summary?.contracts ?? contracts.length,
+    notifications: workspace?.summary?.notifications ?? 0,
+    pendingLogs: workspace?.summary?.pendingLogs ?? logs.filter((x) => x.verificationStatus === 'pending').length,
+  }), [contracts.length, jobs.length, logs, workspace]);
+
   return (
     <main className="min-h-screen flex-1 overflow-y-auto bg-gradient-to-br from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800">
       <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
@@ -413,19 +488,62 @@ export default function FreelancerDashboard({ token, user }) {
         </Button>
       </PortalHeader>
 
-      {error ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-200">{error}</div> : null}
+      {error ? (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>{error}</span>
+            <Button variant="secondary" size="sm" onClick={load}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {loading ? (
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />)}
         </div>
       ) : null}
+      <section className={`${wrap} mb-4`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Central Workspace</p>
+            <h3 className="mt-1 text-2xl font-black text-neutral-900 dark:text-white">Your assigned scope, activity, and legal state</h3>
+            <p className="mt-1 max-w-3xl text-sm text-neutral-600 dark:text-neutral-400">
+              You only see the projects, contracts, sessions, and notifications assigned to your account. Everything else stays hidden.
+            </p>
+          </div>
+          <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+            Scope: {workspace?.scope || 'assigned_only'}
+          </span>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
+            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Assigned Projects</p>
+            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.projects}</p>
+          </div>
+          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
+            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Active Contracts</p>
+            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.contracts}</p>
+          </div>
+          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
+            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Notifications</p>
+            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.notifications}</p>
+          </div>
+          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
+            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Pending Logs</p>
+            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.pendingLogs}</p>
+          </div>
+        </div>
+      </section>
       <FreelancerStatsCards stats={stats} />
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2 items-stretch">
         <WorkflowGuide workflow={workflow} onAction={handleWorkflowAction} />
         <TimeTracker
-          isCheckedIn={sessions.isCheckedIn}
+          session={sessions.currentSession || sessions.activeSession || null}
           onCheckIn={async () => { await outsourcingApi.checkIn(token, {}); load(); }}
-          onCheckOut={async () => { await outsourcingApi.checkOut(token, {}); load(); }}
+          onPause={async () => { await outsourcingApi.pauseSession(token, {}); load(); }}
+          onResume={async () => { await outsourcingApi.resumeSession(token, {}); load(); }}
+          onStop={async () => { await outsourcingApi.stopSession(token, {}); load(); }}
         />
         <EarningsSummary current={stats.released} pending={stats.pendingAmount} />
       </div>
@@ -434,7 +552,13 @@ export default function FreelancerDashboard({ token, user }) {
           <h3 className="font-semibold text-neutral-900 dark:text-white">Essential Tasks</h3>
           <button onClick={() => setOpenSubmit(true)} className="min-h-10 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white dark:bg-white dark:text-black">Submit Work</button>
         </div>
-        {jobs.length === 0 ? (
+        {loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="h-16 animate-pulse rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+            ))}
+          </div>
+        ) : jobs.length === 0 ? (
           <p className="text-sm text-neutral-500">No assigned jobs yet.</p>
         ) : (
           <div className="space-y-2">

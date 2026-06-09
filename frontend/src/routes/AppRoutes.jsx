@@ -10,7 +10,6 @@ import {
   AdminReportsPage,
   AdminWorkflowsPage,
   AdminUsersPage,
-  SuperAdminPage,
   AdminOutsourcingDashboardPage,
   AdminOutsourcingFreelancersPage,
   AdminOutsourcingJobsPage,
@@ -58,6 +57,14 @@ import {
   LSWLegalLibraryPage,
   AdminLegalRegistryPage,
   AdminLegalLibraryPage,
+  ITDashboard,
+  ITOverviewPage,
+  ITProductsPage,
+  ITProductWorkspacePage,
+  ITTicketsPage,
+  ITTicketDetailPage,
+  ITAssetsPage,
+  ITAssetDetailPage,
 } from '../pages';
 import {
   AdminLayout,
@@ -204,7 +211,18 @@ export default function AppRoutes() {
               </PrivateRoute>
             </PortalRoute>
           }
-        />
+        >
+          <Route index element={<ITOverviewPage />} />
+          <Route path="products" element={<ITProductsPage />} />
+          <Route path="products/:projectId" element={<ITProductWorkspacePage />} />
+          <Route path="tickets" element={<ITTicketsPage />} />
+          <Route path="tickets/:ticketId" element={<ITTicketDetailPage />} />
+          <Route path="assets" element={<ITAssetsPage />} />
+          <Route path="assets/:assetId" element={<ITAssetDetailPage />} />
+          <Route path="operations" element={<ITDashboard activeSection="monitoring" />} />
+          <Route path="activity" element={<ITDashboard activeSection="audit-logs" />} />
+          <Route path="settings" element={<ITDashboard activeSection="settings" />} />
+        </Route>
 
         <Route
           path="/law"
@@ -346,16 +364,6 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.ADMIN}>
               <PrivateRoute roles={['admin']}>
                 {withPortal(AdminLayout, AdminWorkflowsPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/admin/super-admin"
-          element={
-            <PortalRoute portal={PORTALS.SUPER_ADMIN}>
-              <PrivateRoute roles={['admin']}>
-                {withPortal(AdminLayout, SuperAdminPage)}
               </PrivateRoute>
             </PortalRoute>
           }

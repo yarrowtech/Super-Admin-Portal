@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
 import FreelancerDashboard from './FreelancerDashboard';
+import Button from '../common/Button';
 
 const statusTone = {
   pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
@@ -66,23 +67,48 @@ const PageHeader = ({ title, subtitle, right }) => (
   </div>
 );
 
+const normalizeOutsourcingType = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+
+const isFreelancerWorker = (user) => {
+  const type = normalizeOutsourcingType(user?.metadata?.outsourcingType);
+  const department = String(user?.department || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
+  return (
+    user?.role === 'freelancer' ||
+    department === 'outsourcing' ||
+    department === 'outsource' ||
+    department === 'external_workforce' ||
+    type === 'third_party_worker' ||
+    type === '3rd_party_worker' ||
+    type === 'thirdpartyworker' ||
+    type === 'freelancer' ||
+    type === 'freelaner'
+  );
+};
+
 export const OutsourcingDashboardPage = () => {
   const { token } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const isWorker =
-    user?.metadata?.outsourcingType === 'third_party_worker' ||
-    user?.metadata?.outsourcingType === 'freelancer';
   const [jobs, setJobs] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  if (isWorker) {
-    return <FreelancerDashboard token={token} user={user} />;
-  }
+  const isWorker = isFreelancerWorker(user);
 
   useEffect(() => {
+    if (!token || isWorker) {
+      setLoading(false);
+      return undefined;
+    }
+
     (async () => {
       try {
         const [res, jobsRes, contractsRes, logsRes] = await Promise.all([
@@ -119,7 +145,11 @@ export const OutsourcingDashboardPage = () => {
         setLoading(false);
       }
     })();
-  }, [token]);
+  }, [token, isWorker]);
+
+  if (isWorker) {
+    return <FreelancerDashboard token={token} user={user} />;
+  }
 
   const kpis = [
     { label: 'Jobs', value: data?.myStats?.jobs || 0, icon: 'work' },
@@ -167,6 +197,9 @@ export const OutsourcingDashboardPage = () => {
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">{job?.assignedFreelancer?.email || 'Unassigned'}</p>
                   </div>
                   <Badge value={job.status} />
+                  {job.acceptanceStatus === 'rejected' && job.rejectionReason ? (
+                    <p className="mt-1 max-w-[280px] text-xs text-rose-600 dark:text-rose-300">{job.rejectionReason}</p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -238,6 +271,21 @@ export const OutsourcingJobsPage = () => {
       await loadRows();
     } catch (err) {
       setError(err.message || 'Failed to accept job');
+    } finally {
+      setBusyJobId('');
+    }
+  };
+
+  const rejectJob = async (jobId) => {
+    const rejectionReason = window.prompt('Enter rejection reason for this task');
+    if (!rejectionReason || !rejectionReason.trim()) return;
+    try {
+      setBusyJobId(jobId);
+      setError('');
+      await outsourcingApi.rejectJob(token, jobId, rejectionReason.trim());
+      await loadRows();
+    } catch (err) {
+      setError(err.message || 'Failed to reject job');
     } finally {
       setBusyJobId('');
     }
@@ -323,7 +371,12 @@ export const OutsourcingJobsPage = () => {
                     </td>
                     <td className="py-3">{r?.createdBy?.email || 'Admin'}</td>
                     <td className="py-3">{r?.assignedFreelancer?.email || '-'}</td>
-                    <td className="py-3"><Badge value={r.acceptanceStatus || 'pending'} /></td>
+                    <td className="py-3">
+                      <Badge value={r.acceptanceStatus || 'pending'} />
+                      {r.acceptanceStatus === 'rejected' && r.rejectionReason ? (
+                        <p className="mt-1 max-w-[280px] text-xs text-rose-600 dark:text-rose-300">{r.rejectionReason}</p>
+                      ) : null}
+                    </td>
                     <td className="py-3"><Badge value={r.status} /></td>
                     <td className="py-3">
                       {(() => {
@@ -331,7 +384,7 @@ export const OutsourcingJobsPage = () => {
                         const isAssignedWorker = r?.assignedFreelancer?._id === user?._id;
                         const canAccept =
                           user?.role !== 'admin' &&
-                          r.acceptanceStatus !== 'accepted' &&
+                          r.acceptanceStatus === 'pending' &&
                           (!r?.assignedFreelancer || isAssignedWorker);
                         const canUpdateStatus =
                           user?.role !== 'admin' && isAssignedWorker && r.acceptanceStatus === 'accepted';
@@ -364,13 +417,22 @@ export const OutsourcingJobsPage = () => {
 
                         if (canAccept) {
                           return (
-                            <button
-                              onClick={() => acceptJob(r._id)}
-                              disabled={busyJobId === r._id}
-                              className="rounded bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60 dark:bg-white dark:text-black"
-                            >
-                              {busyJobId === r._id ? 'Accepting...' : 'Accept Job'}
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => acceptJob(r._id)}
+                                disabled={busyJobId === r._id}
+                                className="rounded bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60 dark:bg-white dark:text-black"
+                              >
+                                {busyJobId === r._id ? 'Accepting...' : 'Accept Job'}
+                              </button>
+                              <button
+                                onClick={() => rejectJob(r._id)}
+                                disabled={busyJobId === r._id}
+                                className="rounded border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-60 dark:border-rose-800 dark:text-rose-300"
+                              >
+                                Reject
+                              </button>
+                            </div>
                           );
                         }
 
@@ -418,8 +480,10 @@ export const OutsourcingJobsPage = () => {
 };
 
 export const OutsourcingContractsPage = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [rows, setRows] = useState([]);
+  const [drafts, setDrafts] = useState({});
+  const [savingId, setSavingId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -429,7 +493,17 @@ export const OutsourcingContractsPage = () => {
         setLoading(true);
         setError('');
         const res = await outsourcingApi.getContracts(token);
-        setRows(res.data || []);
+        const nextRows = res.data || [];
+        setRows(nextRows);
+        setDrafts(
+          nextRows.reduce((acc, contract) => {
+            acc[contract._id] = {
+              terms: contract.terms || '',
+              changeSummary: ''
+            };
+            return acc;
+          }, {})
+        );
       } catch (err) {
         setError(err.message || 'Failed to load contracts');
       } finally {
@@ -438,9 +512,40 @@ export const OutsourcingContractsPage = () => {
     })();
   }, [token]);
 
+  const canEditLegalDrafts = user?.role === 'admin' || user?.role === 'law';
+
+  const saveContractTerms = async (contractId) => {
+    const draft = drafts[contractId];
+    if (!draft?.terms?.trim()) return;
+    try {
+      setSavingId(contractId);
+      setError('');
+      await outsourcingApi.updateContractTerms(token, contractId, {
+        terms: draft.terms,
+        changeSummary: draft.changeSummary || 'Updated contract terms'
+      });
+      const refreshed = await outsourcingApi.getContracts(token);
+      const nextRows = refreshed.data || [];
+      setRows(nextRows);
+      setDrafts(
+        nextRows.reduce((acc, contract) => {
+          acc[contract._id] = {
+            terms: contract.terms || '',
+            changeSummary: ''
+          };
+          return acc;
+        }, {})
+      );
+    } catch (err) {
+      setError(err.message || 'Failed to update contract terms');
+    } finally {
+      setSavingId('');
+    }
+  };
+
   return (
     <>
-      <PageHeader title="Contracts" subtitle="Payment terms, rates, lifecycle and resource assignment" />
+      <PageHeader title="Contracts" subtitle="Payment terms, rates, lifecycle, legal review, and revision history" />
       {error ? <ErrorState message={error} /> : null}
       {loading ? <LoadingList rows={4} /> : null}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -453,13 +558,78 @@ export const OutsourcingContractsPage = () => {
             <Card key={r._id}>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h3 className="font-semibold text-neutral-900 dark:text-white">{r?.job?.title || 'Untitled Job'}</h3>
-                <Badge value={r.status} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge value={r.status} />
+                  <Badge value={r.lawStatus || 'pending'} />
+                  <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                    v{r.currentVersion || 1}
+                  </span>
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-3 text-sm text-neutral-600 dark:text-neutral-300 sm:grid-cols-2">
                 <p><span className="font-medium">Type:</span> {r.paymentType}</p>
                 <p><span className="font-medium">Rate:</span> {r.rate} {r.currency}</p>
                 <p><span className="font-medium">Created By:</span> {r?.createdBy?.email || 'Super Admin'}</p>
                 <p><span className="font-medium">Worker:</span> {r?.freelancer?.email || '-'}</p>
+              </div>
+              <div className="mt-4 space-y-3">
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase text-neutral-500">Agreement Terms</p>
+                  {canEditLegalDrafts && ['draft', 'rejected'].includes(r.status) ? (
+                    <>
+                      <textarea
+                        className="min-h-36 w-full rounded-xl border border-neutral-300 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                        value={drafts[r._id]?.terms || ''}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [r._id]: { ...prev[r._id], terms: e.target.value } }))}
+                        placeholder="Edit legal terms, NDA clauses, ownership, delivery obligations, and sign-off language."
+                      />
+                      <input
+                        className="mt-2 w-full rounded-xl border border-neutral-300 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                        value={drafts[r._id]?.changeSummary || ''}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [r._id]: { ...prev[r._id], changeSummary: e.target.value } }))}
+                        placeholder="Change summary for this revision"
+                      />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="min-h-10 rounded-xl"
+                          onClick={() => saveContractTerms(r._id)}
+                          disabled={savingId === r._id}
+                        >
+                          {savingId === r._id ? 'Saving...' : 'Save Revision'}
+                        </Button>
+                        <span className="text-xs text-neutral-500">Edits will reset legal approval to pending.</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900/60">
+                      {r.terms || 'No terms recorded for this contract.'}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase text-neutral-500">Version History</p>
+                  {Array.isArray(r.revisions) && r.revisions.length > 0 ? (
+                    <div className="space-y-2">
+                      {r.revisions.slice().reverse().map((rev) => (
+                        <div key={`${r._id}-${rev.version}`} className="rounded-xl border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-800 dark:bg-neutral-950">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="font-semibold text-neutral-900 dark:text-white">Version {rev.version}</div>
+                            <div className="text-xs text-neutral-500">{rev.editedAt ? new Date(rev.editedAt).toLocaleString() : '-'}</div>
+                          </div>
+                          <p className="mt-1 text-xs text-neutral-500">{rev.changeSummary || 'No summary'}</p>
+                          <p className="mt-2 whitespace-pre-wrap text-neutral-600 dark:text-neutral-300">{rev.terms || 'No terms stored'}</p>
+                          <p className="mt-2 text-xs text-neutral-500">
+                            {rev.editedBy?.email || 'System'} • NDA {rev.ndaSigned ? 'Signed' : 'Pending'} • Agreement {rev.agreementSigned ? 'Signed' : 'Pending'} • Payment terms {rev.paymentTermsAccepted ? 'Accepted' : 'Pending'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState title="No revisions yet" subtitle="The first save will create version history." />
+                  )}
+                </div>
               </div>
             </Card>
           ))
@@ -494,8 +664,8 @@ export const OutsourcingTimeLogsPage = () => {
   const loadSessions = () =>
     outsourcingApi
       .getMySessions(token)
-      .then((res) => setSessionData(res.data || { isCheckedIn: false, activeSession: null, sessions: [] }))
-      .catch(() => setSessionData({ isCheckedIn: false, activeSession: null, sessions: [] }));
+      .then((res) => setSessionData(res.data || { isCheckedIn: false, activeSession: null, currentSession: null, sessionMetrics: null, sessions: [] }))
+      .catch(() => setSessionData({ isCheckedIn: false, activeSession: null, currentSession: null, sessionMetrics: null, sessions: [] }));
 
   useEffect(() => {
     load();
@@ -516,15 +686,43 @@ export const OutsourcingTimeLogsPage = () => {
     }
   };
 
-  const onCheckOut = async () => {
+  const onPause = async () => {
     try {
       setSessionBusy(true);
       setSessionMsg('');
-      const out = await outsourcingApi.checkOut(token, {});
-      setSessionMsg(`Checked out. Duration: ${out?.data?.durationHours || 0}h`);
+      await outsourcingApi.pauseSession(token, {});
+      setSessionMsg('Session paused.');
       await loadSessions();
     } catch (err) {
-      setSessionMsg(err.message || 'Failed to check out');
+      setSessionMsg(err.message || 'Failed to pause session');
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const onResume = async () => {
+    try {
+      setSessionBusy(true);
+      setSessionMsg('');
+      await outsourcingApi.resumeSession(token, {});
+      setSessionMsg('Session resumed.');
+      await loadSessions();
+    } catch (err) {
+      setSessionMsg(err.message || 'Failed to resume session');
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const onStop = async () => {
+    try {
+      setSessionBusy(true);
+      setSessionMsg('');
+      const out = await outsourcingApi.stopSession(token, {});
+      setSessionMsg(`Stopped. Duration: ${out?.data?.durationHours || 0}h`);
+      await loadSessions();
+    } catch (err) {
+      setSessionMsg(err.message || 'Failed to stop session');
     } finally {
       setSessionBusy(false);
     }
@@ -584,10 +782,10 @@ export const OutsourcingTimeLogsPage = () => {
       {user?.metadata?.outsourcingType === 'third_party_worker' || user?.metadata?.outsourcingType === 'freelancer' ? (
         <Card className="mb-4">
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
-            <Badge value={sessionData?.isCheckedIn ? 'active' : 'closed'} />
+            <Badge value={sessionData?.currentSession?.status || (sessionData?.isCheckedIn ? 'active' : 'closed')} />
             <p className="text-sm text-neutral-700 dark:text-neutral-300">
-              {sessionData?.isCheckedIn
-                ? `Checked in at ${new Date(sessionData?.activeSession?.checkInAt).toLocaleString()}`
+              {sessionData?.currentSession
+                ? `Session started ${new Date(sessionData?.currentSession?.checkInAt).toLocaleString()}`
                 : 'Currently checked out'}
             </p>
             <button
@@ -599,15 +797,49 @@ export const OutsourcingTimeLogsPage = () => {
               Check In
             </button>
             <button
-              disabled={sessionBusy || !sessionData?.isCheckedIn}
-              onClick={onCheckOut}
+              disabled={sessionBusy || sessionData?.currentSession?.status !== 'active'}
+              onClick={onPause}
+              type="button"
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Pause
+            </button>
+            <button
+              disabled={sessionBusy || sessionData?.currentSession?.status !== 'paused'}
+              onClick={onResume}
+              type="button"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Resume
+            </button>
+            <button
+              disabled={sessionBusy || !sessionData?.currentSession}
+              onClick={onStop}
               type="button"
               className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
             >
-              Check Out
+              Stop
             </button>
           </div>
           {sessionMsg ? <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-300">{sessionMsg}</p> : null}
+          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-800 dark:bg-neutral-950">
+              <p className="text-xs text-neutral-500">Elapsed</p>
+              <p className="text-lg font-semibold">{sessionData?.sessionMetrics?.elapsedMinutes || 0} min</p>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-800 dark:bg-neutral-950">
+              <p className="text-xs text-neutral-500">Billable</p>
+              <p className="text-lg font-semibold">{sessionData?.sessionMetrics?.billableHours || 0} h</p>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-800 dark:bg-neutral-950">
+              <p className="text-xs text-neutral-500">Idle</p>
+              <p className="text-lg font-semibold">{sessionData?.sessionMetrics?.idleMinutes || 0} min</p>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-800 dark:bg-neutral-950">
+              <p className="text-xs text-neutral-500">Productivity</p>
+              <p className="text-lg font-semibold">{sessionData?.sessionMetrics?.productivityScore || 0}%</p>
+            </div>
+          </div>
           <h3 className="mb-3 text-base font-semibold text-neutral-900 dark:text-white">Submit Work Update</h3>
           <form className="grid grid-cols-1 gap-3 md:grid-cols-2" onSubmit={submitLog}>
             <input className="rounded-xl border border-neutral-300 bg-white p-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="Contract ID" value={contractId} onChange={(e) => setContractId(e.target.value)} required />

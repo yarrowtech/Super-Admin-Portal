@@ -11,7 +11,7 @@ const OutsourcingPortal = () => {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen overflow-x-clip bg-gradient-to-br from-neutral-100 via-neutral-50 to-white dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
+    <div className="flex min-h-screen overflow-x-clip bg-neutral-50 dark:bg-neutral-900">
       <OutsourcingSidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <button
         type="button"
@@ -21,7 +21,7 @@ const OutsourcingPortal = () => {
       >
         <span className="material-symbols-outlined text-[20px]">menu</span>
       </button>
-      <div className="flex-1 px-3 pb-4 pt-16 tb:px-4 lap:ml-64 lap:px-6 lap:pt-6">
+      <div className="flex-1 px-3 pb-4 pt-16 md:ml-[250px] md:px-6 md:pt-6">
         <div className="mx-auto w-full max-w-[1500px]">
           <Outlet />
         </div>

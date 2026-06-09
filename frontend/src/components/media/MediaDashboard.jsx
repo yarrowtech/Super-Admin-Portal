@@ -133,14 +133,14 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
           '';
         const hasRealProjectId = effectiveProjectId && !String(effectiveProjectId).startsWith('virtual-');
 
-        if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
+        if (activeSection !== 'dashboard' && hasRealProjectId && !selectedProjectId) {
           onProjectChange?.(effectiveProjectId);
         }
 
         const projectParams = effectiveProjectId ? { projectId: effectiveProjectId } : {};
         const scopedParams = hasRealProjectId ? projectParams : {};
 
-        const [dashboardRes, assetsRes, campaignsRes, contentRes, brandRes, approvalsRes, reportingRes] = await Promise.all([
+        const [dashboardRes, assetsRes, campaignsRes, contentRes, brandRes, approvalsRes, reportingRes] = await Promise.allSettled([
           departmentApi.getMediaDashboard(token, scopedParams),
           departmentApi.getMediaAssets(token, scopedParams),
           departmentApi.getMediaCampaigns(token, scopedParams),
@@ -152,12 +152,14 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
 
         if (ignore) return;
 
-        const dashboardData = dashboardRes?.data || {};
-        const assetItems = assetsRes?.data?.items || [];
-        const campaignItems = campaignsRes?.data?.campaigns || [];
-        const contentItems = contentRes?.data?.content || [];
-        const brandItems = brandRes?.data?.items || [];
-        const approvalItems = approvalsRes?.data?.items || [];
+        const settled = [dashboardRes, assetsRes, campaignsRes, contentRes, brandRes, approvalsRes, reportingRes];
+        const allFailed = settled.every((result) => result.status === 'rejected');
+        const dashboardData = dashboardRes.status === 'fulfilled' ? dashboardRes.value?.data || {} : {};
+        const assetItems = assetsRes.status === 'fulfilled' ? assetsRes.value?.data?.items || [] : [];
+        const campaignItems = campaignsRes.status === 'fulfilled' ? campaignsRes.value?.data?.campaigns || [] : [];
+        const contentItems = contentRes.status === 'fulfilled' ? contentRes.value?.data?.content || [] : [];
+        const brandItems = brandRes.status === 'fulfilled' ? brandRes.value?.data?.items || [] : [];
+        const approvalItems = approvalsRes.status === 'fulfilled' ? approvalsRes.value?.data?.items || [] : [];
 
         setDashboard(dashboardData);
         setProjects(strictProjects);
@@ -166,16 +168,20 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
         setContent(Array.isArray(contentItems) ? contentItems : []);
         setBrandAssets(Array.isArray(brandItems) ? brandItems : []);
         setApprovals(Array.isArray(approvalItems) ? approvalItems : []);
-        setReporting(reportingRes?.data || null);
+        setReporting(reportingRes.status === 'fulfilled' ? reportingRes.value?.data || null : null);
         setUpdatedAt(Date.now());
         try {
-          if (effectiveProjectId) {
+          if (hasRealProjectId) {
             localStorage.setItem('activeProjectId', String(effectiveProjectId));
           } else {
             localStorage.removeItem('activeProjectId');
           }
         } catch {
           // ignore storage issues
+        }
+        if (allFailed) {
+          const firstFailure = settled.find((result) => result.status === 'rejected');
+          setError(firstFailure?.reason?.message || 'Failed to load Media portal data.');
         }
       } catch (err) {
         if (!ignore) {

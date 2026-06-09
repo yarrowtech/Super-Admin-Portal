@@ -24,7 +24,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
 const ADMIN_ROLE = 'admin';
 
 const PAYMENT_TYPES = ['hourly', 'daily', 'weekly', 'fixed'];
-const JOB_STATUSES = ['pending', 'accepted', 'in_progress', 'completed'];
+const JOB_STATUSES = ['pending', 'accepted', 'in_progress', 'completed', 'rejected'];
 
 const isAdmin = (user) => user?.role === ADMIN_ROLE;
 
@@ -73,6 +73,75 @@ const writeOutsourcingActivity = async (req, action, targetId, metadata = {}) =>
   } catch (error) {
     logger.warn({ err: error, action }, 'Failed to write outsourcing activity');
   }
+};
+
+const notifyOutsourcingAdmins = async ({ title, message, type, metadata = {} }) => {
+  const admins = await User.find({ role: ADMIN_ROLE }).select('_id department');
+  if (!admins.length) return;
+
+  await Notification.insertMany(
+    admins.map((admin) => ({
+      manager: admin._id,
+      managerDepartment: admin.department || 'Administration',
+      department: 'Outsourcing',
+      title,
+      message,
+      type,
+      metadata
+    }))
+  );
+};
+
+const appendContractRevision = ({ contract, actorId, changeSummary = '', terms = null, overrideFlags = null }) => {
+  const nextVersion = Math.max(1, Number(contract.currentVersion || 1)) + (contract.revisions?.length ? 1 : 0);
+  const snapshot = {
+    version: nextVersion,
+    terms: terms ?? contract.terms ?? '',
+    changeSummary: changeSummary || '',
+    ndaSigned: overrideFlags?.ndaSigned ?? contract.ndaSigned ?? false,
+    agreementSigned: overrideFlags?.agreementSigned ?? contract.agreementSigned ?? false,
+    paymentTermsAccepted: overrideFlags?.paymentTermsAccepted ?? contract.paymentTermsAccepted ?? false,
+    signedAt: overrideFlags?.signedAt ?? contract.signedAt ?? null,
+    editedBy: actorId || null,
+    editedAt: new Date()
+  };
+  contract.currentVersion = snapshot.version;
+  contract.revisions = Array.isArray(contract.revisions) ? [...contract.revisions, snapshot] : [snapshot];
+  if (terms !== null) contract.terms = terms;
+  return snapshot;
+};
+
+const getLatestWorkerSession = (workerId) =>
+  OutsourcingWorkSession.findOne({ worker: workerId, status: { $in: ['active', 'paused'] } }).sort({ checkInAt: -1 });
+
+const calculateSessionMetrics = (session, now = new Date()) => {
+  if (!session) {
+    return {
+      elapsedMinutes: 0,
+      activeMinutes: 0,
+      idleMinutes: 0,
+      billableHours: 0,
+      nonBillableHours: 0,
+      productivityScore: 0
+    };
+  }
+
+  const totalElapsedMinutes = Math.max(0, Math.round((now.getTime() - new Date(session.checkInAt).getTime()) / 60000));
+  const pausedMinutes = Math.max(0, Number(session.totalPausedMinutes || 0));
+  const activeMinutes = Math.max(0, totalElapsedMinutes - pausedMinutes);
+  const idleMinutes = session.status === 'paused' ? Math.max(0, Math.round((now.getTime() - new Date(session.pausedAt || session.lastStatusAt || session.checkInAt).getTime()) / 60000)) : 0;
+  const billableHours = Number((activeMinutes / 60).toFixed(2));
+  const nonBillableHours = Number((pausedMinutes / 60).toFixed(2));
+  const productivityScore = totalElapsedMinutes ? Math.max(0, Math.min(100, Math.round((activeMinutes / totalElapsedMinutes) * 100))) : 0;
+
+  return {
+    elapsedMinutes: totalElapsedMinutes,
+    activeMinutes,
+    idleMinutes,
+    billableHours,
+    nonBillableHours,
+    productivityScore
+  };
 };
 
 const createOutsourcingUser = async (req, res) => {
@@ -206,9 +275,21 @@ const assignJobToFreelancer = async (req, res) => {
     job.assignedFreelancer = freelancer._id;
     job.acceptanceStatus = 'pending';
     if (job.status === 'accepted') job.status = 'pending';
+    job.rejectionReason = '';
+    job.rejectedAt = null;
+    job.rejectedBy = null;
     await job.save();
     await writeOutsourcingActivity(req, 'outsourcing.job_assigned', job._id, {
       freelancerId: freelancer._id
+    });
+    await Notification.create({
+      manager: freelancer._id,
+      managerDepartment: freelancer.department || 'Outsourcing',
+      department: 'Outsourcing',
+      title: 'New Task Assigned',
+      message: `You have a new outsourcing task: "${job.title}"`,
+      type: 'outsourcing_job_assigned',
+      metadata: { jobId: job._id, freelancerId: freelancer._id }
     });
 
     return res.status(200).json({ success: true, data: job });
@@ -270,6 +351,17 @@ const updateJobStatus = async (req, res) => {
 
     job.status = status;
     await job.save();
+    if (job.assignedFreelancer && req.user?.role === ADMIN_ROLE) {
+      await Notification.create({
+        manager: job.assignedFreelancer,
+        managerDepartment: 'Outsourcing',
+        department: 'Outsourcing',
+        title: 'Task Status Updated',
+        message: `Task "${job.title}" moved to ${status}.`,
+        type: 'outsourcing_job_status_updated',
+        metadata: { jobId: job._id, status }
+      });
+    }
     return res.status(200).json({ success: true, data: job });
   } catch (error) {
     logger.error({ err: error }, 'Update outsourcing job status error');
@@ -295,38 +387,89 @@ const acceptJob = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Job is assigned to another freelancer' });
     }
 
-    if (job.acceptanceStatus === 'accepted') {
-      return res.status(409).json({ success: false, error: 'Job already accepted' });
+    if (job.acceptanceStatus !== 'pending') {
+      return res.status(409).json({ success: false, error: 'Only pending jobs can be accepted' });
     }
 
     job.assignedFreelancer = req.user._id;
     job.acceptanceStatus = 'accepted';
     job.acceptedAt = new Date();
+    job.rejectionReason = '';
+    job.rejectedAt = null;
+    job.rejectedBy = null;
     job.status = 'accepted';
     await job.save();
     await writeOutsourcingActivity(req, 'outsourcing.job_accepted', job._id, {
       freelancerId: req.user._id
     });
 
-    const admins = await User.find({ role: ADMIN_ROLE }).select('_id department');
-    if (admins.length) {
-      await Notification.insertMany(
-        admins.map((admin) => ({
-          manager: admin._id,
-          managerDepartment: admin.department || 'Administration',
-          department: 'Outsourcing',
-          title: 'Job Accepted',
-          message: `${actor.firstName || ''} ${actor.lastName || ''}`.trim() + ` accepted job "${job.title}"`,
-          type: 'outsourcing_job_accepted',
-          metadata: { jobId: job._id, freelancerId: req.user._id }
-        }))
-      );
-    }
+    await notifyOutsourcingAdmins({
+      title: 'Job Accepted',
+      message: `${actor.firstName || ''} ${actor.lastName || ''}`.trim() + ` accepted job "${job.title}"`,
+      type: 'outsourcing_job_accepted',
+      metadata: { jobId: job._id, freelancerId: req.user._id }
+    });
+    await notifyOutsourcingAdmins({
+      title: 'Legal Workflow Required',
+      message: `Create and activate the agreement workflow for "${job.title}" before execution starts.`,
+      type: 'outsourcing_legal_workflow',
+      metadata: { jobId: job._id, freelancerId: req.user._id, step: 'legal_agreement' }
+    });
 
     return res.status(200).json({ success: true, data: job });
   } catch (error) {
     logger.error({ err: error }, 'Accept outsourcing job error');
     return res.status(500).json({ success: false, error: 'Failed to accept job', details: error.message });
+  }
+};
+
+const rejectJob = async (req, res) => {
+  try {
+    const actor = await User.findById(req.user._id).select('role metadata firstName lastName email');
+    if (!actor || !isWorkerUser(actor)) {
+      return res.status(403).json({ success: false, error: 'Only freelancers can reject jobs' });
+    }
+
+    const rejectionReason = String(req.body?.rejectionReason || '').trim();
+    if (!rejectionReason) {
+      return res.status(400).json({ success: false, error: 'rejectionReason is required' });
+    }
+
+    const job = await OutsourcingJob.findById(req.params.id);
+    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (!job.assignedFreelancer) {
+      return res.status(403).json({ success: false, error: 'Job must be assigned by admin before rejection' });
+    }
+    if (String(job.assignedFreelancer) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, error: 'Job is assigned to another freelancer' });
+    }
+    if (job.acceptanceStatus !== 'pending') {
+      return res.status(409).json({ success: false, error: 'Only pending jobs can be rejected' });
+    }
+
+    job.acceptanceStatus = 'rejected';
+    job.rejectionReason = rejectionReason;
+    job.rejectedAt = new Date();
+    job.rejectedBy = req.user._id;
+    job.status = 'rejected';
+    await job.save();
+
+    await writeOutsourcingActivity(req, 'outsourcing.job_rejected', job._id, {
+      freelancerId: req.user._id,
+      rejectionReason
+    });
+
+    await notifyOutsourcingAdmins({
+      title: 'Job Rejected',
+      message: `${actor.firstName || ''} ${actor.lastName || ''}`.trim() + ` rejected job "${job.title}"`,
+      type: 'outsourcing_job_rejected',
+      metadata: { jobId: job._id, freelancerId: req.user._id, rejectionReason }
+    });
+
+    return res.status(200).json({ success: true, data: job });
+  } catch (error) {
+    logger.error({ err: error }, 'Reject outsourcing job error');
+    return res.status(500).json({ success: false, error: 'Failed to reject job', details: error.message });
   }
 };
 
@@ -376,8 +519,24 @@ const createContract = async (req, res) => {
       agreementSigned: Boolean(agreementSigned),
       paymentTermsAccepted: Boolean(paymentTermsAccepted),
       signedAt: ndaSigned && agreementSigned && paymentTermsAccepted ? new Date() : null,
+      currentVersion: 1,
+      revisions: [],
       createdBy: req.user._id
     });
+
+    appendContractRevision({
+      contract,
+      actorId: req.user._id,
+      changeSummary: 'Initial agreement draft created',
+      terms: contract.terms,
+      overrideFlags: {
+        ndaSigned: contract.ndaSigned,
+        agreementSigned: contract.agreementSigned,
+        paymentTermsAccepted: contract.paymentTermsAccepted,
+        signedAt: contract.signedAt
+      }
+    });
+    await contract.save();
 
     await OutsourcingFreelancer.findOneAndUpdate(
       { user: freelancer._id },
@@ -388,11 +547,100 @@ const createContract = async (req, res) => {
       freelancerId: freelancer._id,
       paymentType
     });
+    await notifyOutsourcingAdmins({
+      title: 'Agreement Draft Ready',
+      message: `Legal review is required for "${job.title}" before work execution can begin.`,
+      type: 'outsourcing_contract_draft',
+      metadata: { jobId: job._id, contractId: contract._id, freelancerId: freelancer._id }
+    });
+    await Notification.create({
+      manager: freelancer._id,
+      managerDepartment: freelancer.department || 'Outsourcing',
+      department: 'Outsourcing',
+      title: 'Agreement Draft Created',
+      message: `Your agreement draft is ready for "${job.title}".`,
+      type: 'outsourcing_contract_created',
+      metadata: { jobId: job._id, contractId: contract._id }
+    });
 
     return res.status(201).json({ success: true, data: contract });
   } catch (error) {
     logger.error({ err: error }, 'Create outsourcing contract error');
     return res.status(500).json({ success: false, error: 'Failed to create contract', details: error.message });
+  }
+};
+
+const updateContractTerms = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const { terms, changeSummary } = req.body || {};
+    const contract = await OutsourcingContract.findById(contractId);
+    if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
+
+    if (!['draft', 'rejected'].includes(contract.status) && contract.lawStatus !== 'rejected') {
+      return res.status(400).json({ success: false, error: 'Only draft or rejected agreements can be edited' });
+    }
+
+    const nextTerms = String(terms || '').trim();
+    if (!nextTerms) {
+      return res.status(400).json({ success: false, error: 'terms are required' });
+    }
+
+    appendContractRevision({
+      contract,
+      actorId: req.user._id,
+      changeSummary: String(changeSummary || 'Contract terms updated').trim(),
+      terms: nextTerms
+    });
+
+    contract.status = 'draft';
+    contract.lawStatus = 'pending';
+    contract.signedAt = null;
+    await contract.save();
+
+    await writeOutsourcingActivity(req, 'outsourcing.contract_updated', contract._id, {
+      contractId: contract._id,
+      jobId: contract.job,
+      revision: contract.currentVersion
+    });
+
+    await notifyOutsourcingAdmins({
+      title: 'Agreement Draft Updated',
+      message: `Agreement terms for job "${contract.job}" were updated and are ready for legal review.`,
+      type: 'outsourcing_contract_updated',
+      metadata: { contractId: contract._id, jobId: contract.job, revision: contract.currentVersion }
+    });
+
+    return res.status(200).json({ success: true, data: contract });
+  } catch (error) {
+    logger.error({ err: error }, 'Update outsourcing contract error');
+    return res.status(500).json({ success: false, error: 'Failed to update contract terms', details: error.message });
+  }
+};
+
+const getContractHistory = async (req, res) => {
+  try {
+    const contract = await OutsourcingContract.findById(req.params.contractId)
+      .populate('revisions.editedBy', 'firstName lastName email role')
+      .populate('job', 'title')
+      .populate('freelancer', 'firstName lastName email');
+    if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        contractId: contract._id,
+        currentVersion: contract.currentVersion || 1,
+        status: contract.status,
+        lawStatus: contract.lawStatus,
+        signedAt: contract.signedAt,
+        revisions: contract.revisions || [],
+        current: contract
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get outsourcing contract history error');
+    return res.status(500).json({ success: false, error: 'Failed to fetch contract history', details: error.message });
   }
 };
 
@@ -430,6 +678,48 @@ const validateContractByLaw = async (req, res) => {
         'metadata.contractLifecycle': contract.lawStatus === 'validated' ? 'law_approved' : 'law_rejected',
         'metadata.accessScope': contract.lawStatus === 'validated' ? 'project_only' : 'blocked'
       }
+    });
+
+    appendContractRevision({
+      contract,
+      actorId: req.user._id,
+      changeSummary: contract.lawStatus === 'validated' ? 'Law approval granted' : 'Law approval rejected',
+      overrideFlags: {
+        ndaSigned: contract.ndaSigned,
+        agreementSigned: contract.agreementSigned,
+        paymentTermsAccepted: contract.paymentTermsAccepted,
+        signedAt: contract.lawStatus === 'validated' ? new Date() : contract.signedAt
+      }
+    });
+    if (contract.lawStatus === 'validated') {
+      contract.signedAt = contract.signedAt || new Date();
+    }
+    await contract.save();
+
+    await writeOutsourcingActivity(req, `outsourcing.contract_${contract.lawStatus}`, contract._id, {
+      contractId: contract._id,
+      jobId: contract.job,
+      freelancerId: contract.freelancer
+    });
+
+    await notifyOutsourcingAdmins({
+      title: contract.lawStatus === 'validated' ? 'Agreement Active' : 'Agreement Rejected',
+      message: contract.lawStatus === 'validated'
+        ? `Agreement for job "${contract.job}" is signed and active. Work execution can begin.`
+        : `Agreement for job "${contract.job}" was rejected by legal review.`,
+      type: contract.lawStatus === 'validated' ? 'outsourcing_contract_active' : 'outsourcing_contract_rejected',
+      metadata: { contractId: contract._id, jobId: contract.job, freelancerId: contract.freelancer }
+    });
+    await Notification.create({
+      manager: contract.freelancer,
+      managerDepartment: 'Outsourcing',
+      department: 'Outsourcing',
+      title: contract.lawStatus === 'validated' ? 'Agreement Signed and Active' : 'Agreement Rejected',
+      message: contract.lawStatus === 'validated'
+        ? `Your agreement for job "${contract.job}" is signed and active.`
+        : `Your agreement for job "${contract.job}" was rejected by legal review.`,
+      type: contract.lawStatus === 'validated' ? 'outsourcing_contract_active' : 'outsourcing_contract_rejected',
+      metadata: { contractId: contract._id, jobId: contract.job }
     });
 
     return res.status(200).json({ success: true, data: contract });
@@ -596,6 +886,7 @@ const listContracts = async (req, res) => {
       .populate('job', 'title status')
       .populate('createdBy', 'firstName lastName email')
       .populate('freelancer', 'firstName lastName email')
+      .populate('revisions.editedBy', 'firstName lastName email role')
       .sort({ createdAt: -1 });
     return res.status(200).json({ success: true, data: contracts });
   } catch (error) {
@@ -616,15 +907,12 @@ const logTime = async (req, res) => {
     if (String(contract.freelancer) !== String(req.user._id)) {
       return res.status(403).json({ success: false, error: 'Only assigned worker can log time' });
     }
-    if (contract.status !== 'active') {
-      return res.status(400).json({ success: false, error: 'Contract must be active to submit work log' });
+    if (contract.status !== 'active' || contract.lawStatus !== 'validated') {
+      return res.status(400).json({ success: false, error: 'Signed and active contract is required to submit work log' });
     }
-    const activeSession = await OutsourcingWorkSession.findOne({
-      worker: req.user._id,
-      status: 'active'
-    });
+    const activeSession = await getLatestWorkerSession(req.user._id);
     if (activeSession) {
-      return res.status(400).json({ success: false, error: 'Please check out before submitting a time log' });
+      return res.status(400).json({ success: false, error: 'Please stop the current work session before submitting a time log' });
     }
     const logDateObj = new Date(logDate);
     const duplicateLog = await OutsourcingTimeLog.findOne({
@@ -658,6 +946,13 @@ const logTime = async (req, res) => {
     if (normalizedWorkStatus === 'completed') {
       await OutsourcingJob.findByIdAndUpdate(contract.job, { status: 'completed' });
     }
+
+    await notifyOutsourcingAdmins({
+      title: 'Work Log Submitted',
+      message: `A new deliverable update was submitted for job "${contract.job}"`,
+      type: 'outsourcing_time_log_submitted',
+      metadata: { timeLogId: timeLog._id, contractId: contract._id, jobId: contract.job }
+    });
 
     return res.status(201).json({ success: true, data: timeLog });
   } catch (error) {
@@ -842,7 +1137,8 @@ const approveEscrowRelease = async (req, res) => {
 
 const outsourcingDashboard = async (req, res) => {
   try {
-    const [totalUsers, freelancers, jobsByStatus, totalContracts, activeContracts, pendingTimeLogs, approvedTimeLogs, paymentSummary, recentJobs, recentTimeLogs] =
+    const now = new Date();
+    const [totalUsers, freelancers, jobsByStatus, totalContracts, activeContracts, pendingTimeLogs, approvedTimeLogs, paymentSummary, recentJobs, recentTimeLogs, sessionSummary, agreementSummary, overdueTasks] =
       await Promise.all([
         User.countDocuments({ 'metadata.outsourcingType': 'freelancer' }),
         User.countDocuments({ 'metadata.outsourcingType': 'freelancer' }),
@@ -863,8 +1159,23 @@ const outsourcingDashboard = async (req, res) => {
           .populate('job', 'title status')
           .populate('freelancer', 'firstName lastName email')
           .sort({ createdAt: -1 })
-          .limit(10)
+          .limit(10),
+        OutsourcingWorkSession.aggregate([
+          { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]),
+        OutsourcingContract.aggregate([
+          {
+            $group: {
+              _id: '$lawStatus',
+              count: { $sum: 1 }
+            }
+          }
+        ]),
+        OutsourcingJob.countDocuments({ dueDate: { $lt: now }, status: { $ne: 'completed' } })
       ]);
+
+    const sessionsByStatus = Object.fromEntries((sessionSummary || []).map((row) => [row._id, row.count]));
+    const agreementsByStatus = Object.fromEntries((agreementSummary || []).map((row) => [row._id, row.count]));
 
     return res.status(200).json({
       success: true,
@@ -874,10 +1185,23 @@ const outsourcingDashboard = async (req, res) => {
         contracts: { total: totalContracts, active: activeContracts },
         timeLogs: { pendingVerification: pendingTimeLogs, approved: approvedTimeLogs },
         payments: { totalEscrowFunded: paymentSummary[0]?.totalEscrowFunded || 0 },
+        sessions: {
+          active: sessionsByStatus.active || 0,
+          paused: sessionsByStatus.paused || 0,
+          closed: sessionsByStatus.closed || 0
+        },
+        agreements: {
+          draft: agreementsByStatus.pending || 0,
+          validated: agreementsByStatus.validated || 0,
+          rejected: agreementsByStatus.rejected || 0,
+          active: activeContracts,
+          overdue: overdueTasks
+        },
         operations: {
           pendingVerification: pendingTimeLogs,
           readyToInvoice: approvedTimeLogs,
           activeContracts,
+          overdueTasks
         },
         recentJobs,
         recentTimeLogs
@@ -1040,18 +1364,20 @@ const updateMyProfile = async (req, res) => {
 
 const getMyActivityFeed = async (req, res) => {
   try {
-    const [sessions, logs, jobs] = await Promise.all([
+    const activityQuery = isAdmin(req.user) ? { module: 'outsourcing' } : { module: 'outsourcing', user: req.user._id };
+    const [sessions, logs, jobs, activities] = await Promise.all([
       OutsourcingWorkSession.find({ worker: req.user._id }).sort({ createdAt: -1 }).limit(10),
       OutsourcingTimeLog.find({ freelancer: req.user._id }).sort({ createdAt: -1 }).limit(10),
       OutsourcingJob.find({ assignedFreelancer: req.user._id }).sort({ updatedAt: -1 }).limit(10),
+      ActivityLog.find(activityQuery).sort({ createdAt: -1 }).limit(20)
     ]);
 
     const events = [
       ...sessions.map((s) => ({
         type: 'session',
-        title: s.status === 'active' ? 'Checked in' : 'Checked out',
+        title: s.status === 'active' ? 'Checked in' : s.status === 'paused' ? 'Paused work session' : 'Checked out',
         at: s.updatedAt || s.createdAt,
-        meta: { sessionId: s._id, status: s.status, durationMinutes: s.durationMinutes || 0 },
+        meta: { sessionId: s._id, status: s.status, durationMinutes: s.durationMinutes || 0, pausedMinutes: s.totalPausedMinutes || 0 },
       })),
       ...logs.map((l) => ({
         type: 'time_log',
@@ -1064,6 +1390,12 @@ const getMyActivityFeed = async (req, res) => {
         title: `Job status: ${j.status}`,
         at: j.updatedAt || j.createdAt,
         meta: { jobId: j._id, jobTitle: j.title, status: j.status },
+      })),
+      ...activities.map((a) => ({
+        type: 'activity',
+        title: a.action.replace(/^outsourcing\./, '').replace(/_/g, ' '),
+        at: a.createdAt,
+        meta: { action: a.action, targetId: a.targetId, targetType: a.targetType }
       })),
     ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
@@ -1088,6 +1420,79 @@ const getMyNotifications = async (req, res) => {
   }
 };
 
+const getMyWorkspace = async (req, res) => {
+  try {
+    const isAdminUser = isAdmin(req.user);
+    const activityQuery = isAdminUser ? { module: 'outsourcing' } : { module: 'outsourcing', user: req.user._id };
+    const [jobs, contracts, sessions, notifications, activities, logs] = await Promise.all([
+      OutsourcingJob.find(isAdminUser ? {} : { assignedFreelancer: req.user._id })
+        .populate('assignedFreelancer', 'firstName lastName email')
+        .populate('createdBy', 'firstName lastName email role')
+        .sort({ updatedAt: -1 })
+        .limit(25),
+      OutsourcingContract.find(isAdminUser ? {} : { freelancer: req.user._id })
+        .populate('job', 'title status dueDate')
+        .populate('freelancer', 'firstName lastName email')
+        .populate('revisions.editedBy', 'firstName lastName email role')
+        .sort({ updatedAt: -1 })
+        .limit(25),
+      OutsourcingWorkSession.find(isAdminUser ? {} : { worker: req.user._id })
+        .sort({ createdAt: -1 })
+        .limit(20),
+      Notification.find({
+        $or: isAdminUser ? [{ department: 'Outsourcing' }] : [{ recipient: req.user._id }, { manager: req.user._id }, { user: req.user._id }]
+      })
+        .sort({ createdAt: -1 })
+        .limit(20),
+      ActivityLog.find(activityQuery).sort({ createdAt: -1 }).limit(30),
+      OutsourcingTimeLog.find(isAdminUser ? {} : { freelancer: req.user._id }).sort({ createdAt: -1 }).limit(20)
+    ]);
+
+    const activeContracts = contracts.filter((contract) => contract.status === 'active' && contract.lawStatus === 'validated');
+    const activeSession = sessions.find((session) => session.status === 'active' || session.status === 'paused') || null;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        scope: isAdminUser ? 'enterprise' : 'assigned_only',
+        assignedProjects: jobs,
+        contracts,
+        activeContracts,
+        session: activeSession,
+        notifications,
+        activity: activities.map((entry) => ({
+          _id: entry._id,
+          action: entry.action,
+          module: entry.module,
+          targetType: entry.targetType,
+          targetId: entry.targetId,
+          createdAt: entry.createdAt,
+          metadata: entry.metadata
+        })),
+        logs: logs.map((log) => ({
+          _id: log._id,
+          job: log.job,
+          contract: log.contract,
+          logDate: log.logDate,
+          hours: log.hours,
+          verificationStatus: log.verificationStatus
+        })),
+        summary: {
+          projects: jobs.length,
+          contracts: contracts.length,
+          activeContracts: activeContracts.length,
+          notifications: notifications.length,
+          pendingLogs: logs.filter((log) => log.verificationStatus === 'pending').length,
+          activeSession: Boolean(activeSession)
+        }
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get outsourcing workspace error');
+    return res.status(500).json({ success: false, error: 'Failed to fetch workspace', details: error.message });
+  }
+};
+
 const checkIn = async (req, res) => {
   try {
     const actor = await User.findById(req.user._id).select('metadata');
@@ -1095,12 +1500,9 @@ const checkIn = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Only workers can check in' });
     }
 
-    const existing = await OutsourcingWorkSession.findOne({
-      worker: req.user._id,
-      status: 'active'
-    });
+    const existing = await getLatestWorkerSession(req.user._id);
     if (existing) {
-      return res.status(409).json({ success: false, error: 'Active check-in already exists', data: existing });
+      return res.status(409).json({ success: false, error: 'Active or paused work session already exists', data: existing });
     }
 
     const { contractId, jobId, note } = req.body || {};
@@ -1127,13 +1529,21 @@ const checkIn = async (req, res) => {
     if (!['accepted', 'in_progress'].includes(job.status)) {
       return res.status(400).json({ success: false, error: 'Job is not ready for check-in' });
     }
+    const now = new Date();
     const session = await OutsourcingWorkSession.create({
       worker: req.user._id,
       contract: activeContract._id,
       job: targetJobId,
-      checkInAt: new Date(),
+      checkInAt: now,
+      lastStatusAt: now,
       note: note?.trim() || '',
-      status: 'active'
+      status: 'active',
+      totalPausedMinutes: 0
+    });
+
+    await writeOutsourcingActivity(req, 'outsourcing.session_checked_in', session._id, {
+      jobId: targetJobId,
+      contractId: activeContract._id
     });
 
     return res.status(201).json({ success: true, data: session });
@@ -1152,22 +1562,31 @@ const checkOut = async (req, res) => {
 
     const active = await OutsourcingWorkSession.findOne({
       worker: req.user._id,
-      status: 'active'
+      status: { $in: ['active', 'paused'] }
     }).sort({ checkInAt: -1 });
 
     if (!active) {
-      return res.status(404).json({ success: false, error: 'No active check-in found' });
+      return res.status(404).json({ success: false, error: 'No active work session found' });
     }
 
     const outAt = new Date();
+    const pausedMinutes = Math.max(0, Number(active.totalPausedMinutes || 0));
     const diffMs = outAt.getTime() - new Date(active.checkInAt).getTime();
-    const durationMinutes = Math.max(0, Math.round(diffMs / 60000));
+    const durationMinutes = Math.max(0, Math.round(diffMs / 60000) - pausedMinutes);
 
     active.checkOutAt = outAt;
     active.durationMinutes = durationMinutes;
     active.status = 'closed';
+    active.lastStatusAt = outAt;
+    active.pausedAt = null;
     if (req.body?.note) active.note = String(req.body.note).trim();
     await active.save();
+
+    await writeOutsourcingActivity(req, 'outsourcing.session_checked_out', active._id, {
+      jobId: active.job,
+      contractId: active.contract,
+      durationMinutes
+    });
 
     return res.status(200).json({
       success: true,
@@ -1182,11 +1601,129 @@ const checkOut = async (req, res) => {
   }
 };
 
-const getMySessionStatus = async (req, res) => {
+const pauseWorkSession = async (req, res) => {
   try {
+    const actor = await User.findById(req.user._id).select('metadata');
+    if (!isWorkerUser(actor) && !isAdmin(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only workers can pause work sessions' });
+    }
+
     const active = await OutsourcingWorkSession.findOne({
       worker: req.user._id,
       status: 'active'
+    }).sort({ checkInAt: -1 });
+    if (!active) {
+      return res.status(404).json({ success: false, error: 'No active session found to pause' });
+    }
+
+    const now = new Date();
+    active.totalPausedMinutes = Math.max(0, Number(active.totalPausedMinutes || 0));
+    active.pausedAt = now;
+    active.lastStatusAt = now;
+    active.status = 'paused';
+    await active.save();
+
+    await writeOutsourcingActivity(req, 'outsourcing.session_paused', active._id, {
+      jobId: active.job,
+      contractId: active.contract
+    });
+
+    return res.status(200).json({ success: true, data: active });
+  } catch (error) {
+    logger.error({ err: error }, 'Outsourcing pause session error');
+    return res.status(500).json({ success: false, error: 'Failed to pause session', details: error.message });
+  }
+};
+
+const resumeWorkSession = async (req, res) => {
+  try {
+    const actor = await User.findById(req.user._id).select('metadata');
+    if (!isWorkerUser(actor) && !isAdmin(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only workers can resume work sessions' });
+    }
+
+    const paused = await OutsourcingWorkSession.findOne({
+      worker: req.user._id,
+      status: 'paused'
+    }).sort({ checkInAt: -1 });
+    if (!paused) {
+      return res.status(404).json({ success: false, error: 'No paused session found to resume' });
+    }
+
+    const now = new Date();
+    const pausedStart = paused.pausedAt || paused.lastStatusAt || paused.checkInAt;
+    const pauseMinutes = Math.max(0, Math.round((now.getTime() - new Date(pausedStart).getTime()) / 60000));
+    paused.totalPausedMinutes = Math.max(0, Number(paused.totalPausedMinutes || 0) + pauseMinutes);
+    paused.pausedAt = null;
+    paused.lastStatusAt = now;
+    paused.status = 'active';
+    await paused.save();
+
+    await writeOutsourcingActivity(req, 'outsourcing.session_resumed', paused._id, {
+      jobId: paused.job,
+      contractId: paused.contract,
+      pauseMinutes
+    });
+
+    return res.status(200).json({ success: true, data: paused });
+  } catch (error) {
+    logger.error({ err: error }, 'Outsourcing resume session error');
+    return res.status(500).json({ success: false, error: 'Failed to resume session', details: error.message });
+  }
+};
+
+const stopWorkSession = async (req, res) => {
+  try {
+    const actor = await User.findById(req.user._id).select('metadata');
+    if (!isWorkerUser(actor) && !isAdmin(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only workers can stop work sessions' });
+    }
+
+    const active = await OutsourcingWorkSession.findOne({
+      worker: req.user._id,
+      status: { $in: ['active', 'paused'] }
+    }).sort({ checkInAt: -1 });
+    if (!active) {
+      return res.status(404).json({ success: false, error: 'No active work session found' });
+    }
+
+    const now = new Date();
+    const pausedMinutes = Math.max(0, Number(active.totalPausedMinutes || 0));
+    const diffMs = now.getTime() - new Date(active.checkInAt).getTime();
+    const durationMinutes = Math.max(0, Math.round(diffMs / 60000) - pausedMinutes);
+
+    active.checkOutAt = now;
+    active.durationMinutes = durationMinutes;
+    active.status = 'closed';
+    active.lastStatusAt = now;
+    active.pausedAt = null;
+    if (req.body?.note) active.note = String(req.body.note).trim();
+    await active.save();
+
+    await writeOutsourcingActivity(req, 'outsourcing.session_stopped', active._id, {
+      jobId: active.job,
+      contractId: active.contract,
+      durationMinutes
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...active.toObject(),
+        durationHours: Number((durationMinutes / 60).toFixed(2))
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Outsourcing stop session error');
+    return res.status(500).json({ success: false, error: 'Failed to stop session', details: error.message });
+  }
+};
+
+const getMySessionStatus = async (req, res) => {
+  try {
+    const current = await OutsourcingWorkSession.findOne({
+      worker: req.user._id,
+      status: { $in: ['active', 'paused'] }
     }).sort({ checkInAt: -1 });
 
     const recent = await OutsourcingWorkSession.find({ worker: req.user._id })
@@ -1198,9 +1735,14 @@ const getMySessionStatus = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        isCheckedIn: Boolean(active),
-        activeSession: active || null,
-        sessions: recent
+        isCheckedIn: Boolean(current),
+        activeSession: current || null,
+        currentSession: current || null,
+        sessionMetrics: calculateSessionMetrics(current),
+        sessions: recent.map((session) => ({
+          ...session.toObject(),
+          sessionMetrics: calculateSessionMetrics(session)
+        }))
       }
     });
   } catch (error) {
@@ -1215,20 +1757,22 @@ const getMyWorkflow = async (req, res) => {
     const [jobs, contracts, activeSession, latestLog, approvedLog] = await Promise.all([
       OutsourcingJob.find({ assignedFreelancer: freelancerId }).sort({ updatedAt: -1 }).limit(50),
       OutsourcingContract.find({ freelancer: freelancerId }).sort({ updatedAt: -1 }).limit(50),
-      OutsourcingWorkSession.findOne({ worker: freelancerId, status: 'active' }).sort({ checkInAt: -1 }),
+      OutsourcingWorkSession.findOne({ worker: freelancerId, status: { $in: ['active', 'paused'] } }).sort({ checkInAt: -1 }),
       OutsourcingTimeLog.findOne({ freelancer: freelancerId }).sort({ createdAt: -1 }),
       OutsourcingTimeLog.findOne({ freelancer: freelancerId, verificationStatus: 'approved' }).sort({ verifiedAt: -1 })
     ]);
 
     const hasAcceptedJob = jobs.some((j) => j.acceptanceStatus === 'accepted');
-    const hasActiveContract = contracts.some((c) => c.status === 'active');
+    const hasPendingAgreement = contracts.some((c) => c.status === 'draft' || c.lawStatus === 'pending');
+    const hasValidatedContract = contracts.some((c) => c.status === 'active' && c.lawStatus === 'validated');
     const hasSubmittedLog = Boolean(latestLog);
     const hasApprovedLog = Boolean(approvedLog);
 
     let currentStep = 'accept_job';
-    if (hasAcceptedJob) currentStep = 'contract_active';
-    if (hasActiveContract) currentStep = 'check_in';
-    if (activeSession) currentStep = 'check_out';
+    if (hasAcceptedJob) currentStep = hasPendingAgreement ? 'legal_agreement' : 'work_execution';
+    if (hasValidatedContract) currentStep = 'check_in';
+    if (activeSession?.status === 'paused') currentStep = 'resume_work';
+    if (activeSession?.status === 'active') currentStep = 'stop_work';
     if (!activeSession && hasSubmittedLog) currentStep = 'await_verification';
     if (hasApprovedLog) currentStep = 'generate_invoice';
 
@@ -1237,17 +1781,23 @@ const getMyWorkflow = async (req, res) => {
       data: {
         currentStep,
         can: {
-          acceptJob: jobs.some((j) => j.acceptanceStatus !== 'accepted'),
-          checkIn: hasActiveContract && !activeSession,
-          checkOut: Boolean(activeSession),
-          submitTimeLog: hasActiveContract && !activeSession,
+          acceptJob: jobs.some((j) => j.acceptanceStatus === 'pending'),
+          rejectJob: jobs.some((j) => j.acceptanceStatus === 'pending'),
+          legalAgreement: hasAcceptedJob && !hasValidatedContract,
+          checkIn: hasValidatedContract && !activeSession,
+          pauseWork: Boolean(activeSession && activeSession.status === 'active'),
+          resumeWork: Boolean(activeSession && activeSession.status === 'paused'),
+          stopWork: Boolean(activeSession),
+          submitTimeLog: hasValidatedContract && !activeSession,
           generateInvoice: hasApprovedLog
         },
         summary: {
           jobsAssigned: jobs.length,
           contractsTotal: contracts.length,
           activeContracts: contracts.filter((c) => c.status === 'active').length,
+          legalActive: contracts.filter((c) => c.status === 'active' && c.lawStatus === 'validated').length,
           checkedIn: Boolean(activeSession),
+          sessionStatus: activeSession?.status || null,
           latestLogStatus: latestLog?.verificationStatus || null
         }
       }
@@ -1303,7 +1853,7 @@ const uploadFreelancerFile = async (req, res) => {
 const getMyAnalytics = async (req, res) => {
   try {
     const freelancerQuery = isAdmin(req.user) ? {} : { freelancer: req.user._id };
-    const [totalContracts, activeContracts, totalLogs, approvedLogs, totalHoursAgg, totalEarningsAgg] = await Promise.all([
+    const [totalContracts, activeContracts, totalLogs, approvedLogs, totalHoursAgg, totalEarningsAgg, sessionsAgg, agreementsAgg] = await Promise.all([
       OutsourcingContract.countDocuments(freelancerQuery),
       OutsourcingContract.countDocuments({ ...freelancerQuery, status: 'active' }),
       OutsourcingTimeLog.countDocuments(freelancerQuery),
@@ -1337,8 +1887,30 @@ const getMyAnalytics = async (req, res) => {
           }
         },
         { $group: { _id: null, totalEarnings: { $sum: '$amount' } } }
+      ]),
+      OutsourcingWorkSession.aggregate([
+        { $match: isAdmin(req.user) ? {} : { worker: req.user._id } },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            totalMinutes: { $sum: { $ifNull: ['$durationMinutes', 0] } }
+          }
+        }
+      ]),
+      OutsourcingContract.aggregate([
+        { $match: freelancerQuery },
+        {
+          $group: {
+            _id: '$lawStatus',
+            count: { $sum: 1 }
+          }
+        }
       ])
     ]);
+
+    const sessionsByStatus = Object.fromEntries((sessionsAgg || []).map((row) => [row._id, row]));
+    const agreementsByStatus = Object.fromEntries((agreementsAgg || []).map((row) => [row._id, row.count]));
 
     return res.status(200).json({
       success: true,
@@ -1346,7 +1918,18 @@ const getMyAnalytics = async (req, res) => {
         contracts: { total: totalContracts, active: activeContracts },
         timeLogs: { total: totalLogs, approved: approvedLogs, approvalRate: totalLogs ? Number(((approvedLogs / totalLogs) * 100).toFixed(2)) : 0 },
         work: { totalHours: Number(totalHoursAgg[0]?.totalHours || 0) },
-        earnings: { estimatedApproved: Number(totalEarningsAgg[0]?.totalEarnings || 0) }
+        earnings: { estimatedApproved: Number(totalEarningsAgg[0]?.totalEarnings || 0) },
+        sessions: {
+          active: sessionsByStatus.active?.count || 0,
+          paused: sessionsByStatus.paused?.count || 0,
+          closed: sessionsByStatus.closed?.count || 0,
+          totalMinutes: Number(Object.values(sessionsByStatus).reduce((sum, item) => sum + Number(item.totalMinutes || 0), 0))
+        },
+        agreements: {
+          pending: agreementsByStatus.pending || 0,
+          validated: agreementsByStatus.validated || 0,
+          rejected: agreementsByStatus.rejected || 0
+        }
       }
     });
   } catch (error) {
@@ -1407,6 +1990,7 @@ module.exports = {
   assignJobToFreelancer,
   listJobs,
   acceptJob,
+  rejectJob,
   updateJobStatus,
   createContract,
   listContracts,
@@ -1423,9 +2007,13 @@ module.exports = {
   getMyInvoices,
   getMyProfile,
   updateMyProfile,
+  getMyWorkspace,
   getMyActivityFeed,
   checkIn,
   checkOut,
+  pauseWorkSession,
+  resumeWorkSession,
+  stopWorkSession,
   getMySessionStatus,
   getMyWorkflow,
   uploadFreelancerFile,

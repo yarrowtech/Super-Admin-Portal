@@ -1,3 +1,4 @@
+import React from 'react';
 import LoginPage from '../components/common/Login';
 import ManagerLoginPage from '../components/manager/ManagerLogin';
 import NotFoundPage from '../components/404/NotFound';
@@ -37,7 +38,6 @@ import AdminSecurityPage from '../components/admin/SecurityMonitoring';
 import AdminReportsPage from '../components/admin/ReportsAnalytics';
 import AdminWorkflowsPage from '../components/admin/WorkflowManagement';
 import AdminUsersPage from '../components/admin/UserRoleManagement';
-import SuperAdminPage from '../components/admin/SuperAdminControlCenter';
 
 import {
   AdminOutsourcingDashboardPage,
@@ -70,6 +70,16 @@ import LegalDocManagementPage from '../components/law/pages/LegalDocumentManagem
 import LSWLegalLibraryPage from '../components/law/LSWLegalLibrary';
 import AdminLegalRegistryPage from '../components/admin/AdminLegalRegistry';
 import AdminLegalLibraryPage from '../components/law/LSWLegalLibrary';
+import ITDashboard from '../components/it/ITDashboard';
+import {
+  ITOverviewPage,
+  ITProductsPage,
+  ITProductWorkspacePage,
+  ITTicketsPage,
+  ITTicketDetailPage,
+  ITAssetsPage,
+  ITAssetDetailPage,
+} from '../components/it/ITWorkspacePages';
 
 export {
   LoginPage,
@@ -106,7 +116,6 @@ export {
   AdminReportsPage,
   AdminWorkflowsPage,
   AdminUsersPage,
-  SuperAdminPage,
   AdminOutsourcingDashboardPage,
   AdminOutsourcingFreelancersPage,
   AdminOutsourcingJobsPage,
@@ -127,7 +136,16 @@ export {
   LSWLegalLibraryPage,
   AdminLegalRegistryPage,
   AdminLegalLibraryPage,
+  ITOverviewPage,
+  ITProductsPage,
+  ITProductWorkspacePage,
+  ITTicketsPage,
+  ITTicketDetailPage,
+  ITAssetsPage,
+  ITAssetDetailPage,
+  ITDashboard,
 };
 
 export const SalesDashboardPage = SalesDepartmentPortal;
 export const ResearchDashboardPage = ResearchDepartmentPortal;
+export const ITDashboardPage = ITDashboard;

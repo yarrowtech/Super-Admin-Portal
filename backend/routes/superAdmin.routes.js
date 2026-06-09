@@ -10,6 +10,8 @@ router.use(authorize(ROLES.ADMIN));
 router.use(authorizePortalAccess('super-admin'));
 
 router.get('/dashboard', controller.getDashboard);
+router.get('/project-allocations', controller.getProjectAllocations);
+router.put('/project-allocations/:userId', controller.updateProjectAllocations);
 router.get('/feature-flags', controller.getFeatureFlags);
 router.put('/feature-flags/:id', controller.updateFeatureFlag);
 router.get('/portal-access', controller.getPortalAccess);

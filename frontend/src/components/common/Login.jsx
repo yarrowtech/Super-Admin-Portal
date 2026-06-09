@@ -11,6 +11,7 @@ const defaultRolePath = (role, userMeta = {}, department = '') => {
     .trim()
     .toLowerCase()
     .replace(/[\s&-]+/g, '_');
+  const assignedProjects = userMeta.projectAssignments ?? userMeta.assignedProjects ?? [];
   if (
     role === 'freelancer' ||
     normalizedDepartment === 'outsourcing' ||
@@ -36,7 +37,7 @@ const defaultRolePath = (role, userMeta = {}, department = '') => {
     case 'finance':
       return '/finance/dashboard';
     case 'employee':
-      return '/employee/dashboard';
+      return Array.isArray(assignedProjects) && assignedProjects.length > 0 ? '/employee/projects' : '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';

@@ -14,6 +14,7 @@ export const superAdminApi = {
   updatePortalAccess: (token, id, payload) => apiClient.put(`/api/dept/super-admin/portal-access/${id}`, payload, token),
   getSystemHealth: (token) => apiClient.get('/api/dept/super-admin/system-health', token),
   getCompanyControls: (token) => apiClient.get('/api/dept/super-admin/company-controls', token),
-  updateCompanyControl: (token, id, payload) => apiClient.put(`/api/dept/super-admin/company-controls/${id}`, payload, token)
+  updateCompanyControl: (token, id, payload) => apiClient.put(`/api/dept/super-admin/company-controls/${id}`, payload, token),
+  getProjectAllocations: (token) => apiClient.get('/api/dept/super-admin/project-allocations', token),
+  updateProjectAllocations: (token, userId, payload) => apiClient.put(`/api/dept/super-admin/project-allocations/${userId}`, payload, token)
 };
-

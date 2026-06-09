@@ -26,6 +26,7 @@ const moduleCards = [
   { title: 'Departments', description: 'Portal access, routing, and module operations.', icon: 'corporate_fare', route: '/admin/departments', tone: 'green', status: 'Live' },
   { title: 'Security', description: 'Security policy, account risk, login controls, and sessions.', icon: 'security', route: '/admin/security', tone: 'red', status: 'Review' },
   { title: 'Reports', description: 'Operational analytics, exports, and business intelligence.', icon: 'bar_chart', route: '/admin/reports', tone: 'purple', status: 'Live' },
+  { title: 'Control Center', description: 'Project allocation, workspace access, and governance.', icon: 'admin_panel_settings', route: '/admin/control-center', tone: 'orange', status: 'Live' },
   { title: 'Workflows', description: 'Workflow rules and process automation.', icon: 'account_tree', route: '/admin/workflows', tone: 'indigo', status: 'Configured' },
 ];
 

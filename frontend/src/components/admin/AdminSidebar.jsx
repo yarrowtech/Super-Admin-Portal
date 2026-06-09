@@ -44,6 +44,12 @@ const navItems = [
     description: 'Analytics & reports'
   },
   {
+    label: 'Control Center',
+    icon: 'admin_panel_settings',
+    path: '/admin/control-center',
+    description: 'Project allocation and monitoring'
+  },
+  {
     label: 'Workflows',
     icon: 'account_tree',
     path: '/admin/workflows',

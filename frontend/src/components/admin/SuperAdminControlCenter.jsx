@@ -28,24 +28,41 @@ export default function SuperAdminControlCenter() {
   const [portalAccess, setPortalAccess] = useState([]);
   const [systemHealth, setSystemHealth] = useState({ summary: {}, checks: [] });
   const [companyControls, setCompanyControls] = useState([]);
+  const [projectAllocations, setProjectAllocations] = useState({ projects: [], users: [], summary: {} });
+  const [allocationDrafts, setAllocationDrafts] = useState({});
   const [savingControlId, setSavingControlId] = useState('');
+  const [savingAllocationId, setSavingAllocationId] = useState('');
 
   const load = async () => {
     try {
       setLoading(true);
       setError('');
-      const [d, f, p, s, c] = await Promise.all([
+      const [d, f, p, s, c, a] = await Promise.allSettled([
         superAdminApi.getDashboard(token, { from, to }),
         superAdminApi.getFeatureFlags(token),
         superAdminApi.getPortalAccess(token),
         superAdminApi.getSystemHealth(token),
-        superAdminApi.getCompanyControls(token)
+        superAdminApi.getCompanyControls(token),
+        superAdminApi.getProjectAllocations(token),
       ]);
-      setDashboard(d.data || {});
-      setFeatureFlags(f.data || []);
-      setPortalAccess(p.data || []);
-      setSystemHealth(s.data || { summary: {}, checks: [] });
-      setCompanyControls(c.data || []);
+      setDashboard(d.status === 'fulfilled' ? d.value?.data || {} : {});
+      setFeatureFlags(f.status === 'fulfilled' ? f.value?.data || [] : []);
+      setPortalAccess(p.status === 'fulfilled' ? p.value?.data || [] : []);
+      setSystemHealth(s.status === 'fulfilled' ? s.value?.data || { summary: {}, checks: [] } : { summary: {}, checks: [] });
+      setCompanyControls(c.status === 'fulfilled' ? c.value?.data || [] : []);
+      const allocations = a.status === 'fulfilled' ? a.value?.data || {} : {};
+      setProjectAllocations(allocations);
+      const nextDrafts = {};
+      (allocations.users || []).forEach((item) => {
+        nextDrafts[item._id] = Array.isArray(item.assignedProjects)
+          ? item.assignedProjects.map((assignment) => {
+              if (typeof assignment === 'string') return assignment;
+              if (!assignment || typeof assignment !== 'object') return '';
+              return assignment.projectName || assignment.projectCode || assignment.projectId || '';
+            }).filter(Boolean).join(', ')
+          : '';
+      });
+      setAllocationDrafts(nextDrafts);
     } catch (e) {
       setError(e.message || 'Failed to load super admin controls');
     } finally {
@@ -79,6 +96,23 @@ export default function SuperAdminControlCenter() {
       await load();
     } finally {
       setSavingControlId('');
+    }
+  };
+
+  const updateAllocation = async (userId) => {
+    if (!token || !userId) return;
+    try {
+      setSavingAllocationId(userId);
+      const raw = allocationDrafts[userId] || '';
+      const projectAssignments = raw
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => ({ projectName: value }));
+      await superAdminApi.updateProjectAllocations(token, userId, { projectAssignments });
+      await load();
+    } finally {
+      setSavingAllocationId('');
     }
   };
 
@@ -179,6 +213,50 @@ export default function SuperAdminControlCenter() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Project Allocations</h2>
+              <p className="text-sm text-neutral-500">Assign users to specific project workspaces and centralize access scope.</p>
+            </div>
+            <div className="text-xs text-neutral-500">
+              {projectAllocations?.summary?.allocatedUsers ?? 0} allocated / {projectAllocations?.summary?.unallocatedUsers ?? 0} unallocated
+            </div>
+          </div>
+          <div className="grid gap-3 xl:grid-cols-2">
+            {(projectAllocations.users || []).slice(0, 8).map((item) => (
+              <div key={item._id} className="rounded-xl border border-neutral-200 p-3 text-sm dark:border-neutral-700">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.firstName} {item.lastName}</p>
+                    <p className="text-xs text-neutral-500">{item.email}</p>
+                  </div>
+                  <span className="rounded-full bg-neutral-100 px-2 py-1 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    {item.assignedProjectCount || 0} projects
+                  </span>
+                </div>
+                <textarea
+                  value={allocationDrafts[item._id] || ''}
+                  onChange={(e) => setAllocationDrafts((prev) => ({ ...prev, [item._id]: e.target.value }))}
+                  className="mt-3 min-h-20 w-full rounded-lg border border-neutral-200 bg-white p-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+                  placeholder="EEC LMS, EHC, Media Portal"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-xs text-neutral-500">Comma-separated project names or codes.</p>
+                  <button
+                    type="button"
+                    onClick={() => updateAllocation(item._id)}
+                    disabled={savingAllocationId === item._id}
+                    className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                  >
+                    {savingAllocationId === item._id ? 'Saving...' : 'Save Allocation'}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       </div>

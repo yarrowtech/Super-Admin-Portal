@@ -5,6 +5,7 @@ import {
   ManagerLoginPage,
   NotFoundPage,
   AdminDashboardPage,
+  SuperAdminControlCenterPage,
   AdminDepartmentsPage,
   AdminSecurityPage,
   AdminReportsPage,
@@ -324,6 +325,16 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.ADMIN}>
               <PrivateRoute roles={['admin']}>
                 {withPortal(AdminLayout, AdminUsersPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/admin/control-center"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={['admin']}>
+                {withPortal(AdminLayout, SuperAdminControlCenterPage)}
               </PrivateRoute>
             </PortalRoute>
           }

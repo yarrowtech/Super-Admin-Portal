@@ -278,6 +278,65 @@ const normalizeDepartment = (value) =>
     .toLowerCase()
     .replace(/[\s&-]+/g, '_');
 
+const normalizeProjectAssignments = (metadata = {}) => {
+  const raw = metadata?.projectAssignments ?? metadata?.assignedProjects ?? [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const value = entry.trim();
+        return value ? value : null;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+
+      const normalized = {
+        projectId: typeof entry.projectId === 'string' ? entry.projectId.trim() : String(entry.projectId || '').trim(),
+        projectCode: typeof entry.projectCode === 'string' ? entry.projectCode.trim() : '',
+        projectName: typeof entry.projectName === 'string' ? entry.projectName.trim() : '',
+      };
+
+      const permissions = Array.isArray(entry.permissions)
+        ? entry.permissions
+            .map((permission) => (typeof permission === 'string' ? permission.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (permissions.length > 0) normalized.permissions = permissions;
+
+      const moduleScopes = Array.isArray(entry.moduleScopes)
+        ? entry.moduleScopes
+            .map((scope) => (typeof scope === 'string' ? scope.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (moduleScopes.length > 0) normalized.moduleScopes = moduleScopes;
+
+      const pages = Array.isArray(entry.pages)
+        ? entry.pages
+            .map((page) => (typeof page === 'string' ? page.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (pages.length > 0) normalized.pages = pages;
+
+      const actions = Array.isArray(entry.actions)
+        ? entry.actions
+            .map((action) => (typeof action === 'string' ? action.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (actions.length > 0) normalized.actions = actions;
+
+      const cleaned = Object.fromEntries(
+        Object.entries(normalized).filter(([, value]) => {
+          if (Array.isArray(value)) return value.length > 0;
+          return Boolean(value);
+        })
+      );
+
+      return Object.keys(cleaned).length > 0 ? cleaned : null;
+    })
+    .filter(Boolean)
+    .slice(0, 100);
+};
+
 /**
  * @route   POST /api/auth/register
  * @desc    Register a new user (all roles)
@@ -400,6 +459,7 @@ exports.login = async (req, res) => {
           lastName: user.lastName,
           department: user.department,
           metadata: user.metadata || {},
+          assignedProjects: normalizeProjectAssignments(user.metadata || {}),
           lastLogin: user.lastLogin
         },
         token,
@@ -493,6 +553,7 @@ exports.outsourcingLogin = async (req, res) => {
           lastName: user.lastName,
           department: user.department,
           metadata: user.metadata || {},
+          assignedProjects: normalizeProjectAssignments(user.metadata || {}),
           lastLogin: user.lastLogin
         },
         token,
@@ -660,6 +721,7 @@ exports.getMe = async (req, res) => {
           department: user.department,
           profileImage: user.profileImage,
           metadata,
+          assignedProjects: normalizeProjectAssignments(metadata),
           profile: {
             basic: profile.basic || {},
             professional: profile.professional || {},

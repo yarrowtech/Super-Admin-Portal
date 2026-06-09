@@ -33,6 +33,7 @@ import EmployeeChatPage from '../components/employee/EmployeeChat';
 import EmployeeProfilePage from '../components/employee/EmployeeProfile';
 
 import AdminDashboardPage from '../components/admin/AdminDashboardEnterprise';
+import SuperAdminControlCenterPage from '../components/admin/SuperAdminControlCenter';
 import AdminDepartmentsPage from '../components/admin/DepartmentsOverview';
 import AdminSecurityPage from '../components/admin/SecurityMonitoring';
 import AdminReportsPage from '../components/admin/ReportsAnalytics';
@@ -111,6 +112,7 @@ export {
   EmployeeChatPage,
   EmployeeProfilePage,
   AdminDashboardPage,
+  SuperAdminControlCenterPage,
   AdminDepartmentsPage,
   AdminSecurityPage,
   AdminReportsPage,

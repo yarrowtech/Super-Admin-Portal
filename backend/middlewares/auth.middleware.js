@@ -9,6 +9,40 @@ const constants = require('../config/constants');
 const DEFAULT_MANAGER_PORTALS = new Set(['manager', 'admin', 'hr', 'it', 'law', 'employee']);
 const DEFAULT_IT_PORTALS = new Set(['it', 'admin', 'hr', 'law', 'employee', 'manager']);
 
+const normalizeProjectAssignments = (metadata = {}) => {
+  const raw = metadata?.projectAssignments ?? metadata?.assignedProjects ?? [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const value = entry.trim();
+        return value ? value : null;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+
+      const normalized = {
+        projectId: typeof entry.projectId === 'string' ? entry.projectId.trim() : String(entry.projectId || '').trim(),
+        projectCode: typeof entry.projectCode === 'string' ? entry.projectCode.trim() : '',
+        projectName: typeof entry.projectName === 'string' ? entry.projectName.trim() : '',
+      };
+
+      const permissions = Array.isArray(entry.permissions)
+        ? entry.permissions
+            .map((permission) => (typeof permission === 'string' ? permission.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (permissions.length > 0) normalized.permissions = permissions;
+
+      const cleaned = Object.fromEntries(
+        Object.entries(normalized).filter(([, value]) => Boolean(value))
+      );
+      return Object.keys(cleaned).length > 0 ? cleaned : null;
+    })
+    .filter(Boolean)
+    .slice(0, 100);
+};
+
 /**
  * Universal JWT Authentication Middleware
  * Verifies JWT token and attaches user to request
@@ -92,7 +126,9 @@ const authenticate = async (req, res, next) => {
       department: user.department,
       isActive: user.isActive,
       accountStatus: user.accountStatus,
-      permissions: user.permissions || []
+      permissions: user.permissions || [],
+      metadata: user.metadata || {},
+      assignedProjects: normalizeProjectAssignments(user.metadata || {})
     };
 
     next();
@@ -220,7 +256,10 @@ const optionalAuth = async (req, res, next) => {
           role: user.role,
           firstName: user.firstName,
           lastName: user.lastName,
-          department: user.department
+          department: user.department,
+          permissions: user.permissions || [],
+          metadata: user.metadata || {},
+          assignedProjects: normalizeProjectAssignments(user.metadata || {})
         };
       }
     } catch (err) {

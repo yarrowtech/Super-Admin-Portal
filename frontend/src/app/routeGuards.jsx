@@ -14,6 +14,12 @@ const normalizeDepartment = (value) =>
     .toLowerCase()
     .replace(/[\s&-]+/g, '_');
 
+const hasProjectAssignments = (user) => {
+  const metadata = user?.metadata || {};
+  const assigned = metadata.projectAssignments ?? metadata.assignedProjects ?? user?.assignedProjects ?? [];
+  return Array.isArray(assigned) && assigned.length > 0;
+};
+
 export const defaultRolePath = (user) => {
   const role = user?.role;
   const userMeta = user?.metadata || {};
@@ -65,7 +71,7 @@ export const defaultRolePath = (user) => {
     case 'research_operator':
       return '/research/dashboard';
     case 'employee':
-      return '/employee/dashboard';
+      return hasProjectAssignments(user) ? '/employee/projects' : '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';

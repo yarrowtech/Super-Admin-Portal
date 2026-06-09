@@ -213,6 +213,11 @@ const UserFormModal = ({
                   <input type="text" value={form.permissions || ''} onChange={(e) => setForm((prev) => ({ ...prev, permissions: e.target.value }))} className={inputClass} placeholder="users:read, reports:export" />
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Comma-separated permission overrides for this user.</p>
                 </div> : null}
+                {showAdminFields ? <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Assigned Projects</label>
+                  <input type="text" value={form.projectAssignments || ''} onChange={(e) => setForm((prev) => ({ ...prev, projectAssignments: e.target.value }))} className={inputClass} placeholder="EEC LMS, EHC, Media Portal" />
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Comma-separated project names or codes to scope the workspace.</p>
+                </div> : null}
               </div>
             </section>
           </div>

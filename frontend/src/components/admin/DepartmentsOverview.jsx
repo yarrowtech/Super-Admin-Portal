@@ -23,6 +23,18 @@ const departments = [
     route: '/it/dashboard',
   },
   {
+    name: 'Projects',
+    icon: 'folder_open',
+    description: 'Manage project allocation, access, and monitoring.',
+    route: '/admin/projects',
+  },
+  {
+    name: 'Outsourcing',
+    icon: 'work',
+    description: 'Manage external resources, contracts, and assignments.',
+    route: '/admin/outsourcing/dashboard',
+  },
+  {
     name: 'A/C & Finance',
     icon: 'account_balance',
     description: 'Manage budgets, financial reporting, and accounting tasks.',

@@ -51,21 +51,14 @@ export default function OutsourcingDashboardRoute() {
 
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-4">
-      <OutsourcingPageHeader title="Outsourcing Dashboard" subtitle="Production dashboard with centralized queries, route splitting, and minimal duplication." />
+      <OutsourcingPageHeader title="Outsourcing Dashboard" subtitle="" />
       {error ? <OutsourcingErrorState message={error.message || 'Failed to load outsourcing dashboard'} /> : null}
       <KpiGrid items={kpis} loading={loading} />
       <OutsourcingCard className="min-h-[180px]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold uppercase text-primary">Central Workspace</p>
-            <h3 className="mt-1 text-xl font-black text-neutral-900 dark:text-neutral-100">Assigned scope, sessions, alerts, and audit trail</h3>
-            <p className="mt-1 max-w-3xl text-sm text-neutral-600 dark:text-neutral-400">
-              Workers load only their assigned scope. Admin keeps full visibility across jobs, contracts, sessions, logs, and notifications.
-            </p>
+            <p className="text-sm font-semibold uppercase text-primary">Workspace</p>
           </div>
-          <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
-            Scope: {workspace?.scope || 'assigned_only'}
-          </span>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {workspaceKpis.map((item) => (

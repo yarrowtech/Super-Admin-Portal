@@ -459,7 +459,7 @@ export default function FreelancerDashboard({ token, user }) {
   }, [jobs, logs, contracts]);
 
   const workspaceStats = useMemo(() => ({
-    projects: workspace?.summary?.projects ?? jobs.length,
+    projects: workspace?.projectAccess?.summary?.accessible ?? workspace?.summary?.projects ?? jobs.length,
     contracts: workspace?.summary?.contracts ?? contracts.length,
     notifications: workspace?.summary?.notifications ?? 0,
     pendingLogs: workspace?.summary?.pendingLogs ?? logs.filter((x) => x.verificationStatus === 'pending').length,
@@ -470,7 +470,7 @@ export default function FreelancerDashboard({ token, user }) {
       <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
       <PortalHeader
         title="Freelancer Dashboard"
-        subtitle="Track assigned jobs, submitted work, sessions, and payout status"
+        subtitle=""
         user={user}
         icon="work"
         showSearch={false}
@@ -506,15 +506,8 @@ export default function FreelancerDashboard({ token, user }) {
       <section className={`${wrap} mb-4`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Central Workspace</p>
-            <h3 className="mt-1 text-2xl font-black text-neutral-900 dark:text-white">Your assigned scope, activity, and legal state</h3>
-            <p className="mt-1 max-w-3xl text-sm text-neutral-600 dark:text-neutral-400">
-              You only see the projects, contracts, sessions, and notifications assigned to your account. Everything else stays hidden.
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Workspace</p>
           </div>
-          <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
-            Scope: {workspace?.scope || 'assigned_only'}
-          </span>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">

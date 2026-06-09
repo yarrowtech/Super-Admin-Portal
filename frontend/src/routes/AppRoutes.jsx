@@ -67,6 +67,7 @@ import {
   ITAssetsPage,
   ITAssetDetailPage,
 } from '../pages';
+import OutsourcingProjectsPage from '../components/outsourcing/OutsourcingProjectsPage';
 import {
   AdminLayout,
   CEOPortalLayout,
@@ -340,6 +341,16 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/admin/projects"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={['admin']}>
+                {withPortal(AdminLayout, SuperAdminControlCenterPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/admin/departments"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
@@ -460,6 +471,7 @@ export default function AppRoutes() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<OutsourcingDashboardPage />} />
+          <Route path="projects" element={<OutsourcingProjectsPage />} />
           <Route path="jobs" element={<OutsourcingJobsPage />} />
           <Route path="contracts" element={<OutsourcingContractsPage />} />
           <Route path="time-logs" element={<OutsourcingTimeLogsPage />} />

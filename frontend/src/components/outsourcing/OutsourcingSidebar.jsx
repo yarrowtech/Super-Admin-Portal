@@ -4,15 +4,16 @@ import { useAuth } from '../../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
 
 const links = [
-  { to: '/outsourcing/dashboard', label: 'Dashboard', icon: 'dashboard', description: 'Central overview' },
-  { to: '/outsourcing/jobs', label: 'Jobs', icon: 'work', description: 'Assigned work queue' },
-  { to: '/outsourcing/contracts', label: 'Contracts', icon: 'contract', description: 'Agreement lifecycle' },
-  { to: '/outsourcing/time-logs', label: 'Time Logs', icon: 'schedule', description: 'Work sessions and logs' },
-  { to: '/outsourcing/activity', label: 'Activity', icon: 'timeline', description: 'Audit trail and updates' },
-  { to: '/outsourcing/invoices', label: 'Invoices', icon: 'receipt_long', description: 'Billing records' },
-  { to: '/outsourcing/payments', label: 'Payments', icon: 'payments', description: 'Escrow and releases' },
-  { to: '/outsourcing/notifications', label: 'Notifications', icon: 'notifications', description: 'Task and legal alerts' },
-  { to: '/outsourcing/profile', label: 'Profile', icon: 'person', description: 'Account details' }
+  { to: '/outsourcing/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/outsourcing/projects', label: 'Projects', icon: 'apps' },
+  { to: '/outsourcing/jobs', label: 'Jobs', icon: 'work' },
+  { to: '/outsourcing/contracts', label: 'Contracts', icon: 'contract' },
+  { to: '/outsourcing/time-logs', label: 'Time Logs', icon: 'schedule' },
+  { to: '/outsourcing/activity', label: 'Activity', icon: 'timeline' },
+  { to: '/outsourcing/invoices', label: 'Invoices', icon: 'receipt_long' },
+  { to: '/outsourcing/payments', label: 'Payments', icon: 'payments' },
+  { to: '/outsourcing/notifications', label: 'Notifications', icon: 'notifications' },
+  { to: '/outsourcing/profile', label: 'Profile', icon: 'person' }
 ];
 
 const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
@@ -36,7 +37,6 @@ const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
           </div>
           <div className="min-w-0">
             <h2 className="truncate text-lg font-bold text-neutral-900 dark:text-neutral-100">Outsourcing Portal</h2>
-            <p className="truncate text-xs text-neutral-600 dark:text-neutral-400">Centralized assigned-work workspace</p>
           </div>
           {mobile ? (
             <button
@@ -91,7 +91,6 @@ const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
                 </span>
                 <div className="flex-1 text-left">
                   <div className="font-medium">{link.label}</div>
-                  {isActive ? null : <div className="text-xs text-neutral-500 dark:text-neutral-400">{link.description}</div>}
                 </div>
                 {isActive ? <span className="material-symbols-outlined text-lg">chevron_right</span> : null}
               </NavLink>

@@ -23,6 +23,20 @@ const invalidateOutsourcingCache = () => clearCachedByPrefix(CACHE_NS);
 
 export const outsourcingApi = {
   getDashboard: async (token) => readCache(token, 'dashboard', () => apiClient.get('/api/outsourcing/dashboard', token), ttl.medium),
+  getMyProjects: async (token) => readCache(token, 'myProjects', () => apiClient.get('/api/my-projects', token), ttl.fast),
+  getProjectPermissions: async (token) => readCache(token, 'projectPermissions', () => apiClient.get('/api/project-permissions', token), ttl.fast),
+  getProjectRoles: async (token) => readCache(token, 'projectRoles', () => apiClient.get('/api/project-roles', token), ttl.fast),
+  generateProjectAccessToken: async (token, projectCode, payload = {}) => {
+    const res = await apiClient.post(`/api/project-access/${encodeURIComponent(projectCode)}`, payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  generateSsoToken: async (token, payload = {}) => {
+    const res = await apiClient.post('/api/sso/generate-token', payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  verifySsoToken: async (payload = {}) => apiClient.post('/api/sso/verify-token', payload),
   getNotifications: async (token) => readCache(token, 'notifications', () => apiClient.get('/api/outsourcing/notifications', token), ttl.fast),
   getPayments: async (token) => readCache(token, 'payments', () => apiClient.get('/api/outsourcing/payments', token), ttl.medium),
   getInvoices: async (token) => readCache(token, 'invoices', () => apiClient.get('/api/outsourcing/invoices', token), ttl.medium),

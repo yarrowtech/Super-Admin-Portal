@@ -29,6 +29,17 @@ const navItems = [
       { label: 'IT', path: '/it/dashboard' },
       { label: 'Finance', path: '/finance/dashboard' },
       { label: 'Media', path: '/media/dashboard' },
+      {
+        label: 'Outsourcing',
+        path: '/admin/outsourcing/dashboard',
+        children: [
+          { label: 'Dashboard', path: '/admin/outsourcing/dashboard' },
+          { label: 'Freelancers', path: '/admin/outsourcing/freelancers' },
+          { label: 'Jobs', path: '/admin/outsourcing/jobs' },
+          { label: 'Contracts', path: '/admin/outsourcing/contracts' },
+          { label: 'Reports', path: '/admin/outsourcing/reports' },
+        ],
+      },
     ]
   },
   {
@@ -36,6 +47,12 @@ const navItems = [
     icon: 'security',
     path: '/admin/security',
     description: 'Security monitoring'
+  },
+  {
+    label: 'Projects',
+    icon: 'folder_open',
+    path: '/admin/projects',
+    description: 'Project allocation and access'
   },
   {
     label: 'Reports',
@@ -54,19 +71,6 @@ const navItems = [
     icon: 'account_tree',
     path: '/admin/workflows',
     description: 'Process management'
-  },
-  {
-    label: 'Outsourcing',
-    icon: 'work',
-    path: '/admin/outsourcing/dashboard',
-    description: 'Outsourcing operations',
-    children: [
-      { label: 'Dashboard', path: '/admin/outsourcing/dashboard' },
-      { label: 'Freelancers', path: '/admin/outsourcing/freelancers' },
-      { label: 'Jobs', path: '/admin/outsourcing/jobs' },
-      { label: 'Contracts', path: '/admin/outsourcing/contracts' },
-      { label: 'Reports', path: '/admin/outsourcing/reports' },
-    ]
   },
   {
     label: 'Legal Registry',

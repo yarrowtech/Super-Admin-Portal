@@ -12,7 +12,7 @@ const statusTone = {
 };
 
 const StatusBadge = ({ value }) => (
-  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone[value] || 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'}`}>
+  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone[String(value || '').toLowerCase()] || 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'}`}>
     {String(value || 'unknown').replaceAll('_', ' ')}
   </span>
 );

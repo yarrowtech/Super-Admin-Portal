@@ -111,6 +111,8 @@ app.use("/api/dept/research", routes.researchRoutes);
 app.use("/api/dept/manager", routes.managerRoutes);
 app.use("/api/dept/employee", routes.employeeDeptRoutes);
 app.use("/api/employee", routes.employeePortalRoutes);
+app.use("/api", routes.projectAccessRoutes);
+app.use("/api/external-auth", routes.externalAuthRoutes);
 app.use("/api/dept", routes.departmentRoutes);
 app.use("/api/notifications", routes.notificationRoutes);
 app.use("/api/chat", routes.chatRoutes);

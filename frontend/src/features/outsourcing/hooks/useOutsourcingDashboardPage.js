@@ -71,6 +71,7 @@ export const useOutsourcingDashboardPage = () => {
 
   const dashboard = dashboardQuery.data?.data || derivedData;
   const workspaceSummary = workspace?.summary || {};
+  const projectAccessSummary = workspace?.projectAccess?.summary || {};
 
   const kpis = useMemo(() => {
     const next = [
@@ -93,11 +94,11 @@ export const useOutsourcingDashboardPage = () => {
   }, [dashboard, user?.role]);
 
   const workspaceKpis = useMemo(() => [
-    { label: 'Assigned Projects', value: workspaceSummary.projects || jobs.length, icon: 'work' },
+    { label: 'Assigned Projects', value: projectAccessSummary.accessible || workspaceSummary.projects || jobs.length, icon: 'work' },
     { label: 'Active Contracts', value: workspaceSummary.activeContracts || contracts.filter((c) => c.status === 'active').length, icon: 'contract' },
     { label: 'Notifications', value: workspaceSummary.notifications || 0, icon: 'notifications' },
     { label: 'Pending Logs', value: workspaceSummary.pendingLogs ?? logs.filter((entry) => entry.verificationStatus === 'pending').length, icon: 'schedule' },
-  ], [contracts, jobs.length, logs, workspaceSummary.activeContracts, workspaceSummary.notifications, workspaceSummary.pendingLogs, workspaceSummary.projects]);
+  ], [contracts, jobs.length, logs, projectAccessSummary.accessible, workspaceSummary.activeContracts, workspaceSummary.notifications, workspaceSummary.pendingLogs, workspaceSummary.projects]);
 
   return {
     isWorker,

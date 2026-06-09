@@ -11,6 +11,7 @@ const OutsourcingMilestone = require('../../models/outsourcing/OutsourcingMilest
 const OutsourcingWorkSession = require('../../models/outsourcing/OutsourcingWorkSession');
 const Notification = require('../../models/common/Notification');
 const ActivityLog = require('../../models/auth/ActivityLog');
+const { buildProjectAccessSummary } = require('../../utils/projectAccess');
 const { ROLES, isValidRole } = require('../../config/roles');
 
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
@@ -1424,6 +1425,7 @@ const getMyWorkspace = async (req, res) => {
   try {
     const isAdminUser = isAdmin(req.user);
     const activityQuery = isAdminUser ? { module: 'outsourcing' } : { module: 'outsourcing', user: req.user._id };
+    const projectAccess = buildProjectAccessSummary(req.user || {});
     const [jobs, contracts, sessions, notifications, activities, logs] = await Promise.all([
       OutsourcingJob.find(isAdminUser ? {} : { assignedFreelancer: req.user._id })
         .populate('assignedFreelancer', 'firstName lastName email')
@@ -1483,7 +1485,13 @@ const getMyWorkspace = async (req, res) => {
           activeContracts: activeContracts.length,
           notifications: notifications.length,
           pendingLogs: logs.filter((log) => log.verificationStatus === 'pending').length,
-          activeSession: Boolean(activeSession)
+          activeSession: Boolean(activeSession),
+          projectAssignments: projectAccess.summary.assigned,
+          projectAccessGranted: projectAccess.summary.accessible
+        },
+        projectAccess: {
+          summary: projectAccess.summary,
+          projects: projectAccess.projects
         }
       }
     });

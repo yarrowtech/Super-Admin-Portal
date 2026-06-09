@@ -59,6 +59,7 @@ import {
   OutsourcingPaymentsPage,
   OutsourcingNotificationsPage,
 } from '../components/outsourcing/OutsourcingPages';
+import OutsourcingProjectsPage from '../components/outsourcing/OutsourcingProjectsPage';
 
 import MediaDashboardPage from '../components/media/MediaPortal';
 
@@ -124,6 +125,7 @@ export {
   AdminOutsourcingContractsPage,
   AdminOutsourcingReportsPage,
   OutsourcingDashboardPage,
+  OutsourcingProjectsPage,
   OutsourcingJobsPage,
   OutsourcingContractsPage,
   OutsourcingTimeLogsPage,

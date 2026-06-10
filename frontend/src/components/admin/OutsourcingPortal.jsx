@@ -101,6 +101,10 @@ const OutsourcingPortal = () => {
           <KPICard title="Jobs" value={jobs.length} icon="work" colorScheme="green" subtitle="TOTAL" />
           <KPICard title="Contracts" value={dashboard?.contracts?.total || 0} icon="contract" colorScheme="orange" subtitle="TOTAL" />
           <KPICard title="Escrow Funded" value={dashboard?.payments?.totalEscrowFunded || 0} icon="payments" colorScheme="purple" subtitle="INR" />
+          <KPICard title="Active Sessions" value={dashboard?.sessions?.active || 0} icon="play_arrow" colorScheme="green" subtitle="LIVE" />
+          <KPICard title="Validated Agreements" value={dashboard?.agreements?.validated || 0} icon="verified_user" colorScheme="blue" subtitle="LEGAL" />
+          <KPICard title="Overdue Tasks" value={dashboard?.operations?.overdueTasks || 0} icon="warning" colorScheme="orange" subtitle="RISK" />
+          <KPICard title="Paused Sessions" value={dashboard?.sessions?.paused || 0} icon="pause" colorScheme="purple" subtitle="HOLD" />
         </section>
 
         <section className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">

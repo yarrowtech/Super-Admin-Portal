@@ -4,7 +4,7 @@ const trendBars = [62, 71, 68, 76, 84, 79, 91];
 
 const getCount = (records, matcher) => records.filter(matcher).length;
 
-const LawHomePage = ({ records = [], onSectionChange }) => {
+const LawHomePage = ({ records = [] }) => {
   const totalAgreements = getCount(records, (r) => r.section === 'agreements');
   const activeContracts = getCount(records, (r) => r.section === 'agreements' && r.status === 'Active');
   const pendingApprovals = getCount(records, (r) => r.status === 'Pending' || r.status === 'In Review');
@@ -41,22 +41,13 @@ const LawHomePage = ({ records = [], onSectionChange }) => {
           ))}
         </section>
 
-        <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <article className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-2">
+        <section className="mt-6">
+          <article className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <h2 className="font-bold text-neutral-900 dark:text-white">Agreement Growth (Monthly)</h2>
             <div className="mt-4 flex h-40 items-end gap-2">
               {trendBars.map((value, index) => (
                 <div key={index} className="flex-1 rounded-t bg-primary/80" style={{ height: `${value}%` }} />
               ))}
-            </div>
-          </article>
-          <article className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="font-bold text-neutral-900 dark:text-white">Priority Workflow</h2>
-            <div className="mt-4 space-y-3 text-sm">
-              <button onClick={() => onSectionChange?.('agreements')} className="w-full rounded-lg bg-neutral-100 px-3 py-2 text-left dark:bg-neutral-800">1. Agreement Created -&gt; Admin Approval -&gt; Active</button>
-              <button onClick={() => onSectionChange?.('work-hire')} className="w-full rounded-lg bg-neutral-100 px-3 py-2 text-left dark:bg-neutral-800">2. Work on Hire -&gt; Contract -&gt; Payment -&gt; Work Start</button>
-              <button onClick={() => onSectionChange?.('disputes-fraud')} className="w-full rounded-lg bg-neutral-100 px-3 py-2 text-left dark:bg-neutral-800">3. Fraud Detected -&gt; Alert -&gt; Investigation -&gt; Resolution</button>
-              <button onClick={() => onSectionChange?.('privacy-policy')} className="w-full rounded-lg bg-neutral-100 px-3 py-2 text-left dark:bg-neutral-800">4. Policy Updated -&gt; User Notification</button>
             </div>
           </article>
         </section>

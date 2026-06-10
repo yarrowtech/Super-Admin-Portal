@@ -17,6 +17,7 @@ const CEOSidebar = ({ onViewChange }) => {
     { key: 'departmentStats', label: 'Department Insights', icon: 'bar_chart' },
     { key: 'reports', label: 'Reports', icon: 'summarize' },
     { key: 'projectUpdates', label: 'Project Updates', icon: 'update' },
+    { key: 'legalApproval', label: 'Legal Approval', icon: 'gavel', badge: true },
     { key: 'chat', label: 'Chat', icon: 'chat' },
     { key: 'notifications', label: 'Notifications', icon: 'notifications' },
   ];

@@ -29,11 +29,31 @@ const ensureSuperAdminDefaults = async () => {
     { role: 'admin', portal: 'media', canAccess: true },
     { role: 'admin', portal: 'finance', canAccess: true },
     { role: 'manager', portal: 'manager', canAccess: true },
+    { role: 'manager', portal: 'admin', canAccess: true },
+    { role: 'manager', portal: 'hr', canAccess: true },
+    { role: 'manager', portal: 'it', canAccess: true },
+    { role: 'manager', portal: 'law', canAccess: true },
+    { role: 'manager', portal: 'employee', canAccess: true },
+    { role: 'it', portal: 'admin', canAccess: true },
+    { role: 'it', portal: 'hr', canAccess: true },
+    { role: 'it', portal: 'law', canAccess: true },
+    { role: 'it', portal: 'employee', canAccess: true },
+    { role: 'it', portal: 'manager', canAccess: true },
     { role: 'ceo', portal: 'ceo', canAccess: true },
     { role: 'hr', portal: 'hr', canAccess: true },
     { role: 'it', portal: 'it', canAccess: true },
     { role: 'law', portal: 'law', canAccess: true },
     { role: 'media', portal: 'media', canAccess: true },
+    { role: 'marketing_head', portal: 'media', canAccess: true },
+    { role: 'media_manager', portal: 'media', canAccess: true },
+    { role: 'content_writer', portal: 'media', canAccess: true },
+    { role: 'graphic_designer', portal: 'media', canAccess: true },
+    { role: 'video_editor', portal: 'media', canAccess: true },
+    { role: 'seo_specialist', portal: 'media', canAccess: true },
+    { role: 'social_media_manager', portal: 'media', canAccess: true },
+    { role: 'project_manager', portal: 'media', canAccess: true },
+    { role: 'department_head', portal: 'media', canAccess: true },
+    { role: 'client_viewer', portal: 'media', canAccess: true },
     { role: 'finance', portal: 'finance', canAccess: true },
     { role: 'employee', portal: 'employee', canAccess: true },
     { role: 'employee', portal: 'outsourcing', canAccess: false }
@@ -73,4 +93,3 @@ const ensureSuperAdminDefaults = async () => {
 module.exports = {
   ensureSuperAdminDefaults
 };
-

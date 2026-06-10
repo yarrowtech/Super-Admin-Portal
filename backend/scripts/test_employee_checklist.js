@@ -1,14 +1,14 @@
 const BASE_URL = "http://127.0.0.1:5000";
 
 const employeeCredentialOptions = [
-  { email: "santu@gmail.com", password: "Pass123" },
-  { email: "admin@test.com", password: "admin123" },
+  { email: "santu@test.com", password: "santu@test.com" },
+  { email: "admin@test.com", password: "admin@test.com" },
   { email: "employee@example.com", password: "Password123!" },
 ];
 
 const managerCredentialOptions = [
-  { email: "sangeet@gmail.com", password: "Pass123" },
-  { email: "admin@test.com", password: "admin123" },
+  { email: "sekhar@test.com", password: "sekhar@test.com" },
+  { email: "admin@test.com", password: "admin@test.com" },
   { email: "manager@example.com", password: "Password123!" },
   { email: "admin@example.com", password: "Password123!" },
 ];

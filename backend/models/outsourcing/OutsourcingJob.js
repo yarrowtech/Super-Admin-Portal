@@ -13,10 +13,13 @@ const jobSchema = new mongoose.Schema(
     },
     acceptanceStatus: {
       type: String,
-      enum: ['pending', 'accepted'],
+      enum: ['pending', 'accepted', 'rejected'],
       default: 'pending'
     },
     acceptedAt: { type: Date, default: null },
+    rejectedAt: { type: Date, default: null },
+    rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    rejectionReason: { type: String, trim: true, default: '' },
     priority: {
       type: String,
       enum: ['low', 'medium', 'high'],

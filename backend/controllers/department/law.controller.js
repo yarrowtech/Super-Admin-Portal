@@ -1,5 +1,6 @@
 const logger = require('../../utils/logger');
 const Law = require('../../models/department/Law');
+const { v2: cloudinary } = require('cloudinary');
 
 const LAW_SECTIONS = [
   'dashboard',
@@ -74,14 +75,23 @@ const sendError = (res, error, fallback, status = 500) => {
   });
 };
 
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+}
+
 exports.getDashboard = async (req, res) => {
   try {
+    const scope = req.projectId ? { projectId: req.projectId } : {};
     const [totalRecords, needsAttention, bySection, byStatus, recentRecords] = await Promise.all([
-      Law.countDocuments(),
-      Law.countDocuments({ $or: [{ status: 'Attention' }, { priority: 'Critical' }] }),
-      Law.aggregate([{ $group: { _id: '$section', count: { $sum: 1 } } }]),
-      Law.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      Law.find().sort({ updatedAt: -1 }).limit(6)
+      Law.countDocuments(scope),
+      Law.countDocuments({ ...scope, $or: [{ status: 'Attention' }, { priority: 'Critical' }] }),
+      Law.aggregate([{ $match: scope }, { $group: { _id: '$section', count: { $sum: 1 } } }]),
+      Law.aggregate([{ $match: scope }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Law.find(scope).sort({ updatedAt: -1 }).limit(6)
     ]);
 
     res.status(200).json({
@@ -108,7 +118,7 @@ exports.getDashboard = async (req, res) => {
 exports.getRecords = async (req, res) => {
   try {
     const { section, status, priority, search } = req.query;
-    const query = {};
+    const query = req.projectId ? { projectId: req.projectId } : {};
 
     if (section) query.section = section;
     if (status) query.status = status;
@@ -133,6 +143,7 @@ exports.getRecords = async (req, res) => {
 exports.createRecord = async (req, res) => {
   try {
     const payload = buildPayload(req.body, req.user?.id || req.user?._id);
+    payload.projectId = req.projectId;
 
     if (!payload.section || !payload.title) {
       return res.status(400).json({
@@ -156,9 +167,10 @@ exports.createRecord = async (req, res) => {
 exports.updateRecord = async (req, res) => {
   try {
     const payload = buildPayload(req.body, req.user?.id || req.user?._id);
+    payload.projectId = req.projectId;
     if (!payload.dueDate) delete payload.dueDate;
 
-    const record = await Law.findByIdAndUpdate(req.params.id, payload, {
+    const record = await Law.findOneAndUpdate({ _id: req.params.id, projectId: req.projectId }, payload, {
       new: true,
       runValidators: true
     });
@@ -176,7 +188,7 @@ exports.updateRecord = async (req, res) => {
 
 exports.deleteRecord = async (req, res) => {
   try {
-    const record = await Law.findByIdAndDelete(req.params.id);
+    const record = await Law.findOneAndDelete({ _id: req.params.id, projectId: req.projectId });
 
     if (!record) {
       return res.status(404).json({ success: false, error: 'Law record not found' });
@@ -191,7 +203,7 @@ exports.deleteRecord = async (req, res) => {
 
 exports.getContracts = async (req, res) => {
   try {
-    const contracts = await Law.find({ section: { $in: ['agreements', 'contracts'] } }).sort({ updatedAt: -1 });
+    const contracts = await Law.find({ projectId: req.projectId, section: { $in: ['agreements', 'contracts'] } }).sort({ updatedAt: -1 });
     res.status(200).json({
       success: true,
       data: {
@@ -207,7 +219,7 @@ exports.getContracts = async (req, res) => {
 
 exports.getCompliance = async (req, res) => {
   try {
-    const compliance = await Law.find({ section: { $in: ['privacy-policy', 'compliance'] } }).sort({ updatedAt: -1 });
+    const compliance = await Law.find({ projectId: req.projectId, section: { $in: ['privacy-policy', 'compliance'] } }).sort({ updatedAt: -1 });
     res.status(200).json({
       success: true,
       data: {
@@ -218,5 +230,52 @@ exports.getCompliance = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, 'Law compliance error');
     sendError(res, error, 'Failed to fetch compliance data');
+  }
+};
+
+exports.uploadReferencePdfs = async (req, res) => {
+  try {
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (!files.length) {
+      return res.status(400).json({ success: false, error: 'At least one PDF is required' });
+    }
+    if (files.some((file) => file.mimetype !== 'application/pdf')) {
+      return res.status(400).json({ success: false, error: 'Only PDF files are allowed' });
+    }
+
+    const uploads = await Promise.all(
+      files.map(async (file) => {
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+          return {
+            url: `data:application/pdf;base64,${file.buffer.toString('base64')}`,
+            publicId: null,
+            originalName: file.originalname,
+            bytes: file.size,
+            provider: 'inline'
+          };
+        }
+
+        const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        const uploaded = await cloudinary.uploader.upload(dataUri, {
+          folder: `law/references/${req.projectId}`,
+          resource_type: 'raw',
+          use_filename: true,
+          unique_filename: true
+        });
+
+        return {
+          url: uploaded.secure_url,
+          publicId: uploaded.public_id,
+          originalName: file.originalname,
+          bytes: file.size,
+          provider: 'cloudinary'
+        };
+      })
+    );
+
+    return res.status(201).json({ success: true, data: uploads });
+  } catch (error) {
+    logger.error({ err: error }, 'Upload law reference pdfs error');
+    return res.status(500).json({ success: false, error: 'Failed to upload reference PDFs', details: error.message });
   }
 };

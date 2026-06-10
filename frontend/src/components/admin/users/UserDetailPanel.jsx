@@ -55,6 +55,11 @@ const UserDetailPanel = ({
   const isDeleting = actionState.deletingId === userId;
   const metadata = user.metadata || {};
   const skills = Array.isArray(metadata.skills) ? metadata.skills : [];
+  const projectAssignments = Array.isArray(metadata.projectAssignments)
+    ? metadata.projectAssignments
+    : Array.isArray(user.assignedProjects)
+      ? user.assignedProjects
+      : [];
   const positionLevelLabel = positionLevelMap[metadata.positionLevel];
   const formattedStartDate =
     metadata.startDate && !Number.isNaN(new Date(metadata.startDate).getTime())
@@ -258,6 +263,29 @@ const UserDetailPanel = ({
                   {skill}
                 </span>
               ))}
+            </div>
+          </div>
+        )}
+
+        {projectAssignments.length > 0 && (
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+              Project Assignments
+            </h3>
+            <div className="flex flex-wrap gap-2 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-800/60">
+              {projectAssignments.map((assignment, index) => {
+                const label = typeof assignment === 'string'
+                  ? assignment
+                  : assignment?.projectName || assignment?.projectCode || assignment?.projectId || `Assignment ${index + 1}`;
+                return (
+                  <span
+                    key={`${label}-${index}`}
+                    className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                  >
+                    {label}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}

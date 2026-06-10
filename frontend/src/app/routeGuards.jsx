@@ -8,18 +8,44 @@ const normalizeOutsourcingType = (value) =>
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
 
+const normalizeDepartment = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
+
+const hasProjectAssignments = (user) => {
+  const metadata = user?.metadata || {};
+  const assigned = metadata.projectAssignments ?? metadata.assignedProjects ?? user?.assignedProjects ?? [];
+  return Array.isArray(assigned) && assigned.length > 0;
+};
+
 export const defaultRolePath = (user) => {
   const role = user?.role;
   const userMeta = user?.metadata || {};
   const outsourcingType = normalizeOutsourcingType(userMeta.outsourcingType);
+  const department = normalizeDepartment(user?.department);
 
-  if (outsourcingType === 'third_party_worker' || outsourcingType === '3rd_party_worker' || outsourcingType === 'thirdpartyworker' || outsourcingType === 'freelancer') {
+  if (
+    role === 'freelancer' ||
+    department === 'outsourcing' ||
+    department === 'outsource' ||
+    department === 'external_workforce' ||
+    outsourcingType === 'third_party_worker' ||
+    outsourcingType === '3rd_party_worker' ||
+    outsourcingType === 'thirdpartyworker' ||
+    outsourcingType === 'freelancer' ||
+    outsourcingType === 'freelaner'
+  ) {
     return '/outsourcing/dashboard';
   }
 
   switch (role) {
     case 'ceo':
       return '/ceo/dashboard';
+    case 'super_admin':
+    case 'superadmin':
+      return '/admin/super-admin';
     case 'admin':
       return '/admin/dashboard';
     case 'manager':
@@ -32,12 +58,23 @@ export const defaultRolePath = (user) => {
       return '/finance/dashboard';
     case 'media':
       return '/media/dashboard';
+    case 'marketing_head':
+    case 'media_manager':
+    case 'content_writer':
+    case 'graphic_designer':
+    case 'video_editor':
+    case 'seo_specialist':
+    case 'social_media_manager':
+    case 'project_manager':
+    case 'department_head':
+    case 'client_viewer':
+      return '/media/dashboard';
     case 'sales':
       return '/sales/dashboard';
     case 'research_operator':
       return '/research/dashboard';
     case 'employee':
-      return '/employee/dashboard';
+      return hasProjectAssignments(user) ? '/employee/projects' : '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';
@@ -91,11 +128,23 @@ export const OutsourcingRoute = ({ children }) => {
   if (!user) return <Navigate to="/outsourcing/login" replace />;
 
   const type = normalizeOutsourcingType(user?.metadata?.outsourcingType);
-  if (user.role !== 'admin' && type !== 'third_party_worker' && type !== '3rd_party_worker' && type !== 'thirdpartyworker' && type !== 'freelancer') {
+  const department = normalizeDepartment(user?.department);
+  if (
+    user.role !== 'admin' &&
+    user.role !== 'freelancer' &&
+    department !== 'outsourcing' &&
+    department !== 'outsource' &&
+    department !== 'external_workforce' &&
+    type !== 'third_party_worker' &&
+    type !== '3rd_party_worker' &&
+    type !== 'thirdpartyworker' &&
+    type !== 'freelancer' &&
+    type !== 'freelaner'
+  ) {
     return <Navigate to={defaultRolePath(user)} replace />;
   }
 
   return children;
 };
 
-export const allowRoleWithAdmin = (role) => [role, 'admin'];
+export const allowRoleWithAdmin = (role) => [role, 'admin', 'super_admin', 'superadmin'];

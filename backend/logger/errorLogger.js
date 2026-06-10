@@ -1,9 +1,12 @@
 const logger = require("./logger");
 
-const errorLogger = (err, req) => {
+const errorLogger = (err, req, statusCode) => {
+  const error = err instanceof Error ? err : new Error(typeof err === "string" ? err : "Request failed");
+
   logger.error(
     {
-      err,
+      err: error,
+      statusCode: statusCode || 500,
       path: req.originalUrl,
       method: req.method,
       requestId: req.id || req.headers["x-request-id"] || null,

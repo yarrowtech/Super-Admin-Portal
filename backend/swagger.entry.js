@@ -4,6 +4,7 @@ const app = express();
 
 app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/dept/admin", require("./routes/admin.routes"));
+app.use("/api/super-admin", require("./routes/superAdmin.portal.routes"));
 app.use("/api/dept/super-admin", require("./routes/superAdmin.routes"));
 app.use("/api/dept/ceo", require("./routes/ceo.routes"));
 app.use("/api/dept/it", require("./routes/it.routes"));

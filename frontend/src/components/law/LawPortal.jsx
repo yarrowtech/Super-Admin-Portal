@@ -1,38 +1,39 @@
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import LawDashboard from './LawDashboard';
 import LawSidebar from './LawSidebar';
-import { LAW_SECTIONS } from './lawModuleConfig';
-import MobilePortalNav from '../common/MobilePortalNav';
+import AppLayout from '../../layouts/AppLayout';
+import { useAuth } from '../../context/AuthContext';
 
 const LawPortal = () => {
-  const [activeSection, setActiveSection] = useState(LAW_SECTIONS[0].id);
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const mobileItems = useMemo(
+    () => [
+      { key: 'dashboard', label: 'Workflow', icon: 'gavel', active: location.pathname === '/law/dashboard', onClick: () => navigate('/law/dashboard') },
+      { key: 'legal-docs', label: 'Legal Docs', icon: 'description', active: location.pathname.startsWith('/law/legal-docs'), onClick: () => navigate('/law/legal-docs') },
+      { key: 'legal-library', label: 'Approved', icon: 'library_books', active: location.pathname.startsWith('/law/legal-library'), onClick: () => navigate('/law/legal-library') },
+      { key: 'agreements', label: 'Agreements', icon: 'contract', active: location.pathname.startsWith('/law/agreements'), onClick: () => navigate('/law/agreements') },
+    ],
+    [location.pathname, navigate]
+  );
 
   return (
-    <div className="portal-shell min-h-screen w-full bg-background-light font-display text-neutral-800 dark:bg-background-dark dark:text-neutral-100">
-      <MobilePortalNav
-        title="Law Portal"
-        subtitle="Legal operations"
-        icon="gavel"
-        items={LAW_SECTIONS.map((section) => ({
-          key: section.id,
-          label: section.label,
-          icon: section.icon || 'gavel',
-          active: activeSection === section.id,
-          onClick: () => setActiveSection(section.id),
-        }))}
-      />
-      <LawSidebar
-        activeSection={activeSection}
-        sections={LAW_SECTIONS}
-        onSelect={setActiveSection}
-      />
-      <div className="pt-16 md:ml-64 md:pt-0 portal-content">
-        <LawDashboard
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-        />
+    <AppLayout
+      sidebar={<LawSidebar />}
+      title="Law Portal"
+      subtitle="Legal operations"
+      mobileIcon="gavel"
+      mobileItems={mobileItems}
+      user={user}
+      showHeader={false}
+    >
+      <div className="portal-content p-0">
+        <LawDashboard />
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

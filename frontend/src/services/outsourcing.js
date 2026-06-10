@@ -23,6 +23,24 @@ const invalidateOutsourcingCache = () => clearCachedByPrefix(CACHE_NS);
 
 export const outsourcingApi = {
   getDashboard: async (token) => readCache(token, 'dashboard', () => apiClient.get('/api/outsourcing/dashboard', token), ttl.medium),
+  getMyProjects: async (token) => readCache(token, 'myProjects', () => apiClient.get('/api/my-projects', token), ttl.fast),
+  getProjectPermissions: async (token) => readCache(token, 'projectPermissions', () => apiClient.get('/api/project-permissions', token), ttl.fast),
+  getProjectRoles: async (token) => readCache(token, 'projectRoles', () => apiClient.get('/api/project-roles', token), ttl.fast),
+  generateProjectAccessToken: async (token, projectCode, payload = {}) => {
+    const res = await apiClient.post(`/api/project-access/${encodeURIComponent(projectCode)}`, payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  generateSsoToken: async (token, payload = {}) => {
+    const res = await apiClient.post('/api/sso/generate-token', payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  generateEecSsoToken: async (token, payload = {}) => {
+    const res = await apiClient.post('/api/sso/token', payload, token);
+    return res;
+  },
+  verifySsoToken: async (payload = {}) => apiClient.post('/api/sso/verify-token', payload),
   getNotifications: async (token) => readCache(token, 'notifications', () => apiClient.get('/api/outsourcing/notifications', token), ttl.fast),
   getPayments: async (token) => readCache(token, 'payments', () => apiClient.get('/api/outsourcing/payments', token), ttl.medium),
   getInvoices: async (token) => readCache(token, 'invoices', () => apiClient.get('/api/outsourcing/invoices', token), ttl.medium),
@@ -34,15 +52,27 @@ export const outsourcingApi = {
     invalidateOutsourcingCache();
     return res;
   },
+  rejectJob: async (token, id, rejectionReason) => {
+    const res = await apiClient.put(`/api/outsourcing/jobs/${id}/reject`, { rejectionReason }, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
   updateJobStatus: async (token, id, status) => {
     const res = await apiClient.put(`/api/outsourcing/jobs/${id}/status`, { status }, token);
     invalidateOutsourcingCache();
     return res;
   },
   getContracts: async (token) => readCache(token, 'contracts', () => apiClient.get('/api/outsourcing/contracts', token), ttl.medium),
+  getContractHistory: async (token, contractId) => readCache(token, `contract-history:${contractId || 'all'}`, () => apiClient.get(`/api/outsourcing/contracts/${contractId}/history`, token), ttl.fast),
+  updateContractTerms: async (token, contractId, payload) => {
+    const res = await apiClient.put(`/api/outsourcing/contracts/${contractId}/terms`, payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
   getTimeLogs: async (token) => readCache(token, 'timeLogs', () => apiClient.get('/api/outsourcing/time-logs', token), ttl.fast),
   getUsers: async (token) => readCache(token, 'users', () => apiClient.get('/api/outsourcing/users', token), ttl.slow),
   getMyProfile: async (token) => readCache(token, 'profile', () => apiClient.get('/api/outsourcing/profile', token), ttl.medium),
+  getMyWorkspace: async (token) => readCache(token, 'workspace', () => apiClient.get('/api/outsourcing/workspace/me', token), ttl.fast),
   updateMyProfile: async (token, payload) => {
     const res = await apiClient.put('/api/outsourcing/profile', payload, token);
     invalidateOutsourcingCache();
@@ -126,6 +156,21 @@ export const outsourcingApi = {
   },
   checkOut: async (token, payload = {}) => {
     const res = await apiClient.post('/api/outsourcing/sessions/check-out', payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  pauseSession: async (token, payload = {}) => {
+    const res = await apiClient.post('/api/outsourcing/sessions/pause', payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  resumeSession: async (token, payload = {}) => {
+    const res = await apiClient.post('/api/outsourcing/sessions/resume', payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  stopSession: async (token, payload = {}) => {
+    const res = await apiClient.post('/api/outsourcing/sessions/stop', payload, token);
     invalidateOutsourcingCache();
     return res;
   },

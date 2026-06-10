@@ -30,6 +30,20 @@ const contractSchema = new mongoose.Schema(
     startDate: { type: Date, default: null },
     endDate: { type: Date, default: null },
     terms: { type: String, trim: true, default: '' },
+    currentVersion: { type: Number, min: 1, default: 1 },
+    revisions: [
+      {
+        version: { type: Number, required: true, min: 1 },
+        terms: { type: String, trim: true, default: '' },
+        changeSummary: { type: String, trim: true, default: '' },
+        ndaSigned: { type: Boolean, default: false },
+        agreementSigned: { type: Boolean, default: false },
+        paymentTermsAccepted: { type: Boolean, default: false },
+        signedAt: { type: Date, default: null },
+        editedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        editedAt: { type: Date, default: Date.now }
+      }
+    ],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
   },
   { timestamps: true }

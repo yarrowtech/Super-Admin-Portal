@@ -8,7 +8,7 @@ const { ROLES } = require('../config/roles');
 
 // All routes require authentication and MANAGER role
 router.use(authenticate);
-router.use(authorize(ROLES.MANAGER, ROLES.ADMIN));
+router.use(authorize(ROLES.MANAGER, ROLES.ADMIN, ROLES.IT));
 router.use(authorizePortalAccess('manager'));
 
 // Manager specific routes
@@ -19,7 +19,9 @@ router.post('/project-teams', managerController.createProjectTeam);
 router.delete('/project-teams/:teamId/members/:memberId', managerController.removeProjectTeamMember);
 router.get('/projects', managerController.getProjects);
 router.post('/projects', managerController.createProject);
+router.put('/projects/:id', managerController.updateProject);
 router.put('/projects/:id/status', managerController.updateProjectStatus);
+router.delete('/projects/:id', managerController.deleteProject);
 router.get('/tasks', managerController.getTasks);
 router.post('/tasks/export', managerExportController.exportTasksCsv);
 router.get('/tasks/export-history', managerExportController.getTaskExportHistory);

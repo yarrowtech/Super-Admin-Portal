@@ -72,4 +72,23 @@ export const financeApi = {
   getClients: (token) => apiClient.get('/api/dept/finance/clients', token),
   createClient: (data, token) => apiClient.post('/api/dept/finance/clients', data, token),
   updateClient: (id, data, token) => apiClient.put(`/api/dept/finance/clients/${id}`, data, token)
+  ,
+
+  getTransactions: (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/finance/transactions${query ? `?${query}` : ''}`, token, { cache: false });
+  },
+  getAuditLogs: (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/finance/audit-logs${query ? `?${query}` : ''}`, token, { cache: false });
+  },
+  getApprovals: (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/finance/approvals${query ? `?${query}` : ''}`, token, { cache: false });
+  },
+  createApproval: (data, token) => apiClient.post('/api/dept/finance/approvals', data, token),
+  decideApproval: (id, data, token) => apiClient.patch(`/api/dept/finance/approvals/${id}/decision`, data, token),
+  getIntegrationSnapshot: (token) => apiClient.get('/api/dept/finance/integrations/snapshot', token, { cache: false }),
+  syncPayrollFromHr: (data, token) => apiClient.post('/api/dept/finance/integrations/hr/payroll-sync', data, token),
+  linkComplianceWithLaw: (data, token) => apiClient.post('/api/dept/finance/integrations/law/compliance-link', data, token)
 };

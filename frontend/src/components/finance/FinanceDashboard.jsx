@@ -17,6 +17,14 @@ const tabOptions = [
   { id: 'clients', label: 'Clients' }
 ];
 
+const TAB_ALIAS = {
+  overview: 'invoices',
+  transactions: 'payments',
+  audit: 'reports',
+  approvals: 'budgets',
+  settings: 'compliance',
+};
+
 const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
   const { token, user } = useAuth();
   const [localActiveTab, setLocalActiveTab] = useState('invoices');
@@ -41,6 +49,8 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
   const [profitLoss, setProfitLoss] = useState({ revenue: 0, expenses: 0, netIncome: 0 });
   const [taxSummary, setTaxSummary] = useState({ taxableSales: 0, gstCollected: 0, tdsWithheld: 0 });
   const [itrSummary, setItrSummary] = useState({ totalIncome: 0, totalExpenses: 0, taxableIncome: 0, estimatedTax: 0 });
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [approvalItems, setApprovalItems] = useState([]);
 
   const [invoiceForm, setInvoiceForm] = useState({
     clientName: '',
@@ -164,7 +174,9 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
         financeApi.getItrSummary(token),
         financeApi.getCompliance(token),
         financeApi.getVendors(token),
-        financeApi.getClients(token)
+        financeApi.getClients(token),
+        financeApi.getAuditLogs(token, { page: 1, limit: 25 }),
+        financeApi.getApprovals(token, { page: 1, limit: 25 })
       ];
 
       const results = await Promise.allSettled(requests);
@@ -187,7 +199,9 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
         itrSummaryRes,
         complianceRes,
         vendorsRes,
-        clientsRes
+        clientsRes,
+        auditLogsRes,
+        approvalsRes
       ] = results;
 
       const setIfOk = (result, setter, fallback = []) => {
@@ -233,6 +247,12 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
       setIfOk(complianceRes, setCompliance);
       setIfOk(vendorsRes, setVendors);
       setIfOk(clientsRes, setClients);
+      if (auditLogsRes.status === 'fulfilled') {
+        setAuditLogs(auditLogsRes.value?.data?.items || []);
+      }
+      if (approvalsRes.status === 'fulfilled') {
+        setApprovalItems(approvalsRes.value?.data?.items || []);
+      }
 
       setLoading(false);
     };
@@ -242,6 +262,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
 
   const isControlled = typeof externalActiveTab === 'string';
   const activeTab = isControlled ? externalActiveTab : localActiveTab;
+  const contentTab = TAB_ALIAS[activeTab] || activeTab;
 
   const formatCurrency = (value) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(
@@ -386,39 +407,44 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
   }, [expenses]);
 
   const kpis = useMemo(() => {
-    const totals = dashboard?.totals || {};
-    const invoiceCount = Number(totals.invoices ?? invoiceMetrics.totalCount ?? 0);
-    const overdueCount = Number(totals.overdueInvoices ?? invoiceMetrics.overdueCount ?? 0);
-    const paymentCount = Number(totals.payments ?? payments.length ?? 0);
-    const pendingExpenseCount = Number(totals.pendingExpenses ?? expenseMetrics.pendingCount ?? 0);
-
+    const revenue = Number(profitLoss?.revenue || 0);
+    const totalExpenses = Number(profitLoss?.expenses || expenseSummary.totalAmount || 0);
+    const net = Number(profitLoss?.netIncome || 0);
+    const pendingPayments = Number(invoiceMetrics.outstandingAmount || 0);
+    const burnRate = revenue > 0 ? (totalExpenses / revenue) * 100 : 0;
     return [
       {
-        label: 'Invoices',
-        value: invoiceCount,
-        subValue: formatCurrency(invoiceMetrics.totalAmount),
-        subLabel: 'billed'
+        label: 'Revenue',
+        value: formatCurrency(revenue),
+        subValue: `${Math.max(invoices.length, 0)}`,
+        subLabel: 'invoices'
       },
       {
-        label: 'Overdue',
-        value: overdueCount,
-        subValue: formatCurrency(invoiceMetrics.overdueAmount),
-        subLabel: 'due'
+        label: 'Expenses',
+        value: formatCurrency(totalExpenses),
+        subValue: `${expenseSummary.pendingCount}`,
+        subLabel: 'pending items'
       },
       {
-        label: 'Payments',
-        value: paymentCount,
-        subValue: formatCurrency(paymentTotal),
-        subLabel: 'collected'
+        label: 'Profit / Loss',
+        value: formatCurrency(net),
+        subValue: net >= 0 ? 'Profit' : 'Loss',
+        subLabel: 'net position'
       },
       {
-        label: 'Pending Expenses',
-        value: pendingExpenseCount,
-        subValue: formatCurrency(expenseMetrics.pendingAmount),
-        subLabel: 'pending'
-      }
+        label: 'Pending Payments',
+        value: formatCurrency(pendingPayments),
+        subValue: `${invoiceMetrics.overdueCount}`,
+        subLabel: 'overdue invoices'
+      },
+      {
+        label: 'Burn Rate',
+        value: `${burnRate.toFixed(1)}%`,
+        subValue: formatCurrency(expenseSummary.pendingAmount),
+        subLabel: 'pending burn'
+      },
     ];
-  }, [dashboard, expenseMetrics, formatCurrency, invoiceMetrics, paymentTotal, payments]);
+  }, [expenseSummary, formatCurrency, invoices.length, invoiceMetrics, profitLoss]);
 
   const customerBalances = useMemo(() => {
     const map = {};
@@ -1120,7 +1146,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'invoices' && (
+        {contentTab === 'invoices' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Create Invoice</h2>
@@ -1327,7 +1353,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'payments' && (
+        {contentTab === 'payments' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Record Payment</h2>
@@ -1454,7 +1480,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'expenses' && (
+        {contentTab === 'expenses' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Submit Expense</h2>
@@ -1537,7 +1563,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'budgets' && (
+        {contentTab === 'budgets' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Allocate Budget</h2>
@@ -1684,7 +1710,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'payroll' && (
+        {contentTab === 'payroll' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Process Payroll</h2>
@@ -1773,7 +1799,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'reports' && (
+        {contentTab === 'reports' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Generate Report</h2>
@@ -1842,7 +1868,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'compliance' && (
+        {contentTab === 'compliance' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Compliance Record</h2>
@@ -1913,7 +1939,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'vendors' && (
+        {contentTab === 'vendors' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Vendor Profile</h2>
@@ -1971,7 +1997,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
           </section>
         )}
 
-        {activeTab === 'clients' && (
+        {contentTab === 'clients' && (
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
             <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
               <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Client Profile</h2>
@@ -2025,6 +2051,42 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'audit' && (
+          <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Audit Logs</h2>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">{auditLogs.length} rows</p>
+            </div>
+            <div className="mt-4 space-y-3">
+              {auditLogs.map((row) => (
+                <div key={row._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.action}</p>
+                  <p className="text-xs text-neutral-500">{row.resourceType} • {row.riskFlag}</p>
+                  <p className="text-xs text-neutral-500">{new Date(row.createdAt).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'approvals' && (
+          <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Approval Workflows</h2>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">{approvalItems.length} rows</p>
+            </div>
+            <div className="mt-4 space-y-3">
+              {approvalItems.map((row) => (
+                <div key={row._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.module} • {row.entityType}</p>
+                  <p className="text-xs text-neutral-500">Entity: {row.entityId}</p>
+                  <p className="text-xs text-neutral-500">Status: {row.status}</p>
+                </div>
+              ))}
             </div>
           </section>
         )}

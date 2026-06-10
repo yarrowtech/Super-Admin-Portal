@@ -23,12 +23,14 @@ const expenseSchema = new mongoose.Schema(
     documents: { type: [expenseDocumentSchema], default: [] },
     notes: { type: String, trim: true },
     submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null }
   },
   { timestamps: true }
 );
 
 expenseSchema.index({ status: 1 });
 expenseSchema.index({ department: 1 });
+expenseSchema.index({ projectId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.models['FinanceExpense'] || mongoose.model('FinanceExpense', expenseSchema);

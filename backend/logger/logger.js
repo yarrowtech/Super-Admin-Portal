@@ -2,10 +2,13 @@ const pino = require("pino");
 const env = require("../config/env");
 const { buildTransport } = require("./transport");
 
+const transport = buildTransport();
+
 const logger = pino(
   {
     name: "super-admin-backend",
     level: env.LOG_LEVEL,
+    enabled: env.NODE_ENV !== "test",
     base: {
       service: "super-admin-backend",
       env: env.NODE_ENV,
@@ -25,7 +28,10 @@ const logger = pino(
       paths: [
         "req.headers.authorization",
         "req.headers.cookie",
+<<<<<<< HEAD
         "req.headers['set-cookie']",
+=======
+>>>>>>> 6bf966de8f22d883f07348bbd403c9d21a75ab2e
         "authorization",
         "cookie",
         "set-cookie",
@@ -40,7 +46,7 @@ const logger = pino(
       remove: true,
     },
   },
-  buildTransport()
+  transport
 );
 
 module.exports = logger;

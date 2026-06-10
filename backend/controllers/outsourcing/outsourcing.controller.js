@@ -2002,6 +2002,8 @@ module.exports = {
   updateJobStatus,
   createContract,
   listContracts,
+  getContractHistory,
+  updateContractTerms,
   logTime,
   listTimeLogs,
   verifyTimeLog,

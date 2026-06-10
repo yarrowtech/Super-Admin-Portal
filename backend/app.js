@@ -97,6 +97,7 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", routes.authRoutes);
 app.use("/api/attendance", routes.attendanceRoutes);
 app.use("/api/dept/admin", routes.adminRoutes);
+app.use("/api/super-admin", routes.superAdminPortalRoutes);
 app.use("/api/dept/super-admin", routes.superAdminRoutes);
 app.use("/api/dept/ceo", routes.ceoRoutes);
 app.use("/api/ceo", routes.ceoRoutes);

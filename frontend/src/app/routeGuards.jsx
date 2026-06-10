@@ -43,6 +43,9 @@ export const defaultRolePath = (user) => {
   switch (role) {
     case 'ceo':
       return '/ceo/dashboard';
+    case 'super_admin':
+    case 'superadmin':
+      return '/admin/super-admin';
     case 'admin':
       return '/admin/dashboard';
     case 'manager':
@@ -144,4 +147,4 @@ export const OutsourcingRoute = ({ children }) => {
   return children;
 };
 
-export const allowRoleWithAdmin = (role) => [role, 'admin'];
+export const allowRoleWithAdmin = (role) => [role, 'admin', 'super_admin', 'superadmin'];

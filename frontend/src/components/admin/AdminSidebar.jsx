@@ -61,10 +61,10 @@ const navItems = [
     description: 'Analytics & reports'
   },
   {
-    label: 'Control Center',
+    label: 'Super Admin',
     icon: 'admin_panel_settings',
-    path: '/admin/control-center',
-    description: 'Project allocation and monitoring'
+    path: '/admin/super-admin',
+    description: 'Portal stats, sessions, and health'
   },
   {
     label: 'Workflows',

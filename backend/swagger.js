@@ -78,7 +78,7 @@ const getTagForPath = (routePath) => {
   if (routePath === "/health") return "Health";
   if (routePath.startsWith("/api/auth")) return "Auth";
   if (routePath.startsWith("/api/dept/admin")) return "Admin";
-  if (routePath.startsWith("/api/dept/super-admin")) return "Super Admin";
+  if (routePath.startsWith("/api/super-admin") || routePath.startsWith("/api/dept/super-admin")) return "Super Admin";
   if (routePath.startsWith("/api/dept/ceo")) return "CEO";
   if (routePath.startsWith("/api/dept/it")) return "IT";
   if (routePath.startsWith("/api/dept/hr")) return "HR";

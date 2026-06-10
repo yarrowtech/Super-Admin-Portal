@@ -4,6 +4,7 @@ exports.authRoutes = require("./auth.routes");
 exports.attendanceRoutes = require("./attendance.routes");
 exports.adminRoutes = require("./admin.routes");
 exports.superAdminRoutes = require("./superAdmin.routes");
+exports.superAdminPortalRoutes = require("./superAdmin.portal.routes");
 exports.ceoRoutes = require("./ceo.routes");
 exports.employeeDeptRoutes = require("./employee.dept.routes");
 exports.employeePortalRoutes = require("./employee.routes");

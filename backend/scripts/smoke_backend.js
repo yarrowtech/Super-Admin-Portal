@@ -8,6 +8,8 @@ const endpointChecks = [
   { method: "GET", path: "/health" },
   { method: "GET", path: "/api/auth/me" },
   { method: "GET", path: "/api/dept/admin/dashboard" },
+  { method: "GET", path: "/api/super-admin/overview" },
+  { method: "GET", path: "/api/super-admin/health" },
   { method: "GET", path: "/api/dept/super-admin/dashboard" },
   { method: "GET", path: "/api/dept/ceo/dashboard" },
   { method: "GET", path: "/api/dept/it/dashboard" },

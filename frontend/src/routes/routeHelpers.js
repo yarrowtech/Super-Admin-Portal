@@ -24,6 +24,8 @@ export const getDefaultRoute = (user) => {
   }
 
   const roleRoutes = {
+    super_admin: '/admin/super-admin',
+    superadmin: '/admin/super-admin',
     admin: '/admin/dashboard',
     ceo: '/ceo/dashboard',
     manager: '/manager/dashboard',
@@ -40,4 +42,4 @@ export const getDefaultRoute = (user) => {
   return roleRoutes[role] || '/hr/dashboard';
 };
 
-export const allowWithAdmin = (role) => [role, 'admin'];
+export const allowWithAdmin = (role) => [role, 'admin', 'super_admin', 'superadmin'];

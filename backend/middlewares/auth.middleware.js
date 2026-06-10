@@ -1,6 +1,7 @@
 const logger = require('../utils/logger');
 // backend/middleware/auth.js
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/auth/User');
 const PortalAccess = require('../models/superAdmin/PortalAccess');
 const jwtConfig = require('../config/jwt');
@@ -116,6 +117,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // 5. Attach user to request
+    req.authTokenJti = decoded.jti || null;
     req.user = {
       id: user._id,
       _id: user._id, // keep _id for handlers that expect it
@@ -332,7 +334,7 @@ const refreshToken = async (req, res, next) => {
           role: req.user.role
         },
         jwtConfig.accessSecret,
-        { expiresIn: jwtConfig.accessExpiresIn }
+        { expiresIn: jwtConfig.accessExpiresIn, jwtid: decoded.jti || crypto.randomUUID() }
       );
 
       // Send new token in response header

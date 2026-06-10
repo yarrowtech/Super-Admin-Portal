@@ -4,6 +4,7 @@ const tokenSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     token: { type: String, required: true, unique: true },
+    jti: { type: String, trim: true, index: true },
     type: { type: String, enum: ['refresh', 'reset-password', 'verify-email'], default: 'refresh' },
     expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },

@@ -84,6 +84,8 @@ import { canAccessPortal, PORTALS } from '../utils/rbac';
 import { dashboardWorkflowApi } from '../services/dashboardWorkflow';
 import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, PrivateRoute } from './routeGuards';
 
+const adminRoles = ['admin', 'super_admin', 'superadmin'];
+
 const PortalRoute = ({ portal, children }) => {
   const { user, token, loading } = useAuth();
   const location = useLocation();
@@ -314,7 +316,7 @@ export default function AppRoutes() {
           path="/admin/dashboard"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminDashboardPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -324,27 +326,31 @@ export default function AppRoutes() {
           path="/admin/users"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminUsersPage)}
               </PrivateRoute>
             </PortalRoute>
           }
         />
         <Route
-          path="/admin/control-center"
+          path="/admin/super-admin"
           element={
-            <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+            <PortalRoute portal={PORTALS.SUPER_ADMIN}>
+              <PrivateRoute roles={['super_admin', 'superadmin']}>
                 {withPortal(AdminLayout, SuperAdminControlCenterPage)}
               </PrivateRoute>
             </PortalRoute>
           }
         />
         <Route
+          path="/admin/control-center"
+          element={<Navigate to="/admin/super-admin" replace />}
+        />
+        <Route
           path="/admin/projects"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, SuperAdminControlCenterPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -354,7 +360,7 @@ export default function AppRoutes() {
           path="/admin/departments"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminDepartmentsPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -364,7 +370,7 @@ export default function AppRoutes() {
           path="/admin/security"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminSecurityPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -374,7 +380,7 @@ export default function AppRoutes() {
           path="/admin/reports"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminReportsPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -384,7 +390,7 @@ export default function AppRoutes() {
           path="/admin/workflows"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminWorkflowsPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -404,7 +410,7 @@ export default function AppRoutes() {
           path="/admin/outsourcing"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 <Navigate to="/admin/outsourcing/dashboard" replace />
               </PrivateRoute>
             </PortalRoute>
@@ -414,7 +420,7 @@ export default function AppRoutes() {
           path="/admin/outsourcing/dashboard"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminOutsourcingDashboardPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -424,7 +430,7 @@ export default function AppRoutes() {
           path="/admin/outsourcing/freelancers"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminOutsourcingFreelancersPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -434,7 +440,7 @@ export default function AppRoutes() {
           path="/admin/outsourcing/jobs"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminOutsourcingJobsPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -444,7 +450,7 @@ export default function AppRoutes() {
           path="/admin/outsourcing/contracts"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminOutsourcingContractsPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -454,7 +460,7 @@ export default function AppRoutes() {
           path="/admin/outsourcing/reports"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminOutsourcingReportsPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -670,7 +676,7 @@ export default function AppRoutes() {
           path="/admin/legal-docs"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminLegalRegistryPage)}
               </PrivateRoute>
             </PortalRoute>
@@ -680,7 +686,7 @@ export default function AppRoutes() {
           path="/admin/legal-library"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
-              <PrivateRoute roles={['admin']}>
+              <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminLegalLibraryPage)}
               </PrivateRoute>
             </PortalRoute>

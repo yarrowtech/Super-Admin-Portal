@@ -24,10 +24,16 @@ const logger = pino(
     redact: {
       paths: [
         "req.headers.authorization",
+        "req.headers.cookie",
+        "req.headers['set-cookie']",
         "authorization",
+        "cookie",
+        "set-cookie",
         "token",
         "password",
+        "*.cookie",
         "*.password",
+        "*.set-cookie",
         "*.token",
         "*.refreshToken",
       ],

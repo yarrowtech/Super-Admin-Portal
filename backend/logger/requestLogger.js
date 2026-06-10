@@ -2,8 +2,30 @@ const crypto = require("crypto");
 const pinoHttp = require("pino-http");
 const logger = require("./logger");
 
+const serializeReq = (req) => {
+  const raw = req.raw || req;
+  return {
+    id: raw.id || req.id,
+    method: raw.method,
+    url: raw.url,
+    remoteAddress: raw.socket?.remoteAddress || raw.remoteAddress,
+    remotePort: raw.socket?.remotePort || raw.remotePort,
+  };
+};
+
+const serializeRes = (res) => {
+  const raw = res.raw || res;
+  return {
+    statusCode: raw.statusCode,
+  };
+};
+
 const requestLogger = pinoHttp({
   logger,
+  serializers: {
+    req: serializeReq,
+    res: serializeRes,
+  },
   genReqId: (req, res) => {
     const incoming = req.headers["x-request-id"];
     const requestId = (typeof incoming === "string" && incoming.trim()) || crypto.randomUUID();

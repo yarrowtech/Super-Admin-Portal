@@ -36,6 +36,10 @@ export const outsourcingApi = {
     invalidateOutsourcingCache();
     return res;
   },
+  generateEecSsoToken: async (token, payload = {}) => {
+    const res = await apiClient.post('/api/sso/token', payload, token);
+    return res;
+  },
   verifySsoToken: async (payload = {}) => apiClient.post('/api/sso/verify-token', payload),
   getNotifications: async (token) => readCache(token, 'notifications', () => apiClient.get('/api/outsourcing/notifications', token), ttl.fast),
   getPayments: async (token) => readCache(token, 'payments', () => apiClient.get('/api/outsourcing/payments', token), ttl.medium),

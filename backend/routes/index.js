@@ -23,6 +23,7 @@ exports.researchRoutes = require("./research.routes");
 exports.outsourcingRoutes = require("./outsourcing.routes");
 exports.projectAccessRoutes = require("./projectAccess.routes");
 exports.externalAuthRoutes = require("./externalAuth.routes");
+exports.ssoRoutes = require("./sso.routes");
 exports.dashboardRoutes = require("./dashboard.routes");
 exports.profileRoutes = require("./profile.routes");
 exports.hrProfileRoutes = require("./hr.profile.routes");

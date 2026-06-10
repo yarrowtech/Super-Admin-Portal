@@ -1,12 +1,62 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const logger = require('../utils/logger');
 const User = require('../models/auth/User');
+const Token = require('../models/auth/Token');
+const ActivityLog = require('../models/auth/ActivityLog');
 const jwtConfig = require('../config/jwt');
 const { findProjectByCode, getAccessibleProjects, buildProjectAccessSummary, buildAccessTokenPayload, buildProjectLaunchUrl, normalizeProjectKey } = require('../utils/projectAccess');
 
 const resolveUser = async (userId) => {
   if (!userId) return null;
   return User.findById(userId).select('firstName lastName email role department metadata permissions isActive accountStatus');
+};
+
+const getDisplayName = (user = {}) =>
+  `${String(user?.firstName || '').trim()} ${String(user?.lastName || '').trim()}`.trim() || user?.email || '';
+
+const getSsoContext = (user = {}) => {
+  const metadata = user?.metadata && typeof user.metadata === 'object' ? user.metadata : {};
+  return {
+    designation: String(metadata.designation || '').trim(),
+    employeeCode: String(metadata.employeeCode || '').trim(),
+    vendorCode: String(metadata.vendorCode || '').trim(),
+  };
+};
+
+const writeSsoActivity = async (req, eventType, user, metadata = {}) => {
+  try {
+    const ctx = getSsoContext(user);
+    await ActivityLog.create({
+      actor: user?._id || user?.id || null,
+      user: user?._id || user?.id || null,
+      action: eventType,
+      module: 'sso',
+      targetType: 'SSO',
+      targetId: String(metadata.projectCode || 'EEC'),
+      metadata: {
+        eventType,
+        portal: 'outsourcing',
+        projectCode: String(metadata.projectCode || 'EEC'),
+        userId: String(user?._id || user?.id || ''),
+        employeeCode: metadata.employeeCode || ctx.employeeCode || '',
+        role: user?.role || '',
+        sessionId: metadata.sessionId || '',
+        jti: metadata.jti || '',
+        ipAddress: req.ip || '',
+        userAgent: req.get('user-agent') || '',
+        status: metadata.status || 'success',
+        message: metadata.message || '',
+        timestamp: new Date().toISOString(),
+        redirectTo: metadata.redirectTo || '',
+        redirectUrl: metadata.redirectUrl || '',
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+  } catch (error) {
+    logger.warn({ err: error, eventType }, 'Failed to write SSO activity');
+  }
 };
 
 const buildProjectResponse = (user, project) => ({
@@ -54,6 +104,95 @@ const issueExternalToken = (user, project) =>
     jwtConfig.accessSecret,
     { expiresIn: jwtConfig.accessExpiresIn }
   );
+
+const issueEecSsoToken = async (req, res) => {
+  try {
+    const user = await getRequestUser(req);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not found', error: 'User not found' });
+    }
+
+    const projectCode = normalizeProjectKey(req.body?.projectCode);
+    const redirectCandidate = typeof req.body?.redirectTo === 'string' ? req.body.redirectTo.trim() : '';
+    const redirectTo = redirectCandidate.startsWith('/')
+      ? redirectCandidate
+      : '/dashboard';
+
+    if (projectCode !== 'EEC') {
+      return res.status(400).json({
+        success: false,
+        message: 'projectCode must be EEC',
+        error: 'Invalid projectCode',
+      });
+    }
+
+    const project = buildProjectForUser(user, projectCode);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found', error: 'Project not found' });
+    }
+
+    if (String(user.role || '').toLowerCase() !== 'admin' && !project.accessGranted) {
+      return res.status(403).json({
+        success: false,
+        message: 'Project access denied',
+        error: 'Project access denied',
+        code: 'PROJECT_ACCESS_DENIED',
+      });
+    }
+
+    const jti = crypto.randomUUID();
+    const payload = buildAccessTokenPayload(user, project, {
+      projectCode: 'EEC',
+      projectName: project.name,
+      jti,
+      designation: user?.metadata?.designation || '',
+      employeeCode: user?.metadata?.employeeCode || '',
+      vendorCode: user?.metadata?.vendorCode || '',
+    });
+    const token = jwt.sign(payload, jwtConfig.accessSecret, {
+      expiresIn: '5m',
+      jwtid: jti,
+    });
+    const redirectUrl = `${String(project.launchUrl || 'https://eec.company.com').replace(/\/$/, '')}/sso/eec?token=${encodeURIComponent(token)}&redirectTo=${redirectTo}`;
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    await Promise.all([
+      Token.create({
+        user: user._id || user.id,
+        token,
+        jti,
+        type: 'sso',
+        portal: 'outsourcing',
+        projectCode: 'EEC',
+        expiresAt,
+      }),
+      writeSsoActivity(req, 'SSO_TOKEN_CREATED', user, {
+        projectCode: 'EEC',
+        jti,
+        redirectTo,
+        redirectUrl,
+        message: 'EEC SSO token created',
+      }),
+      writeSsoActivity(req, 'SSO_REDIRECT_ISSUED', user, {
+        projectCode: 'EEC',
+        jti,
+        redirectTo,
+        redirectUrl,
+        message: 'EEC redirect issued',
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      redirectUrl,
+      message: 'EEC SSO token created',
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Issue EEC SSO token error');
+    return res.status(500).json({ success: false, message: 'Failed to create SSO token', error: error.message });
+  }
+};
 
 const login = async (req, res) => {
   try {
@@ -223,4 +362,5 @@ module.exports = {
   verify,
   ssoLogin,
   userAccess,
+  issueEecSsoToken,
 };

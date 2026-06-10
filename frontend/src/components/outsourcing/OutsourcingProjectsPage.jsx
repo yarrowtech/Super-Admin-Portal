@@ -74,8 +74,10 @@ export default function OutsourcingProjectsPage() {
   const handleLaunch = async (projectCode) => {
     try {
       setLaunchingProject(projectCode);
-      const response = await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
-      const redirectUrl = response?.data?.redirectUrl;
+      const response = projectCode === 'EEC'
+        ? await outsourcingApi.generateEecSsoToken(token, { projectCode: 'EEC', redirectTo: '/dashboard' })
+        : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
+      const redirectUrl = response?.redirectUrl || response?.data?.redirectUrl;
       if (redirectUrl) {
         window.location.assign(redirectUrl);
       }
@@ -219,6 +221,8 @@ export default function OutsourcingProjectsPage() {
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
           {filteredProjects.map((project, index) => {
             const canLaunch = Boolean(project?.access?.canLaunch);
+            const isEec = project.code === 'EEC';
+            const launchEnabled = isEec || canLaunch;
             const blockedReason = project?.access?.blockedReason || 'Access not available';
             const accentClasses = [
               'from-blue-500 to-cyan-500',
@@ -267,29 +271,35 @@ export default function OutsourcingProjectsPage() {
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex h-2.5 w-2.5 rounded-full ${canLaunch ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                        {canLaunch ? 'Ready to open' : 'Access blocked'}
+                        {canLaunch ? 'Ready to open' : isEec ? 'Open via SSO' : 'Access blocked'}
                       </p>
                     </div>
                       <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                        {canLaunch ? 'Open now' : blockedReason}
+                        {canLaunch ? 'Open now' : isEec ? 'SSO token required' : blockedReason}
                       </p>
                   </div>
 
                   <div className="mt-auto pt-4">
                     <button
                       type="button"
-                      disabled={!canLaunch || launchingProject === project.code}
+                      disabled={!launchEnabled || launchingProject === project.code}
                       onClick={() => handleLaunch(project.code)}
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm transition ${
-                        canLaunch
+                        launchEnabled
                           ? 'bg-blue-600 text-white hover:-translate-y-0.5 hover:bg-blue-700'
                           : 'cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400'
                       } disabled:opacity-70`}
                     >
                       <span className="material-symbols-outlined text-[18px]">
-                        {launchingProject === project.code ? 'hourglass_top' : canLaunch ? 'open_in_new' : 'lock'}
+                        {launchingProject === project.code ? 'hourglass_top' : launchEnabled ? 'open_in_new' : 'lock'}
                       </span>
-                      {launchingProject === project.code ? 'Launching...' : canLaunch ? 'Open' : 'Locked'}
+                      {launchingProject === project.code
+                        ? 'Launching...'
+                        : launchEnabled
+                          ? project.code === 'EEC'
+                            ? 'Open EEC'
+                            : 'Open'
+                          : 'Locked'}
                     </button>
                   </div>
                 </div>

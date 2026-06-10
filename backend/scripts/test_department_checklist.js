@@ -1,7 +1,7 @@
 const { spawnSync } = require("child_process");
 
 const scripts = [
-  "test_finance_department_checklist.js",
+  "test_finance_checklist.js",
   "test_hr_checklist.js",
   "test_manager_checklist.js",
 ];

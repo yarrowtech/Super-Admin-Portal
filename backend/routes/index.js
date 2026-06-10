@@ -1,7 +1,10 @@
+const express = require("express");
+
 exports.authRoutes = require("./auth.routes");
 exports.attendanceRoutes = require("./attendance.routes");
 exports.adminRoutes = require("./admin.routes");
 exports.superAdminRoutes = require("./superAdmin.routes");
+exports.superAdminPortalRoutes = require("./superAdmin.portal.routes");
 exports.ceoRoutes = require("./ceo.routes");
 exports.employeeDeptRoutes = require("./employee.dept.routes");
 exports.employeePortalRoutes = require("./employee.routes");
@@ -18,8 +21,20 @@ exports.mediaRoutes = require("./media.routes");
 exports.salesRoutes = require("./sales.routes");
 exports.researchRoutes = require("./research.routes");
 exports.outsourcingRoutes = require("./outsourcing.routes");
+exports.projectAccessRoutes = require("./projectAccess.routes");
+exports.externalAuthRoutes = require("./externalAuth.routes");
 exports.dashboardRoutes = require("./dashboard.routes");
 exports.profileRoutes = require("./profile.routes");
 exports.hrProfileRoutes = require("./hr.profile.routes");
 exports.analyticsRoutes = require("./analytics.routes");
 exports.automationRoutes = require("./automation.routes");
+
+const legalDocRoutes = express.Router();
+legalDocRoutes.use((req, res) => {
+  res.status(501).json({
+    success: false,
+    error: "Legal document routes are temporarily unavailable.",
+  });
+});
+
+exports.legalDocRoutes = legalDocRoutes;

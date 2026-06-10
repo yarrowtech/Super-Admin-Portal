@@ -27,23 +27,28 @@ const PortalSidebar = ({
     { path: '/support', label: 'Support', icon: 'help', description: 'Get help' },
   ];
 
+  const isPathActive = (path) => Boolean(path) && (currentPath === path || currentPath.startsWith(path + '/'));
+
   const isGroupActive = (item) =>
-    Boolean(item?.children?.some((child) => currentPath === child.path || currentPath.startsWith(child.path + '/')));
+    Boolean(item?.children?.some((child) => isPathActive(child.path) || isGroupActive(child)));
+
+  const collectActiveGroups = (items = [], next = {}) => {
+    items.forEach((item) => {
+      if (!Array.isArray(item.children) || item.children.length === 0) return;
+      if (isGroupActive(item)) {
+        next[item.path] = true;
+      }
+      collectActiveGroups(item.children, next);
+    });
+    return next;
+  };
 
   useEffect(() => {
+    const autoOpen = collectActiveGroups(resolvedNavItems);
     setOpenGroups((prev) => {
-      const next = { ...prev };
-      let changed = false;
-
-      resolvedNavItems.forEach((item) => {
-        if (!Array.isArray(item.children) || item.children.length === 0) return;
-        if (isGroupActive(item) && !next[item.path]) {
-          next[item.path] = true;
-          changed = true;
-        }
-      });
-
-      return changed ? next : prev;
+      const merged = { ...prev, ...autoOpen };
+      const changed = Object.keys(merged).some((key) => merged[key] !== prev[key]) || Object.keys(prev).some((key) => !(key in merged));
+      return changed ? merged : prev;
     });
   }, [currentPath, resolvedNavItems]);
 
@@ -157,8 +162,47 @@ const PortalSidebar = ({
                 {hasChildren && isOpen ? (
                   <div className="mt-1 space-y-1 pl-10">
                     {item.children.map((child) => {
-                      const childActive = currentPath === child.path || currentPath.startsWith(child.path + '/');
-                      return (
+                      const childHasChildren = Array.isArray(child.children) && child.children.length > 0;
+                      const childActive = isPathActive(child.path) || isGroupActive(child);
+                      const childOpen = openGroups[child.path] ?? false;
+
+                      return childHasChildren ? (
+                        <div key={child.path}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenGroups((prev) => ({ ...prev, [child.path]: !childOpen }))}
+                            className={`group relative flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all ${
+                              childActive
+                                ? 'bg-[color:var(--portal-accent-soft)] font-semibold text-[var(--portal-accent)]'
+                                : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-base">folder_open</span>
+                            <span className="flex-1 text-left">{child.label}</span>
+                            <span className="material-symbols-outlined text-base">{childOpen ? 'expand_less' : 'chevron_right'}</span>
+                          </button>
+                          {childOpen ? (
+                            <div className="mt-1 space-y-1 pl-8">
+                              {child.children.map((subChild) => {
+                                const subActive = isPathActive(subChild.path);
+                                return (
+                                  <NavLink
+                                    key={subChild.path}
+                                    to={subChild.path}
+                                    className={`block rounded-lg px-3 py-2 text-sm transition-all ${
+                                      subActive
+                                        ? 'bg-[color:var(--portal-accent-soft)] font-semibold text-[var(--portal-accent)]'
+                                        : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                                    }`}
+                                  >
+                                    {subChild.label}
+                                  </NavLink>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
                         <NavLink
                           key={child.path}
                           to={child.path}

@@ -29,6 +29,17 @@ const navItems = [
       { label: 'IT', path: '/it/dashboard' },
       { label: 'Finance', path: '/finance/dashboard' },
       { label: 'Media', path: '/media/dashboard' },
+      {
+        label: 'Outsourcing',
+        path: '/admin/outsourcing/dashboard',
+        children: [
+          { label: 'Dashboard', path: '/admin/outsourcing/dashboard' },
+          { label: 'Freelancers', path: '/admin/outsourcing/freelancers' },
+          { label: 'Jobs', path: '/admin/outsourcing/jobs' },
+          { label: 'Contracts', path: '/admin/outsourcing/contracts' },
+          { label: 'Reports', path: '/admin/outsourcing/reports' },
+        ],
+      },
     ]
   },
   {
@@ -38,10 +49,22 @@ const navItems = [
     description: 'Security monitoring'
   },
   {
+    label: 'Projects',
+    icon: 'folder_open',
+    path: '/admin/projects',
+    description: 'Project allocation and access'
+  },
+  {
     label: 'Reports',
     icon: 'bar_chart',
     path: '/admin/reports',
     description: 'Analytics & reports'
+  },
+  {
+    label: 'Super Admin',
+    icon: 'admin_panel_settings',
+    path: '/admin/super-admin',
+    description: 'Portal stats, sessions, and health'
   },
   {
     label: 'Workflows',
@@ -50,23 +73,16 @@ const navItems = [
     description: 'Process management'
   },
   {
-    label: 'Super Admin',
-    icon: 'admin_panel_settings',
-    path: '/admin/super-admin',
-    description: 'Global controls'
+    label: 'Legal Registry',
+    icon: 'gavel',
+    path: '/admin/legal-docs',
+    description: 'Legal document registry'
   },
   {
-    label: 'Outsourcing',
-    icon: 'work',
-    path: '/admin/outsourcing/dashboard',
-    description: 'Outsourcing operations',
-    children: [
-      { label: 'Dashboard', path: '/admin/outsourcing/dashboard' },
-      { label: 'Freelancers', path: '/admin/outsourcing/freelancers' },
-      { label: 'Jobs', path: '/admin/outsourcing/jobs' },
-      { label: 'Contracts', path: '/admin/outsourcing/contracts' },
-      { label: 'Reports', path: '/admin/outsourcing/reports' },
-    ]
+    label: 'Legal Library',
+    icon: 'library_books',
+    path: '/admin/legal-library',
+    description: 'Approved legal documents'
   },
 ];
 

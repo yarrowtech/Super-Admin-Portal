@@ -9,6 +9,7 @@ const roleOptions = [
   { value: 'media', label: 'Media', icon: 'photo_camera' },
   { value: 'finance', label: 'Finance', icon: 'payments' },
   { value: 'manager', label: 'Manager', icon: 'supervisor_account' },
+  { value: 'freelancer', label: 'Freelancer', icon: 'person' },
   { value: 'sales', label: 'Sales', icon: 'trending_up' },
   { value: 'research_operator', label: 'Research', icon: 'science' },
   { value: 'employee', label: 'Employee', icon: 'person' },

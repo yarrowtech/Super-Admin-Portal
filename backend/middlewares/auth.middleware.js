@@ -1,10 +1,48 @@
 const logger = require('../utils/logger');
 // backend/middleware/auth.js
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/auth/User');
 const PortalAccess = require('../models/superAdmin/PortalAccess');
 const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
+
+const DEFAULT_MANAGER_PORTALS = new Set(['manager', 'admin', 'hr', 'it', 'law', 'employee']);
+const DEFAULT_IT_PORTALS = new Set(['it', 'admin', 'hr', 'law', 'employee', 'manager']);
+
+const normalizeProjectAssignments = (metadata = {}) => {
+  const raw = metadata?.projectAssignments ?? metadata?.assignedProjects ?? [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const value = entry.trim();
+        return value ? value : null;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+
+      const normalized = {
+        projectId: typeof entry.projectId === 'string' ? entry.projectId.trim() : String(entry.projectId || '').trim(),
+        projectCode: typeof entry.projectCode === 'string' ? entry.projectCode.trim() : '',
+        projectName: typeof entry.projectName === 'string' ? entry.projectName.trim() : '',
+      };
+
+      const permissions = Array.isArray(entry.permissions)
+        ? entry.permissions
+            .map((permission) => (typeof permission === 'string' ? permission.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (permissions.length > 0) normalized.permissions = permissions;
+
+      const cleaned = Object.fromEntries(
+        Object.entries(normalized).filter(([, value]) => Boolean(value))
+      );
+      return Object.keys(cleaned).length > 0 ? cleaned : null;
+    })
+    .filter(Boolean)
+    .slice(0, 100);
+};
 
 /**
  * Universal JWT Authentication Middleware
@@ -79,6 +117,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // 5. Attach user to request
+    req.authTokenJti = decoded.jti || null;
     req.user = {
       id: user._id,
       _id: user._id, // keep _id for handlers that expect it
@@ -89,7 +128,9 @@ const authenticate = async (req, res, next) => {
       department: user.department,
       isActive: user.isActive,
       accountStatus: user.accountStatus,
-      permissions: user.permissions || []
+      permissions: user.permissions || [],
+      metadata: user.metadata || {},
+      assignedProjects: normalizeProjectAssignments(user.metadata || {})
     };
 
     next();
@@ -152,6 +193,12 @@ const authorizePortalAccess = (portal) => {
       }).select('canAccess');
 
       if (!rule && req.user.role === 'admin') return next();
+      if (!rule && req.user.role === 'manager' && DEFAULT_MANAGER_PORTALS.has(portal)) {
+        return next();
+      }
+      if (!rule && req.user.role === 'it' && DEFAULT_IT_PORTALS.has(portal)) {
+        return next();
+      }
       // Fail-open for first-party same-role portal access when rule seeding is missing.
       // Explicit stored deny rules still take precedence.
       if (!rule && req.user.role === portal) return next();
@@ -211,7 +258,10 @@ const optionalAuth = async (req, res, next) => {
           role: user.role,
           firstName: user.firstName,
           lastName: user.lastName,
-          department: user.department
+          department: user.department,
+          permissions: user.permissions || [],
+          metadata: user.metadata || {},
+          assignedProjects: normalizeProjectAssignments(user.metadata || {})
         };
       }
     } catch (err) {
@@ -284,7 +334,7 @@ const refreshToken = async (req, res, next) => {
           role: req.user.role
         },
         jwtConfig.accessSecret,
-        { expiresIn: jwtConfig.accessExpiresIn }
+        { expiresIn: jwtConfig.accessExpiresIn, jwtid: decoded.jti || crypto.randomUUID() }
       );
 
       // Send new token in response header

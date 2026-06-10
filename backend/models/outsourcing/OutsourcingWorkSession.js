@@ -8,10 +8,13 @@ const workSessionSchema = new mongoose.Schema(
     checkInAt: { type: Date, required: true },
     checkOutAt: { type: Date, default: null },
     durationMinutes: { type: Number, default: 0, min: 0 },
+    totalPausedMinutes: { type: Number, default: 0, min: 0 },
+    pausedAt: { type: Date, default: null },
+    lastStatusAt: { type: Date, default: null },
     note: { type: String, trim: true, default: '' },
     status: {
       type: String,
-      enum: ['active', 'closed'],
+      enum: ['active', 'paused', 'closed'],
       default: 'active'
     }
   },
@@ -23,4 +26,3 @@ workSessionSchema.index({ worker: 1, checkInAt: -1 });
 
 module.exports =
   mongoose.models.OutsourcingWorkSession || mongoose.model('OutsourcingWorkSession', workSessionSchema);
-

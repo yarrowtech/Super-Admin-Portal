@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 const PORT = env.PORT;
 
 const httpServer = server.listen(PORT, () => {
-  logger.info(`Server running: http://localhost:${PORT}`);
+  logger.info({ port: PORT }, "Server running");
 });
 
 const shutdown = async (signal) => {

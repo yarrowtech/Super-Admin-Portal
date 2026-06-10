@@ -19,6 +19,9 @@ export const managerApi = {
   createProjectTeam: (token, data) =>
     apiClient.post('/api/dept/manager/project-teams', data, token),
   getProjects: (token) => apiClient.get('/api/dept/manager/projects', token),
+  createProject: (token, data) => apiClient.post('/api/dept/manager/projects', data, token),
+  updateProject: (token, projectId, data) => apiClient.put(`/api/dept/manager/projects/${projectId}`, data, token),
+  deleteProject: (token, projectId) => apiClient.delete(`/api/dept/manager/projects/${projectId}`, token),
   getNotifications: (token) => apiClient.get('/api/dept/manager/notifications', token),
   markNotificationRead: (token, notificationId) => 
     apiClient.put(`/api/dept/manager/notifications/${notificationId}/read`, {}, token),

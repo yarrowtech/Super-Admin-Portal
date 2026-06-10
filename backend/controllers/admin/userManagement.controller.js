@@ -15,6 +15,9 @@ const ALLOWED_METADATA_FIELDS = [
   'startDate',
   'skills',
   'accessLevel',
+  'projectAssignments',
+  'projectAccess',
+  'projectRoles',
   'notes'
 ];
 
@@ -54,6 +57,61 @@ const prepareMetadataPayload = (metadata) => {
         } else {
           fieldsToRemove.push(field);
         }
+      }
+      return;
+    }
+
+    if (field === 'projectAssignments' || field === 'projectAccess' || field === 'projectRoles') {
+      if (!Array.isArray(rawValue)) {
+        fieldsToRemove.push(field);
+        return;
+      }
+
+      const cleanedAssignments = rawValue
+        .map((item) => {
+          if (typeof item === 'string') {
+            const value = item.trim();
+            return value ? value : null;
+          }
+          if (!item || typeof item !== 'object') return null;
+          const cleaned = {};
+          if (typeof item.projectId === 'string' && item.projectId.trim()) cleaned.projectId = item.projectId.trim();
+          if (typeof item.projectCode === 'string' && item.projectCode.trim()) cleaned.projectCode = item.projectCode.trim();
+          if (typeof item.projectName === 'string' && item.projectName.trim()) cleaned.projectName = item.projectName.trim();
+          if (typeof item.role === 'string' && item.role.trim()) cleaned.role = item.role.trim();
+          if (Array.isArray(item.permissions)) {
+            const permissions = item.permissions
+              .map((permission) => (typeof permission === 'string' ? permission.trim() : ''))
+              .filter(Boolean);
+            if (permissions.length > 0) cleaned.permissions = permissions;
+          }
+          if (Array.isArray(item.modules)) {
+            const modules = item.modules
+              .map((module) => (typeof module === 'string' ? module.trim() : ''))
+              .filter(Boolean);
+            if (modules.length > 0) cleaned.modules = modules;
+          }
+          if (Array.isArray(item.pages)) {
+            const pages = item.pages
+              .map((page) => (typeof page === 'string' ? page.trim() : ''))
+              .filter(Boolean);
+            if (pages.length > 0) cleaned.pages = pages;
+          }
+          if (Array.isArray(item.actions)) {
+            const actions = item.actions
+              .map((action) => (typeof action === 'string' ? action.trim() : ''))
+              .filter(Boolean);
+            if (actions.length > 0) cleaned.actions = actions;
+          }
+          return Object.keys(cleaned).length > 0 ? cleaned : null;
+        })
+        .filter(Boolean)
+        .slice(0, 100);
+
+      if (cleanedAssignments.length > 0) {
+        sanitized[field] = cleanedAssignments;
+      } else {
+        fieldsToRemove.push(field);
       }
       return;
     }

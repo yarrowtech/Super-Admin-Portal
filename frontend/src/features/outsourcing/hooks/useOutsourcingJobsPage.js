@@ -42,6 +42,11 @@ export const useOutsourcingJobsPage = () => {
     onSuccess: invalidateJobs,
   });
 
+  const rejectMutation = useMutation({
+    mutationFn: ({ jobId, rejectionReason }) => outsourcingApi.rejectJob(token, jobId, rejectionReason),
+    onSuccess: invalidateJobs,
+  });
+
   const statusMutation = useMutation({
     mutationFn: ({ jobId, status }) => outsourcingApi.updateJobStatus(token, jobId, status),
     onSuccess: invalidateJobs,
@@ -93,12 +98,14 @@ export const useOutsourcingJobsPage = () => {
     sentinelRef,
     activeContractJobIds,
     loading: jobsQuery.isLoading || contractsQuery.isLoading,
-    error: jobsQuery.error || contractsQuery.error || acceptMutation.error || statusMutation.error,
+    error: jobsQuery.error || contractsQuery.error || acceptMutation.error || rejectMutation.error || statusMutation.error,
     busyJobId:
       acceptMutation.isPending ? acceptMutation.variables :
+      rejectMutation.isPending ? rejectMutation.variables?.jobId :
       statusMutation.isPending ? statusMutation.variables?.jobId :
       '',
     acceptJob: (jobId) => acceptMutation.mutateAsync(jobId),
+    rejectJob: ({ jobId, rejectionReason }) => rejectMutation.mutateAsync({ jobId, rejectionReason }),
     setJobStatus: (jobId, status) => statusMutation.mutateAsync({ jobId, status }),
     retry: () => {
       jobsQuery.refetch();

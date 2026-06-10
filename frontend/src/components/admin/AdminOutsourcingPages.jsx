@@ -105,6 +105,10 @@ export const AdminOutsourcingDashboardPage = () => {
         <KPICard title="Jobs" value={jobs.length} icon="work" colorScheme="green" subtitle="TOTAL" />
         <KPICard title="Contracts" value={contracts.length} icon="contract" colorScheme="orange" subtitle="TOTAL" />
         <KPICard title="Pending Logs" value={timeLogs.filter((x) => x.verificationStatus === 'pending').length} icon="schedule" colorScheme="purple" subtitle="REVIEW" />
+        <KPICard title="Active Sessions" value={dashboard?.sessions?.active || 0} icon="play_arrow" colorScheme="green" subtitle="LIVE" />
+        <KPICard title="Paused Sessions" value={dashboard?.sessions?.paused || 0} icon="pause" colorScheme="orange" subtitle="HOLD" />
+        <KPICard title="Validated Agreements" value={dashboard?.agreements?.validated || 0} icon="verified_user" colorScheme="blue" subtitle="LEGAL" />
+        <KPICard title="Overdue Tasks" value={dashboard?.operations?.overdueTasks || 0} icon="warning" colorScheme="purple" subtitle="AT RISK" />
       </section>
       <section className="mt-6 rounded-lg border bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800">
         <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-6">
@@ -120,11 +124,13 @@ export const AdminOutsourcingDashboardPage = () => {
             <option value="accepted">Accepted</option>
             <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
           </select>
           <select className="rounded border p-2 text-sm" value={acceptance} onChange={(e) => setAcceptance(e.target.value)}>
             <option value="all">All Acceptance</option>
             <option value="pending">Pending</option>
             <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
           </select>
           <select className="rounded border p-2 text-sm" value={paymentType} onChange={(e) => setPaymentType(e.target.value)}>
             <option value="all">All Payment Types</option>

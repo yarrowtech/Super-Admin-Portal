@@ -36,25 +36,39 @@ const LawRecordManager = ({
 }) => {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
+  const [referenceFiles, setReferenceFiles] = useState([]);
+  const [submitError, setSubmitError] = useState('');
 
   const resetForm = () => {
     setForm(emptyForm);
     setEditingId(null);
+    setReferenceFiles([]);
+    setSubmitError('');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    setSubmitError('');
+    if (!editingId && referenceFiles.length === 0) {
+      setSubmitError('Please upload at least one reference PDF.');
+      return;
+    }
     const payload = {
       ...form,
       section,
       tags: form.referenceNumber ? [form.referenceNumber] : [],
+      referenceFiles,
       metadata: {
         ...(form.metadata || {}),
         recordType: form.recordType,
       },
     };
-    onSaveRecord?.(payload, editingId);
-    resetForm();
+    try {
+      await onSaveRecord?.(payload, editingId);
+      resetForm();
+    } catch (err) {
+      setSubmitError(err?.message || 'Failed to save record');
+    }
   };
 
   const startEdit = (record) => {
@@ -71,6 +85,7 @@ const LawRecordManager = ({
       recordType: record.metadata?.recordType || '',
       metadata: record.metadata || {},
     });
+    setReferenceFiles([]);
   };
 
   const updateMetadata = (field, value) => {
@@ -182,6 +197,22 @@ const LawRecordManager = ({
               ))}
             </div>
           )}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+              Reference PDFs {editingId ? '(optional on edit)' : '(required)'}
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              multiple
+              onChange={(event) => setReferenceFiles(Array.from(event.target.files || []))}
+              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+              required={!editingId}
+            />
+            {referenceFiles.length > 0 && (
+              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{referenceFiles.length} file(s) selected</p>
+            )}
+          </div>
           <textarea
             value={form.notes}
             onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
@@ -189,6 +220,7 @@ const LawRecordManager = ({
             placeholder={labels.notes || 'Notes'}
             rows={2}
           />
+          {submitError ? <p className="text-xs text-red-600 dark:text-red-300">{submitError}</p> : null}
           <button
             type="submit"
             disabled={saving}
@@ -226,6 +258,21 @@ const LawRecordManager = ({
                       ) : null
                     )}
                   </div>
+                  {Array.isArray(record.metadata?.referencePdfs) && record.metadata.referencePdfs.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {record.metadata.referencePdfs.map((pdf, idx) => (
+                        <a
+                          key={`${record._id}-pdf-${idx}`}
+                          href={pdf.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-300"
+                        >
+                          View PDF {idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{record.status}</span>

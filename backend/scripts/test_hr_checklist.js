@@ -1,15 +1,15 @@
 const BASE_URL = "http://127.0.0.1:5000";
 
 const hrCredentialOptions = [
-  { email: "attreyee.hr@test.com", password: "Pass123" },
-  { email: "admin@test.com", password: "admin123" },
+  { email: "attreyee@test.com", password: "attreyee@test.com" },
+  { email: "admin@test.com", password: "admin@test.com" },
   { email: "hr@example.com", password: "Password123!" },
 ];
 
 const employeeCredentialOptions = [
-  { email: "santu@gmail.com", password: "Pass123" },
+  { email: "santu@test.com", password: "santu@test.com" },
   { email: "employee@example.com", password: "Password123!" },
-  { email: "admin@test.com", password: "admin123" },
+  { email: "admin@test.com", password: "admin@test.com" },
 ];
 
 const request = async (path, { method = "GET", token, body } = {}) => {

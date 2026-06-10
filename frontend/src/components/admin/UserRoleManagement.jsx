@@ -18,6 +18,7 @@ const initialForm = {
   phone: '',
   accountStatus: 'active',
   permissions: '',
+  projectAssignments: '',
 };
 
 const UserRoleManagement = () => {
@@ -123,6 +124,25 @@ const UserRoleManagement = () => {
       phone: targetUser.phone || '',
       accountStatus: targetUser.accountStatus || (targetUser.isActive ? 'active' : 'inactive'),
       permissions: Array.isArray(targetUser.permissions) ? targetUser.permissions.join(', ') : '',
+      projectAssignments: Array.isArray(targetUser.metadata?.projectAssignments)
+        ? targetUser.metadata.projectAssignments
+            .map((assignment) => {
+              if (typeof assignment === 'string') return assignment;
+              if (!assignment || typeof assignment !== 'object') return '';
+              return assignment.projectName || assignment.projectCode || assignment.projectId || '';
+            })
+            .filter(Boolean)
+            .join(', ')
+        : Array.isArray(targetUser.assignedProjects)
+          ? targetUser.assignedProjects
+              .map((assignment) => {
+                if (typeof assignment === 'string') return assignment;
+                if (!assignment || typeof assignment !== 'object') return '';
+                return assignment.projectName || assignment.projectCode || assignment.projectId || '';
+              })
+              .filter(Boolean)
+              .join(', ')
+          : '',
     });
     setFormError('');
     setFormTouched(false);
@@ -155,6 +175,11 @@ const UserRoleManagement = () => {
         permissions: form.permissions
           ? form.permissions.split(',').map((permission) => permission.trim()).filter(Boolean)
           : [],
+        metadata: {
+          projectAssignments: form.projectAssignments
+            ? form.projectAssignments.split(',').map((assignment) => assignment.trim()).filter(Boolean)
+            : [],
+        },
       };
 
       if (!editingUser || form.password.trim()) {

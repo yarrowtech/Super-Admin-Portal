@@ -14,6 +14,7 @@ const payrollSchema = new mongoose.Schema(
       enum: ['draft', 'processed', 'disbursed'],
       default: 'draft'
     },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
     payslipNumber: { type: String, trim: true },
     paidOn: { type: Date },
     notes: { type: String, trim: true }
@@ -22,5 +23,6 @@ const payrollSchema = new mongoose.Schema(
 );
 
 payrollSchema.index({ periodStart: 1, periodEnd: 1 });
+payrollSchema.index({ projectId: 1, periodStart: -1 });
 
 module.exports = mongoose.models['FinancePayroll'] || mongoose.model('FinancePayroll', payrollSchema);

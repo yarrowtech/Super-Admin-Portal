@@ -2,10 +2,13 @@ const pino = require("pino");
 const env = require("../config/env");
 const { buildTransport } = require("./transport");
 
+const transport = buildTransport();
+
 const logger = pino(
   {
     name: "super-admin-backend",
     level: env.LOG_LEVEL,
+    enabled: env.NODE_ENV !== "test",
     base: {
       service: "super-admin-backend",
       env: env.NODE_ENV,
@@ -24,6 +27,7 @@ const logger = pino(
     redact: {
       paths: [
         "req.headers.authorization",
+        "req.headers.cookie",
         "authorization",
         "token",
         "password",
@@ -34,7 +38,7 @@ const logger = pino(
       remove: true,
     },
   },
-  buildTransport()
+  transport
 );
 
 module.exports = logger;

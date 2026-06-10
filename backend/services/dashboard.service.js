@@ -6,6 +6,7 @@ const Attendance = require('../models/hr/Attendance');
 const Notice = require('../models/common/Notification');
 const WorkReport = require('../models/hr/StaffWorkReport');
 const User = require('../models/auth/User');
+const { ROLES } = require('../config/roles');
 
 const buildNoticeFilter = (user) => {
   const base = { isActive: true };
@@ -247,6 +248,9 @@ const buildManagerSnapshot = async (manager = {}) => {
   const managerId =
     toObjectId(manager._id) || toObjectId(manager.id) || toObjectId(manager?.userId);
   const department = manager.department || manager.metadata?.department || null;
+  const scopedDepartment = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(manager.role)
+    ? null
+    : department;
   const projectFilter = managerId ? { projectManager: managerId } : {};
   const now = new Date();
   const soon = new Date(now);
@@ -287,7 +291,7 @@ const buildManagerSnapshot = async (manager = {}) => {
       .select('title status dueDate progress priority project')
       .populate('project', 'name')
       .lean(),
-    User.find(department ? { role: 'employee', department } : { role: 'employee' })
+    User.find(scopedDepartment ? { role: 'employee', department: scopedDepartment } : { role: 'employee' })
       .sort({ firstName: 1 })
       .limit(12)
       .select('firstName lastName email department lastLogin isActive role')

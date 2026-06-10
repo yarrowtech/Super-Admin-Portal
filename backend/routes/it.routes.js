@@ -4,11 +4,13 @@ const router = express.Router();
 const itController = require('../controllers/department/it.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { ROLES } = require('../config/roles');
+const modularItRoutes = require('../modules/it/it.routes');
 
 // All routes require authentication and IT role
 router.use(authenticate);
-router.use(authorize(ROLES.IT, ROLES.ADMIN));
+router.use(authorize(ROLES.IT, ROLES.ADMIN, ROLES.CEO, ROLES.HR, ROLES.MANAGER, 'super_admin', 'it_admin', 'system_operator', 'security_analyst', 'devops_engineer', ROLES.EMPLOYEE));
 router.use(authorizePortalAccess('it'));
+router.use('/module', modularItRoutes);
 
 // Dashboard
 router.get('/dashboard', itController.getDashboard);
@@ -22,6 +24,13 @@ router.get('/system-logs', itController.getSystemLogsSummary);
 router.get('/access-requests', itController.getAccessRequestWorkflow);
 router.get('/deployments', itController.getDeploymentOpsSummary);
 router.get('/events', itController.getEventIntegrations);
+router.get('/monitoring', itController.getSystemMonitoring);
+router.get('/assets', itController.getAssetManagement);
+router.get('/network-infra', itController.getNetworkInfrastructure);
+router.get('/threat-logs', itController.getThreatLogs);
+router.get('/devops-cicd', itController.getDevopsCicd);
+router.get('/backup-recovery', itController.getBackupRecovery);
+router.get('/audit-logs', itController.getAuditLogs);
 
 // Projects Management
 router.get('/projects', itController.getProjects);

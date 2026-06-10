@@ -8,7 +8,7 @@ const adminModulesRoutes = require('./admin/modules.routes');
 
 // All routes require authentication and ADMIN or HR role
 router.use(authenticate);
-router.use(authorize(ROLES.ADMIN, ROLES.HR));
+router.use(authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.IT));
 router.use(authorizePortalAccess('admin'));
 router.use('/', adminCoreRoutes);
 router.use('/modules', adminModulesRoutes);

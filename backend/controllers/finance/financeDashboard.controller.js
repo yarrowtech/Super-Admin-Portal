@@ -1,16 +1,18 @@
 const Invoice = require('../../models/finance/Invoice');
-const InvoiceNote = require('../../models/finance/Invoice');
+const InvoiceNote = require('../../models/finance/InvoiceNote');
 const Payment = require('../../models/finance/Payment');
 const Expense = require('../../models/finance/Expense');
 const Budget = require('../../models/finance/Budget');
-const CostCenter = require('../../models/finance/Budget');
+const CostCenter = require('../../models/finance/CostCenter');
 const Payroll = require('../../models/finance/Payroll');
-const FinancialReport = require('../../models/finance/Compliance');
+const FinancialReport = require('../../models/finance/FinancialReport');
 const ComplianceRecord = require('../../models/finance/Compliance');
 const Vendor = require('../../models/finance/Vendor');
-const Client = require('../../models/finance/Vendor');
-const Account = require('../../models/finance/Payment');
-const JournalEntry = require('../../models/finance/Payment');
+const Client = require('../../models/finance/Client');
+const Account = require('../../models/finance/Account');
+const JournalEntry = require('../../models/finance/JournalEntry');
+const AuditLog = require('../../models/finance/AuditLog');
+const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
 
 const buildInvoiceNumber = () => {
   const now = new Date();
@@ -123,6 +125,28 @@ const sendError = (res, err, fallback) => {
     error: fallback,
     details: err.message
   });
+};
+
+const withPagination = (query = {}) => {
+  const page = Math.max(parseInt(query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(query.limit, 10) || 20, 1), 200);
+  return { page, limit, skip: (page - 1) * limit };
+};
+
+const logAudit = async ({ req, action, resourceType, resourceId, meta = {}, riskFlag = 'none' }) => {
+  try {
+    await AuditLog.create({
+      actor: req.user?.id,
+      actorRole: req.user?.role || '',
+      action,
+      resourceType,
+      resourceId: resourceId ? String(resourceId) : '',
+      meta,
+      riskFlag,
+    });
+  } catch {
+    // non-blocking
+  }
 };
 
 const normalizeJournalLines = (lines = []) => {
@@ -916,5 +940,286 @@ exports.updateClient = async (req, res) => {
     res.status(200).json({ success: true, data: client });
   } catch (err) {
     sendError(res, err, 'Failed to update client');
+  }
+};
+
+/**
+ * Enterprise: Transactions, Audit Logs, Approvals & Workflows
+ */
+exports.getTransactions = async (req, res) => {
+  try {
+    const { page, limit, skip } = withPagination(req.query);
+    const { type, department, status, fromDate, toDate, search } = req.query;
+
+    const invoiceQuery = {};
+    const expenseQuery = {};
+    const paymentQuery = {};
+
+    if (status) {
+      invoiceQuery.status = status;
+      expenseQuery.status = status;
+      paymentQuery.status = status;
+    }
+    if (department) {
+      expenseQuery.department = department;
+    }
+    if (fromDate || toDate) {
+      const range = {};
+      if (fromDate) range.$gte = new Date(fromDate);
+      if (toDate) range.$lte = new Date(toDate);
+      invoiceQuery.createdAt = range;
+      expenseQuery.createdAt = range;
+      paymentQuery.createdAt = range;
+    }
+    if (search) {
+      const q = new RegExp(search, 'i');
+      invoiceQuery.$or = [{ invoiceNumber: q }, { clientName: q }];
+      expenseQuery.$or = [{ title: q }, { category: q }];
+      paymentQuery.$or = [{ customerName: q }, { reference: q }];
+    }
+
+    const loadInvoices = !type || type === 'income' || type === 'invoice';
+    const loadExpenses = !type || type === 'expense';
+    const loadPayments = !type || type === 'vendor_payment' || type === 'payment';
+
+    const [invoices, expenses, payments] = await Promise.all([
+      loadInvoices ? Invoice.find(invoiceQuery).sort({ createdAt: -1 }).lean() : [],
+      loadExpenses ? Expense.find(expenseQuery).sort({ createdAt: -1 }).lean() : [],
+      loadPayments ? Payment.find(paymentQuery).sort({ createdAt: -1 }).lean() : [],
+    ]);
+
+    const merged = [
+      ...invoices.map((item) => ({
+        id: String(item._id),
+        type: 'income',
+        category: 'invoice',
+        amount: Number(item.total || 0),
+        status: item.status,
+        department: 'Finance',
+        reference: item.invoiceNumber,
+        party: item.clientName,
+        createdAt: item.createdAt,
+      })),
+      ...expenses.map((item) => ({
+        id: String(item._id),
+        type: 'expense',
+        category: item.category || 'general',
+        amount: Number(item.amount || 0),
+        status: item.status,
+        department: item.department || 'General',
+        reference: item.title,
+        party: 'Internal',
+        createdAt: item.createdAt,
+      })),
+      ...payments.map((item) => ({
+        id: String(item._id),
+        type: 'vendor_payment',
+        category: item.method || 'bank',
+        amount: Number(item.amount || 0),
+        status: item.status,
+        department: 'Finance',
+        reference: item.reference || '',
+        party: item.customerName || 'Counterparty',
+        createdAt: item.createdAt,
+      })),
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const total = merged.length;
+    const rows = merged.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        items: rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch transactions');
+  }
+};
+
+exports.getAuditLogs = async (req, res) => {
+  try {
+    const { page, limit, skip } = withPagination(req.query);
+    const query = {};
+    if (req.query.action) query.action = req.query.action;
+    if (req.query.riskFlag) query.riskFlag = req.query.riskFlag;
+    if (req.query.resourceType) query.resourceType = req.query.resourceType;
+
+    const [items, total] = await Promise.all([
+      AuditLog.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      AuditLog.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        items,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch audit logs');
+  }
+};
+
+exports.getApprovalWorkflows = async (req, res) => {
+  try {
+    const { page, limit, skip } = withPagination(req.query);
+    const query = {};
+    if (req.query.module) query.module = req.query.module;
+    if (req.query.status) query.status = req.query.status;
+
+    const [items, total] = await Promise.all([
+      ApprovalWorkflow.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      ApprovalWorkflow.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        items,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch approval workflows');
+  }
+};
+
+exports.createApprovalWorkflow = async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const workflow = await ApprovalWorkflow.create({
+      module: payload.module || 'finance',
+      entityType: payload.entityType || 'budget',
+      entityId: String(payload.entityId || ''),
+      requestedBy: req.user?.id,
+      steps: Array.isArray(payload.steps) ? payload.steps : [],
+      status: 'pending',
+    });
+    await logAudit({
+      req,
+      action: 'approval_workflow_created',
+      resourceType: 'approval_workflow',
+      resourceId: workflow._id,
+      meta: { module: workflow.module, entityType: workflow.entityType },
+    });
+    res.status(201).json({ success: true, data: workflow });
+  } catch (err) {
+    sendError(res, err, 'Failed to create approval workflow');
+  }
+};
+
+exports.updateApprovalWorkflowDecision = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { decision, remarks = '' } = req.body || {};
+    const workflow = await ApprovalWorkflow.findById(id);
+    if (!workflow) return res.status(404).json({ success: false, error: 'Workflow not found' });
+
+    const role = String(req.user?.role || '').toLowerCase();
+    const pendingStep = workflow.steps.find((step) => step.status === 'pending' && String(step.role || '').toLowerCase() === role);
+    if (!pendingStep) {
+      return res.status(403).json({ success: false, error: 'No pending step for your role' });
+    }
+
+    pendingStep.status = decision === 'reject' ? 'rejected' : 'approved';
+    pendingStep.decidedBy = req.user?.id;
+    pendingStep.decidedAt = new Date();
+    pendingStep.remarks = remarks;
+
+    if (pendingStep.status === 'rejected') {
+      workflow.status = 'rejected';
+    } else {
+      const hasPending = workflow.steps.some((step) => step.status === 'pending');
+      workflow.status = hasPending ? 'pending' : 'approved';
+    }
+
+    await workflow.save();
+    await logAudit({
+      req,
+      action: 'approval_workflow_decision',
+      resourceType: 'approval_workflow',
+      resourceId: workflow._id,
+      meta: { decision: pendingStep.status, remarks },
+      riskFlag: pendingStep.status === 'rejected' ? 'medium' : 'none',
+    });
+    res.status(200).json({ success: true, data: workflow });
+  } catch (err) {
+    sendError(res, err, 'Failed to update approval decision');
+  }
+};
+
+exports.syncPayrollFromHr = async (req, res) => {
+  try {
+    const payload = normalizePayrollPayload(req.body || {});
+    const payroll = await Payroll.create({
+      ...payload,
+      notes: payload.notes || 'Synced from HR module',
+    });
+    await logAudit({
+      req,
+      action: 'payroll_synced_from_hr',
+      resourceType: 'payroll',
+      resourceId: payroll._id,
+      meta: { employeeName: payroll.employeeName },
+    });
+    res.status(201).json({ success: true, data: payroll });
+  } catch (err) {
+    sendError(res, err, 'Failed to sync payroll from HR');
+  }
+};
+
+exports.linkComplianceWithLaw = async (req, res) => {
+  try {
+    const { complianceId, lawReference } = req.body || {};
+    const record = await ComplianceRecord.findByIdAndUpdate(
+      complianceId,
+      { reference: lawReference, notes: `Linked with LAW: ${lawReference}` },
+      { new: true }
+    );
+    if (!record) return res.status(404).json({ success: false, error: 'Compliance record not found' });
+    await logAudit({
+      req,
+      action: 'compliance_linked_with_law',
+      resourceType: 'compliance',
+      resourceId: record._id,
+      meta: { lawReference },
+    });
+    res.status(200).json({ success: true, data: record });
+  } catch (err) {
+    sendError(res, err, 'Failed to link compliance with law');
+  }
+};
+
+exports.getIntegrationSnapshot = async (req, res) => {
+  try {
+    const [payrollCount, pendingBudgets, pendingCompliance, pendingApprovals, pendingExpenses] = await Promise.all([
+      Payroll.countDocuments(),
+      Budget.countDocuments({ status: { $in: ['at-risk', 'over'] } }),
+      ComplianceRecord.countDocuments({ status: { $in: ['pending', 'overdue'] } }),
+      ApprovalWorkflow.countDocuments({ status: 'pending' }),
+      Expense.countDocuments({ status: { $in: ['submitted', 'pending'] } }),
+    ]);
+    res.status(200).json({
+      success: true,
+      data: {
+        hrPayrollSync: { totalPayrollRuns: payrollCount },
+        adminBudgetApprovals: { flaggedBudgets: pendingBudgets, pendingApprovals },
+        lawCompliance: { pendingCompliance },
+        itInfraCost: { pendingExpenses },
+        projectsExpense: { pendingExpenses },
+        outsourcingPayments: { pendingExpenses },
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch integration snapshot');
   }
 };

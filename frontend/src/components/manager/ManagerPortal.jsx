@@ -18,6 +18,7 @@ const ManagerPortal = ({ children }) => {
         mobileIcon="supervisor_account"
         mobileItems={managerMobileItems}
         user={user}
+        showHeader={false}
       >
         {children}
       </AppLayout>

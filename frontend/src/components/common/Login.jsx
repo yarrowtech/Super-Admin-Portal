@@ -2,12 +2,27 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const defaultRolePath = (role, userMeta = {}) => {
+const defaultRolePath = (role, userMeta = {}, department = '') => {
   const type = String(userMeta?.outsourcingType || '')
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
-  if (type === 'third_party_worker' || type === '3rd_party_worker' || type === 'thirdpartyworker' || type === 'freelancer') {
+  const normalizedDepartment = String(department || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
+  const assignedProjects = userMeta.projectAssignments ?? userMeta.assignedProjects ?? [];
+  if (
+    role === 'freelancer' ||
+    normalizedDepartment === 'outsourcing' ||
+    normalizedDepartment === 'outsource' ||
+    normalizedDepartment === 'external_workforce' ||
+    type === 'third_party_worker' ||
+    type === '3rd_party_worker' ||
+    type === 'thirdpartyworker' ||
+    type === 'freelancer' ||
+    type === 'freelaner'
+  ) {
     return '/outsourcing/dashboard';
   }
   switch (role) {
@@ -22,7 +37,7 @@ const defaultRolePath = (role, userMeta = {}) => {
     case 'finance':
       return '/finance/dashboard';
     case 'employee':
-      return '/employee/dashboard';
+      return Array.isArray(assignedProjects) && assignedProjects.length > 0 ? '/employee/projects' : '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';
@@ -51,7 +66,7 @@ const Login = ({ roleFocus = null, loginMode = 'default' }) => {
         setSubmitting(true);
         setError(null);
         const authedUser = await login(email, password, loginMode);
-        const targetPath = redirectTo || defaultRolePath(authedUser.role, authedUser.metadata || {});
+        const targetPath = redirectTo || defaultRolePath(authedUser.role, authedUser.metadata || {}, authedUser.department || '');
         navigate(targetPath, { replace: true });
       } catch (err) {
         setError(err.message || 'Login failed. Please check your credentials.');

@@ -15,7 +15,7 @@ const AppLayout = ({
   showMobileNav = true,
 }) => {
   const resolvedRole = String(user?.role || '').toLowerCase();
-  const roleForTheme = ['admin', 'hr', 'employee', 'manager', 'ceo', 'law', 'outsourcing'].includes(resolvedRole)
+  const roleForTheme = ['admin', 'hr', 'employee', 'manager', 'ceo', 'law', 'outsourcing', 'finance', 'it'].includes(resolvedRole)
     ? resolvedRole
     : 'employee';
 

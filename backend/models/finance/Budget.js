@@ -12,6 +12,7 @@ const budgetSchema = new mongoose.Schema(
       enum: ['on-track', 'at-risk', 'over'],
       default: 'on-track'
     },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
     notes: { type: String, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
@@ -19,5 +20,6 @@ const budgetSchema = new mongoose.Schema(
 );
 
 budgetSchema.index({ department: 1, fiscalYear: 1 }, { unique: false });
+budgetSchema.index({ projectId: 1, fiscalYear: 1 });
 
 module.exports = mongoose.models['FinanceBudget'] || mongoose.model('FinanceBudget', budgetSchema);

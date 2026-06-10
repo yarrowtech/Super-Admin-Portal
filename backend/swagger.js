@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const swaggerAutogen = require("swagger-autogen")({ openapi: "3.0.0" });
 const env = require("./config/env");
+const logger = require("./utils/logger");
 
 const outputFile = "./swagger-output.json";
 const endpointsFiles = ["./swagger.entry.js"];
@@ -77,7 +78,7 @@ const getTagForPath = (routePath) => {
   if (routePath === "/health") return "Health";
   if (routePath.startsWith("/api/auth")) return "Auth";
   if (routePath.startsWith("/api/dept/admin")) return "Admin";
-  if (routePath.startsWith("/api/dept/super-admin")) return "Super Admin";
+  if (routePath.startsWith("/api/super-admin") || routePath.startsWith("/api/dept/super-admin")) return "Super Admin";
   if (routePath.startsWith("/api/dept/ceo")) return "CEO";
   if (routePath.startsWith("/api/dept/it")) return "IT";
   if (routePath.startsWith("/api/dept/hr")) return "HR";
@@ -149,9 +150,9 @@ const enrichSpec = () => {
 swaggerAutogen(outputFile, endpointsFiles, doc)
   .then(() => {
     enrichSpec();
-    console.log(`Swagger spec generated at ${outputFile}`);
+    logger.info({ outputFile }, "Swagger spec generated");
   })
   .catch((err) => {
-    console.error("Swagger generation failed:", err);
+    logger.error({ err }, "Swagger generation failed");
     process.exit(1);
   });

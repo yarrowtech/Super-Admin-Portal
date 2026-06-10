@@ -21,6 +21,7 @@ const initialForm = {
 
 const hrRoleOptions = [
   { value: 'employee', label: 'Employee' },
+  { value: 'freelancer', label: 'Freelancer' },
   { value: 'manager', label: 'Manager' },
   { value: 'hr', label: 'Human Resources' },
   { value: 'finance', label: 'Finance' },
@@ -40,6 +41,7 @@ const hrDepartmentOptions = [
   'Media & Communications',
   'Operations',
   'Research & Development',
+  'Outsourcing',
 ];
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

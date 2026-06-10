@@ -2,12 +2,12 @@ const BASE_URL = "http://127.0.0.1:5000";
 
 const creds = {
   managerCandidates: [
-    { email: "sangeet@gmail.com", password: "Pass123" },
-    { email: "admin@test.com", password: "admin123" },
+    { email: "sekhar@test.com", password: "sekhar@test.com" },
+    { email: "admin@test.com", password: "admin@test.com" },
   ],
   employeeCandidates: [
-    { email: "santu@gmail.com", password: "Pass123" },
-    { email: "admin@test.com", password: "admin123" },
+    { email: "santu@test.com", password: "santu@test.com" },
+    { email: "admin@test.com", password: "admin@test.com" },
   ],
 };
 

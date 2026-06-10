@@ -14,7 +14,7 @@ const { v2: cloudinary } = require('cloudinary');
 /**
  * Generate JWT token with user info
  */
-const generateToken = (user) => {
+const generateToken = (user, options = {}) => {
   return jwt.sign(
     {
       userId: user._id,
@@ -22,21 +22,21 @@ const generateToken = (user) => {
       role: user.role
     },
     jwtConfig.accessSecret,
-    { expiresIn: jwtConfig.accessExpiresIn }
+    { expiresIn: jwtConfig.accessExpiresIn, jwtid: options.jti || crypto.randomUUID() }
   );
 };
 
 /**
  * Generate refresh token (longer expiry)
  */
-const generateRefreshToken = (user) => {
+const generateRefreshToken = (user, options = {}) => {
   return jwt.sign(
     {
       userId: user._id,
       type: 'refresh'
     },
     jwtConfig.refreshSecret,
-    { expiresIn: jwtConfig.refreshExpiresIn }
+    { expiresIn: jwtConfig.refreshExpiresIn, jwtid: options.jti || crypto.randomUUID() }
   );
 };
 
@@ -53,13 +53,22 @@ const parseCookie = (req, name) => {
     .join('=');
 };
 
-const persistSession = async (req, res, user, refreshToken) => {
+const getRequestContext = (req) => ({
+  loginSource: typeof req.body?.loginSource === 'string' ? req.body.loginSource.trim() : '',
+  portal: typeof req.body?.portal === 'string' ? req.body.portal.trim() : '',
+});
+
+const persistSession = async (req, res, user, refreshToken, options = {}) => {
   const decoded = jwt.decode(refreshToken);
   const expiresAt = decoded?.exp ? new Date(decoded.exp * 1000) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const context = getRequestContext(req);
 
-  await Session.create({
+  const session = await Session.create({
     user: user._id,
+    jti: options.jti || decoded?.jti || crypto.randomUUID(),
     refreshTokenHash: hashToken(refreshToken),
+    portal: context.portal || user?.metadata?.portal || 'auth',
+    loginSource: context.loginSource || user?.metadata?.loginSource || 'password',
     userAgent: req.get('user-agent'),
     ipAddress: req.ip,
     expiresAt
@@ -72,6 +81,7 @@ const persistSession = async (req, res, user, refreshToken) => {
     expires: expiresAt,
     path: '/api/auth'
   });
+  return session;
 };
 
 const writeAuthActivity = async (req, action, user, metadata = {}) => {
@@ -268,8 +278,73 @@ const normalizeOutsourcingType = (value) => {
   if (['third_party_worker', '3rd_party_worker', 'thirdpartyworker', 'third_party'].includes(raw)) {
     return 'third_party_worker';
   }
-  if (raw === 'freelancer') return 'freelancer';
+  if (raw === 'freelancer' || raw === 'freelaner') return 'freelancer';
   return raw;
+};
+
+const normalizeDepartment = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s&-]+/g, '_');
+
+const normalizeProjectAssignments = (metadata = {}) => {
+  const raw = metadata?.projectAssignments ?? metadata?.assignedProjects ?? [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const value = entry.trim();
+        return value ? value : null;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+
+      const normalized = {
+        projectId: typeof entry.projectId === 'string' ? entry.projectId.trim() : String(entry.projectId || '').trim(),
+        projectCode: typeof entry.projectCode === 'string' ? entry.projectCode.trim() : '',
+        projectName: typeof entry.projectName === 'string' ? entry.projectName.trim() : '',
+      };
+
+      const permissions = Array.isArray(entry.permissions)
+        ? entry.permissions
+            .map((permission) => (typeof permission === 'string' ? permission.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (permissions.length > 0) normalized.permissions = permissions;
+
+      const moduleScopes = Array.isArray(entry.moduleScopes)
+        ? entry.moduleScopes
+            .map((scope) => (typeof scope === 'string' ? scope.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (moduleScopes.length > 0) normalized.moduleScopes = moduleScopes;
+
+      const pages = Array.isArray(entry.pages)
+        ? entry.pages
+            .map((page) => (typeof page === 'string' ? page.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (pages.length > 0) normalized.pages = pages;
+
+      const actions = Array.isArray(entry.actions)
+        ? entry.actions
+            .map((action) => (typeof action === 'string' ? action.trim() : ''))
+            .filter(Boolean)
+        : [];
+      if (actions.length > 0) normalized.actions = actions;
+
+      const cleaned = Object.fromEntries(
+        Object.entries(normalized).filter(([, value]) => {
+          if (Array.isArray(value)) return value.length > 0;
+          return Boolean(value);
+        })
+      );
+
+      return Object.keys(cleaned).length > 0 ? cleaned : null;
+    })
+    .filter(Boolean)
+    .slice(0, 100);
 };
 
 /**
@@ -312,9 +387,10 @@ exports.register = async (req, res) => {
     });
 
     // Generate tokens
-    const token = generateToken(user);
-    const refreshToken = generateRefreshToken(user);
-    await persistSession(req, res, user, refreshToken);
+    const sessionJti = crypto.randomUUID();
+    const token = generateToken(user, { jti: sessionJti });
+    const refreshToken = generateRefreshToken(user, { jti: sessionJti });
+    const session = await persistSession(req, res, user, refreshToken, { jti: sessionJti });
 
     // Update last login
     user.lastLogin = new Date();
@@ -335,6 +411,8 @@ exports.register = async (req, res) => {
         },
         token,
         refreshToken,
+        sessionId: session?._id || null,
+        jti: sessionJti,
         expiresIn: '7d'
       }
     });
@@ -372,14 +450,15 @@ exports.login = async (req, res) => {
     const user = await User.findByCredentials(emailInput, password);
 
     // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+  user.lastLogin = new Date();
+  await user.save();
 
-    // Generate tokens
-    const token = generateToken(user);
-    const refreshToken = generateRefreshToken(user);
-    await persistSession(req, res, user, refreshToken);
-    await writeAuthActivity(req, 'auth.login', user);
+  // Generate tokens
+  const sessionJti = crypto.randomUUID();
+  const token = generateToken(user, { jti: sessionJti });
+  const refreshToken = generateRefreshToken(user, { jti: sessionJti });
+  const session = await persistSession(req, res, user, refreshToken, { jti: sessionJti });
+  await writeAuthActivity(req, 'auth.login', user);
 
     res.status(200).json({
       success: true,
@@ -394,10 +473,12 @@ exports.login = async (req, res) => {
           lastName: user.lastName,
           department: user.department,
           metadata: user.metadata || {},
+          assignedProjects: normalizeProjectAssignments(user.metadata || {}),
           lastLogin: user.lastLogin
         },
         token,
         refreshToken,
+        sessionId: session?._id || null,
         expiresIn: '7d'
       }
     });
@@ -448,8 +529,15 @@ exports.outsourcingLogin = async (req, res) => {
 
     const user = await User.findByCredentials(emailInput, password);
     const outsourcingType = normalizeOutsourcingType(user?.metadata?.outsourcingType || null);
+    const normalizedDepartment = normalizeDepartment(user?.department || null);
+    const hasOutsourcingDepartment =
+      normalizedDepartment === 'outsourcing' ||
+      normalizedDepartment === 'outsource' ||
+      normalizedDepartment === 'external_workforce';
     const allowed =
       user.role === ROLES.ADMIN ||
+      user.role === ROLES.FREELANCER ||
+      hasOutsourcingDepartment ||
       outsourcingType === 'third_party_worker' ||
       outsourcingType === 'freelancer';
 
@@ -464,8 +552,10 @@ exports.outsourcingLogin = async (req, res) => {
     user.lastLogin = new Date();
     await user.save();
 
-    const token = generateToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const sessionJti = crypto.randomUUID();
+    const token = generateToken(user, { jti: sessionJti });
+    const refreshToken = generateRefreshToken(user, { jti: sessionJti });
+    const session = await persistSession(req, res, user, refreshToken, { jti: sessionJti });
 
     return res.status(200).json({
       success: true,
@@ -480,10 +570,13 @@ exports.outsourcingLogin = async (req, res) => {
           lastName: user.lastName,
           department: user.department,
           metadata: user.metadata || {},
+          assignedProjects: normalizeProjectAssignments(user.metadata || {}),
           lastLogin: user.lastLogin
         },
         token,
         refreshToken,
+        sessionId: session?._id || null,
+        jti: sessionJti,
         expiresIn: '7d'
       }
     });
@@ -552,7 +645,10 @@ exports.refreshAccessToken = async (req, res) => {
 
     const session = await Session.findOne({
       user: user._id,
-      refreshTokenHash: hashToken(refreshToken),
+      $or: [
+        { jti: decoded.jti },
+        { refreshTokenHash: hashToken(refreshToken) }
+      ],
       revokedAt: null,
       expiresAt: { $gt: new Date() }
     });
@@ -569,7 +665,15 @@ exports.refreshAccessToken = async (req, res) => {
     await session.save();
 
     // Generate new access token
-    const newToken = generateToken(user);
+    const newToken = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+        role: user.role
+      },
+      jwtConfig.accessSecret,
+      { expiresIn: jwtConfig.accessExpiresIn, jwtid: session.jti || decoded.jti }
+    );
 
     res.status(200).json({
       success: true,
@@ -647,6 +751,7 @@ exports.getMe = async (req, res) => {
           department: user.department,
           profileImage: user.profileImage,
           metadata,
+          assignedProjects: normalizeProjectAssignments(metadata),
           profile: {
             basic: profile.basic || {},
             professional: profile.professional || {},

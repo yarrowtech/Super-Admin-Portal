@@ -2,6 +2,69 @@ const Task = require('../models/common/Task');
 const Project = require('../models/common/Project');
 const User = require('../models/auth/User');
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const isObjectId = (value) => /^[0-9a-fA-F]{24}$/.test(String(value || '').trim());
+
+const normalizeProjectAssignments = (user = {}) => {
+  const raw = user?.metadata?.projectAssignments ?? user?.metadata?.assignedProjects ?? user?.assignedProjects ?? [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const value = entry.trim();
+        return value ? { token: value } : null;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+
+      const token = typeof entry.projectId === 'string'
+        ? entry.projectId.trim()
+        : String(entry.projectId || entry.projectCode || entry.projectName || '').trim();
+      const projectCode = typeof entry.projectCode === 'string' ? entry.projectCode.trim() : '';
+      const projectName = typeof entry.projectName === 'string' ? entry.projectName.trim() : '';
+
+      if (!token && !projectCode && !projectName) return null;
+      return {
+        token,
+        projectCode,
+        projectName,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 100);
+};
+
+const resolveAccessibleProjects = async (user) => {
+  const assignments = normalizeProjectAssignments(user);
+  if (assignments.length === 0) return [];
+
+  const filters = assignments.flatMap((assignment) => {
+    const clauses = [];
+    if (assignment.token) {
+      if (isObjectId(assignment.token)) {
+        clauses.push({ _id: assignment.token });
+      }
+      clauses.push({ projectCode: assignment.token });
+      clauses.push({ name: { $regex: escapeRegex(assignment.token), $options: 'i' } });
+    }
+    if (assignment.projectCode) {
+      clauses.push({ projectCode: assignment.projectCode });
+      clauses.push({ name: { $regex: escapeRegex(assignment.projectCode), $options: 'i' } });
+    }
+    if (assignment.projectName) {
+      clauses.push({ name: { $regex: escapeRegex(assignment.projectName), $options: 'i' } });
+    }
+    return clauses;
+  });
+
+  if (filters.length === 0) return [];
+
+  return Project.find({ $or: filters })
+    .select('name status progress deadline projectCode')
+    .sort({ updatedAt: -1 })
+    .lean();
+};
+
 const COLUMN_CONFIG = [
   { id: 'todo', title: 'To Do', statuses: ['pending', 'cancelled'] },
   { id: 'inProgress', title: 'In Progress', statuses: ['in-progress'] },
@@ -21,13 +84,34 @@ const getProjectBoard = async (user) => {
     throw new Error('User context is required');
   }
 
+  const accessibleProjects = await resolveAccessibleProjects(user);
+  const accessibleProjectIds = accessibleProjects.map((project) => project._id);
+
+  const taskQuery = { assignedTo: userId };
+  if (accessibleProjectIds.length > 0) {
+    taskQuery.$or = [
+      { project: { $in: accessibleProjectIds } },
+      { project: null },
+    ];
+  }
+
+  const projectQuery = accessibleProjectIds.length > 0
+    ? {
+      $or: [
+        { 'teamMembers.employee': userId },
+        { _id: { $in: accessibleProjectIds } },
+      ],
+    }
+    : { 'teamMembers.employee': userId };
+
   const [tasks, projects] = await Promise.all([
-    Task.find({ assignedTo: userId })
+    Task.find(taskQuery)
       .sort({ dueDate: 1 })
       .populate('project', 'name status deadline progress'),
-    Project.find({ 'teamMembers.employee': userId })
+    Project.find(projectQuery)
       .select('name status progress deadline projectCode')
-      .sort({ updatedAt: -1 }),
+      .sort({ updatedAt: -1 })
+      .lean(),
   ]);
 
   const columns = buildColumns();
@@ -61,6 +145,7 @@ const getProjectBoard = async (user) => {
       activeProjects: projects.length,
     },
     projects,
+    accessibleProjects,
     updatedAt: new Date().toISOString(),
   };
 };

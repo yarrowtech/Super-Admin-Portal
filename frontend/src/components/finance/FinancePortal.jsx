@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import FinanceSidebar from './FinanceSidebar';
 import FinanceDashboard from './FinanceDashboard';
-import MobilePortalNav from '../common/MobilePortalNav';
+import AppLayout from '../../layouts/AppLayout';
+import { useAuth } from '../../context/AuthContext';
 
 const financeTabs = [
   { id: 'invoices', label: 'Invoices', icon: 'receipt_long' },
@@ -16,27 +17,29 @@ const financeTabs = [
 ];
 
 const FinancePortal = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('invoices');
+  const mobileItems = financeTabs.map((tab) => ({
+    key: tab.id,
+    label: tab.label,
+    icon: tab.icon,
+    active: activeTab === tab.id,
+    onClick: () => setActiveTab(tab.id),
+  }));
 
   return (
-    <div className="portal-shell min-h-screen w-full font-display bg-background-light dark:bg-background-dark text-neutral-800 dark:text-neutral-100">
-      <MobilePortalNav
-        title="Finance Portal"
-        subtitle="Accounting operations"
-        icon="account_balance"
-        items={financeTabs.map((tab) => ({
-          key: tab.id,
-          label: tab.label,
-          icon: tab.icon,
-          active: activeTab === tab.id,
-          onClick: () => setActiveTab(tab.id),
-        }))}
-      />
-      <FinanceSidebar activeTab={activeTab} onSelect={setActiveTab} />
-      <div className="pt-16 md:ml-64 md:pt-0 portal-content">
+    <AppLayout
+      sidebar={<FinanceSidebar activeTab={activeTab} onSelect={setActiveTab} />}
+      title="Finance Portal"
+      subtitle="Accounting operations"
+      mobileIcon="account_balance"
+      mobileItems={mobileItems}
+      user={user}
+    >
+      <div className="portal-content p-0">
         <FinanceDashboard activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

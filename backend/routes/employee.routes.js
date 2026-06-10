@@ -11,7 +11,7 @@ const { ROLES } = require('../config/roles');
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize(ROLES.EMPLOYEE, ROLES.ADMIN, ROLES.MANAGER, ROLES.CEO));
+router.use(authorize(ROLES.EMPLOYEE, ROLES.ADMIN, ROLES.MANAGER, ROLES.CEO, ROLES.IT));
 router.use(authorizePortalAccess('employee'));
 
 router.get('/dashboard', dashboardController.getDashboard);

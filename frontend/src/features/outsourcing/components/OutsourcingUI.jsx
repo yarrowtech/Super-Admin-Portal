@@ -18,8 +18,8 @@ export const OutsourcingCard = memo(({ children, className = '' }) => (
 ));
 
 export const OutsourcingBadge = memo(({ value }) => (
-  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone[value] || 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200'}`}>
-    {(value || 'unknown').replaceAll('_', ' ')}
+  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone[String(value || '').toLowerCase()] || 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200'}`}>
+    {String(value || 'unknown').replaceAll('_', ' ')}
   </span>
 ));
 
@@ -27,7 +27,7 @@ export const OutsourcingPageHeader = memo(({ title, subtitle, right }) => (
   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
       <h1 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white lg:text-2xl">{title}</h1>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p>
+      {subtitle ? <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p> : null}
     </div>
     <div className="w-full sm:w-auto">{right}</div>
   </div>
@@ -36,7 +36,7 @@ export const OutsourcingPageHeader = memo(({ title, subtitle, right }) => (
 export const OutsourcingEmptyState = memo(({ title, subtitle }) => (
   <div className="rounded-xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
     <p className="font-semibold text-neutral-700 dark:text-neutral-200">{title}</p>
-    <p className="mt-1">{subtitle}</p>
+    {subtitle ? <p className="mt-1">{subtitle}</p> : null}
   </div>
 ));
 

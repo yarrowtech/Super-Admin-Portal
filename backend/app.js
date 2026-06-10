@@ -21,6 +21,7 @@ const routes = require("./routes");
 const requestLogger = require("./logger/requestLogger");
 const { ensureSuperAdminDefaults } = require("./utils/bootstrapSuperAdminData");
 const { buildManagerSnapshot } = require("./services/dashboard.service");
+const { startLawExpiryTracker } = require("./modules/law/law.cron");
 const { User } = require("./models/auth");
 const errorMiddleware = require("./middlewares/error.middleware");
 const jwtConfig = require("./config/jwt");
@@ -38,6 +39,7 @@ const onlineUsers = new Map();
 connectDB().then(async () => {
   try {
     await ensureSuperAdminDefaults();
+    startLawExpiryTracker();
     logger.info("Super Admin defaults ensured");
   } catch (err) {
     logger.error({ err }, "Super Admin defaults bootstrap failed");
@@ -64,7 +66,7 @@ const apiLimiter = rateLimit({
 if (isProd) {
   app.use(apiLimiter);
 } else {
-  logger.info("Rate limiting disabled in development");
+  logger.info({ env: env.NODE_ENV }, "Rate limiting disabled in development");
 }
 
 app.get("/health", (req, res) => {
@@ -95,6 +97,7 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", routes.authRoutes);
 app.use("/api/attendance", routes.attendanceRoutes);
 app.use("/api/dept/admin", routes.adminRoutes);
+app.use("/api/super-admin", routes.superAdminPortalRoutes);
 app.use("/api/dept/super-admin", routes.superAdminRoutes);
 app.use("/api/dept/ceo", routes.ceoRoutes);
 app.use("/api/ceo", routes.ceoRoutes);
@@ -102,12 +105,16 @@ app.use("/api/dept/it", routes.itRoutes);
 app.use("/api/dept/hr", routes.hrRoutes);
 app.use("/api/dept/finance", routes.financeRoutes);
 app.use("/api/dept/law", routes.lawRoutes);
+app.use("/api/law", routes.lawRoutes);
 app.use("/api/dept/media", routes.mediaRoutes);
 app.use("/api/dept/sales", routes.salesRoutes);
 app.use("/api/dept/research", routes.researchRoutes);
 app.use("/api/dept/manager", routes.managerRoutes);
 app.use("/api/dept/employee", routes.employeeDeptRoutes);
 app.use("/api/employee", routes.employeePortalRoutes);
+app.use("/api", routes.projectAccessRoutes);
+app.use("/api/sso", routes.ssoRoutes);
+app.use("/api/external-auth", routes.externalAuthRoutes);
 app.use("/api/dept", routes.departmentRoutes);
 app.use("/api/notifications", routes.notificationRoutes);
 app.use("/api/chat", routes.chatRoutes);
@@ -118,6 +125,7 @@ app.use("/api/outsourcing", routes.outsourcingRoutes);
 app.use("/api/dashboard", routes.dashboardRoutes);
 app.use("/api/profile", routes.profileRoutes);
 app.use("/api/hr", routes.hrProfileRoutes);
+app.use("/api/legal", routes.legalDocRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

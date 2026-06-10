@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
+export { default as MediaDepartmentPortal } from '../media/MediaPortal';
 
 const Card = ({ title, children }) => (
   <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -20,42 +21,6 @@ const Shell = ({ title, subtitle, children }) => (
     </div>
   </main>
 );
-
-export const MediaDepartmentPortal = () => {
-  const { token } = useAuth();
-  const [dashboard, setDashboard] = useState(null);
-  const [campaigns, setCampaigns] = useState([]);
-  const [content, setContent] = useState([]);
-
-  useEffect(() => {
-    (async () => {
-      const [d, c, k] = await Promise.all([
-        departmentApi.getMediaDashboard(token),
-        departmentApi.getMediaCampaigns(token),
-        departmentApi.getMediaContent(token),
-      ]);
-      setDashboard(d?.data || {});
-      setCampaigns(c?.data?.campaigns || []);
-      setContent(k?.data?.content || []);
-    })();
-  }, [token]);
-
-  return (
-    <Shell title="Media Dashboard" subtitle="Campaign and content operations">
-      <Card title="Overview">
-        <p className="text-sm text-neutral-600 dark:text-neutral-300">{dashboard?.message || 'Loading...'}</p>
-      </Card>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="Campaigns">
-          <p className="text-sm text-neutral-500">{campaigns.length} campaign items</p>
-        </Card>
-        <Card title="Content Library">
-          <p className="text-sm text-neutral-500">{content.length} content items</p>
-        </Card>
-      </div>
-    </Shell>
-  );
-};
 
 export const SalesDepartmentPortal = () => {
   const { token } = useAuth();
@@ -94,4 +59,3 @@ export const ResearchDepartmentPortal = () => {
     </Shell>
   );
 };
-

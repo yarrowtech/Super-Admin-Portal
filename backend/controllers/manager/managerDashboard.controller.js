@@ -19,6 +19,12 @@ const {
   logLeaveAction,
   syncLeaveAttendance,
 } = require('../../services/leaveManagement.service');
+const STRICT_PROJECT_NAMES = ['EEC', 'EDIFIGHT8', 'EFMB', 'RMS', 'THE BETTER PASS'];
+const isStrictProjectName = (value) =>
+  STRICT_PROJECT_NAMES.includes(String(value || '').trim().toUpperCase());
+const hasGlobalManagerAccess = (user) =>
+  [ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(user?.role);
+const shouldScopeByDepartment = (user) => Boolean(user?.department) && !hasGlobalManagerAccess(user);
 
 const sanitizeQueryValue = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -117,17 +123,9 @@ exports.getTeam = async (req, res) => {
     const searchTerm = sanitizeQueryValue(req.query.search);
     const roleFilter = sanitizeQueryValue(req.query.role);
 
-    if (!req.user?.department) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          message: 'No department assigned for manager',
-          team: []
-        }
-      });
-    }
-
-    const query = { department: req.user.department, isActive: true };
+    const query = shouldScopeByDepartment(req.user)
+      ? { department: req.user.department, isActive: true }
+      : { isActive: true };
     if (roleFilter) {
       query.role = roleFilter;
     }
@@ -348,7 +346,7 @@ exports.getProjects = async (req, res) => {
     const statusFilter = sanitizeQueryValue(req.query.status);
     const searchTerm = sanitizeQueryValue(req.query.search);
 
-    const query = { projectManager: req.user._id };
+    const query = { projectManager: req.user._id, name: { $in: STRICT_PROJECT_NAMES } };
     if (statusFilter) {
       query.status = statusFilter;
     }
@@ -406,6 +404,12 @@ exports.createProject = async (req, res) => {
         error: 'name, description and startDate are required'
       });
     }
+    if (!isStrictProjectName(trimmedName)) {
+      return res.status(400).json({
+        success: false,
+        error: `Project name must be one of: ${STRICT_PROJECT_NAMES.join(', ')}`
+      });
+    }
 
     const memberIds = Array.from(
       new Set(
@@ -417,11 +421,14 @@ exports.createProject = async (req, res) => {
 
     let teamMembers = [];
     if (memberIds.length) {
-      const employees = await User.find({
+      const employeeQuery = {
         _id: { $in: memberIds },
-        isActive: true,
-        ...(req.user.department ? { department: req.user.department } : {})
-      }).select('_id role');
+        isActive: true
+      };
+      if (shouldScopeByDepartment(req.user)) {
+        employeeQuery.department = req.user.department;
+      }
+      const employees = await User.find(employeeQuery).select('_id role');
       teamMembers = employees.map((employee) => ({
         employee: employee._id,
         role: employee.role || 'member'
@@ -429,7 +436,7 @@ exports.createProject = async (req, res) => {
     }
 
     const project = await Project.create({
-      name: trimmedName,
+      name: trimmedName.toUpperCase(),
       description: trimmedDescription,
       startDate: new Date(startDate),
       deadline: deadline ? new Date(deadline) : undefined,
@@ -454,6 +461,86 @@ exports.createProject = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to create project',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   PUT /api/dept/manager/projects/:id
+ * @desc    Update project details
+ * @access  Private (MANAGER only)
+ */
+exports.updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid project id'
+      });
+    }
+
+    const {
+      name,
+      description,
+      startDate,
+      deadline,
+      priority,
+      status,
+      progress,
+      notes
+    } = req.body || {};
+
+    const project = await Project.findOne({ _id: id, projectManager: req.user._id });
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    if (typeof name === 'string' && name.trim()) {
+      if (!isStrictProjectName(name)) {
+        return res.status(400).json({
+          success: false,
+          error: `Project name must be one of: ${STRICT_PROJECT_NAMES.join(', ')}`
+        });
+      }
+      project.name = name.trim().toUpperCase();
+    }
+    if (typeof description === 'string' && description.trim()) project.description = description.trim();
+    if (typeof priority === 'string' && priority) project.priority = priority;
+    if (typeof status === 'string' && status) project.status = status;
+    if (typeof notes === 'string') project.notes = notes.trim();
+    if (startDate) project.startDate = new Date(startDate);
+    if (deadline) project.deadline = new Date(deadline);
+    if (progress !== undefined && progress !== null && !Number.isNaN(Number(progress))) {
+      project.progress = Number(progress);
+    }
+
+    if (project.status === 'completed' && project.progress < 100) {
+      project.progress = 100;
+      project.endDate = new Date();
+    }
+
+    await project.save();
+
+    const hydrated = await Project.findById(project._id).populate(
+      'teamMembers.employee',
+      'firstName lastName email department role'
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Project updated successfully',
+      data: hydrated
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Update manager project error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update project',
       details: error.message
     });
   }
@@ -511,6 +598,43 @@ exports.updateProjectStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update project status',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * @route   DELETE /api/dept/manager/projects/:id
+ * @desc    Delete project
+ * @access  Private (MANAGER only)
+ */
+exports.deleteProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid project id'
+      });
+    }
+
+    const deleted = await Project.findOneAndDelete({ _id: id, projectManager: req.user._id });
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Project deleted successfully'
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Delete manager project error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete project',
       details: error.message
     });
   }
@@ -578,9 +702,9 @@ exports.getCompletedTasks = async (req, res) => {
     const { employeeId, status, search } = req.query;
     const pageNum = parsePositiveInt(req.query.page, 1);
     const limitNum = parsePositiveInt(req.query.limit, 10);
-    const teamUsers = req.user?.department
+    const teamUsers = shouldScopeByDepartment(req.user)
       ? await User.find({ department: req.user.department, isActive: true }).select('_id')
-      : [];
+      : await User.find({ role: ROLES.EMPLOYEE, isActive: true }).select('_id');
 
     const teamUserIds = teamUsers.map((user) => user._id);
     const query = {
@@ -638,7 +762,7 @@ exports.getEmployeeWork = async (req, res) => {
     if (reportStatus) {
       query.status = reportStatus;
     }
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       query.employee = { $in: teamUsers.map((user) => user._id) };
     }
@@ -714,7 +838,7 @@ exports.approveWork = async (req, res) => {
         error: 'Work report not found'
       });
     }
-    if (req.user?.department && workReport.employee?.department !== req.user.department) {
+    if (shouldScopeByDepartment(req.user) && workReport.employee?.department !== req.user.department) {
       return res.status(403).json({
         success: false,
         error: 'You do not have access to this work report'
@@ -765,7 +889,7 @@ exports.rejectWork = async (req, res) => {
         error: 'Work report not found'
       });
     }
-    if (req.user?.department && workReport.employee?.department !== req.user.department) {
+    if (shouldScopeByDepartment(req.user) && workReport.employee?.department !== req.user.department) {
       return res.status(403).json({
         success: false,
         error: 'You do not have access to this work report'
@@ -903,7 +1027,7 @@ exports.getTasks = async (req, res) => {
     }
 
     let scopeFilter = { assignedBy: req.user._id };
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       const ids = teamUsers.map((user) => user._id);
       scopeFilter = { $or: [{ assignedTo: { $in: ids } }, { assignedBy: req.user._id }] };
@@ -955,7 +1079,7 @@ exports.createTask = async (req, res) => {
       });
     }
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const assignee = await User.findById(assignedTo).select('department');
       if (!assignee || assignee.department !== req.user.department) {
         return res.status(400).json({
@@ -1012,7 +1136,7 @@ exports.updateTask = async (req, res) => {
       });
     }
 
-    if (req.user?.department && task.assignedBy?.toString() !== req.user._id.toString()) {
+    if (shouldScopeByDepartment(req.user) && task.assignedBy?.toString() !== req.user._id.toString()) {
       if (task.assignedTo?.department && task.assignedTo.department !== req.user.department) {
         return res.status(403).json({
           success: false,
@@ -1021,7 +1145,7 @@ exports.updateTask = async (req, res) => {
       }
     }
 
-    if (assignedTo && req.user?.department) {
+    if (assignedTo && shouldScopeByDepartment(req.user)) {
       const assignee = await User.findById(assignedTo).select('department');
       if (!assignee || assignee.department !== req.user.department) {
         return res.status(400).json({
@@ -1083,7 +1207,7 @@ exports.reassignTask = async (req, res) => {
       });
     }
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const assignee = await User.findById(assignedTo).select('department');
       if (!assignee || assignee.department !== req.user.department) {
         return res.status(400).json({
@@ -1159,7 +1283,7 @@ exports.getLeaveRequests = async (req, res) => {
     if (status) query.status = status;
     if (managerStatus) query.managerApprovalStatus = managerStatus;
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       const ids = teamUsers.map((user) => user._id);
       query.employee = { $in: ids };
@@ -1308,7 +1432,7 @@ exports.getWorkReports = async (req, res) => {
     if (reportType) query.reportType = reportType;
     if (status) query.status = status;
 
-    if (req.user?.department) {
+    if (shouldScopeByDepartment(req.user)) {
       const teamUsers = await User.find({ department: req.user.department }).select('_id');
       const ids = teamUsers.map((user) => user._id);
       if (employee && !ids.find((id) => id.toString() === employee)) {

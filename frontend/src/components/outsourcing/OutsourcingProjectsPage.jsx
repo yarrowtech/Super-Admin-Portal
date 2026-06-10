@@ -15,6 +15,7 @@ export default function OutsourcingProjectsPage() {
   const [projects, setProjects] = useState([]);
   const [summary, setSummary] = useState({ total: 0, assigned: 0, accessible: 0, blocked: 0 });
   const [launchingProject, setLaunchingProject] = useState('');
+  const [launchError, setLaunchError] = useState({ code: '', message: '' });
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -74,14 +75,20 @@ export default function OutsourcingProjectsPage() {
   const handleLaunch = async (projectCode) => {
     try {
       setLaunchingProject(projectCode);
+      setLaunchError({ code: '', message: '' });
       const response = projectCode === 'EEC'
         ? await outsourcingApi.generateEecSsoToken(token, { projectCode: 'EEC', redirectTo: '/dashboard' })
         : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
-      const redirectUrl = response?.redirectUrl || response?.data?.redirectUrl;
-      if (redirectUrl) {
-        window.location.assign(redirectUrl);
+      const redirectUrl = response?.redirectUrl || response?.data?.redirectUrl || response?.data?.data?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error(response?.message || response?.error || 'Failed to resolve launch URL');
       }
+      window.location.assign(redirectUrl);
     } catch (launchError) {
+      setLaunchError({
+        code: projectCode,
+        message: launchError?.message || 'Access failed, try again',
+      });
       setError(launchError.message || 'Failed to launch project');
     } finally {
       setLaunchingProject('');
@@ -279,6 +286,16 @@ export default function OutsourcingProjectsPage() {
                       </p>
                   </div>
 
+                  {launchError.code === project.code ? (
+                    <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">
+                      <p className="font-semibold">
+                        {launchError.message === 'Failed to resolve launch URL'
+                          ? 'Access failed, try again'
+                          : launchError.message}
+                      </p>
+                    </div>
+                  ) : null}
+
                   <div className="mt-auto pt-4">
                     <button
                       type="button"
@@ -289,16 +306,18 @@ export default function OutsourcingProjectsPage() {
                           ? 'bg-blue-600 text-white hover:-translate-y-0.5 hover:bg-blue-700'
                           : 'cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400'
                       } disabled:opacity-70`}
-                    >
+                      >
                       <span className="material-symbols-outlined text-[18px]">
                         {launchingProject === project.code ? 'hourglass_top' : launchEnabled ? 'open_in_new' : 'lock'}
                       </span>
                       {launchingProject === project.code
-                        ? 'Launching...'
-                        : launchEnabled
-                          ? project.code === 'EEC'
-                            ? 'Open EEC'
-                            : 'Open'
+                        ? 'Generating secure access...'
+                        : launchError.code === project.code
+                          ? 'Access failed, try again'
+                          : launchEnabled
+                            ? project.code === 'EEC'
+                              ? 'Open EEC'
+                              : 'Open'
                           : 'Locked'}
                     </button>
                   </div>

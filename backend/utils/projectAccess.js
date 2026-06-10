@@ -4,7 +4,7 @@ const PROJECT_REGISTRY = [
     name: 'EEC',
     description: 'Enterprise execution center and project workspace.',
     launchUrl: process.env.EEC_PORTAL_URL || 'https://eec.company.com',
-    ssoPath: '/sso-login',
+    ssoPath: '/sso/eec',
     aliases: ['EEC LMS', 'EEC Portal'],
   },
   {
@@ -221,11 +221,18 @@ const buildAccessTokenPayload = (user = {}, project = {}, extras = {}) => ({
   source: 'outsourcing-portal',
 });
 
-const buildProjectLaunchUrl = (project = {}, token = '') => {
+const buildProjectLaunchUrl = (project = {}, token = '', options = {}) => {
   const base = String(project.launchUrl || '').replace(/\/$/, '');
   const path = project.ssoPath || '/sso-login';
   if (!base || !token) return `${base}${path}`;
-  return `${base}${path}?token=${encodeURIComponent(token)}&projectCode=${encodeURIComponent(project.code || '')}`;
+  const params = new URLSearchParams();
+  params.set('token', token);
+  params.set('projectCode', project.code || '');
+  const redirectTo = typeof options.redirectTo === 'string' ? options.redirectTo.trim() : '';
+  if (redirectTo) {
+    params.set('redirectTo', redirectTo);
+  }
+  return `${base}${path}?${params.toString()}`;
 };
 
 module.exports = {

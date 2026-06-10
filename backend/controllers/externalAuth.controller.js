@@ -12,6 +12,16 @@ const resolveUser = async (userId) => {
   return User.findById(userId).select('firstName lastName email role department metadata permissions isActive accountStatus');
 };
 
+const getRequestUser = async (req) => {
+  if (req.user?._id || req.user?.id) {
+    return resolveUser(req.user._id || req.user.id);
+  }
+  if (req.body?.userId || req.query?.userId) {
+    return resolveUser(req.body.userId || req.query.userId);
+  }
+  return null;
+};
+
 const getDisplayName = (user = {}) =>
   `${String(user?.firstName || '').trim()} ${String(user?.lastName || '').trim()}`.trim() || user?.email || '';
 
@@ -153,7 +163,7 @@ const issueEecSsoToken = async (req, res) => {
       expiresIn: '5m',
       jwtid: jti,
     });
-    const redirectUrl = `${String(project.launchUrl || 'https://eec.company.com').replace(/\/$/, '')}/sso/eec?token=${encodeURIComponent(token)}&redirectTo=${redirectTo}`;
+    const redirectUrl = buildProjectLaunchUrl(project, token, { redirectTo });
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     await Promise.all([

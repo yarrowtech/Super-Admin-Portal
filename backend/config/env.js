@@ -26,6 +26,9 @@ const env = Object.freeze({
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || constants.ACCESS_TOKEN_TTL,
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || constants.REFRESH_TOKEN_TTL,
+  OUTSOURCING_SHARED_SECRET: process.env.OUTSOURCING_SHARED_SECRET || "",
+  OUTSOURCING_PORTAL_URL: process.env.OUTSOURCING_PORTAL_URL || "",
+  EEC_PORTAL_URL: process.env.EEC_PORTAL_URL || "",
   ENABLE_SELF_REGISTRATION: parseBoolean(process.env.ENABLE_SELF_REGISTRATION, false),
   LOG_LEVEL: process.env.LOG_LEVEL || (isProduction ? "info" : "debug"),
 });

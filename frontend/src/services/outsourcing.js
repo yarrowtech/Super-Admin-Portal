@@ -8,6 +8,11 @@ const ttl = {
   slow: 120_000
 };
 
+const getOutsourcingPortalBaseUrl = () => {
+  const raw = import.meta.env.VITE_OUTSOURCING_PORTAL_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return String(raw).replace(/\/$/, '');
+};
+
 const getTokenScope = (token) => (token ? token.slice(0, 24) : 'anon');
 
 const readCache = async (token, key, fetcher, ttlMs = ttl.medium) => {
@@ -37,8 +42,27 @@ export const outsourcingApi = {
     return res;
   },
   generateEecSsoToken: async (token, payload = {}) => {
-    const res = await apiClient.post('/api/sso/token', payload, token);
-    return res;
+    const requestId = `eec_${Date.now().toString(36)}`;
+    const response = await fetch(`${getOutsourcingPortalBaseUrl()}/api/sso/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-request-id': requestId,
+        'x-client-source': 'frontend',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok || data?.success === false) {
+      const error = new Error(data?.message || data?.error || 'Failed to create EEC SSO token');
+      error.status = response.status;
+      error.details = data;
+      throw error;
+    }
+    return data;
   },
   verifySsoToken: async (payload = {}) => apiClient.post('/api/sso/verify-token', payload),
   getNotifications: async (token) => readCache(token, 'notifications', () => apiClient.get('/api/outsourcing/notifications', token), ttl.fast),

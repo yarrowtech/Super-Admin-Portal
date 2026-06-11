@@ -7,6 +7,7 @@ import NotificationPanel from './NotificationPanel';
 import TaskDetailsModal from './TaskDetailsModal';
 import NotificationDebug from './NotificationDebug';
 import { shouldDeliverToManager } from '../../utils/notificationRouting';
+import PortalHeader from '../common/PortalHeader';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -444,91 +445,39 @@ const ManagerDashboard = () => {
   const attendanceCtaLabel = canCheckIn ? 'Check In' : canCheckOut ? 'Check Out' : 'Day Complete';
 
   return (
-    <main className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-6xl p-4 sm:p-6">
-        <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                <span className="material-symbols-outlined text-xl">menu</span>
-              </button>
-              <p className="text-gray-800 dark:text-white text-2xl sm:text-3xl font-black leading-tight tracking-[-0.033em]">
-                Welcome back, {managerName}!
-              </p>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Your live snapshot updates every few seconds.
-              </p>
-              {attendance?.checkedIn && (
-                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                  ✓ Checked in at {formatTime(attendance.checkIn)}
-                  {attendance?.checkOut && ` • Out at ${formatTime(attendance.checkOut)}`}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-              <span className={`inline-flex size-2 rounded-full ${realtimeLabel.dot}`}></span>
-              <span className={`${realtimeLabel.color}`}>{realtimeLabel.text}</span>
-              {snapshot?.timestamp && (
-                <span className="text-gray-500 dark:text-gray-400 font-normal">
-                  Updated {new Date(snapshot.timestamp).toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <button
-              type="button"
-              onClick={handleAttendanceAction}
-              disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
-                canCheckIn
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200'
-                  : canCheckOut
-                  ? 'border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
-                  : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-800 dark:bg-gray-900/40 dark:text-gray-500'
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg">
-                {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
+    <main className="portal-page">
+      <div className="portal-page-inner">
+        <PortalHeader
+          title="Manager Portal"
+          subtitle={`Welcome back, ${managerName}`}
+          icon="supervisor_account"
+          actions={
+            <div className="flex items-center gap-2">
+              <span className="hidden items-center gap-1.5 text-xs font-semibold sm:flex">
+                <span className={`inline-flex size-2 rounded-full ${realtimeLabel.dot}`} />
+                <span className={realtimeLabel.color}>{realtimeLabel.text}</span>
               </span>
-              <span className="hidden sm:inline">{attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}</span>
-            </button>
-            <NotificationPanel onTaskClick={handleTaskClick} />
-            <div className="flex items-center gap-2 sm:gap-4">
               <button
-                onClick={toggleDarkMode}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 sm:px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-200 dark:hover:bg-gray-800"
+                type="button"
+                onClick={handleAttendanceAction}
+                disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition ${
+                  canCheckIn
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200'
+                    : canCheckOut
+                    ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
+                    : 'cursor-not-allowed border-neutral-200 bg-neutral-50 text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-500'
+                }`}
               >
-                <span className="material-symbols-outlined text-base">
-                  {isDarkMode ? 'light_mode' : 'dark_mode'}
+                <span className="material-symbols-outlined text-lg">
+                  {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
                 </span>
-                <span className="hidden sm:inline">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-                <div className="ml-2 flex items-center">
-                  <div
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      isDarkMode ? 'bg-primary' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                        isDarkMode ? 'translate-x-5' : 'translate-x-1'
-                      }`}
-                    />
-                  </div>
-                </div>
+                <span className="hidden sm:inline">{attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}</span>
               </button>
-              <div className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white px-3 sm:px-4 py-2 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-800/50 dark:text-white dark:hover:bg-gray-800">
-                <span className="material-symbols-outlined text-base">sync</span>
-                <span className="ml-1 sm:ml-2 text-xs">{realtimeStatus === 'live' ? 'Live' : 'Sync'}</span>
-              </div>
+              <NotificationPanel onTaskClick={handleTaskClick} />
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {error && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100">
@@ -552,7 +501,7 @@ const ManagerDashboard = () => {
         )}
 
         {loading && (
-          <div className="mb-6 flex items-center gap-3 rounded-xl border border-dashed border-gray-200 bg-white/50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/30 dark:text-gray-300">
+          <div className="mb-6 flex items-center gap-3 rounded-xl border border-dashed border-neutral-200 bg-white/50 px-4 py-3 text-sm text-neutral-600 dark:border-gray-700 dark:bg-gray-800/30 dark:text-neutral-300">
             <span className="material-symbols-outlined animate-spin text-base text-primary">progress_activity</span>
             Fetching your latest KPIs…
           </div>
@@ -605,15 +554,15 @@ const ManagerDashboard = () => {
 
         <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Project Status</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <h3 className="text-lg font-semibold text-neutral-800 dark:text-white">Project Status</h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
                     Breakdown of all managed projects
                   </p>
                 </div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   Total {projectSummary.total || 0}
                 </span>
               </div>
@@ -627,11 +576,11 @@ const ManagerDashboard = () => {
                     <div key={status}>
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium capitalize text-gray-700 dark:text-gray-200">{status.replace('-', ' ')}</p>
-                        <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                        <span className="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                           {count} • {percentage}%
                         </span>
                       </div>
-                      <div className="mt-2 h-2 rounded-full bg-gray-100 dark:bg-gray-800">
+                      <div className="mt-2 h-2 rounded-full bg-neutral-100 dark:bg-gray-800">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-primary to-indigo-400"
                           style={{ width: `${percentage}%` }}
@@ -643,35 +592,35 @@ const ManagerDashboard = () => {
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upcoming Tasks</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <h3 className="text-lg font-semibold text-neutral-800 dark:text-white">Upcoming Tasks</h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
                     Due in the next 7 days ({upcomingTasks.length})
                   </p>
                 </div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   Live Feed
                 </span>
               </div>
               {upcomingTasks.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No upcoming tasks.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">No upcoming tasks.</p>
               ) : (
                 <div className="space-y-3">
                   {upcomingTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800"
+                      className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-neutral-800"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{task.title}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-sm font-semibold text-neutral-800 dark:text-white">{task.title}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
                           {task.project?.name || 'Unassigned project'}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                        <p className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
                           {task.dueDate ? dateFormatter.format(new Date(task.dueDate)) : '—'}
                         </p>
                         <span className="text-xs font-semibold uppercase tracking-wide text-primary">
@@ -686,11 +635,11 @@ const ManagerDashboard = () => {
           </div>
 
           <div className="space-y-4 sm:space-y-6">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Team At a Glance</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <h3 className="text-lg font-semibold text-neutral-800 dark:text-white">Team At a Glance</h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
                     {teamSummary.department ? `${teamSummary.department} department` : 'Company-wide'}
                   </p>
                 </div>
@@ -699,7 +648,7 @@ const ManagerDashboard = () => {
                 </span>
               </div>
               {teamMembers.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No team members found.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">No team members found.</p>
               ) : (
                 <div className="space-y-3">
                   {teamMembers.slice(0, 6).map((member) => (
@@ -709,13 +658,13 @@ const ManagerDashboard = () => {
                           {member.name?.[0] || '?'}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-gray-800 dark:text-white">{member.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{member.email}</p>
+                          <p className="text-sm font-semibold text-neutral-800 dark:text-white">{member.name}</p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">{member.email}</p>
                         </div>
                       </div>
                       <span
                         className={`text-xs font-semibold ${
-                          member.isActive ? 'text-emerald-500' : 'text-gray-400'
+                          member.isActive ? 'text-emerald-500' : 'text-neutral-400'
                         }`}
                       >
                         {member.isActive ? 'Online' : 'Offline'}
@@ -726,17 +675,17 @@ const ManagerDashboard = () => {
               )}
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                  <h3 className="text-lg font-semibold text-neutral-800 dark:text-white">
                     {leaveListMode === 'pending' ? 'Pending Leave Approvals' : 'Recent Leave Requests'}
                   </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
                     {leaveListMode === 'pending' ? 'Awaiting your approval' : 'Latest submissions'}
                   </p>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{leaveRequests.length} items</span>
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">{leaveRequests.length} items</span>
               </div>
               {leaveError && (
                 <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
@@ -744,20 +693,20 @@ const ManagerDashboard = () => {
                 </div>
               )}
               {leaveLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Loading leave requests...</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading leave requests...</p>
               ) : leaveRequests.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No leave requests found.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">No leave requests found.</p>
               ) : (
                 <div className="space-y-3">
                   {leaveRequests.map((leave) => (
-                    <div key={leave._id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                    <div key={leave._id} className="rounded-lg border border-gray-100 p-3 dark:border-neutral-800">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                          <p className="text-sm font-semibold text-neutral-800 dark:text-white">
                             {leave.employee?.firstName} {leave.employee?.lastName}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{leave.employee?.email || 'Employee'}</p>
-                          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">{leave.employee?.email || 'Employee'}</p>
+                          <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
                             {leave.leaveType} • {leave.startDate ? new Date(leave.startDate).toLocaleDateString() : ''}
                             {leave.endDate ? ` - ${new Date(leave.endDate).toLocaleDateString()}` : ''}
                           </p>
@@ -788,13 +737,13 @@ const ManagerDashboard = () => {
               )}
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Work Updates</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Latest task status changes</p>
+                  <h3 className="text-lg font-semibold text-neutral-800 dark:text-white">Work Updates</h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Latest task status changes</p>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{workUpdates.length} items</span>
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">{workUpdates.length} items</span>
               </div>
               {workUpdatesError && (
                 <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
@@ -802,21 +751,21 @@ const ManagerDashboard = () => {
                 </div>
               )}
               {workUpdatesLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Loading work updates...</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading work updates...</p>
               ) : workUpdates.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No updates available.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">No updates available.</p>
               ) : (
                 <div className="space-y-3">
                   {workUpdates.map((report) => {
                     const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
                     const reportStatus = report.taskStatus || report.status;
                     return (
-                      <div key={report._id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                      <div key={report._id} className="rounded-lg border border-gray-100 p-3 dark:border-neutral-800">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-gray-800 dark:text-white">{employeeName}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{report.title || 'Task update'}</p>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-sm font-semibold text-neutral-800 dark:text-white">{employeeName}</p>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">{report.title || 'Task update'}</p>
+                            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                               {report.project?.name || report.project?.projectCode || 'General'} •{' '}
                               {report.reportDate ? dateFormatter.format(new Date(report.reportDate)) : 'Today'}
                             </p>
@@ -832,38 +781,38 @@ const ManagerDashboard = () => {
               )}
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900/40">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Recent Projects</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Newest activity first</p>
+                  <h3 className="text-lg font-semibold text-neutral-800 dark:text-white">Recent Projects</h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Newest activity first</p>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{recentProjects.length} items</span>
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">{recentProjects.length} items</span>
               </div>
               {recentProjects.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No recent project updates.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">No recent project updates.</p>
               ) : (
                 <div className="space-y-3">
                   {recentProjects.map((project) => (
-                    <div key={project.id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                    <div key={project.id} className="rounded-lg border border-gray-100 p-3 dark:border-neutral-800">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{project.name}</p>
-                        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <p className="text-sm font-semibold text-neutral-800 dark:text-white">{project.name}</p>
+                        <span className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                           {project.status}
                         </span>
                       </div>
                       <div className="mt-2 flex items-center justify-between">
-                        <div className="h-1.5 flex-1 rounded-full bg-gray-100 dark:bg-gray-800">
+                        <div className="h-1.5 flex-1 rounded-full bg-neutral-100 dark:bg-gray-800">
                           <div
                             className="h-full rounded-full bg-primary"
                             style={{ width: `${project.progress || 0}%` }}
                           />
                         </div>
-                        <span className="ml-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                        <span className="ml-2 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
                           {project.progress || 0}%
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                         Updated{' '}
                         {project.updatedAt ? dateFormatter.format(new Date(project.updatedAt)) : 'recently'}
                       </p>
@@ -886,14 +835,16 @@ const ManagerDashboard = () => {
   );
 };
 
-const StatCard = ({ label, value, trend, trendColor = 'text-emerald-500', icon }) => (
-  <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-5 text-gray-800 dark:border-gray-800 dark:bg-gray-900/40 dark:text-white">
-    <div className="flex items-center justify-between">
-      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{label}</p>
-      <span className="material-symbols-outlined text-gray-400">{icon}</span>
+const StatCard = ({ label, value, trend, trendColor = 'text-emerald-600', icon }) => (
+  <div className="portal-stat-card">
+    <div className="mb-3 flex items-center justify-between">
+      <div className="portal-stat-card-icon">
+        <span className="material-symbols-outlined text-[20px]">{icon}</span>
+      </div>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</span>
     </div>
-    <p className="text-2xl font-bold">{value}</p>
-    {trend && <p className={`text-sm font-medium ${trendColor}`}>{trend}</p>}
+    <p className="text-2xl font-black text-neutral-900 dark:text-neutral-100">{value}</p>
+    {trend && <p className={`mt-1 text-sm font-medium ${trendColor}`}>{trend}</p>}
   </div>
 );
 

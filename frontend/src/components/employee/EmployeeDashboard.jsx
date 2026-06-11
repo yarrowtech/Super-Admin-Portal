@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { employeeApi } from '../../services/employee';
 import { useAuth } from '../../context/AuthContext';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
 
 const badgeTone = {
   success: 'text-emerald-600',
@@ -19,7 +21,7 @@ const leaveStatusTone = {
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
   approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
   rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
-  cancelled: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  cancelled: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300',
 };
 
 const leaveTypeOptions = [
@@ -160,8 +162,8 @@ const EmployeeDashboard = () => {
   const modeButtonClass = (value) =>
     `inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
       workMode === value
-        ? 'bg-slate-900 text-white border-slate-900'
-        : 'bg-white/90 text-slate-800 border-slate-200 hover:border-slate-900'
+        ? 'bg-neutral-900 text-white border-slate-900'
+        : 'bg-white/90 text-neutral-800 border-neutral-200 hover:border-slate-900'
     }`;
   const formatTime = (value) =>
     value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -364,123 +366,96 @@ const EmployeeDashboard = () => {
   const greeting = dashboardData?.greeting || user?.firstName || 'there';
 
   return (
-    <main className="mx-auto flex max-w-[1400px] flex-col gap-6">
-      <header className="flex flex-col justify-between gap-4 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-lg shadow-primary/5 ring-1 ring-slate-100 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/70 dark:ring-white/5 md:flex-row md:items-end">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
-            {greetingLabel} • {dayName} • {dateLabel} • {timeLabel}
-          </p>
-          <h1 className="mt-2 text-3xl font-black text-slate-900 dark:text-white">Welcome back, {greeting}</h1>
-          <p className="mt-1 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
-            <span className="material-symbols-outlined text-base text-amber-500">light_mode</span>
-            {attendance?.checkedIn ? 'Checked in today' : 'Don\'t forget to check in'}
-          </p>
-        </div>
-        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center">
-          <button
-            onClick={toggleDarkMode}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-primary hover:text-primary dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-200"
-          >
-            <span className="material-symbols-outlined text-base">{isDarkMode ? 'light_mode' : 'dark_mode'}</span>
-            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-            <span className="ml-2 inline-flex h-5 w-10 items-center rounded-full bg-slate-200 px-0.5 dark:bg-slate-700">
-              <span className={`size-4 rounded-full bg-primary transition-transform ${isDarkMode ? 'translate-x-4' : ''}`}></span>
-            </span>
-          </button>
-          <button
-            onClick={handleAttendanceAction}
-            disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
-            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold shadow-sm transition ${
-              canCheckIn
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200'
-                : canCheckOut
-                ? 'border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
-                : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-500'
-            }`}
-          >
-            <span className="material-symbols-outlined text-base">
-              {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
-            </span>
-            {attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}
-          </button>
-          {(attendanceAction.error || attendanceAction.message) && (
-            <p
-              className={`text-xs font-semibold ${
-                attendanceAction.error ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-300'
-              }`}
-            >
-              {attendanceAction.error || attendanceAction.message}
-            </p>
-          )}
-          <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white px-4 py-3 dark:border-slate-700 dark:from-slate-900/60 dark:to-slate-900/30">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current Sprint</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{sprint?.name || 'Active Sprint'}</p>
+    <main className="portal-page">
+      <div className="portal-page-inner flex flex-col gap-5">
+        <PortalHeader
+          title="Employee Portal"
+          subtitle={`${greetingLabel}, ${greeting} · ${dayName} ${dateLabel}`}
+          icon="person"
+          user={user}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleAttendanceAction}
+                disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition ${
+                  canCheckIn
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200'
+                    : canCheckOut
+                    ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
+                    : 'cursor-not-allowed border-neutral-200 bg-neutral-50 text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-500'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">
+                  {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
+                </span>
+                {attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}
+              </button>
             </div>
-            <div className="w-32 rounded-full bg-slate-200/70 dark:bg-slate-800">
+          }
+        />
+
+        {(attendanceAction.error || attendanceAction.message) && (
+          <p className={`-mt-2 text-xs font-semibold ${attendanceAction.error ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-300'}`}>
+            {attendanceAction.error || attendanceAction.message}
+          </p>
+        )}
+
+        {/* Sprint info */}
+        <div className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Current Sprint</p>
+              <p className="text-base font-bold text-neutral-900 dark:text-white">{sprint?.name || 'Active Sprint'}</p>
+            </div>
+            <div className="w-32 rounded-full bg-slate-200/70 dark:bg-neutral-800">
               <div className="h-2 rounded-full bg-primary" style={{ width: `${sprint?.progress || 0}%` }}></div>
             </div>
             <p className="text-sm font-semibold text-emerald-500">{sprint?.progress || 0}%</p>
           </div>
-        </div>
-      </header>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="flex flex-col rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60"
-          >
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{stat.label}</p>
-            <div className="mt-2 flex items-center justify-between">
-              <p className="text-4xl font-black text-slate-900 dark:text-white">{stat.value}</p>
-              {stat.delta && <span className={`text-xs font-semibold ${badgeTone[stat.tone || 'info']}`}>{stat.delta}</span>}
-            </div>
-            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{stat.meta}</p>
-          </div>
-        ))}
-      </section>
+        {/* KPI Stats */}
+        <section className="portal-kpi-grid">
+          {stats.map((stat) => (
+            <KPICard
+              key={stat.label}
+              title={stat.label}
+              value={stat.value}
+              icon={stat.icon || 'analytics'}
+              subtitle={stat.delta || stat.meta}
+              trend={stat.tone && stat.delta ? { direction: stat.tone === 'success' ? 'up' : 'down', value: stat.delta } : undefined}
+            />
+          ))}
+        </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Attendance Mode</p>
-          <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">{workbench?.attendanceManagement?.mode === 'manual_no_gps' ? 'Manual (No GPS)' : 'Manual'}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Open Tasks</p>
-          <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">{workbench?.taskAndWorkUpdate?.openTasks ?? 0}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overdue Tasks</p>
-          <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">{workbench?.taskAndWorkUpdate?.overdueTasks ?? 0}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending Leaves</p>
-          <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">{workbench?.leaveManagement?.pendingLeaves ?? 0}</p>
-        </div>
-      </section>
+        {/* Workbench quick stats */}
+        <section className="portal-kpi-grid">
+          <KPICard icon="check_circle"    title="Attendance Mode"  value={workbench?.attendanceManagement?.mode === 'manual_no_gps' ? 'Manual' : 'Standard'} />
+          <KPICard icon="task_alt"        title="Open Tasks"       value={workbench?.taskAndWorkUpdate?.openTasks ?? 0} />
+          <KPICard icon="warning"         title="Overdue Tasks"    value={workbench?.taskAndWorkUpdate?.overdueTasks ?? 0} />
+          <KPICard icon="event_available" title="Pending Leaves"   value={workbench?.leaveManagement?.pendingLeaves ?? 0} />
+        </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Active projects</h2>
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Active projects</h2>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {projectHighlights.map((project) => (
               <div
                 key={project._id || project.id}
-                className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-700 dark:bg-slate-900/60"
+                className="rounded-2xl border border-neutral-200 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-neutral-700 dark:bg-neutral-900/60"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-indigo-500 text-white">
                     <span className="material-symbols-outlined">folder</span>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
                     {project.status || 'Active'}
                   </span>
                 </div>
-                <p className="mt-4 text-lg font-bold text-slate-900 dark:text-white">{project.name}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-4 text-lg font-bold text-neutral-900 dark:text-white">{project.name}</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">
                   Deadline {project.deadline ? new Date(project.deadline).toLocaleDateString('en-GB', { 
                     day: '2-digit', 
                     month: '2-digit', 
@@ -488,41 +463,41 @@ const EmployeeDashboard = () => {
                   }) : 'TBD'}
                 </p>
                 <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                  <div className="flex items-center justify-between text-xs font-semibold text-neutral-500">
                     <span>Progress</span>
-                    <span className="text-slate-900 dark:text-white">{project.progress || 0}%</span>
+                    <span className="text-neutral-900 dark:text-white">{project.progress || 0}%</span>
                   </div>
-                  <div className="mt-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                  <div className="mt-1 h-2 rounded-full bg-neutral-100 dark:bg-neutral-800">
                     <div className="h-full rounded-full bg-primary" style={{ width: `${project.progress || 0}%` }}></div>
                   </div>
                 </div>
               </div>
             ))}
             {projectHighlights.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
                 No projects assigned yet.
               </div>
             )}
           </div>
         </div>
-        <div className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white via-slate-50 to-white p-5 shadow-lg shadow-primary/5 dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="rounded-3xl border border-neutral-200 bg-gradient-to-b from-white via-slate-50 to-white p-5 shadow-lg shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Today</p>
+            <p className="text-sm font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">Today</p>
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
               Focus
             </span>
           </div>
           <div className="mt-4 flex flex-col gap-5">
             {formattedSchedule.length === 0 && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">No upcoming meetings.</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">No upcoming meetings.</p>
             )}
             {formattedSchedule.map((item) => (
-              <div key={item.title + item.timeLabel} className="rounded-2xl border border-slate-100 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{item.timeLabel || item.time}</p>
-                <h3 className="mt-2 text-base font-semibold text-slate-900 dark:text-white">{item.title}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{item.meta}</p>
+              <div key={item.title + item.timeLabel} className="rounded-2xl border border-neutral-100 bg-white/80 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+                <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">{item.timeLabel || item.time}</p>
+                <h3 className="mt-2 text-base font-semibold text-neutral-900 dark:text-white">{item.title}</h3>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">{item.meta}</p>
                 {item.badge && (
-                  <span className={`mt-3 inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-semibold ${scheduleTone[item.tone] || 'text-slate-500'}`}>
+                  <span className={`mt-3 inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-semibold ${scheduleTone[item.tone] || 'text-neutral-500'}`}>
                     {item.badge}
                   </span>
                 )}
@@ -534,9 +509,9 @@ const EmployeeDashboard = () => {
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {taskSummary && (
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 lg:col-span-3">
-            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-              <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-white/10">Total {taskSummary.total ?? 0}</span>
+          <div className="rounded-3xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60 lg:col-span-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+              <span className="rounded-full bg-neutral-100 px-3 py-1 dark:bg-white/10">Total {taskSummary.total ?? 0}</span>
               <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
                 Pending {taskSummary.pending ?? 0}
               </span>
@@ -560,38 +535,38 @@ const EmployeeDashboard = () => {
           { key: 'upcoming', label: 'Upcoming', icon: 'upcoming' },
           { key: 'overdue', label: 'Overdue', icon: 'error' },
         ].map((bucket) => (
-          <div key={bucket.key} className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+          <div key={bucket.key} className="rounded-3xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">{bucket.icon}</span>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">{bucket.label}</h3>
+                <h3 className="text-base font-semibold text-neutral-900 dark:text-white">{bucket.label}</h3>
               </div>
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-300">
+              <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-semibold text-neutral-500 dark:bg-white/10 dark:text-neutral-300">
                 {(taskBuckets[bucket.key] || []).length} tasks
               </span>
             </div>
             <div className="mt-4 flex flex-col gap-4">
               {(taskBuckets[bucket.key] || []).map((task) => (
-                <div key={task.id} className="rounded-2xl border border-slate-100 p-4 shadow-sm transition hover:border-primary/30 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{task.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{task.project?.name || task.status}</p>
-                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                <div key={task.id} className="rounded-2xl border border-neutral-100 p-4 shadow-sm transition hover:border-primary/30 dark:border-neutral-700">
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-white">{task.title}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{task.project?.name || task.status}</p>
+                  <div className="mt-3 flex items-center justify-between text-xs text-neutral-500">
                     <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-base text-slate-400">schedule</span>
+                      <span className="material-symbols-outlined text-base text-neutral-400">schedule</span>
                       {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB', { 
                         day: '2-digit', 
                         month: '2-digit', 
                         year: '2-digit' 
                       }) : 'No due date'}
                     </div>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200">
+                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-600 dark:bg-white/10 dark:text-neutral-200">
                       {task.priority || 'Normal'}
                     </span>
                   </div>
                 </div>
               ))}
               {(taskBuckets[bucket.key] || []).length === 0 && (
-                <p className="text-sm text-slate-500 dark:text-slate-400">No tasks in this bucket.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">No tasks in this bucket.</p>
               )}
             </div>
           </div>
@@ -599,27 +574,27 @@ const EmployeeDashboard = () => {
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="lg:col-span-3 rounded-3xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Recent documents</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Recent documents</h3>
           </div>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
             {documents.map((doc) => (
-              <div key={doc.id || doc._id} className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
+              <div key={doc.id || doc._id} className="rounded-2xl border border-neutral-100 p-4 dark:border-neutral-800">
                 <div className="flex size-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
                   <span className="material-symbols-outlined">description</span>
                 </div>
-                <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">{doc.title || doc.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{doc.project || doc.type}</p>
-                <p className="mt-2 text-xs font-medium text-slate-500">
+                <p className="mt-3 text-sm font-semibold text-neutral-900 dark:text-white">{doc.title || doc.name}</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">{doc.project || doc.type}</p>
+                <p className="mt-2 text-xs font-medium text-neutral-500">
                   {doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : ''}
                 </p>
               </div>
             ))}
-            {documents.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No reports submitted yet.</p>}
+            {documents.length === 0 && <p className="text-sm text-neutral-500 dark:text-neutral-400">No reports submitted yet.</p>}
           </div>
         </div>
-        <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 text-black shadow-xl dark:from-slate-900 dark:to-slate-800 dark:text-white">
+        <div className="lg:col-span-2 rounded-3xl border border-neutral-200 bg-gradient-to-br from-slate-50 to-white p-6 text-black shadow-xl dark:from-slate-900 dark:to-slate-800 dark:text-white">
           <p className="text-sm font-semibold uppercase tracking-widest text-black">Attendance</p>
           <h3 className="mt-2 text-2xl font-black">{attendance?.checkedIn ? 'You\'re checked in' : 'Check-in pending'}</h3>
           <p className="mt-1 text-sm text-black">
@@ -659,27 +634,27 @@ const EmployeeDashboard = () => {
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="rounded-3xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Team pulse</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Team pulse</h3>
           </div>
           <div className="mt-4 space-y-4">
             {teamPreview.map((member) => (
-              <div key={member.id} className="flex items-center gap-4 rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
+              <div key={member.id} className="flex items-center gap-4 rounded-2xl border border-neutral-100 p-4 dark:border-neutral-800">
                 <div
                   className="size-12 rounded-full bg-cover bg-center"
                   style={{ backgroundImage: member.avatar ? `url(${member.avatar})` : undefined, backgroundColor: member.avatar ? undefined : '#e2e8f0' }}
                   data-alt={member.name}
                 >
                   {!member.avatar && (
-                    <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-700">
+                    <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-neutral-700">
                       {member.name?.[0] || '?'}
                     </span>
                   )}
                 </div>
                 <div className="flex flex-1 flex-col">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{member.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{member.title || member.role}</p>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-white">{member.name}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{member.title || member.role}</p>
                 </div>
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-200">
                   {member.status || 'Offline'}
@@ -687,36 +662,36 @@ const EmployeeDashboard = () => {
               </div>
             ))}
             {teamPreview.length === 0 && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">No teammates found in your department.</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">No teammates found in your department.</p>
             )}
           </div>
         </div>
-        <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="rounded-3xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Latest updates</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Latest updates</h3>
           </div>
           <div className="mt-4 space-y-5">
             {updates.map((update) => (
               <div key={update._id} className="relative pl-6">
                 <span className="absolute left-0 top-1 size-3 rounded-full bg-primary"></span>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{update.title}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{update.type} • {update.priority}</p>
-                <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
+                <p className="text-sm font-semibold text-neutral-900 dark:text-white">{update.title}</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">{update.type} • {update.priority}</p>
+                <div className="mt-2 flex items-center gap-3 text-xs text-neutral-500">
                   <span>{update.publishDate ? new Date(update.publishDate).toLocaleDateString() : ''}</span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200">
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-semibold text-neutral-600 dark:bg-white/10 dark:text-neutral-200">
                     Notice
                   </span>
                 </div>
               </div>
             ))}
             {updates.length === 0 && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">No new notices.</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">No new notices.</p>
             )}
           </div>
         </div>
-        <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="rounded-3xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Leave requests</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Leave requests</h3>
             <button
               onClick={() => {
                 setLeaveError('');
@@ -734,17 +709,17 @@ const EmployeeDashboard = () => {
           )}
           <div className="mt-4 space-y-3">
             {formattedLeaveRequests.length === 0 && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">No leave requests yet.</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">No leave requests yet.</p>
             )}
             {formattedLeaveRequests.map((leave) => (
-              <div key={leave._id} className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
+              <div key={leave._id} className="rounded-2xl border border-neutral-100 p-4 dark:border-neutral-800">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white capitalize">{leave.leaveType}</p>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-white capitalize">{leave.leaveType}</p>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${leave.statusClass}`}>
                     {leave.status}
                   </span>
                 </div>
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{leave.datesLabel}</p>
+                <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{leave.datesLabel}</p>
                 {leave.status === 'pending' && (
                   <button
                     onClick={() => handleCancelLeave(leave._id)}
@@ -763,15 +738,15 @@ const EmployeeDashboard = () => {
 
       {leaveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+          <div className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Request leave</h3>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Request leave</h3>
               <button
                 onClick={() => {
                   setLeaveError('');
                   setLeaveModalOpen(false);
                 }}
-                className="rounded-full p-1 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-full p-1 text-neutral-500 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-slate-800"
               >
                 <span className="material-symbols-outlined text-lg">close</span>
               </button>
@@ -785,11 +760,11 @@ const EmployeeDashboard = () => {
 
             <div className="mt-4 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Leave type</label>
+                <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Leave type</label>
                 <select
                   value={leaveForm.leaveType}
                   onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                 >
                   {leaveTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -800,31 +775,31 @@ const EmployeeDashboard = () => {
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Start date</label>
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Start date</label>
                   <input
                     type="date"
                     value={leaveForm.startDate}
                     onChange={(e) => setLeaveForm((prev) => ({ ...prev, startDate: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">End date</label>
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">End date</label>
                   <input
                     type="date"
                     value={leaveForm.endDate}
                     onChange={(e) => setLeaveForm((prev) => ({ ...prev, endDate: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                   />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Reason</label>
+                <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Reason</label>
                 <textarea
                   rows={3}
                   value={leaveForm.reason}
                   onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                 />
               </div>
             </div>
@@ -835,7 +810,7 @@ const EmployeeDashboard = () => {
                   setLeaveError('');
                   setLeaveModalOpen(false);
                 }}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -850,6 +825,7 @@ const EmployeeDashboard = () => {
           </div>
         </div>
       )}
+      </div>
     </main>
   );
 };

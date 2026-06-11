@@ -6,99 +6,62 @@ const PortalHeader = ({
   subtitle = '',
   user,
   icon = 'dashboard',
-  showSearch = true,
-  showNotifications = true,
   showThemeToggle = true,
-  onSearchChange,
-  searchPlaceholder = 'Quick search...',
+  actions,
   children,
+  // Legacy props accepted but no-op
+  showSearch,
+  showNotifications,
+  onSearchChange,
+  searchPlaceholder,
 }) => {
   const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
     return 'Good evening';
   };
 
-  const formatDate = () => {
-    return new Date().toLocaleDateString('en-US', {
+  const formatDate = () =>
+    new Date().toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'short',
       day: 'numeric',
     });
-  };
 
   return (
-    <header className="sticky-topbar mb-4 rounded-2xl border border-neutral-200/70 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-3 backdrop-blur dark:border-neutral-800/70 dark:from-primary/20 dark:via-primary/10 md:mb-6 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* Left side - Title and subtitle */}
-        <div className="flex-1">
-          <div className="mb-2 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-white shadow-lg">
-              <span className="material-symbols-outlined text-2xl">{icon}</span>
-            </div>
-            <div>
-              <h1 className="font-black leading-tight tracking-tight text-neutral-900 dark:text-neutral-100">
-                {title}
-              </h1>
-              {subtitle && (
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p>
-              )}
-              {!subtitle && user && (
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  {getGreeting()}, <span className="font-semibold text-primary">{user.firstName || 'User'}</span>!
-                </p>
-              )}
-            </div>
-          </div>
+    <header className="mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+      {/* Accent top bar */}
+      <div className="h-1 w-full" style={{ background: 'var(--portal-accent)' }} />
 
-          {/* Quick Stats Pills */}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 shadow-sm dark:bg-neutral-800">
-              <span className="material-symbols-outlined text-lg text-blue-600 dark:text-blue-400">
-                calendar_today
-              </span>
-              <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">{formatDate()}</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-1.5 dark:bg-green-900/30">
-              <span className="material-symbols-outlined text-lg text-green-600 dark:text-green-400">
-                trending_up
-              </span>
-              <span className="text-sm font-semibold text-green-700 dark:text-green-300">
-                All Systems Operational
-              </span>
-            </div>
-            {children}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6 md:py-4">
+        {/* Left — icon + title */}
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm"
+            style={{ background: 'var(--portal-accent)' }}
+          >
+            <span className="material-symbols-outlined text-[22px] text-white">{icon}</span>
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-[17px] font-black leading-tight text-neutral-900 dark:text-neutral-100">
+              {title}
+            </h1>
+            <p className="truncate text-[12px] text-neutral-500 dark:text-neutral-400">
+              {subtitle
+                ? subtitle
+                : user
+                ? `${getGreeting()}, ${user.firstName || 'User'}`
+                : formatDate()}
+            </p>
           </div>
         </div>
 
-        {/* Right side - Search, Theme Toggle, Notifications */}
-        <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
-          {showSearch && (
-            <div className="relative hidden tb:block">
-              <input
-                type="text"
-                onChange={onSearchChange}
-                className="h-11 w-full rounded-xl border-2 border-neutral-200 bg-white pl-10 pr-4 text-sm font-medium text-neutral-900 placeholder:text-neutral-500 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 sm:w-64"
-                placeholder={searchPlaceholder}
-              />
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-lg text-neutral-400">
-                search
-              </span>
-            </div>
-          )}
-
+        {/* Right — actions + theme toggle */}
+        <div className="flex flex-wrap items-center gap-2">
+          {children}
+          {actions}
           {showThemeToggle && <ThemeToggleButton />}
-
-          {showNotifications && (
-            <button className="relative flex h-11 w-11 items-center justify-center rounded-xl border-2 border-neutral-200 bg-white text-neutral-700 transition-all hover:border-primary hover:text-primary hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-              <span className="material-symbols-outlined text-lg">notifications</span>
-              <span className="absolute right-1.5 top-1.5 flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
-              </span>
-            </button>
-          )}
         </div>
       </div>
     </header>

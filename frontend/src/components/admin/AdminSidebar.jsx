@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import PortalSidebar from '../common/PortalSidebar';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
+import { useSidebar } from '../../context/SidebarContext';
 
 const navItems = [
   {
@@ -97,6 +98,7 @@ const AdminSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { collapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
   const role = String(user?.role || '').toLowerCase();
   const resolvedNavItems = useMemo(() => menuConfig[role] || navItems, [role]);
@@ -139,7 +141,7 @@ const AdminSidebar = () => {
         </button>
       </div>
 
-      <div className="fixed left-0 top-0 z-[1000] hidden h-screen w-[250px] shadow-lg md:block">
+      <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
         <PortalSidebar
           showBranding={false}
           brandingTitle=""

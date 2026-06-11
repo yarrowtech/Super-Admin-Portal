@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import CEOSidebar from './CEOSidebar';
+import { useSidebar } from '../../context/SidebarContext';
 const CEODashboard = lazy(() => import('./CEODashboard'));
 const CEOChatPage = lazy(() => import('../../pages/ceo/CEOChatPage'));
 const CEOReports = lazy(() => import('./CEOReports'));
@@ -27,6 +28,7 @@ const ceoMobileItems = [
 ];
 
 const CEOPortal = () => {
+  const { collapsed } = useSidebar();
   const [currentView, setCurrentView] = useState(() => {
     try {
       return localStorage.getItem('ceo-portal-current-view') || 'dashboard';
@@ -83,7 +85,7 @@ const CEOPortal = () => {
             }))}
           />
           <CEOSidebar onViewChange={setCurrentView} />
-          <div className="portal-content flex-1 overflow-x-hidden pt-16 md:ml-64 md:pt-0">
+          <div className={`portal-content flex-1 overflow-x-hidden pt-16 transition-[margin] duration-300 ease-out-expo md:pt-0 ${collapsed ? 'md:ml-16' : 'md:ml-64'}`}>
             <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
               {renderContent()}
             </Suspense>

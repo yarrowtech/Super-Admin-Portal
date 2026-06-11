@@ -1,6 +1,8 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { financeApi } from '../../services/finance';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
 
 const tabOptions = [
   { id: 'accounts', label: 'Chart of Accounts' },
@@ -728,8 +730,8 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
 
   if (loading) {
     return (
-      <main className="flex-1 overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
-        <div className="flex h-full items-center justify-center">
+      <main className="portal-page">
+        <div className="flex h-64 items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
             <p className="text-neutral-600 dark:text-neutral-400">Loading finance module...</p>
@@ -740,69 +742,47 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
-      <div className="mx-auto max-w-6xl p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black text-neutral-800 dark:text-neutral-100">Finance Module</h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Welcome back{user?.firstName ? `, ${user.firstName}` : ''}. Manage billing, payments, budgets and compliance.
-            </p>
-          </div>
-          <div className="rounded-xl bg-white px-4 py-3 shadow-sm dark:bg-neutral-800">
-            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Today</p>
-            <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
-              {new Date().toLocaleDateString()}
-            </p>
-          </div>
-        </div>
+    <main className="portal-page">
+      <div className="portal-page-inner">
+        <PortalHeader
+          title="Finance Portal"
+          subtitle={`Welcome back${user?.firstName ? `, ${user.firstName}` : ''} · Manage billing, payments, budgets and compliance`}
+          icon="account_balance"
+          user={user}
+        />
 
         {error && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
             {error}
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="portal-kpi-grid mb-6">
           {kpis.map((item) => (
-            <div key={item.label} className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-800/60">
-              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{item.label}</p>
-              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{item.value}</p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                {item.subValue} {item.subLabel}
-              </p>
-            </div>
+            <KPICard
+              key={item.label}
+              title={item.label}
+              value={item.value}
+              icon={
+                item.label === 'Revenue' ? 'trending_up' :
+                item.label === 'Expenses' ? 'request_quote' :
+                item.label === 'Profit / Loss' ? 'account_balance_wallet' :
+                item.label === 'Pending Payments' ? 'pending_actions' :
+                'percent'
+              }
+              subtitle={`${item.subValue} ${item.subLabel}`}
+            />
           ))}
-        </div>
+        </section>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-800/60">
-            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Revenue</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{formatCurrency(profitLoss.revenue)}</p>
-            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Profit & loss</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-800/60">
-            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Expenses</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{formatCurrency(profitLoss.expenses)}</p>
-            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Operational spend</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-800/60">
-            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Net Income</p>
-            <p
-              className={`text-2xl font-bold ${
-                profitLoss.netIncome >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-              }`}
-            >
-              {formatCurrency(profitLoss.netIncome)}
-            </p>
-            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">After expenses</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-800/60">
-            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Equity</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{formatCurrency(balanceSheet.equity)}</p>
-            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Balance sheet</p>
-          </div>
-        </div>
+        <section className="portal-kpi-grid mt-6">
+          <KPICard icon="trending_up"        title="Revenue"     value={formatCurrency(profitLoss.revenue)}    subtitle="Profit & loss" compact />
+          <KPICard icon="request_quote"      title="Expenses"    value={formatCurrency(profitLoss.expenses)}   subtitle="Operational spend" compact />
+          <KPICard icon="account_balance_wallet" title="Net Income" value={formatCurrency(profitLoss.netIncome)} subtitle="After expenses" compact
+            trend={profitLoss.netIncome >= 0 ? { direction: 'up', value: 'Profit' } : { direction: 'down', value: 'Loss' }}
+          />
+          <KPICard icon="savings"            title="Equity"      value={formatCurrency(balanceSheet.equity)}   subtitle="Balance sheet" compact />
+        </section>
 
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr,1fr]">
           <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { itApi } from '../../services/it';
 import { useAuth } from '../../context/AuthContext';
+import PortalHeader from '../common/PortalHeader';
 
 const SECTION_META = {
   dashboard: { title: 'IT Overview Dashboard', subtitle: 'Infrastructure, security, and operations command center', icon: 'dashboard' },
@@ -945,65 +946,43 @@ const ITDashboard = ({ activeSection }) => {
   }, [activeSection, data]);
 
   return (
-    <main className="min-h-screen flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.14),_transparent_30%),linear-gradient(180deg,_rgba(248,250,252,1)_0%,_rgba(241,245,249,1)_100%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.12),_transparent_24%),linear-gradient(180deg,_rgba(2,6,23,1)_0%,_rgba(15,23,42,1)_100%)]">
-      <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
-        <section className="mb-4 overflow-hidden rounded-[28px] border border-neutral-200/80 bg-white/85 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.06)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80 md:p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-4xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-cyan-700 dark:text-cyan-200">
-                <span className="material-symbols-outlined text-[14px]">{meta.icon}</span>
-                IT Operations
-              </div>
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-neutral-950 dark:text-neutral-50 sm:text-4xl">
-                {meta.title}
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600 dark:text-neutral-400 sm:text-base">
-                {meta.subtitle}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                  MFA enforced
-                </span>
-                <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-200">
-                  {eventCount} live event hooks
-                </span>
-                <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
-                  {projects.length ? 'Project context active' : 'No project selected'}
-                </span>
-                <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
-                  {loading ? 'Refreshing data' : 'Data current'}
-                </span>
-              </div>
+    <main className="portal-page">
+      <div className="portal-page-inner">
+        <PortalHeader
+          title={meta.title}
+          subtitle={meta.subtitle}
+          icon={meta.icon}
+          user={user}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={selectedProjectId}
+                onChange={(e) => {
+                  const projectId = e.target.value;
+                  setSelectedProjectId(projectId);
+                  if (projectId) localStorage.setItem('activeProjectId', projectId);
+                }}
+                className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+              >
+                <option value="">{projects.length ? 'All projects' : 'No projects'}</option>
+                {projects.map((project) => (
+                  <option key={project._id} value={project._id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                MFA enforced
+              </span>
+              <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-200">
+                {eventCount} live events
+              </span>
+              <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                {loading ? 'Refreshing…' : 'Data current'}
+              </span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:w-[26rem] xl:grid-cols-2">
-              {summaryCards.map((card) => (
-                <HeroPill key={card.label} label={card.label} value={card.value} tone={card.tone} />
-              ))}
-              <div className="sm:col-span-2 rounded-2xl border border-neutral-200/80 bg-neutral-50/80 p-4 dark:border-neutral-800 dark:bg-neutral-950/40">
-                <label htmlFor="it-project-select" className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
-                  Project context
-                </label>
-                <select
-                  id="it-project-select"
-                  value={selectedProjectId}
-                  onChange={(e) => {
-                    const projectId = e.target.value;
-                    setSelectedProjectId(projectId);
-                    if (projectId) localStorage.setItem('activeProjectId', projectId);
-                  }}
-                  className="mt-2 h-11 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-cyan-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-                >
-                  <option value="">{projects.length ? 'All projects' : 'No projects'}</option>
-                  {projects.map((project) => (
-                    <option key={project._id} value={project._id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        </section>
+          }
+        />
 
         <section className="mb-4 rounded-[24px] border border-neutral-200/80 bg-white/85 p-4 shadow-[0_14px_50px_rgba(15,23,42,0.06)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/75">
           <SectionHeader title="Operational signal" subtitle="Current queue pressure, security posture, and platform throughput." />

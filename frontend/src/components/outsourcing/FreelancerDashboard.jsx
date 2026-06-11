@@ -466,8 +466,8 @@ export default function FreelancerDashboard({ token, user }) {
   }), [contracts.length, jobs.length, logs, workspace]);
 
   return (
-    <main className="min-h-screen flex-1 overflow-y-auto bg-gradient-to-br from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800">
-      <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
+    <main className="portal-page">
+      <div className="portal-page-inner">
       <PortalHeader
         title="Freelancer Dashboard"
         subtitle=""
@@ -503,32 +503,12 @@ export default function FreelancerDashboard({ token, user }) {
           {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />)}
         </div>
       ) : null}
-      <section className={`${wrap} mb-4`}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Workspace</p>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
-            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Assigned Projects</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.projects}</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
-            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Active Contracts</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.contracts}</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
-            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Notifications</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.notifications}</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
-            <p className="text-xs uppercase text-neutral-500 dark:text-neutral-400">Pending Logs</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{workspaceStats.pendingLogs}</p>
-          </div>
-        </div>
+      <section className="portal-kpi-grid mb-4">
+        <KPICard icon="folder_open"     title="Assigned Projects" value={workspaceStats.projects}    subtitle="WORKSPACE" compact />
+        <KPICard icon="handshake"       title="Active Contracts"  value={workspaceStats.contracts}   subtitle="CONTRACTS" compact />
+        <KPICard icon="payments"        title="Total Earnings"    value={`INR ${stats.totalEarnings}`} subtitle="LIFETIME" compact />
+        <KPICard icon="pending_actions" title="Pending Logs"      value={workspaceStats.pendingLogs} subtitle="REVIEW" compact />
       </section>
-      <FreelancerStatsCards stats={stats} />
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2 items-stretch">
         <WorkflowGuide workflow={workflow} onAction={handleWorkflowAction} />
         <TimeTracker

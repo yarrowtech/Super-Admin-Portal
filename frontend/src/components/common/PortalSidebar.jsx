@@ -14,28 +14,44 @@ const MiniTooltip = memo(({ label }) => (
 ));
 
 /* ─── Single nav item ────────────────────────────────────────────── */
-const NavItem = memo(({ item, collapsed, isActive, onClick, suffix }) => (
-  <NavLink
-    to={item.path}
-    onClick={onClick}
-    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-      isActive
-        ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-        : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
-    } ${collapsed ? 'justify-center px-0' : ''}`}
-    aria-label={collapsed ? item.label : undefined}
-  >
-    <span
-      className={`material-symbols-outlined shrink-0 text-[20px] transition-none ${collapsed ? 'mx-auto' : ''}`}
-      style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+const NavItem = memo(({ item, collapsed, isActive, onClick, suffix }) => {
+  const badge = typeof item.badge === 'number' && item.badge > 0 ? item.badge : 0;
+  const badgeLabel = badge > 99 ? '99+' : String(badge);
+  return (
+    <NavLink
+      to={item.path}
+      onClick={onClick}
+      className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+        isActive
+          ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+          : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+      } ${collapsed ? 'justify-center px-0' : ''}`}
+      aria-label={collapsed ? item.label : undefined}
     >
-      {item.icon}
-    </span>
-    {!collapsed && <span className="flex-1 truncate leading-none">{item.label}</span>}
-    {!collapsed && suffix}
-    {collapsed && <MiniTooltip label={item.label} />}
-  </NavLink>
-));
+      <span className={`relative shrink-0 ${collapsed ? 'mx-auto' : ''}`}>
+        <span
+          className="material-symbols-outlined text-[20px] transition-none"
+          style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+        >
+          {item.icon}
+        </span>
+        {collapsed && badge > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-0.5 text-[8px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
+            {badgeLabel}
+          </span>
+        )}
+      </span>
+      {!collapsed && <span className="flex-1 truncate leading-none">{item.label}</span>}
+      {!collapsed && badge > 0 && (
+        <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+          {badgeLabel}
+        </span>
+      )}
+      {!collapsed && suffix}
+      {collapsed && <MiniTooltip label={badge > 0 ? `${item.label} (${badgeLabel})` : item.label} />}
+    </NavLink>
+  );
+});
 
 /* ─── Collapsible group button ───────────────────────────────────── */
 const GroupButton = memo(({ item, collapsed, isActive, isOpen, onToggle }) => (

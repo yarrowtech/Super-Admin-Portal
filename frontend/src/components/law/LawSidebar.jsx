@@ -1,76 +1,101 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
+import PortalSidebar from '../common/PortalSidebar';
+import { useSidebar } from '../../context/SidebarContext';
+
+const lawNavItems = [
+  { label: 'Workflow',        icon: 'gavel',          path: '/law/dashboard' },
+  { label: 'Legal Documents', icon: 'description',    path: '/law/legal-docs' },
+  { label: 'Approved Library',icon: 'library_books',  path: '/law/legal-library' },
+  { label: 'Agreements',      icon: 'contract',       path: '/law/agreements' },
+  { label: 'Privacy & Policy',icon: 'policy',         path: '/law/policy' },
+  { label: 'Disputes & Fraud',icon: 'balance',        path: '/law/disputes' },
+  { label: 'IP & Copyright',  icon: 'copyright',      path: '/law/ip' },
+  { label: 'Work on Hire',    icon: 'assignment_ind', path: '/law/work-hire' },
+  { label: 'Third Party',     icon: 'handshake',      path: '/law/third-party' },
+];
 
 const LawSidebar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  if (!canAccessPortal(user, PORTALS.LAW)) return null;
+  const { collapsed } = useSidebar();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const menus = [
-    { key: 'dashboard', label: 'Workflow', icon: 'gavel', path: '/law/dashboard' },
-    { key: 'legal-docs', label: 'Legal Documents', icon: 'description', path: '/law/legal-docs' },
-    { key: 'legal-library', label: 'Approved Library', icon: 'library_books', path: '/law/legal-library' },
-    { key: 'agreements', label: 'Agreements', icon: 'contract', path: '/law/agreements' },
-    { key: 'policy', label: 'Privacy & Policy', icon: 'policy', path: '/law/policy' },
-    { key: 'disputes', label: 'Disputes & Fraud', icon: 'balance', path: '/law/disputes' },
-    { key: 'ip', label: 'IP & Copyright', icon: 'copyright', path: '/law/ip' },
-    { key: 'work-hire', label: 'Work on Hire', icon: 'assignment_ind', path: '/law/work-hire' },
-    { key: 'third-party', label: 'Third Party', icon: 'handshake', path: '/law/third-party' },
-  ];
-
-  const onLogout = () => {
+  const handleLogout = useCallback(() => {
     logout();
     navigate('/login', { replace: true });
-  };
+  }, [logout, navigate]);
+
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  if (!canAccessPortal(user, PORTALS.LAW)) return null;
 
   return (
-    <aside className="fixed left-0 top-0 z-10 hidden h-screen w-[250px] shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:flex">
-      <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-rose-600 to-rose-500 text-white shadow-lg">
-            <span className="material-symbols-outlined text-xl">gavel</span>
-          </div>
-          <div>
-            <h1 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">LAW Dashboard</h1>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">Legal Department</p>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-3 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {menus.map((menu) => {
-          const active = location.pathname.startsWith(menu.path);
-          return (
-            <button
-              key={menu.key}
-              type="button"
-              onClick={() => navigate(menu.path)}
-              className={`mb-2 flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-left text-sm transition-all ${
-                active
-                  ? 'border-[var(--portal-accent)] bg-[var(--portal-accent)] text-white font-semibold shadow-md'
-                  : 'border-transparent text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg">{menu.icon}</span>
-              <span className="flex-1 font-medium">{menu.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-neutral-200 p-3 dark:border-neutral-800">
+    <>
+      {/* Mobile top bar */}
+      <div className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/95 px-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 md:hidden">
         <button
-          onClick={onLogout}
-          className="flex min-h-10 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2 text-sm text-red-600 transition-all hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          aria-label="Open navigation"
         >
-          <span className="material-symbols-outlined text-lg">logout</span>
-          <span className="flex-1 text-left font-medium">Logout</span>
+          <span className="material-symbols-outlined">menu</span>
+        </button>
+        <div className="min-w-0 text-center">
+          <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">Law Portal</p>
+          <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{user?.firstName} {user?.lastName}</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/20"
+          aria-label="Logout"
+        >
+          <span className="material-symbols-outlined">logout</span>
         </button>
       </div>
-    </aside>
+
+      {/* Desktop sidebar */}
+      <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
+        <PortalSidebar
+          brandingTitle="Law Portal"
+          brandingSubtitle="Legal Department"
+          brandingIcon="gavel"
+          user={user}
+          navItems={lawNavItems}
+          currentPath={location.pathname}
+          onLogout={handleLogout}
+        />
+      </div>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            onClick={closeMobile}
+            aria-label="Close navigation overlay"
+          />
+          <div className="relative h-full w-[min(250px,86vw)] shadow-2xl">
+            <PortalSidebar
+              brandingTitle="Law Portal"
+              brandingSubtitle="Legal Department"
+              brandingIcon="gavel"
+              user={user}
+              navItems={lawNavItems}
+              currentPath={location.pathname}
+              onLogout={handleLogout}
+              onNavigate={closeMobile}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

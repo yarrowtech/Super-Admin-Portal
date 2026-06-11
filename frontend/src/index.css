@@ -213,6 +213,40 @@ button {
   .safe-table {
     @apply w-full min-w-[680px];
   }
+
+  /* ── Unified portal stat card ─────────────────────────────── */
+  .portal-stat-card {
+    @apply relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900;
+    box-shadow: var(--erp-shadow-soft);
+  }
+
+  .portal-stat-card-icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl;
+    background: var(--portal-accent-soft);
+  }
+
+  .portal-stat-card-icon .material-symbols-outlined {
+    color: var(--portal-accent);
+  }
+
+  /* ── Unified portal KPI grid ──────────────────────────────── */
+  .portal-kpi-grid {
+    @apply grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4;
+  }
+
+  /* ── Portal section heading ───────────────────────────────── */
+  .portal-section-title {
+    @apply text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400;
+  }
+
+  /* ── Portal page shell (content area wrapper) ─────────────── */
+  .portal-page {
+    @apply flex-1 overflow-y-auto;
+  }
+
+  .portal-page-inner {
+    @apply mx-auto w-full max-w-[1680px] p-4 sm:p-5 lg:p-6;
+  }
 }
 
 * {
@@ -329,6 +363,16 @@ button {
 .portal-shell[data-role='outsourcing'] {
   --portal-accent: #0891b2;
   --portal-accent-soft: rgba(8, 145, 178, 0.16);
+}
+
+.portal-shell[data-role='finance'] {
+  --portal-accent: #16a34a;
+  --portal-accent-soft: rgba(22, 163, 74, 0.16);
+}
+
+.portal-shell[data-role='it'] {
+  --portal-accent: #0284c7;
+  --portal-accent-soft: rgba(2, 132, 199, 0.16);
 }
 
 .dot-spinner {

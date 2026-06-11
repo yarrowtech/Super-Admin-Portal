@@ -356,8 +356,8 @@ const LawDashboard = () => {
     ];
 
     return (
-      <main className="min-h-screen flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_36%),linear-gradient(180deg,#f8fafc_0%,#ffffff_38%,#f8fafc_100%)]">
-        <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 lg:p-6 2xl:p-8">
+      <main className="portal-page">
+        <div className="portal-page-inner">
           <PortalHeader
             title="Law Analytics"
             subtitle="Executive legal platform overview"
@@ -407,7 +407,7 @@ const LawDashboard = () => {
             </div>
           </PortalHeader>
 
-          <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="portal-kpi-grid mb-4">
             {topKPIs.map(([title, value, icon, color, subtitle]) => (
               <KPICard
                 key={title}

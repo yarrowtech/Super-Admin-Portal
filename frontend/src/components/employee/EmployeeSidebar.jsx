@@ -1,21 +1,16 @@
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import { employeeApi } from '../../services/employee';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import { resolvePortalMenu } from '../../config/portalMenus';
+import PortalSidebar from '../common/PortalSidebar';
+import { useSidebar } from '../../context/SidebarContext';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-const navItems = resolvePortalMenu('user').map(({ label, icon, path }) => ({ label, icon, path }));
-
-const quickLinks = [
-  { label: 'Standup Notes', icon: 'pending_actions' },
-  { label: 'Timesheet', icon: 'schedule' },
-  { label: 'Support', icon: 'support_agent' },
-];
+const BASE_NAV_ITEMS = resolvePortalMenu('user').map(({ label, icon, path }) => ({ label, icon, path }));
 
 const getThreadId = (thread) =>
   thread?._id?.toString?.() || thread?.id?.toString?.() || thread?._id || thread?.id || null;
@@ -29,23 +24,31 @@ const deriveUnreadCount = (thread) => {
 };
 
 const EmployeeSidebar = () => {
-  const { user, logout, token } = useAuth();
-  if (!canAccessPortal(user, PORTALS.EMPLOYEE)) return null;
+  const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout, token } = useAuth();
+  const { collapsed } = useSidebar();
   const [chatUnread, setChatUnread] = useState(0);
   const [threadIds, setThreadIds] = useState([]);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const threadIdsRef = useRef([]);
   const unreadMapRef = useRef({});
   const socketRef = useRef(null);
   const joinedThreadsRef = useRef(new Set());
 
-  const displayName = useMemo(() => {
-    if (!user) return 'Employee';
-    const name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-    return name || user.name || 'Employee';
-  }, [user]);
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/login');
+  }, [logout, navigate]);
 
-  const initials = displayName?.[0]?.toUpperCase() || 'E';
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  const navItems = useMemo(
+    () => BASE_NAV_ITEMS.map((item) =>
+      item.path === '/employee/chat' ? { ...item, badge: chatUnread } : item
+    ),
+    [chatUnread]
+  );
 
   const mergeUnreadMap = useCallback((map) => {
     unreadMapRef.current = map;
@@ -59,8 +62,7 @@ const EmployeeSidebar = () => {
   const joinThreads = useCallback((threadsOrIds) => {
     const socket = socketRef.current;
     if (!socket) return;
-    const list = Array.isArray(threadsOrIds) ? threadsOrIds : [];
-    list.forEach((entry) => {
+    (Array.isArray(threadsOrIds) ? threadsOrIds : []).forEach((entry) => {
       const id = typeof entry === 'string' ? entry : getThreadId(entry);
       if (!id || joinedThreadsRef.current.has(id)) return;
       socket.emit('joinThread', id);
@@ -69,11 +71,7 @@ const EmployeeSidebar = () => {
   }, []);
 
   const refreshThreads = useCallback(async () => {
-    if (!token) {
-      mergeUnreadMap({});
-      setThreadIds([]);
-      return;
-    }
+    if (!token) { mergeUnreadMap({}); setThreadIds([]); return; }
     try {
       const res = await employeeApi.getChatThreads(token);
       const list = res?.data || res || [];
@@ -93,20 +91,11 @@ const EmployeeSidebar = () => {
     }
   }, [token, mergeUnreadMap, joinThreads]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  useEffect(() => {
-    refreshThreads();
-  }, [refreshThreads]);
+  useEffect(() => { refreshThreads(); }, [refreshThreads]);
 
   useEffect(() => {
     if (!token) return undefined;
-    const interval = setInterval(() => {
-      refreshThreads();
-    }, 60000);
+    const interval = setInterval(refreshThreads, 60000);
     return () => clearInterval(interval);
   }, [token, refreshThreads]);
 
@@ -114,26 +103,18 @@ const EmployeeSidebar = () => {
     if (!token) {
       mergeUnreadMap({});
       setThreadIds([]);
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
       return undefined;
     }
-
-    const socket = io(SOCKET_URL, {
-      withCredentials: true,
-      transports: ['websocket'],
-    });
+    const socket = io(SOCKET_URL, { withCredentials: true, transports: ['websocket'] });
     socketRef.current = socket;
     joinedThreadsRef.current = new Set();
 
     const handler = (message) => {
       const threadId = message?.thread?.toString?.() || message?.threadId?.toString?.();
       if (!threadId) return;
-      const senderId = message?.senderId || message?.sender || '';
-      const sender = senderId?.toString?.() || senderId;
-      const currentUserId = user?.id?.toString?.() || user?._id?.toString?.();
+      const sender = (message?.senderId || message?.sender || '')?.toString?.();
+      const currentUserId = (user?.id || user?._id)?.toString?.();
       if (sender && currentUserId && sender === currentUserId) return;
       const nextMap = { ...unreadMapRef.current };
       nextMap[threadId] = (nextMap[threadId] || 0) + 1;
@@ -142,7 +123,6 @@ const EmployeeSidebar = () => {
 
     socket.on('chat:message', handler);
     joinThreads(threadIdsRef.current);
-
     return () => {
       socket.off('chat:message', handler);
       socket.disconnect();
@@ -153,14 +133,12 @@ const EmployeeSidebar = () => {
 
   useEffect(() => {
     threadIdsRef.current = threadIds;
-    if (!threadIds.length) return;
-    joinThreads(threadIds);
+    if (threadIds.length) joinThreads(threadIds);
   }, [threadIds, joinThreads]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const handler = (event) => {
-      const detail = event?.detail || {};
+    const handler = (e) => {
+      const detail = e?.detail || {};
       const entries = Array.isArray(detail.threadCounts) ? detail.threadCounts : null;
       if (entries) {
         const map = {};
@@ -181,78 +159,71 @@ const EmployeeSidebar = () => {
     return () => window.removeEventListener('employee-chat-unread-changed', handler);
   }, [mergeUnreadMap, joinThreads]);
 
+  if (!canAccessPortal(user, PORTALS.EMPLOYEE)) return null;
+
   return (
-    <aside className="fixed left-0 top-0 z-[1000] hidden h-screen w-[250px] flex-col overflow-hidden border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:flex">
-      <div className="flex h-full flex-col">
-        <div className="border-b border-slate-200 p-4 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-indigo-400 text-white shadow-lg shadow-primary/30">
-              <span className="material-symbols-outlined text-2xl">blur_on</span>
-            </div>
-            <div className="flex max-w-[180px] flex-col">
-              <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-slate-500" title={displayName}>
-                {displayName}
-              </p>
-              <h1
-                className="truncate text-[11px] font-semibold text-slate-900 dark:text-white leading-tight"
-                title={user?.email || 'Welcome'}
-              >
-                {user?.email || 'Welcome'}
-              </h1>
-            </div>
-          </div>
+    <>
+      {/* Mobile top bar */}
+      <div className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/95 px-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          aria-label="Open navigation"
+        >
+          <span className="material-symbols-outlined">menu</span>
+        </button>
+        <div className="min-w-0 text-center">
+          <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">Employee Portal</p>
+          <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{user?.firstName} {user?.lastName}</p>
         </div>
-        <nav className="flex-1 overflow-y-auto p-3">
-          <div className="flex flex-col gap-2">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  [
-                    'flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-all',
-                    isActive
-                      ? 'border-primary bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
-                      : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5',
-                  ].join(' ')
-                }
-              >
-                {({ isActive }) => {
-                  const isChatLink = item.path === '/employee/chat';
-                  const showBadge = isChatLink && chatUnread > 0;
-                  const displayUnread = chatUnread > 99 ? '99+' : chatUnread;
-                  return (
-                    <>
-                      <span
-                        className="material-symbols-outlined text-lg"
-                        style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
-                      >
-                        {item.icon}
-                      </span>
-                      <span className="flex-1">{item.label}</span>
-                      {showBadge && (
-                        <span className="ml-auto shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-white dark:bg-primary/80">
-                          {displayUnread}
-                        </span>
-                      )}
-                    </>
-                  );
-                }}
-              </NavLink>
-            ))}
-          </div>
-        </nav>
-        <div className="border-t border-slate-200 p-4 dark:border-slate-800">
-          <button
-            onClick={handleLogout}
-            className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
-          >
-            <span className="material-symbols-outlined text-base">logout</span>
-            <span className="text-left">Logout</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/20"
+          aria-label="Logout"
+        >
+          <span className="material-symbols-outlined">logout</span>
+        </button>
       </div>
-    </aside>
+
+      {/* Desktop sidebar */}
+      <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
+        <PortalSidebar
+          brandingTitle="Employee Portal"
+          brandingSubtitle="Work hub"
+          brandingIcon="person"
+          user={user}
+          navItems={navItems}
+          currentPath={location.pathname}
+          onLogout={handleLogout}
+        />
+      </div>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            onClick={closeMobile}
+            aria-label="Close navigation overlay"
+          />
+          <div className="relative h-full w-[min(250px,86vw)] shadow-2xl">
+            <PortalSidebar
+              brandingTitle="Employee Portal"
+              brandingSubtitle="Work hub"
+              brandingIcon="person"
+              user={user}
+              navItems={navItems}
+              currentPath={location.pathname}
+              onLogout={handleLogout}
+              onNavigate={closeMobile}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

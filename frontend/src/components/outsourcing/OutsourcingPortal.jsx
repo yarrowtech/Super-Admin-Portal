@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import OutsourcingSidebar from './OutsourcingSidebar';
+import { useSidebar } from '../../context/SidebarContext';
 
 const OutsourcingPortal = () => {
-  const location = useLocation();
+  const { collapsed } = useSidebar();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setIsMenuOpen(false);
-  }, [location.pathname]);
+  const closeMenu = useCallback(() => setIsMenuOpen(false), []);
 
   return (
-    <div className="flex min-h-screen overflow-x-clip bg-neutral-50 dark:bg-neutral-900">
-      <OutsourcingSidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+    <div
+      className="portal-shell flex min-h-screen overflow-x-clip bg-neutral-50 font-display text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100"
+      data-role="outsourcing"
+    >
+      <OutsourcingSidebar isOpen={isMenuOpen} onClose={closeMenu} />
+
+      {/* Mobile menu button */}
       <button
         type="button"
         onClick={() => setIsMenuOpen(true)}
@@ -21,7 +24,8 @@ const OutsourcingPortal = () => {
       >
         <span className="material-symbols-outlined text-[20px]">menu</span>
       </button>
-      <div className="flex-1 px-3 pb-4 pt-16 md:ml-[250px] md:px-6 md:pt-6">
+
+      <div className={`flex-1 px-3 pb-4 pt-16 transition-[margin] duration-300 ease-out-expo md:px-6 md:pt-6 ${collapsed ? 'md:ml-16' : 'md:ml-[250px]'}`}>
         <div className="mx-auto w-full max-w-[1500px]">
           <Outlet />
         </div>

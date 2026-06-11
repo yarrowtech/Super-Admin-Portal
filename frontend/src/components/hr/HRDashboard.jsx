@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHrDashboard } from '../../features/hr/hooks/useHrDashboard';
 import { HrErrorState, HrLoadingState } from '../../features/hr/components/HrStates';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: 'short',
@@ -109,62 +111,38 @@ const workUpdateStatusLabels = {
   const userName = user?.firstName || user?.name || 'HR Manager';
 
   return (
-    <main className="flex-1 overflow-y-auto bg-gradient-to-br from-purple-50/30 via-white to-blue-50/30 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="portal-page">
+      <div className="portal-page-inner">
 
+        <PortalHeader
+          title="HR Dashboard"
+          subtitle={`${greetingLabel}, ${userName} · ${dayName} ${dateLabel}`}
+          icon="badge"
+          user={user}
+          actions={
+            <button
+              onClick={handleAttendanceAction}
+              disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                canCheckIn
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200'
+                  : canCheckOut
+                  ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
+                  : 'cursor-not-allowed border-neutral-200 bg-neutral-50 text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-500'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
+              </span>
+              <span className="hidden sm:inline">{attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}</span>
+            </button>
+          }
+        />
 
-        {/* Welcome Banner */}
-        <div className="mb-8 overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 p-8 shadow-lg dark:border-purple-900/30">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-purple-100">
-                {greetingLabel} • {dayName} • {dateLabel} • {timeLabel}
-              </p>
-              <div className="mt-2 flex items-center justify-between gap-4">
-                <h1 className="text-3xl font-bold text-white">
-                  {greetingLabel}, {userName}
-                </h1>
-                <button
-                  onClick={handleAttendanceAction}
-                  disabled={attendanceAction.loading || (!canCheckIn && !canCheckOut)}
-                  className={`inline-flex items-center gap-3 rounded-xl border-2 px-5 py-3 text-sm font-bold shadow-lg transition-all ${
-                    canCheckIn
-                      ? 'border-emerald-300/50 bg-emerald-500 text-white hover:bg-emerald-400 hover:shadow-emerald-400/25'
-                      : canCheckOut
-                      ? 'border-amber-300/50 bg-amber-500 text-white hover:bg-amber-400 hover:shadow-amber-400/25'
-                      : 'cursor-not-allowed border-white/30 bg-white/10 text-white/50'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-xl">
-                    {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
-                  </span>
-                  <span className="hidden sm:inline">{attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}</span>
-                </button>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-4">
-                <p className="text-lg text-purple-100">
-                  Here's what's happening with your workforce today
-                </p>
-                {attendance?.checkedIn && (
-                  <p className="text-sm font-medium text-emerald-200">
-                    ✓ Checked in at {formatTime(attendance.checkIn)}
-                    {attendance?.checkOut && ` • Out at ${formatTime(attendance.checkOut)}`}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="hidden lg:block">
-              <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
-                <span className="material-symbols-outlined text-6xl text-white">celebration</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Attendance Message */}
+        {/* Attendance feedback */}
         {(attendanceAction.error || attendanceAction.message) && (
-          <div className={`mb-6 rounded-xl border p-4 text-sm font-semibold ${
-            attendanceAction.error 
+          <div className={`mb-5 rounded-xl border p-3.5 text-sm font-semibold ${
+            attendanceAction.error
               ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100'
               : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100'
           }`}>
@@ -177,93 +155,13 @@ const workUpdateStatusLabels = {
           </div>
         )}
 
-        {/* KPI Cards with Enhanced Design */}
-        <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="group relative overflow-hidden rounded-2xl border border-blue-200/50 bg-gradient-to-br from-blue-50 to-blue-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-blue-100/50 dark:border-blue-900/30 dark:from-blue-950/40 dark:to-blue-900/20 dark:hover:shadow-blue-900/20">
-            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-blue-400/10 blur-2xl"></div>
-            <div className="relative">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 dark:bg-blue-500/20">
-                  <span className="material-symbols-outlined text-2xl text-blue-600 dark:text-blue-400">groups</span>
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-blue-600/70 dark:text-blue-400/70">Workforce</span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-3xl font-bold text-blue-900 dark:text-blue-100">{summary.totalEmployees}</h3>
-                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Total Employees</p>
-                <p className="text-xs text-blue-600/70 dark:text-blue-400/70">{summary.activeEmployees} active today</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative overflow-hidden rounded-2xl border border-orange-200/50 bg-gradient-to-br from-orange-50 to-orange-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-orange-100/50 dark:border-orange-900/30 dark:from-orange-950/40 dark:to-orange-900/20 dark:hover:shadow-orange-900/20">
-            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-orange-400/10 blur-2xl"></div>
-            <div className="relative">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500/10 dark:bg-orange-500/20">
-                  <span className="material-symbols-outlined text-2xl text-orange-600 dark:text-orange-400">event_busy</span>
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-orange-600/70 dark:text-orange-400/70">Pending</span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-3xl font-bold text-orange-900 dark:text-orange-100">{summary.pendingLeavesCount}</h3>
-                <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Leave Requests</p>
-                <p className="text-xs text-orange-600/70 dark:text-orange-400/70">Awaiting approval</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative overflow-hidden rounded-2xl border border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 dark:border-emerald-900/30 dark:from-emerald-950/40 dark:to-emerald-900/20 dark:hover:shadow-emerald-900/20">
-            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-400/10 blur-2xl"></div>
-            <div className="relative">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20">
-                  <span className="material-symbols-outlined text-2xl text-emerald-600 dark:text-emerald-400">task_alt</span>
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70">Work</span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-3xl font-bold text-emerald-900 dark:text-emerald-100">{workUpdatesTotal}</h3>
-                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Work Updates</p>
-                <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">{workUpdatesLabel}</p>
-              </div>
-            </div>
-          </div>
-
-
-          <div className="group relative overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50 to-purple-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-purple-100/50 dark:border-purple-900/30 dark:from-purple-950/40 dark:to-purple-900/20 dark:hover:shadow-purple-900/20">
-            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-purple-400/10 blur-2xl"></div>
-            <div className="relative">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10 dark:bg-purple-500/20">
-                  <span className="material-symbols-outlined text-2xl text-purple-600 dark:text-purple-400">person_search</span>
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-purple-600/70 dark:text-purple-400/70">Pipeline</span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-3xl font-bold text-purple-900 dark:text-purple-100">{summary.pendingApplicants}</h3>
-                <p className="text-sm font-semibold text-purple-700 dark:text-purple-300">Active Applicants</p>
-                <p className="text-xs text-purple-600/70 dark:text-purple-400/70">In recruitment</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative overflow-hidden rounded-2xl border border-red-200/50 bg-gradient-to-br from-red-50 to-red-100/50 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-red-100/50 dark:border-red-900/30 dark:from-red-950/40 dark:to-red-900/20 dark:hover:shadow-red-900/20">
-            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-red-400/10 blur-2xl"></div>
-            <div className="relative">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10 dark:bg-red-500/20">
-                  <span className="material-symbols-outlined text-2xl text-red-600 dark:text-red-400">report_problem</span>
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-red-600/70 dark:text-red-400/70">Issues</span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-3xl font-bold text-red-900 dark:text-red-100">{summary.openComplaints}</h3>
-                <p className="text-sm font-semibold text-red-700 dark:text-red-300">Open Complaints</p>
-                <p className="text-xs text-red-600/70 dark:text-red-400/70">Needs attention</p>
-              </div>
-            </div>
-          </div>
+        {/* KPI Cards */}
+        <section className="portal-kpi-grid mb-6">
+          <KPICard icon="groups"        title="Total Employees"  value={summary.totalEmployees}     subtitle={`${summary.activeEmployees} active`} />
+          <KPICard icon="event_busy"    title="Leave Requests"   value={summary.pendingLeavesCount} subtitle="Awaiting approval" />
+          <KPICard icon="task_alt"      title="Work Updates"     value={workUpdatesTotal}            subtitle={workUpdatesLabel} />
+          <KPICard icon="person_search" title="Active Applicants" value={summary.pendingApplicants} subtitle="In recruitment" />
+          <KPICard icon="report_problem" title="Open Complaints" value={summary.openComplaints}     subtitle="Needs attention" />
         </section>
 
         <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">

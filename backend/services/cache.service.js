@@ -1,20 +1,25 @@
 const logger = require('../logger/logger');
+const env = require('../config/env');
 
 const DEFAULT_TTL_SECONDS = 60;
 const memoryStore = new Map();
 
 let redisClient = null;
 let redisReady = false;
+let redisInitialized = false;
 
 const initRedis = async () => {
-  if (redisClient || redisReady) return;
+  if (redisInitialized || redisClient || redisReady) return;
   try {
     // Optional dependency: if redis package is unavailable, fallback to memory cache.
     // eslint-disable-next-line global-require, import/no-extraneous-dependencies
     const { createClient } = require('redis');
     const url = process.env.REDIS_URL;
     if (!url) {
-      logger.warn('REDIS_URL not set. Using in-memory cache fallback.');
+      if (env.IS_PRODUCTION) {
+        logger.warn('REDIS_URL not set. Using in-memory cache fallback.');
+      }
+      redisInitialized = true;
       redisReady = false;
       return;
     }
@@ -24,10 +29,12 @@ const initRedis = async () => {
       redisReady = false;
     });
     await redisClient.connect();
+    redisInitialized = true;
     redisReady = true;
     logger.info('Redis cache connected');
   } catch (err) {
     logger.warn({ err }, 'Redis unavailable. Using in-memory cache fallback.');
+    redisInitialized = true;
     redisReady = false;
     redisClient = null;
   }

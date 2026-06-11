@@ -6,6 +6,7 @@ import {
   NotFoundPage,
   AdminDashboardPage,
   SuperAdminControlCenterPage,
+  AdminProjectsPage,
   AdminDepartmentsPage,
   AdminSecurityPage,
   AdminReportsPage,
@@ -351,7 +352,7 @@ export default function AppRoutes() {
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
               <PrivateRoute roles={adminRoles}>
-                {withPortal(AdminLayout, SuperAdminControlCenterPage)}
+                {withPortal(AdminLayout, AdminProjectsPage)}
               </PrivateRoute>
             </PortalRoute>
           }

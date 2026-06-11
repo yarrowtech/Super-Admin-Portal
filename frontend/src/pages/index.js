@@ -34,6 +34,7 @@ import EmployeeProfilePage from '../components/employee/EmployeeProfile';
 
 import AdminDashboardPage from '../components/admin/AdminDashboardEnterprise';
 import SuperAdminControlCenterPage from '../components/admin/SuperAdminDashboard';
+import AdminProjectsPage from '../components/admin/AdminProjectsPage';
 import AdminDepartmentsPage from '../components/admin/DepartmentsOverview';
 import AdminSecurityPage from '../components/admin/SecurityMonitoring';
 import AdminReportsPage from '../components/admin/ReportsAnalytics';
@@ -114,6 +115,7 @@ export {
   EmployeeProfilePage,
   AdminDashboardPage,
   SuperAdminControlCenterPage,
+  AdminProjectsPage,
   AdminDepartmentsPage,
   AdminSecurityPage,
   AdminReportsPage,

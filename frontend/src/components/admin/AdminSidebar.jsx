@@ -61,12 +61,6 @@ const navItems = [
     description: 'Analytics & reports'
   },
   {
-    label: 'Super Admin',
-    icon: 'admin_panel_settings',
-    path: '/admin/super-admin',
-    description: 'Portal stats, sessions, and health'
-  },
-  {
     label: 'Workflows',
     icon: 'account_tree',
     path: '/admin/workflows',
@@ -112,9 +106,7 @@ const AdminSidebar = () => {
     navigate('/login', { replace: true });
   }, [logout, navigate]);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   useEffect(() => {
     console.debug('[AdminSidebar] role resolved', role);
@@ -177,6 +169,7 @@ const AdminSidebar = () => {
               navItems={resolvedNavItems}
               currentPath={location.pathname}
               onLogout={handleLogout}
+              onNavigate={closeMobile}
             />
           </div>
         </div>

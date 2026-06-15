@@ -1,0 +1,13 @@
+export { adminApi } from './admin';
+export { ceoApi } from './ceo';
+export { apiClient } from './client';
+export { departmentApi } from './departments';
+export { dashboardWorkflowApi } from './dashboardWorkflow';
+export { employeeApi } from './employee';
+export { financeApi } from './finance';
+export { hrApi } from './hr';
+export { itApi } from './it';
+export { lawApi } from './law';
+export { managerApi } from './manager';
+export { outsourcingApi } from './outsourcing';
+export { superAdminApi } from './superAdmin';

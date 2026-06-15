@@ -1,0 +1,211 @@
+/**
+ * Centralised query-key factory.
+ * Every key is a tuple so TanStack Query can diff / invalidate at any level.
+ *
+ * Usage:
+ *   useQuery({ queryKey: QK.dashboard.all() })
+ *   useQuery({ queryKey: QK.users.list({ page: 1, search: 'ali' }) })
+ *   queryClient.invalidateQueries({ queryKey: QK.users.root() })
+ */
+
+export const QK = {
+  // ── Auth / session ──────────────────────────────────────────────────
+  auth: {
+    root: ()          => ['auth'],
+    me:   ()          => ['auth', 'me'],
+    permissions: ()   => ['auth', 'permissions'],
+  },
+
+  // ── Dashboard (per-role) ─────────────────────────────────────────────
+  dashboard: {
+    root:    ()                   => ['dashboard'],
+    all:     (role = 'all')       => ['dashboard', role],
+    metrics: (role = 'all')       => ['dashboard', role, 'metrics'],
+    kpi:     (role = 'all')       => ['dashboard', role, 'kpi'],
+  },
+
+  // ── Users ────────────────────────────────────────────────────────────
+  users: {
+    root:    ()                           => ['users'],
+    list:    (params = {})                => ['users', 'list', params],
+    detail:  (id)                         => ['users', 'detail', id],
+    profile: (id = 'me')                  => ['users', 'profile', id],
+    roles:   ()                           => ['users', 'roles'],
+    search:  (term, params = {})          => ['users', 'search', term, params],
+  },
+
+  // ── Projects ─────────────────────────────────────────────────────────
+  projects: {
+    root:   ()                            => ['projects'],
+    list:   (params = {})                 => ['projects', 'list', params],
+    detail: (id)                          => ['projects', 'detail', id],
+    tasks:  (projectId, params = {})      => ['projects', projectId, 'tasks', params],
+    search: (term, params = {})           => ['projects', 'search', term, params],
+  },
+
+  // ── Tasks ────────────────────────────────────────────────────────────
+  tasks: {
+    root:    ()                           => ['tasks'],
+    list:    (params = {})                => ['tasks', 'list', params],
+    detail:  (id)                         => ['tasks', 'detail', id],
+    my:      (params = {})                => ['tasks', 'my', params],
+    buckets: (params = {})                => ['tasks', 'buckets', params],
+  },
+
+  // ── HR ───────────────────────────────────────────────────────────────
+  hr: {
+    root:        ()                       => ['hr'],
+    employees:   (params = {})            => ['hr', 'employees', params],
+    employee:    (id)                     => ['hr', 'employee', id],
+    attendance:  (params = {})            => ['hr', 'attendance', params],
+    leave:       (params = {})            => ['hr', 'leave', params],
+    recruitment: (params = {})            => ['hr', 'recruitment', params],
+    performance: (params = {})            => ['hr', 'performance', params],
+    summary:     ()                       => ['hr', 'summary'],
+  },
+
+  // ── Manager ──────────────────────────────────────────────────────────
+  manager: {
+    root:      ()                         => ['manager'],
+    dashboard: ()                         => ['manager', 'dashboard'],
+    team:      (params = {})              => ['manager', 'team', params],
+    reports:   (params = {})              => ['manager', 'reports', params],
+    workboard: (params = {})              => ['manager', 'workboard', params],
+  },
+
+  // ── Employee ─────────────────────────────────────────────────────────
+  employee: {
+    root:      ()                         => ['employee'],
+    dashboard: ()                         => ['employee', 'dashboard'],
+    profile:   ()                         => ['employee', 'profile'],
+    projects:  (params = {})              => ['employee', 'projects', params],
+    tasks:     (params = {})              => ['employee', 'tasks', params],
+    leave:     (params = {})              => ['employee', 'leave', params],
+    documents: (params = {})              => ['employee', 'documents', params],
+    team:      ()                         => ['employee', 'team'],
+  },
+
+  // ── CEO ──────────────────────────────────────────────────────────────
+  ceo: {
+    root:      ()                         => ['ceo'],
+    dashboard: (period = '30d')           => ['ceo', 'dashboard', period],
+    analytics: (period = '30d')           => ['ceo', 'analytics', period],
+    reports:   (params = {})              => ['ceo', 'reports', params],
+    employees: (params = {})              => ['ceo', 'employees', params],
+  },
+
+  // ── Admin ─────────────────────────────────────────────────────────────
+  admin: {
+    root:        ()                       => ['admin'],
+    dashboard:   ()                       => ['admin', 'dashboard'],
+    users:       (params = {})            => ['admin', 'users', params],
+    departments: ()                       => ['admin', 'departments'],
+    security:    (params = {})            => ['admin', 'security', params],
+    reports:     (params = {})            => ['admin', 'reports', params],
+    workflows:   ()                       => ['admin', 'workflows'],
+    outsourcing: (sub, params = {})       => ['admin', 'outsourcing', sub, params],
+  },
+
+  // ── Finance ───────────────────────────────────────────────────────────
+  finance: {
+    root:      ()                         => ['finance'],
+    dashboard: ()                         => ['finance', 'dashboard'],
+    invoices:  (params = {})              => ['finance', 'invoices', params],
+    payments:  (params = {})              => ['finance', 'payments', params],
+    expenses:  (params = {})              => ['finance', 'expenses', params],
+    budgets:   (params = {})              => ['finance', 'budgets', params],
+    reports:   (params = {})              => ['finance', 'reports', params],
+    kpi:       ()                         => ['finance', 'kpi'],
+  },
+
+  // ── IT ────────────────────────────────────────────────────────────────
+  it: {
+    root:      ()                         => ['it'],
+    dashboard: ()                         => ['it', 'dashboard'],
+    assets:    (params = {})              => ['it', 'assets', params],
+    tickets:   (params = {})              => ['it', 'tickets', params],
+    ticket:    (id)                       => ['it', 'ticket', id],
+    products:  (params = {})              => ['it', 'products', params],
+    product:   (id)                       => ['it', 'product', id],
+  },
+
+  // ── Law ───────────────────────────────────────────────────────────────
+  law: {
+    root:      ()                         => ['law'],
+    dashboard: ()                         => ['law', 'dashboard'],
+    records:   (section, params = {})     => ['law', 'records', section, params],
+    contracts: (projectId)                => ['law', 'contracts', projectId],
+    library:   (params = {})              => ['law', 'library', params],
+  },
+
+  // ── Outsourcing ───────────────────────────────────────────────────────
+  outsourcing: {
+    root:      ()                         => ['outsourcing'],
+    dashboard: ()                         => ['outsourcing', 'dashboard'],
+    jobs:      (params = {})              => ['outsourcing', 'jobs', params],
+    contracts: (params = {})              => ['outsourcing', 'contracts', params],
+    timeLogs:  (params = {})              => ['outsourcing', 'timeLogs', params],
+    invoices:  (params = {})              => ['outsourcing', 'invoices', params],
+    payments:  (params = {})              => ['outsourcing', 'payments', params],
+  },
+
+  // ── Reports / Analytics (cross-portal) ────────────────────────────────
+  reports: {
+    root:    ()                           => ['reports'],
+    list:    (params = {})                => ['reports', 'list', params],
+    detail:  (id)                         => ['reports', 'detail', id],
+    export:  (params = {})                => ['reports', 'export', params],
+  },
+
+  analytics: {
+    root:    ()                           => ['analytics'],
+    summary: (params = {})                => ['analytics', 'summary', params],
+    revenue: (period = '30d')             => ['analytics', 'revenue', period],
+    users:   (period = '30d')             => ['analytics', 'users', period],
+  },
+
+  // ── Settings / Config ─────────────────────────────────────────────────
+  settings: {
+    root:        ()                       => ['settings'],
+    portal:      (role)                   => ['settings', 'portal', role],
+    permissions: (role)                   => ['settings', 'permissions', role],
+    workflow:    (role)                   => ['settings', 'workflow', role],
+  },
+
+  // ── Notifications ─────────────────────────────────────────────────────
+  notifications: {
+    root:   ()                            => ['notifications'],
+    list:   (params = {})                 => ['notifications', 'list', params],
+    unread: ()                            => ['notifications', 'unread'],
+  },
+
+  // ── Chat ──────────────────────────────────────────────────────────────
+  chat: {
+    root:    ()                           => ['chat'],
+    threads: (params = {})                => ['chat', 'threads', params],
+    thread:  (id)                         => ['chat', 'thread', id],
+    unread:  ()                           => ['chat', 'unread'],
+  },
+
+  // ── Media ─────────────────────────────────────────────────────────────
+  media: {
+    root:      ()                         => ['media'],
+    dashboard: ()                         => ['media', 'dashboard'],
+    assets:    (params = {})              => ['media', 'assets', params],
+  },
+};
+
+/**
+ * Helper: derive staleTime from the first segment of a query key.
+ * Mirrors the logic already in QueryProvider so hooks can read it too.
+ */
+export const staleTimeFor = (queryKey) => {
+  const seg = Array.isArray(queryKey) ? String(queryKey[0] || '') : String(queryKey || '');
+  if (['dashboard', 'kpi', 'metrics'].some(k => seg.includes(k))) return 60_000;         // 1 min
+  if (['settings', 'config', 'workflow', 'permissions'].some(k => seg.includes(k))) return 30 * 60_000; // 30 min
+  if (['report', 'analytic', 'stat'].some(k => seg.includes(k))) return 5 * 60_000;      // 5 min
+  if (['auth', 'profile', 'user'].some(k => seg.includes(k))) return 10 * 60_000;        // 10 min
+  if (['project', 'task', 'leave'].some(k => seg.includes(k))) return 2 * 60_000;        // 2 min
+  if (['notifications', 'chat'].some(k => seg.includes(k))) return 30_000;               // 30 s
+  return 90_000; // default 90 s
+};

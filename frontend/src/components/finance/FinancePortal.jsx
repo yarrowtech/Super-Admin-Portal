@@ -1,0 +1,46 @@
+import React, { useState } from 'react';
+import FinanceSidebar from './FinanceSidebar';
+import FinanceDashboard from './FinanceDashboard';
+import AppLayout from '../../layouts/AppLayout';
+import { useAuth } from '../../context/AuthContext';
+
+const financeTabs = [
+  { id: 'invoices', label: 'Invoices', icon: 'receipt_long' },
+  { id: 'payments', label: 'Payments', icon: 'payments' },
+  { id: 'expenses', label: 'Expenses', icon: 'request_quote' },
+  { id: 'budgets', label: 'Budgets', icon: 'account_balance_wallet' },
+  { id: 'payroll', label: 'Payroll', icon: 'badge' },
+  { id: 'reports', label: 'Reports', icon: 'bar_chart' },
+  { id: 'compliance', label: 'Compliance', icon: 'verified' },
+  { id: 'vendors', label: 'Vendors', icon: 'storefront' },
+  { id: 'clients', label: 'Clients', icon: 'groups' },
+];
+
+const FinancePortal = () => {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('invoices');
+  const mobileItems = financeTabs.map((tab) => ({
+    key: tab.id,
+    label: tab.label,
+    icon: tab.icon,
+    active: activeTab === tab.id,
+    onClick: () => setActiveTab(tab.id),
+  }));
+
+  return (
+    <AppLayout
+      sidebar={<FinanceSidebar activeTab={activeTab} onSelect={setActiveTab} />}
+      title="Finance Portal"
+      subtitle="Accounting operations"
+      mobileIcon="account_balance"
+      mobileItems={mobileItems}
+      user={user}
+    >
+      <div className="portal-content p-0">
+        <FinanceDashboard activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
+    </AppLayout>
+  );
+};
+
+export default FinancePortal;

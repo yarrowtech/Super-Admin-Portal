@@ -1,0 +1,243 @@
+import { PROJECT_NAME_PLACEHOLDER } from '../../config/projectNames';
+
+export const LAW_SECTIONS = [
+  {
+    id: 'dashboard',
+    navLabel: 'Dashboard',
+    title: 'LAW Command Center',
+    icon: 'dashboard',
+    summary: 'Central legal intelligence and compliance visibility across all products.',
+    tabs: ['Overview', 'Workflow', 'Risk', 'Activity'],
+  },
+  {
+    id: 'agreements',
+    navLabel: 'Agreements',
+    title: 'Agreement Management',
+    icon: 'contract',
+    summary: 'Manage B2B, B2C, End User, and Third-Party agreements with lifecycle tracking.',
+    tabs: ['List', 'Templates', 'Approvals', 'Versions'],
+  },
+  {
+    id: 'privacy-policy',
+    navLabel: 'Privacy & Policy',
+    title: 'Privacy and Policy Management',
+    icon: 'policy',
+    summary: 'Create and govern policy versions with product mapping and legal review.',
+    tabs: ['Policies', 'Versions', 'Approvals', 'Notifications'],
+  },
+  {
+    id: 'disputes-fraud',
+    navLabel: 'Disputes & Fraud',
+    title: 'Dispute and Fraud Management',
+    icon: 'balance',
+    summary: 'Track investigations, case progress, evidence, and AI fraud alerts.',
+    tabs: ['Cases', 'Fraud Alerts', 'Investigations', 'Evidence'],
+  },
+  {
+    id: 'ip-copyright',
+    navLabel: 'IP & Copyright',
+    title: 'Trademark and Copyright Control',
+    icon: 'copyright',
+    summary: 'Track legal ownership, expiry milestones, and supporting documents.',
+    tabs: ['Registry', 'Ownership', 'Renewals', 'Vault'],
+  },
+  {
+    id: 'work-hire',
+    navLabel: 'Work on Hire',
+    title: 'Work on Hire Legal Control',
+    icon: 'assignment_ind',
+    summary: 'Enforce contract-first freelance workflows with payment and milestone gating.',
+    tabs: ['Contracts', 'Milestones', 'Payments', 'Execution'],
+  },
+  {
+    id: 'third-party',
+    navLabel: 'Third Party',
+    title: 'Third-Party Legal Management',
+    icon: 'handshake',
+    summary: 'Manage vendor onboarding, API contracts, compliance checks, and AI risk scoring.',
+    tabs: ['Onboarding', 'Agreements', 'Compliance', 'Risk Score'],
+  },
+  {
+    id: 'alerts',
+    navLabel: 'Alerts',
+    title: 'Legal Alert Center',
+    icon: 'notification_important',
+    summary: 'Review fraud, expiry, and cross-product legal risk alerts in one queue.',
+    tabs: ['Fraud', 'Expiry', 'Risk', 'Cross Product'],
+  },
+  {
+    id: 'reporting',
+    navLabel: 'Reports',
+    title: 'Legal Reports and Analytics',
+    icon: 'summarize',
+    summary: 'Generate agreement, dispute, fraud, and compliance analytics with export support.',
+    tabs: ['Agreements', 'Disputes', 'Fraud', 'Compliance'],
+  },
+  {
+    id: 'ai-insights',
+    navLabel: 'AI Insights',
+    title: 'AI Legal Intelligence',
+    icon: 'psychology',
+    summary: 'Automate contract analysis, clause suggestions, summaries, and risk forecasting.',
+    tabs: ['Analysis', 'Clause Engine', 'Prediction', 'Summaries'],
+  },
+];
+
+export const getLawSection = (sectionId) =>
+  LAW_SECTIONS.find((section) => section.id === sectionId) || LAW_SECTIONS[0];
+
+export const LAW_FORM_CONFIG = {
+  agreements: {
+    recordTypes: ['B2B Agreement', 'B2C Agreement', 'End User Agreement', 'Third Party Agreement', 'NDA', 'MSA'],
+    labels: {
+      recordType: 'Agreement type',
+      title: 'Agreement title',
+      description: 'Scope',
+      owner: 'Agreement owner',
+      referenceNumber: 'Agreement ID',
+      notes: 'Legal notes',
+    },
+    metadataFields: [
+      { name: 'parties', label: 'Parties Involved', placeholder: 'Party A / Party B' },
+      { name: 'validityPeriod', label: 'Validity Period', placeholder: 'Jan 2026 - Dec 2026' },
+      { name: 'product', label: 'Product', placeholder: PROJECT_NAME_PLACEHOLDER },
+      { name: 'version', label: 'Version', placeholder: 'v1.0' },
+    ],
+  },
+  'privacy-policy': {
+    recordTypes: ['Privacy Policy', 'Cookie Policy', 'Retention Policy', 'Data Sharing Policy', 'Security Policy'],
+    labels: {
+      recordType: 'Policy type',
+      title: 'Policy title',
+      description: 'Policy summary',
+      owner: 'Policy owner',
+      referenceNumber: 'Policy version',
+      notes: 'Approval notes',
+    },
+    metadataFields: [
+      { name: 'product', label: 'Product', placeholder: PROJECT_NAME_PLACEHOLDER },
+      { name: 'audience', label: 'Audience', placeholder: 'Users / partners / employees' },
+      { name: 'effectiveDate', label: 'Effective Date', type: 'date' },
+      { name: 'notificationMode', label: 'Notify Via', placeholder: 'Email / SMS / in-app' },
+    ],
+  },
+  'disputes-fraud': {
+    recordTypes: ['Customer Dispute', 'Vendor Dispute', 'Fraud Alert', 'Chargeback', 'Legal Investigation'],
+    labels: {
+      recordType: 'Case type',
+      title: 'Case title',
+      description: 'Issue summary',
+      owner: 'Assigned to',
+      referenceNumber: 'Case ID',
+      notes: 'Investigation notes',
+    },
+    metadataFields: [
+      { name: 'severity', label: 'Severity', placeholder: 'Low / Medium / High / Critical' },
+      { name: 'evidenceLink', label: 'Evidence', placeholder: 'Evidence location' },
+      { name: 'product', label: 'Product', placeholder: PROJECT_NAME_PLACEHOLDER },
+      { name: 'resolutionEta', label: 'Resolution ETA', type: 'date' },
+    ],
+  },
+  'ip-copyright': {
+    recordTypes: ['Trademark', 'Copyright', 'Patent', 'Software Ownership'],
+    labels: {
+      recordType: 'IP type',
+      title: 'Asset title',
+      description: 'Asset details',
+      owner: 'Owner entity',
+      referenceNumber: 'Registration ID',
+      notes: 'Protection notes',
+    },
+    metadataFields: [
+      { name: 'jurisdiction', label: 'Jurisdiction', placeholder: 'Country/Region' },
+      { name: 'filingDate', label: 'Filing Date', type: 'date' },
+      { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
+      { name: 'documentVault', label: 'Document Vault', placeholder: 'Secure path' },
+    ],
+  },
+  'work-hire': {
+    recordTypes: ['Freelancer Contract', 'Consultant Contract', 'Research Contract', 'Development Contract'],
+    labels: {
+      recordType: 'Contract type',
+      title: 'Work package',
+      description: 'Scope of work',
+      owner: 'Hiring manager',
+      referenceNumber: 'Work order ID',
+      notes: 'Milestone terms',
+    },
+    metadataFields: [
+      { name: 'vendorName', label: 'Vendor/Freelancer', placeholder: 'Name' },
+      { name: 'paymentMilestone', label: 'Payment Milestone', placeholder: 'Milestone terms' },
+      { name: 'signStatus', label: 'Signature Status', placeholder: 'Signed / Pending' },
+      { name: 'workLock', label: 'Work Lock', placeholder: 'Enabled / Disabled' },
+    ],
+  },
+  'third-party': {
+    recordTypes: ['Vendor Onboarding', 'API Agreement', 'DPA', 'Compliance Verification', 'Risk Review'],
+    labels: {
+      recordType: 'Third-party record',
+      title: 'Partner name',
+      description: 'Engagement scope',
+      owner: 'Legal owner',
+      referenceNumber: 'Vendor ID',
+      notes: 'Risk notes',
+    },
+    metadataFields: [
+      { name: 'riskScore', label: 'Risk Score', placeholder: '0-100' },
+      { name: 'integrationType', label: 'Integration Type', placeholder: 'API / Data / Service' },
+      { name: 'complianceStatus', label: 'Compliance Status', placeholder: 'Verified / Pending' },
+      { name: 'renewalDate', label: 'Renewal Date', type: 'date' },
+    ],
+  },
+  alerts: {
+    recordTypes: ['Fraud Alert', 'Agreement Expiry', 'Legal Risk', 'Cross Product Alert'],
+    labels: {
+      recordType: 'Alert type',
+      title: 'Alert title',
+      description: 'Alert details',
+      owner: 'Owner',
+      referenceNumber: 'Alert ID',
+      notes: 'Action notes',
+    },
+    metadataFields: [
+      { name: 'alertSource', label: 'Source', placeholder: `${PROJECT_NAME_PLACEHOLDER} / System` },
+      { name: 'statusUpdate', label: 'Status', placeholder: 'Open / Investigating / Resolved' },
+      { name: 'escalationLevel', label: 'Escalation', placeholder: 'L1 / L2 / L3' },
+      { name: 'product', label: 'Product', placeholder: 'Product or Global' },
+    ],
+  },
+  reporting: {
+    recordTypes: ['Agreement Report', 'Dispute Report', 'Fraud Analytics', 'Compliance Scorecard'],
+    labels: {
+      recordType: 'Report type',
+      title: 'Report name',
+      description: 'Report scope',
+      owner: 'Report owner',
+      referenceNumber: 'Report ID',
+      notes: 'Summary',
+    },
+    metadataFields: [
+      { name: 'period', label: 'Period', placeholder: 'Q1 / FY2026' },
+      { name: 'audience', label: 'Audience', placeholder: 'Board / Admin / Team' },
+      { name: 'exportFormat', label: 'Export Format', placeholder: 'PDF / CSV' },
+      { name: 'complianceScore', label: 'Compliance Score', placeholder: '0-100' },
+    ],
+  },
+  'ai-insights': {
+    recordTypes: ['Contract Analysis', 'Clause Suggestion', 'Risk Prediction', 'Fraud Pattern', 'Legal Summary'],
+    labels: {
+      recordType: 'Insight type',
+      title: 'Insight title',
+      description: 'AI summary',
+      owner: 'Reviewer',
+      referenceNumber: 'Insight ID',
+      notes: 'Review notes',
+    },
+    metadataFields: [
+      { name: 'confidence', label: 'Confidence', placeholder: '0-100%' },
+      { name: 'modelVersion', label: 'Model Version', placeholder: 'Model tag' },
+      { name: 'recommendedAction', label: 'Recommended Action', placeholder: 'Action' },
+      { name: 'sourceDoc', label: 'Source Document', placeholder: 'Document ref' },
+    ],
+  },
+};

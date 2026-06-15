@@ -1,0 +1,10 @@
+exports.auth = require('./auth');
+exports.admin = require('./admin');
+exports.superAdmin = require('./superAdmin');
+exports.ceo = require('./ceo');
+exports.manager = require('./manager');
+exports.hr = require('./hr');
+exports.employee = require('./employee');
+exports.finance = require('./finance');
+exports.department = require('./department');
+exports.common = require('./common');

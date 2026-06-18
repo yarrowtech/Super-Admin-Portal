@@ -10,6 +10,7 @@ const {
   buildProjectAccessSummary,
   buildAccessTokenPayload,
   buildProjectLaunchUrl,
+  isPrivilegedProjectLauncher,
   normalizeProjectKey,
 } = require('../utils/projectAccess');
 
@@ -47,8 +48,7 @@ const getRequestUser = async (req) => {
 };
 
 const canAccessProjectHub = (user = {}) => {
-  const role = String(user?.role || '').trim().toLowerCase();
-  if (role === 'admin') return true;
+  if (isPrivilegedProjectLauncher(user)) return true;
 
   const assignedProjects = getAccessibleProjects(user);
   return assignedProjects.some((project) => project.assigned || project.accessGranted);
@@ -71,7 +71,7 @@ const buildProjectEnvelope = (project, user) => {
     endDate: project.endDate || null,
     projectAssignment: project.projectAssignment || null,
     access: {
-      canLaunch: Boolean(project.accessGranted || String(user?.role || '').toLowerCase() === 'admin'),
+      canLaunch: Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
       blockedReason: project.accessGranted ? null : 'Project not assigned or access has expired',
     },
   };
@@ -195,7 +195,7 @@ const generateProjectAccessToken = async (req, res) => {
     }
 
     const accessibleProject = getAccessibleProjects(user).find((project) => normalizeProjectKey(project.code) === projectCode) || null;
-    const isAdmin = String(user.role || '').toLowerCase() === 'admin';
+    const isAdmin = isPrivilegedProjectLauncher(user);
     const resolvedProject = accessibleProject || {
       ...projectFromRegistry,
       role: user.role || 'member',
@@ -276,7 +276,7 @@ const verifyProjectAccessToken = async (req, res) => {
       status: 'blocked',
       permissions: [],
     };
-    const isAdmin = String(user.role || '').toLowerCase() === 'admin';
+    const isAdmin = isPrivilegedProjectLauncher(user);
 
     if (!isAdmin && !project.accessGranted) {
       return res.status(403).json({

@@ -1,8 +1,11 @@
+const env = require('../config/env');
+const { ROLES, getRolePermissions } = require('../config/roles');
+
 const CANONICAL_PROJECT_NAMES = Object.freeze([
   'EEC',
   'EHC',
   'RMS',
-  'EFMBMMS',
+  'EFNBMMS',
   'ESPORTSM',
   'SMART FARMING',
 ]);
@@ -12,7 +15,7 @@ const PROJECT_REGISTRY = [
     code: 'EEC',
     name: 'EEC',
     description: 'Enterprise execution center and project workspace.',
-    launchUrl: process.env.EEC_PORTAL_URL || 'https://eec.company.com',
+    launchUrl: process.env.EEC_PORTAL_URL || 'https://www.edifyeight.com',
     ssoPath: '/sso/eec',
     aliases: ['EEC LMS', 'EEC Portal', 'ECC'],
   },
@@ -33,12 +36,12 @@ const PROJECT_REGISTRY = [
     aliases: ['ERMS', 'RMS Portal'],
   },
   {
-    code: 'EFMBMMS',
-    name: 'EFMBMMS',
+    code: 'EFNBMMS',
+    name: 'EFNBMMS',
     description: 'Finance and business management system workspace.',
-    launchUrl: process.env.EFMBMMS_PORTAL_URL || 'https://efmbmms.company.com',
-    ssoPath: '/sso-login',
-    aliases: ['EFMBMS', 'EFMBMMS Portal', 'EFMBMS Portal'],
+    launchUrl: process.env.EFNBMMS_PORTAL_URL || 'https://www.efnbmms.com',
+    ssoPath: env.EFNBMMS_SSO_PATH || '/superadmin-login',
+    aliases: ['EFMBMS', 'EFNBMMS Portal', 'EFMBMS Portal'],
   },
   {
     code: 'ESPORTSM',
@@ -185,17 +188,39 @@ const matchesProject = (assignment = {}, project = {}) => {
 
 const getAccessibleProjects = (user = {}) => {
   const assignments = getUserProjectAssignments(user);
-  const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
+  const isAdmin = isPrivilegedProjectLauncher(user);
 
   return PROJECT_REGISTRY.map((project) => {
     const assignment = assignments.find((item) => matchesProject(item, project)) || null;
     const accessGranted = Boolean(isAdmin || assignment) && (isAdmin || isAssignmentActive(assignment || {}));
-    const permissions = Array.from(
-      new Set([
-        ...(Array.isArray(assignment?.permissions) ? assignment.permissions : []),
-        ...(Array.isArray(assignment?.moduleScopes) ? assignment.moduleScopes : []),
-      ])
-    );
+    const isEfmbmms = normalizeProjectKey(project.code) === 'EFNBMMS';
+    const appRole = isEfmbmms
+      ? (String(user?.role || '').trim().toLowerCase() === 'freelancer' ? 'manager' : 'admin')
+      : assignment?.role || user?.role || 'member';
+    const appPermissions = isEfmbmms
+      ? (appRole === 'admin'
+          ? Array.from(new Set([
+            ...getRolePermissions(ROLES.ADMIN),
+            'invoice_management',
+            'payment_management',
+            'manage_efnbmms_users',
+            'manage_efnbmms_roles',
+            'manage_efnbmms_permissions',
+            'view_efnbmms_reports',
+            'manage_efnbmms_projects',
+          ]))
+          : Array.from(new Set([
+            ...getRolePermissions(ROLES.MANAGER),
+            'view_efnbmms_dashboard',
+            'manage_efnbmms_tasks',
+            'view_efnbmms_projects',
+          ])))
+      : Array.from(
+          new Set([
+            ...(Array.isArray(assignment?.permissions) ? assignment.permissions : []),
+            ...(Array.isArray(assignment?.moduleScopes) ? assignment.moduleScopes : []),
+          ])
+        );
 
     return {
       code: project.code,
@@ -206,12 +231,21 @@ const getAccessibleProjects = (user = {}) => {
       aliases: project.aliases,
       assigned: Boolean(assignment),
       accessGranted,
-      role: assignment?.role || user?.role || 'member',
+      role: appRole,
       status: assignment?.status || (accessGranted ? 'active' : 'blocked'),
       startDate: assignment?.startDate || null,
       endDate: assignment?.endDate || null,
-      permissions,
-      projectAssignment: assignment,
+      permissions: appPermissions,
+      projectAssignment: assignment
+        ? {
+            ...assignment,
+            appRole,
+            appPermissions,
+          }
+        : {
+            appRole,
+            appPermissions,
+          },
     };
   });
 };
@@ -234,7 +268,8 @@ const buildAccessTokenPayload = (user = {}, project = {}, extras = {}) => ({
   userId: String(user?._id || user?.id || ''),
   email: user?.email || '',
   name: `${String(user?.firstName || '').trim()} ${String(user?.lastName || '').trim()}`.trim(),
-  role: user?.role || '',
+  role: project.role || user?.role || '',
+  sourceRole: user?.role || '',
   department: user?.department || '',
   designation: String(user?.metadata?.designation || extras.designation || '').trim(),
   employeeCode: String(user?.metadata?.employeeCode || extras.employeeCode || '').trim(),
@@ -242,6 +277,7 @@ const buildAccessTokenPayload = (user = {}, project = {}, extras = {}) => ({
   projectCode: project.code || extras.projectCode || '',
   projectName: project.name || extras.projectName || '',
   permissions: Array.isArray(project.permissions) ? project.permissions : [],
+  sourcePermissions: Array.isArray(user?.permissions) ? user.permissions : [],
   accessScope: project.accessGranted ? 'project_only' : 'blocked',
   source: 'outsourcing-portal',
 });
@@ -260,6 +296,48 @@ const buildProjectLaunchUrl = (project = {}, token = '', options = {}) => {
   return `${base}${path}?${params.toString()}`;
 };
 
+const isPrivilegedProjectLauncher = (user = {}) => {
+  const role = String(user?.role || '').trim().toLowerCase();
+  return role === 'admin' || role === 'super_admin' || role === 'freelancer';
+};
+
+const getProjectRoleBinding = (projectCode, user = {}) => {
+  const normalizedProjectCode = normalizeProjectKey(projectCode);
+  const normalizedRole = String(user?.role || '').trim().toLowerCase();
+  if (normalizedProjectCode !== 'EFNBMMS') {
+    return {
+      appRole: normalizedRole || 'member',
+      appPermissions: Array.isArray(user?.permissions) ? user.permissions : [],
+    };
+  }
+
+  if (normalizedRole === 'freelancer') {
+    return {
+      appRole: 'manager',
+      appPermissions: Array.from(new Set([
+        ...getRolePermissions(ROLES.MANAGER),
+        'view_efnbmms_dashboard',
+        'manage_efnbmms_tasks',
+        'view_efnbmms_projects',
+      ])),
+    };
+  }
+
+  return {
+    appRole: 'admin',
+    appPermissions: Array.from(new Set([
+      ...getRolePermissions(ROLES.ADMIN),
+      'invoice_management',
+      'payment_management',
+      'manage_efnbmms_users',
+      'manage_efnbmms_roles',
+      'manage_efnbmms_permissions',
+      'view_efnbmms_reports',
+      'manage_efnbmms_projects',
+    ])),
+  };
+};
+
 module.exports = {
   CANONICAL_PROJECT_NAMES,
   PROJECT_REGISTRY,
@@ -271,5 +349,7 @@ module.exports = {
   buildProjectAccessSummary,
   buildAccessTokenPayload,
   buildProjectLaunchUrl,
+  isPrivilegedProjectLauncher,
+  getProjectRoleBinding,
   matchesProject,
 };

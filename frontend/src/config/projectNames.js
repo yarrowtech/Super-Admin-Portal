@@ -9,6 +9,8 @@ export const CANONICAL_PROJECTS = Object.freeze([
     code: 'EEC',
     name: 'EEC',
     description: 'Enterprise execution center and project workspace.',
+    launchUrl: 'https://www.edifyeight.com',
+    ssoPath: '/sso/eec',
     aliases: ['EEC LMS', 'EEC Portal', 'ECC'],
   },
   {
@@ -24,10 +26,10 @@ export const CANONICAL_PROJECTS = Object.freeze([
     aliases: ['ERMS', 'RMS Portal'],
   },
   {
-    code: 'EFMBMMS',
-    name: 'EFMBMMS',
+    code: 'EFNBMMS',
+    name: 'EFNBMMS',
     description: 'Finance and business management system workspace.',
-    aliases: ['EFMBMS', 'EFMBMMS Portal', 'EFMBMS Portal'],
+    aliases: ['EFMBMS', 'EFNBMMS Portal', 'EFMBMS Portal'],
   },
   {
     code: 'ESPORTSM',

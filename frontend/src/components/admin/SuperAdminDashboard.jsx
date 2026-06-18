@@ -107,6 +107,7 @@ export default function SuperAdminDashboard() {
   const [permissionsHealth, setPermissionsHealth] = useState({});
   const [sessionsHealth, setSessionsHealth] = useState({});
   const [healthLoading, setHealthLoading] = useState(false);
+  const [launchingEfmbmms, setLaunchingEfmbmms] = useState(false);
   const selectedUserKey = selectedUserId || selectedUser?._id || selectedUser?.id || '';
 
   const loadOverview = useCallback(async () => {
@@ -252,6 +253,26 @@ export default function SuperAdminDashboard() {
     }
   }, [token]);
 
+  const launchEfmbmms = async () => {
+    if (!token) return;
+    try {
+      setLaunchingEfmbmms(true);
+      setError('');
+      const response = await superAdminApi.launchEfmbmms(token, {
+        redirectTo: '/dashboard',
+      });
+      const redirectUrl = response?.redirectUrl || response?.data?.redirectUrl || response?.data?.data?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error(response?.message || response?.error || 'Failed to resolve EFNBMMS launch URL');
+      }
+      window.location.assign(redirectUrl);
+    } catch (err) {
+      setError(err.message || 'Failed to open EFNBMMS');
+    } finally {
+      setLaunchingEfmbmms(false);
+    }
+  };
+
   const loadAll = useCallback(async () => {
     setError('');
     setNotice('');
@@ -390,6 +411,15 @@ export default function SuperAdminDashboard() {
             icon={<span className="material-symbols-outlined text-lg">refresh</span>}
           >
             Refresh
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={launchEfmbmms}
+            loading={launchingEfmbmms}
+            icon={<span className="material-symbols-outlined text-lg">open_in_new</span>}
+          >
+            Open EFNBMMS
           </Button>
         </PortalHeader>
 

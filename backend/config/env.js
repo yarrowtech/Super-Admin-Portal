@@ -31,7 +31,34 @@ const env = Object.freeze({
   EEC_PORTAL_URL: process.env.EEC_PORTAL_URL || "",
   EHC_PORTAL_URL: process.env.EHC_PORTAL_URL || "",
   RMS_PORTAL_URL: process.env.RMS_PORTAL_URL || "",
-  EFMBMMS_PORTAL_URL: process.env.EFMBMMS_PORTAL_URL || "",
+  EFNBMMS_PORTAL_URL: process.env.EFNBMMS_PORTAL_URL || process.env.EFMBMMS_PORTAL_URL || "",
+  EFNBMMS_SSO_PATH: process.env.EFNBMMS_SSO_PATH || process.env.EFMBMMS_SSO_PATH || "/superadmin-login",
+  EFNBMMS_SSO_SECRET: process.env.EFNBMMS_SSO_SECRET || process.env.EFMBMMS_SSO_SECRET || process.env.JWT_SECRET || "",
+  EFNBMMS_SSO_ISSUER: process.env.EFNBMMS_SSO_ISSUER || process.env.EFMBMMS_SSO_ISSUER || "super-admin-portal",
+  EFNBMMS_SSO_AUDIENCE: process.env.EFNBMMS_SSO_AUDIENCE || process.env.EFMBMMS_SSO_AUDIENCE || "efnbmms",
+  EFNBMMS_SSO_TTL: process.env.EFNBMMS_SSO_TTL || process.env.EFMBMMS_SSO_TTL || "5m",
+  EFNBMMS_SSO_TTL_MS: process.env.EFNBMMS_SSO_TTL_MS || process.env.EFMBMMS_SSO_TTL_MS || "",
+  EFNBMMS_LAUNCH_TTL: process.env.EFNBMMS_LAUNCH_TTL || process.env.EFMBMMS_LAUNCH_TTL || "",
+  EFNBMMS_SERVICE_TOKEN: process.env.EFNBMMS_SERVICE_TOKEN || process.env.EFMBMMS_SERVICE_TOKEN || process.env.SUPER_ADMIN_PORTAL_SERVICE_TOKEN || "",
+  EFNBMMS_CLIENT_ID: process.env.EFNBMMS_CLIENT_ID || process.env.EFMBMMS_CLIENT_ID || "",
+  EFNBMMS_CLIENT_SECRET: process.env.EFNBMMS_CLIENT_SECRET || process.env.EFMBMMS_CLIENT_SECRET || "",
+  EFNBMMS_ADMIN_MANAGEMENT_API_URL:
+    process.env.EFNBMMS_ADMIN_MANAGEMENT_API_URL ||
+    process.env.EFMBMMS_ADMIN_MANAGEMENT_API_URL ||
+    "",
+  EFNBMMS_MANAGER_API_URL:
+    process.env.EFNBMMS_MANAGER_API_URL ||
+    process.env.EFMBMMS_MANAGER_API_URL ||
+    "",
+  EFNBMMS_ADMIN_API_URL:
+    process.env.EFNBMMS_ADMIN_API_URL ||
+    process.env.EFMBMMS_ADMIN_API_URL ||
+    "",
+  EFNBMMS_API_TOKEN:
+    process.env.EFNBMMS_API_TOKEN ||
+    process.env.EFMBMMS_API_TOKEN ||
+    process.env.SUPER_ADMIN_PORTAL_SERVICE_TOKEN ||
+    "",
   ESPORTSM_PORTAL_URL: process.env.ESPORTSM_PORTAL_URL || "",
   SMARTFARMING_PORTAL_URL: process.env.SMARTFARMING_PORTAL_URL || "",
   ENABLE_SELF_REGISTRATION: parseBoolean(process.env.ENABLE_SELF_REGISTRATION, false),

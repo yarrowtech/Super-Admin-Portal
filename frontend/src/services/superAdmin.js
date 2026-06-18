@@ -1,7 +1,9 @@
 import { apiClient } from './client';
 
-const PRIMARY_BASE = import.meta.env.VITE_SUPER_ADMIN_API_BASE || '/api/super-admin';
-const LEGACY_BASE = '/api/dept/super-admin';
+const PRIMARY_BASE =
+  import.meta.env.VITE_EFNBMMS_ADMIN_MANAGEMENT_PROXY_BASE ||
+  '/api/integrations/efnbmms/admin-management';
+const LEGACY_BASE = import.meta.env.VITE_SUPER_ADMIN_API_BASE || '/api/super-admin';
 
 const buildQueryString = (params = {}) => {
   const query = new URLSearchParams();
@@ -54,6 +56,9 @@ const del = (path, token) =>
     () => apiClient.delete(`${LEGACY_BASE}${path}`, token)
   );
 
+const launchEfmbmms = (token, payload = {}) =>
+  apiClient.post('/api/integrations/efnbmms/identity/launch', payload, token);
+
 export const superAdminApi = {
   getOverview: (token, params = {}) => get(`/overview${buildQueryString(params)}`, token),
   getMetrics: (token, params = {}) => get(`/metrics${buildQueryString(params)}`, token),
@@ -76,5 +81,6 @@ export const superAdminApi = {
   getSsoHealth: (token) => get('/health/sso', token),
   getPermissionsHealth: (token) => get('/health/permissions', token),
   getSessionsHealth: (token) => get('/health/sessions', token),
+  launchEfmbmms,
   del,
 };

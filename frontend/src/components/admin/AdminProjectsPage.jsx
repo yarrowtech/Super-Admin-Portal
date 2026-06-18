@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
+import { superAdminApi } from '../../services/superAdmin';
 import { resolveCanonicalProjects } from '../../config/projectNames';
 import {
   OutsourcingCard,
@@ -8,8 +9,16 @@ import {
   OutsourcingErrorState,
 } from '../../features/outsourcing/components/OutsourcingUI';
 
+const canOpenProject = (project, isPrivilegedProjectLauncher) => Boolean(
+  project?.access?.canLaunch ||
+  project?.code === 'EEC' ||
+  (project?.code === 'EFNBMMS' && isPrivilegedProjectLauncher)
+);
+
+const PRIVILEGED_PROJECT_ROLES = new Set(['admin', 'super_admin', 'freelancer']);
+
 export default function AdminProjectsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [projects, setProjects] = useState([]);
@@ -18,6 +27,7 @@ export default function AdminProjectsPage() {
   const [launchError, setLaunchError] = useState({ code: '', message: '' });
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const isPrivilegedProjectLauncher = PRIVILEGED_PROJECT_ROLES.has(String(user?.role || '').toLowerCase());
 
   const load = async () => {
     if (!token) return;
@@ -31,8 +41,8 @@ export default function AdminProjectsPage() {
       setSummary({
         total: resolvedProjects.length,
         assigned: resolvedProjects.filter((project) => project.assigned).length,
-        accessible: resolvedProjects.filter((project) => project?.access?.canLaunch).length,
-        blocked: resolvedProjects.filter((project) => !project?.access?.canLaunch).length,
+        accessible: resolvedProjects.filter((project) => canOpenProject(project, isPrivilegedProjectLauncher)).length,
+        blocked: resolvedProjects.filter((project) => !canOpenProject(project, isPrivilegedProjectLauncher)).length,
       });
     } catch (loadError) {
       setError(loadError?.message || 'Failed to load project hub');
@@ -64,11 +74,11 @@ export default function AdminProjectsPage() {
       const canLaunch = Boolean(project?.access?.canLaunch);
       const matchesStatus =
         statusFilter === 'all' ||
-        (statusFilter === 'accessible' && canLaunch) ||
-        (statusFilter === 'blocked' && !canLaunch);
+        (statusFilter === 'accessible' && canOpenProject(project, isPrivilegedProjectLauncher)) ||
+        (statusFilter === 'blocked' && !canOpenProject(project, isPrivilegedProjectLauncher));
       return matchesQuery && matchesStatus;
     });
-  }, [projects, query, statusFilter]);
+  }, [isPrivilegedProjectLauncher, projects, query, statusFilter]);
 
   const accessibleCount = summary.accessible ?? projects.filter((p) => p?.access?.canLaunch).length;
   const blockedCount = summary.blocked ?? projects.filter((p) => !p?.access?.canLaunch).length;
@@ -79,6 +89,8 @@ export default function AdminProjectsPage() {
       setLaunchError({ code: '', message: '' });
       const response = projectCode === 'EEC'
         ? await outsourcingApi.generateEecSsoToken(token, { projectCode: 'EEC', redirectTo: '/dashboard' })
+        : projectCode === 'EFNBMMS' && isPrivilegedProjectLauncher
+          ? await superAdminApi.launchEfmbmms(token, { redirectTo: '/dashboard' })
         : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
       const redirectUrl = response?.redirectUrl || response?.data?.redirectUrl || response?.data?.data?.redirectUrl;
       if (!redirectUrl) {
@@ -226,9 +238,10 @@ export default function AdminProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
           {filteredProjects.map((project, index) => {
-            const canLaunch = Boolean(project?.access?.canLaunch);
+            const canLaunch = canOpenProject(project, isPrivilegedProjectLauncher);
             const isEec = project.code === 'EEC';
-            const launchEnabled = isEec || canLaunch;
+            const isEfmbmms = project.code === 'EFNBMMS';
+            const launchEnabled = isEec || canLaunch || (isEfmbmms && isPrivilegedProjectLauncher);
             const blockedReason = project?.access?.blockedReason || 'Access not available';
             const accentClasses = [
               'from-blue-500 to-cyan-500',
@@ -277,11 +290,11 @@ export default function AdminProjectsPage() {
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex h-2.5 w-2.5 rounded-full ${canLaunch ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                        {canLaunch ? 'Ready to open' : isEec ? 'Open via SSO' : 'Access blocked'}
+                        {canLaunch ? 'Ready to open' : isEec ? 'Open via SSO' : isEfmbmms ? 'Controlled by Super Admin' : 'Access blocked'}
                       </p>
                     </div>
                     <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                      {canLaunch ? 'Open now' : isEec ? 'SSO token required' : blockedReason}
+                      {canLaunch ? 'Open now' : isEec ? 'SSO token required' : isEfmbmms ? 'Assignment required in Super Admin' : blockedReason}
                     </p>
                   </div>
 
@@ -316,8 +329,12 @@ export default function AdminProjectsPage() {
                           : launchEnabled
                             ? project.code === 'EEC'
                               ? 'Open EEC'
+                              : project.code === 'EFNBMMS'
+                                ? 'Open EFNBMMS'
                               : 'Open'
-                            : 'Locked'}
+                            : project.code === 'EFNBMMS'
+                              ? 'Requires Super Admin access'
+                              : 'Locked'}
                     </button>
                   </div>
                 </div>

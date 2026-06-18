@@ -1,9 +1,17 @@
 const logger = require("./utils/logger");
 const env = require("./config/env");
+const { validateStartupConfig } = require("./config/startupValidation");
 const { server } = require("./app");
 const mongoose = require("mongoose");
 
 const PORT = env.PORT;
+
+try {
+  validateStartupConfig();
+} catch (error) {
+  logger.fatal({ err: error }, "Server startup configuration invalid");
+  process.exit(1);
+}
 
 const httpServer = server.listen(PORT, () => {
   logger.info({ port: PORT }, "Server running");

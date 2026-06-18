@@ -23,7 +23,7 @@ const DEFAULT_PRODUCTS = [
   { key: 'EHC', label: 'EHC', fullName: 'EHC', category: 'Core Product', description: 'Employee services product workspace', icon: 'workspace_premium' },
   { key: 'EFNB', label: 'EFNB', fullName: 'EFNB', category: 'Core Product', description: 'Financial and operations workspace', icon: 'account_balance' },
   { key: 'RMS', label: 'RMS', fullName: 'RMS', category: 'Core Product', description: 'Records and management workspace', icon: 'receipt_long' },
-  { key: 'EFMBMMS', label: 'EFMBMMS', fullName: 'EFMBMMS', category: 'Core Product', description: 'Finance and business management workspace', icon: 'receipt_long' },
+  { key: 'EFNBMMS', label: 'EFNBMMS', fullName: 'EFNBMMS', category: 'Core Product', description: 'Finance and business management workspace', icon: 'receipt_long' },
   { key: 'HOUSE_OF_MUSA', label: 'House of Musa', fullName: 'House of Musa', category: 'Experience Product', description: 'Client-facing service workspace', icon: 'storefront' },
   { key: 'HIREME', label: 'HireMe', fullName: 'HireMe', category: 'Talent Product', description: 'Recruitment and applicant workspace', icon: 'badge' },
   { key: 'LMS', label: 'LMS', fullName: 'LMS', category: 'Learning Product', description: 'Training and learning workspace', icon: 'school' },

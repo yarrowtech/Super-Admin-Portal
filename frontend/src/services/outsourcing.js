@@ -41,6 +41,8 @@ export const outsourcingApi = {
     invalidateOutsourcingCache();
     return res;
   },
+  launchEfmbmms: async (token, payload = {}) =>
+    apiClient.post('/api/integrations/efnbmms/identity/launch', payload, token),
   generateEecSsoToken: async (token, payload = {}) => {
     const requestId = `eec_${Date.now().toString(36)}`;
     const response = await fetch(`${getOutsourcingPortalBaseUrl()}/api/sso/token`, {

@@ -250,6 +250,7 @@ export const OutsourcingJobsPage = () => {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [busyId, setBusyId] = useState('');
+  const [confirmId, setConfirmId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -323,10 +324,36 @@ export const OutsourcingJobsPage = () => {
     { key: 'all', label: 'All' },
   ];
 
+  const jobStatCards = [
+    { icon: 'work',        label: 'Total Jobs',  count: tabCounts.all,       accent: '#6366f1' },
+    { icon: 'play_circle', label: 'Working',     count: tabCounts.working,   accent: '#3b82f6' },
+    { icon: 'task_alt',    label: 'Submitted',   count: tabCounts.submitted, accent: '#10b981' },
+    { icon: 'bookmark',    label: 'Following',   count: tabCounts.following, accent: '#8b5cf6' },
+    { icon: 'warning',     label: 'Overdue',     count: tabCounts.overdue,   accent: '#ef4444' },
+  ];
+
   return (
     <div className="space-y-4">
       <OutsourcingPageHdr title="Jobs" subtitle="View, accept, and track job assignments" icon="work" accent="#3b82f6" />
       {error && <ErrorBanner message={error} onRetry={load} />}
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {jobStatCards.map((s) => (
+          <div key={s.label} className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: s.accent }} />
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: `${s.accent}18` }}>
+                <span className="material-symbols-outlined text-[19px]" style={{ color: s.accent }}>{s.icon}</span>
+              </div>
+              {loading
+                ? <div className="h-7 w-10 animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800" />
+                : <span className="text-2xl font-black text-neutral-900 dark:text-white">{s.count}</span>}
+            </div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{s.label}</p>
+          </div>
+        ))}
+      </div>
 
       {/* Tab bar + controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -414,8 +441,8 @@ export const OutsourcingJobsPage = () => {
                     {(canAccept || canUpdate) && (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {canAccept && (
-                          <button onClick={() => doAccept(r._id)} disabled={busyId === r._id} className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600">
-                            {busyId === r._id ? 'Accepting…' : 'Accept'}
+                          <button onClick={() => setConfirmId(r._id)} disabled={busyId === r._id} className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600">
+                            Accept
                           </button>
                         )}
                         {canUpdate && !hasContract && <span className="text-[11px] text-amber-600 dark:text-amber-400">Awaiting contract</span>}
@@ -465,6 +492,34 @@ export const OutsourcingJobsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Accept confirmation dialog */}
+      {confirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950">
+            <div className="p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/30">
+                <span className="material-symbols-outlined text-[22px] text-blue-600">work</span>
+              </div>
+              <h3 className="mb-1.5 text-base font-bold text-neutral-900 dark:text-white">Accept this job?</h3>
+              <p className="text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+                By accepting, you commit to taking on this assignment. You'll be expected to start working once a contract is issued.
+              </p>
+            </div>
+            <div className="flex gap-2 border-t border-neutral-100 px-6 py-4 dark:border-neutral-800">
+              <button onClick={() => setConfirmId(null)} className="flex-1 rounded-xl border border-neutral-200 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                Cancel
+              </button>
+              <button
+                onClick={() => { doAccept(confirmId); setConfirmId(null); }}
+                className="flex-1 rounded-xl bg-blue-600 py-2 text-sm font-bold text-white hover:bg-blue-700"
+              >
+                Yes, Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -475,6 +530,7 @@ export const OutsourcingJobsPage = () => {
 export const OutsourcingContractsPage = () => {
   const { token } = useAuth();
   const [rows, setRows] = useState([]);
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -528,9 +584,75 @@ export const OutsourcingContractsPage = () => {
                     <p className="mt-0.5 truncate">{r?.freelancer?.email || 'Not assigned'}</p>
                   </div>
                 </div>
+                <button onClick={() => setSelected(r)} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                  <span className="material-symbols-outlined text-[15px]">open_in_full</span>
+                  View Full Details
+                </button>
               </Inner>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Contract detail slide-over */}
+      {selected && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={() => setSelected(null)}>
+          <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-white shadow-2xl dark:bg-neutral-950" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4 dark:border-neutral-800">
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white">{selected?.job?.title || 'Contract Details'}</h3>
+                <p className="text-xs text-neutral-400">Contract #{String(selected._id).slice(-8).toUpperCase()}</p>
+              </div>
+              <button onClick={() => setSelected(null)} className="flex h-8 w-8 items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <span className="material-symbols-outlined text-[20px] text-neutral-500">close</span>
+              </button>
+            </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Status + rate hero */}
+              <div className="rounded-2xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400">Contract Rate</p>
+                    <p className="text-3xl font-black text-neutral-900 dark:text-white">₹{Number(selected.rate || 0).toLocaleString('en-IN')}</p>
+                    <p className="text-xs text-neutral-400 mt-0.5">{selected.currency || 'INR'} · {selected.paymentType || 'fixed'}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${selected.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : selected.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'}`}>
+                    {(selected.status || 'unknown').charAt(0).toUpperCase() + selected.status.slice(1)}
+                  </span>
+                </div>
+              </div>
+              {/* Details */}
+              {[
+                { label: 'Job Title', value: selected?.job?.title || '—' },
+                { label: 'Payment Type', value: selected.paymentType || '—' },
+                { label: 'Created By', value: selected?.createdBy?.email || 'Admin' },
+                { label: 'Assigned Worker', value: selected?.freelancer?.email || 'Not assigned' },
+                { label: 'Law Status', value: selected.lawStatus || '—' },
+                { label: 'Start Date', value: selected.startDate ? new Date(selected.startDate).toLocaleDateString('en-IN') : '—' },
+                { label: 'End Date', value: selected.endDate ? new Date(selected.endDate).toLocaleDateString('en-IN') : '—' },
+                { label: 'Created', value: selected.createdAt ? new Date(selected.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+              ].map((row) => (
+                <div key={row.label} className="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-2.5 dark:bg-neutral-900">
+                  <span className="text-xs text-neutral-400">{row.label}</span>
+                  <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.value}</span>
+                </div>
+              ))}
+              {selected.terms && (
+                <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-400">Contract Terms</p>
+                  <p className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">{selected.terms}</p>
+                </div>
+              )}
+            </div>
+            {/* Footer */}
+            <div className="border-t border-neutral-100 px-5 py-4 dark:border-neutral-800">
+              <button onClick={() => setSelected(null)} className="w-full rounded-xl border border-neutral-200 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300">
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -706,13 +828,66 @@ export const OutsourcingTimeLogsPage = () => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Profile  (premium layout)
+// Profile
 // ─────────────────────────────────────────────────────────────────────────────
 const defaultForm = () => ({
-  firstName: '', lastName: '', email: '', phone: '', title: '', bio: '',
+  firstName: '', lastName: '', phone: '', title: '', bio: '',
   city: '', country: '', timezone: '', hourlyRate: '', availability: '', skillsCsv: '',
-  accountHolderName: '', bankName: '', accountNumber: '', ifscCode: '', accountType: '', upiId: '', paypalEmail: ''
+  accountHolderName: '', bankName: '', accountNumber: '', ifscCode: '', accountType: '',
+  upiId: '', paypalEmail: '',
 });
+
+const DocUploadCard = ({ label, icon, docType, currentUrl, currentName, token, onDone }) => {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
+  const inputRef = useRef(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setErr('');
+    try {
+      const res = await outsourcingApi.uploadProfileDocument(token, file, docType);
+      onDone(docType, res.data);
+    } catch (ex) { setErr(ex.message || 'Upload failed'); }
+    finally { setUploading(false); e.target.value = ''; }
+  };
+
+  const accept = docType === 'avatar' ? 'image/*' : '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+  const uploaded = Boolean(currentUrl);
+
+  return (
+    <div className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/30">
+          <span className="material-symbols-outlined text-[20px] text-indigo-600">{icon}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white">{label}</p>
+          {uploaded
+            ? <p className="truncate text-xs text-emerald-600 dark:text-emerald-400">✓ {currentName || 'Uploaded'}</p>
+            : <p className="text-xs text-neutral-400">No file uploaded</p>}
+        </div>
+        {uploaded && (
+          <a href={currentUrl} target="_blank" rel="noreferrer"
+            className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800">
+            <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+          </a>
+        )}
+      </div>
+      {err && <p className="mb-2 text-xs text-rose-500">{err}</p>}
+      <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleFile} />
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 py-2.5 text-sm font-semibold text-indigo-600 transition hover:border-indigo-500 hover:bg-indigo-50 disabled:opacity-60 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/20"
+      >
+        <span className="material-symbols-outlined text-[17px]">{uploading ? 'hourglass_top' : uploaded ? 'upload' : 'cloud_upload'}</span>
+        {uploading ? 'Uploading…' : uploaded ? 'Replace' : 'Upload'}
+      </button>
+    </div>
+  );
+};
 
 export const OutsourcingProfilePage = () => {
   const { token, user: authUser } = useAuth();
@@ -722,9 +897,11 @@ export const OutsourcingProfilePage = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [editTab, setEditTab] = useState('personal');
   const [form, setForm] = useState(defaultForm());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [docs, setDocs] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -741,8 +918,9 @@ export const OutsourcingProfilePage = () => {
     setLogs(l.status === 'fulfilled' ? l.value?.data || [] : []);
     if (prof) {
       const m = prof.metadata || {};
+      setDocs(m.documents || {});
       setForm({
-        firstName: prof.firstName || '', lastName: prof.lastName || '', email: prof.email || '',
+        firstName: prof.firstName || '', lastName: prof.lastName || '',
         phone: m.phone || '', title: m.title || '', bio: m.bio || '',
         city: m.city || '', country: m.country || '', timezone: m.timezone || '',
         hourlyRate: m.hourlyRate || '', availability: m.availability || '',
@@ -761,6 +939,8 @@ export const OutsourcingProfilePage = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  const fld = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
   const saveProfile = async () => {
     try {
       setSaving(true); setMsg('');
@@ -768,13 +948,22 @@ export const OutsourcingProfilePage = () => {
         firstName: form.firstName, lastName: form.lastName, phone: form.phone,
         title: form.title, bio: form.bio, city: form.city, country: form.country,
         timezone: form.timezone, hourlyRate: Number(form.hourlyRate) || 0,
-        availability: form.availability, skills: form.skillsCsv.split(',').map((s) => s.trim()).filter(Boolean),
+        availability: form.availability,
+        skills: form.skillsCsv.split(',').map((s) => s.trim()).filter(Boolean),
         bankDetails: { accountHolderName: form.accountHolderName, bankName: form.bankName, accountNumber: form.accountNumber, ifscCode: form.ifscCode, accountType: form.accountType },
-        paymentInfo: { upiId: form.upiId, paypalEmail: form.paypalEmail }
+        paymentInfo: { upiId: form.upiId, paypalEmail: form.paypalEmail },
       });
-      setMsg('Profile updated!');
+      setMsg('Saved!');
       await load();
     } catch (e) { setMsg(e.message || 'Failed to save'); } finally { setSaving(false); }
+  };
+
+  const handleDocDone = (docType, data) => {
+    if (docType === 'avatar') {
+      setProfile((p) => ({ ...p, metadata: { ...(p?.metadata || {}), avatar: data.url } }));
+    } else {
+      setDocs((d) => ({ ...d, [docType]: { url: data.url, fileName: data.fileName } }));
+    }
   };
 
   const m = profile?.metadata || {};
@@ -784,26 +973,46 @@ export const OutsourcingProfilePage = () => {
   const activeContracts = contracts.filter((c) => c.status === 'active').length;
   const displayName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || authUser?.email || 'Freelancer';
   const bg = avatarBg(displayName);
+  const avatarUrl = m.avatar;
 
-  // Profile completion %
   const completion = (() => {
     const fields = [profile?.firstName, profile?.lastName, profile?.email, m.phone, m.title, m.bio, m.city, m.country, m.hourlyRate, skills.length > 0];
     return Math.round((fields.filter(Boolean).length / fields.length) * 100);
   })();
 
+  const EDIT_TABS = [
+    { id: 'personal', label: 'Personal Info', icon: 'person' },
+    { id: 'bank',     label: 'Bank & Payment', icon: 'account_balance' },
+    { id: 'docs',     label: 'Documents',      icon: 'folder_open' },
+  ];
+
   if (loading) return <Skeleton rows={6} />;
 
   return (
     <div className="space-y-5">
-      <OutsourcingPageHdr title="Profile" subtitle="Your professional profile and payment details" icon="person" accent="#6366f1" action={<BtnPrimary onClick={() => setEditOpen(true)}><span className="flex items-center gap-2"><span className="material-symbols-outlined text-base">edit</span>Edit Profile</span></BtnPrimary>} />
+      <OutsourcingPageHdr title="Profile" subtitle="Your professional profile and payment details" icon="person" accent="#6366f1"
+        action={<BtnPrimary onClick={() => { setEditTab('personal'); setEditOpen(true); }}><span className="flex items-center gap-2"><span className="material-symbols-outlined text-base">edit</span>Edit Profile</span></BtnPrimary>}
+      />
+
       {/* Hero card */}
       <Card>
         <div className="h-28 rounded-t-2xl bg-linear-to-r from-violet-600 via-indigo-600 to-blue-500" />
         <Inner className="-mt-14">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="flex items-end gap-4">
-              <div className={`flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white text-3xl font-bold text-white shadow-lg dark:border-neutral-950 ${bg}`}>
-                {initials(profile || authUser)}
+              {/* Avatar */}
+              <div className="relative">
+                {avatarUrl
+                  ? <img src={avatarUrl} alt={displayName} className="h-24 w-24 rounded-2xl border-4 border-white object-cover shadow-lg dark:border-neutral-950" />
+                  : <div className={`flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white text-3xl font-bold text-white shadow-lg dark:border-neutral-950 ${bg}`}>{initials(profile || authUser)}</div>
+                }
+                <button
+                  onClick={() => { setEditTab('docs'); setEditOpen(true); }}
+                  className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-indigo-600 text-white shadow dark:border-neutral-950"
+                  title="Change photo"
+                >
+                  <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+                </button>
               </div>
               <div className="pb-1">
                 <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">{displayName}</h2>
@@ -817,7 +1026,6 @@ export const OutsourcingProfilePage = () => {
               </div>
             </div>
           </div>
-
           {/* Completion bar */}
           <div className="mt-5">
             <div className="mb-1 flex items-center justify-between text-xs">
@@ -831,7 +1039,7 @@ export const OutsourcingProfilePage = () => {
         </Inner>
       </Card>
 
-      {/* Stats bar */}
+      {/* Stats */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard icon="work" label="Total Jobs" value={jobs.length} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
         <StatCard icon="schedule" label="Hours Logged" value={`${totalHours}h`} accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
@@ -868,30 +1076,27 @@ export const OutsourcingProfilePage = () => {
         <Card>
           <Inner>
             <SectionHdr title="Skills & Bio" />
-            {m.bio && <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed">{m.bio}</p>}
-            {skills.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {skills.map((s) => (
-                  <span key={s} className="rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">{s}</span>
-                ))}
-              </div>
-            ) : <p className="text-sm text-neutral-400">No skills listed.</p>}
+            {m.bio && <p className="mb-4 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">{m.bio}</p>}
+            {skills.length > 0
+              ? <div className="flex flex-wrap gap-2">{skills.map((s) => <span key={s} className="rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">{s}</span>)}</div>
+              : <p className="text-sm text-neutral-400">No skills listed.</p>}
           </Inner>
         </Card>
 
-        {/* Payment info */}
+        {/* Payment */}
         <Card>
           <Inner>
             <SectionHdr title="Payment Details" />
-            <div className="space-y-3 text-sm">
+            <div className="space-y-2 text-sm">
               {[
                 { label: 'Account Holder', value: m.bankDetails?.accountHolderName || '—' },
                 { label: 'Bank', value: m.bankDetails?.bankName || '—' },
+                { label: 'Account No.', value: m.bankDetails?.accountNumber ? `••••${String(m.bankDetails.accountNumber).slice(-4)}` : '—' },
                 { label: 'IFSC', value: m.bankDetails?.ifscCode || '—' },
-                { label: 'UPI', value: m.paymentInfo?.upiId || '—' },
+                { label: 'UPI ID', value: m.paymentInfo?.upiId || '—' },
                 { label: 'PayPal', value: m.paymentInfo?.paypalEmail || '—' },
               ].map((r) => (
-                <div key={r.label} className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+                <div key={r.label} className="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
                   <span className="text-xs text-neutral-400">{r.label}</span>
                   <span className="font-medium text-neutral-800 dark:text-neutral-100">{r.value}</span>
                 </div>
@@ -901,55 +1106,219 @@ export const OutsourcingProfilePage = () => {
         </Card>
       </div>
 
+      {/* Documents section */}
+      <Card>
+        <Inner>
+          <div className="mb-4 flex items-center justify-between">
+            <SectionHdr title="My Documents" />
+            <button onClick={() => { setEditTab('docs'); setEditOpen(true); }} className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Manage →</button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { key: 'avatar', label: 'Profile Photo', icon: 'account_circle' },
+              { key: 'cv', label: 'CV / Resume', icon: 'description' },
+              { key: 'bankStatement', label: 'Bank Statement', icon: 'account_balance' },
+            ].map((d) => {
+              const docData = d.key === 'avatar' ? { url: m.avatar } : docs[d.key];
+              return (
+                <div key={d.key} className="flex items-center gap-3 rounded-xl border border-neutral-100 p-3 dark:border-neutral-800">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${docData?.url ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                    <span className={`material-symbols-outlined text-[18px] ${docData?.url ? 'text-emerald-600' : 'text-neutral-400'}`}>{d.icon}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{d.label}</p>
+                    {docData?.url
+                      ? <a href={docData.url} target="_blank" rel="noreferrer" className="truncate text-[11px] text-emerald-600 hover:underline">View document</a>
+                      : <p className="text-[11px] text-neutral-400">Not uploaded</p>}
+                  </div>
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${docData?.url ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-600'}`} />
+                </div>
+              );
+            })}
+          </div>
+        </Inner>
+      </Card>
+
       {/* Edit Modal */}
       {editOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
-          <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-6 dark:bg-neutral-950 sm:rounded-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Edit Profile</h3>
-              <button onClick={() => setEditOpen(false)} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                <span className="material-symbols-outlined text-xl text-neutral-500">close</span>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white dark:bg-neutral-950 sm:rounded-2xl">
+            {/* Modal header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 px-6 py-4 dark:border-neutral-800">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/30">
+                  <span className="material-symbols-outlined text-[18px] text-indigo-600">manage_accounts</span>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-neutral-900 dark:text-white">Edit Profile</h3>
+                  <p className="text-xs text-neutral-400">{displayName}</p>
+                </div>
+              </div>
+              <button onClick={() => setEditOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <span className="material-symbols-outlined text-[20px] text-neutral-500">close</span>
               </button>
             </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <Inp placeholder="First name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
-                <Inp placeholder="Last name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-              </div>
-              <Inp placeholder="Professional title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-              <Txa rows={3} placeholder="Bio" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
-              <div className="grid grid-cols-2 gap-3">
-                <Inp placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                <Inp placeholder="Hourly rate (₹)" value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Inp placeholder="City" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-                <Inp placeholder="Country" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Inp placeholder="Timezone" value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} />
-                <Inp placeholder="Availability" value={form.availability} onChange={(e) => setForm({ ...form, availability: e.target.value })} />
-              </div>
-              <Inp placeholder="Skills (comma-separated)" value={form.skillsCsv} onChange={(e) => setForm({ ...form, skillsCsv: e.target.value })} />
-              <p className="pt-1 text-xs font-semibold uppercase tracking-wider text-neutral-400">Bank Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <Inp placeholder="Account holder name" value={form.accountHolderName} onChange={(e) => setForm({ ...form, accountHolderName: e.target.value })} />
-                <Inp placeholder="Bank name" value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Inp placeholder="Account number" value={form.accountNumber} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} />
-                <Inp placeholder="IFSC code" value={form.ifscCode} onChange={(e) => setForm({ ...form, ifscCode: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Inp placeholder="Account type" value={form.accountType} onChange={(e) => setForm({ ...form, accountType: e.target.value })} />
-                <Inp placeholder="UPI ID" value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value })} />
-              </div>
-              <Inp placeholder="PayPal email" value={form.paypalEmail} onChange={(e) => setForm({ ...form, paypalEmail: e.target.value })} />
-              {msg && <p className={`text-sm ${msg.includes('!') ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</p>}
-              <div className="flex justify-end gap-2 pt-2">
-                <BtnSecondary onClick={() => setEditOpen(false)}>Cancel</BtnSecondary>
-                <BtnPrimary onClick={saveProfile} disabled={saving}>{saving ? 'Saving…' : 'Save Profile'}</BtnPrimary>
-              </div>
+
+            {/* Tabs */}
+            <div className="flex shrink-0 gap-1 border-b border-neutral-100 px-6 dark:border-neutral-800">
+              {EDIT_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setEditTab(t.id)}
+                  className={`flex items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-semibold transition ${editTab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">{t.icon}</span>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {editTab === 'personal' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">First Name</label>
+                      <Inp placeholder="First name" value={form.firstName} onChange={fld('firstName')} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Last Name</label>
+                      <Inp placeholder="Last name" value={form.lastName} onChange={fld('lastName')} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Professional Title</label>
+                    <Inp placeholder="e.g. Full Stack Developer" value={form.title} onChange={fld('title')} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Bio</label>
+                    <Txa rows={3} placeholder="Tell us about yourself…" value={form.bio} onChange={fld('bio')} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</label>
+                      <Inp placeholder="+91 9000000000" value={form.phone} onChange={fld('phone')} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hourly Rate (₹)</label>
+                      <Inp placeholder="500" value={form.hourlyRate} onChange={fld('hourlyRate')} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">City</label>
+                      <Inp placeholder="Mumbai" value={form.city} onChange={fld('city')} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Country</label>
+                      <Inp placeholder="India" value={form.country} onChange={fld('country')} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Timezone</label>
+                      <Inp placeholder="Asia/Kolkata" value={form.timezone} onChange={fld('timezone')} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Availability</label>
+                      <Inp placeholder="Full-time / Part-time" value={form.availability} onChange={fld('availability')} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Skills <span className="font-normal text-neutral-400">(comma-separated)</span></label>
+                    <Inp placeholder="React, Node.js, Figma…" value={form.skillsCsv} onChange={fld('skillsCsv')} />
+                  </div>
+                </div>
+              )}
+
+              {editTab === 'bank' && (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                    <span className="material-symbols-outlined mr-1 align-middle text-sm">info</span>
+                    Bank details are used for payment processing. Keep them accurate.
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Account Holder Name</label>
+                      <Inp placeholder="Full name as per bank" value={form.accountHolderName} onChange={fld('accountHolderName')} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Bank Name</label>
+                      <Inp placeholder="e.g. HDFC Bank" value={form.bankName} onChange={fld('bankName')} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Account Number</label>
+                      <Inp placeholder="Account number" value={form.accountNumber} onChange={fld('accountNumber')} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">IFSC Code</label>
+                      <Inp placeholder="HDFC0001234" value={form.ifscCode} onChange={fld('ifscCode')} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Account Type</label>
+                    <Inp placeholder="Savings / Current" value={form.accountType} onChange={fld('accountType')} />
+                  </div>
+                  <div className="mt-2 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400">Online Payment</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">UPI ID</label>
+                        <Inp placeholder="name@upi" value={form.upiId} onChange={fld('upiId')} />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">PayPal Email</label>
+                        <Inp placeholder="paypal@email.com" value={form.paypalEmail} onChange={fld('paypalEmail')} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {editTab === 'docs' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Upload your documents to Cloudinary. Files are securely stored and accessible only to you and your admin.</p>
+                  <DocUploadCard
+                    label="Profile Photo" icon="account_circle" docType="avatar"
+                    currentUrl={m.avatar} currentName="Current photo"
+                    token={token} onDone={handleDocDone}
+                  />
+                  <DocUploadCard
+                    label="CV / Resume" icon="description" docType="cv"
+                    currentUrl={docs.cv?.url} currentName={docs.cv?.fileName}
+                    token={token} onDone={handleDocDone}
+                  />
+                  <DocUploadCard
+                    label="Bank Statement" icon="account_balance" docType="bankStatement"
+                    currentUrl={docs.bankStatement?.url} currentName={docs.bankStatement?.fileName}
+                    token={token} onDone={handleDocDone}
+                  />
+                </div>
+              )}
+
+              {msg && (
+                <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-semibold ${msg === 'Saved!' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300'}`}>
+                  {msg}
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex shrink-0 items-center justify-between border-t border-neutral-100 px-6 py-4 dark:border-neutral-800">
+              <BtnSecondary onClick={() => setEditOpen(false)}>Cancel</BtnSecondary>
+              {editTab !== 'docs' && (
+                <BtnPrimary onClick={saveProfile} disabled={saving}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </BtnPrimary>
+              )}
+              {editTab === 'docs' && (
+                <button onClick={() => setEditOpen(false)} className="rounded-xl bg-neutral-900 px-5 py-2 text-sm font-bold text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
+                  Done
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1124,99 +1493,6 @@ export const OutsourcingPaymentsPage = () => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Notifications
-// ─────────────────────────────────────────────────────────────────────────────
-export const OutsourcingNotificationsPage = () => {
-  const { token } = useAuth();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('all');
-  const [items, setItems] = useState([]);
-
-  useEffect(() => {
-    outsourcingApi.getNotifications(token)
-      .then((r) => { setRows(r.data || []); setItems(r.data || []); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  useEffect(() => { setItems(rows); }, [rows]);
-
-  const markAll = () => setItems((prev) => prev.map((n) => ({ ...n, read: true })));
-  const unread = items.filter((n) => !n.read).length;
-
-  const tabs = [
-    { key: 'all', label: 'All', filter: () => true },
-    { key: 'unread', label: 'Unread', filter: (n) => !n.read },
-    { key: 'project', label: 'Projects', filter: (n) => n.type === 'Project assignment' },
-    { key: 'contract', label: 'Contracts', filter: (n) => n.type === 'Contract' },
-  ];
-  const displayed = items.filter(tabs.find((t) => t.key === tab)?.filter || (() => true));
-
-  const typeIcon = (type) => ({
-    'Project assignment': 'work',
-    'Contract': 'contract',
-    'Approval': 'check_circle',
-  }[type] || 'notifications');
-
-  const relTime = (d) => {
-    const m = Math.floor((Date.now() - new Date(d || 0)) / 60000);
-    if (m < 1) return 'just now';
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  };
-
-  return (
-    <div className="space-y-5">
-      <OutsourcingPageHdr
-        title="Notifications"
-        subtitle="Project, contract, and work activity alerts"
-        icon="notifications"
-        accent="#3b82f6"
-        action={unread > 0 && <BtnSecondary onClick={markAll} className="text-xs py-2 px-3">Mark all read ({unread})</BtnSecondary>}
-      />
-
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${tab === t.key ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <Card>
-        <Inner className="p-0">
-          {loading ? <div className="p-5"><Skeleton rows={5} /></div> : displayed.length === 0 ? (
-            <EmptyState icon="notifications" title="No notifications" subtitle="You're all caught up." />
-          ) : (
-            <div className="divide-y divide-neutral-50 dark:divide-neutral-900">
-              {displayed.map((n) => (
-                <div key={n._id} onClick={() => setItems((prev) => prev.map((x) => x._id === n._id ? { ...x, read: true } : x))}
-                  className={`flex cursor-pointer items-start gap-4 px-5 py-4 transition hover:bg-neutral-50 dark:hover:bg-neutral-900 ${!n.read ? 'bg-blue-50/50 dark:bg-blue-950/10' : ''}`}>
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800`}>
-                    <span className="material-symbols-outlined text-base text-neutral-500 dark:text-neutral-400">{typeIcon(n.type)}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-sm leading-snug ${!n.read ? 'font-semibold text-neutral-900 dark:text-white' : 'text-neutral-700 dark:text-neutral-300'}`}>
-                      {n.title || 'Notification'}
-                    </p>
-                    {n.message && <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{n.message}</p>}
-                    <p className="mt-1 text-[11px] text-neutral-400">{relTime(n.createdAt)} · {n.type || 'General'}</p>
-                  </div>
-                  {!n.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
-                </div>
-              ))}
-            </div>
-          )}
-        </Inner>
-      </Card>
-    </div>
-  );
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Activity
@@ -1295,106 +1571,6 @@ export const OutsourcingActivityPage = () => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Invoices
-// ─────────────────────────────────────────────────────────────────────────────
-export const OutsourcingInvoicesPage = () => {
-  const { token } = useAuth();
-  const [logs, setLogs] = useState([]);
-  const [invoices, setInvoices] = useState([]);
-  const [selectedLog, setSelectedLog] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState('');
-
-  const load = useCallback(async () => {
-    const [l, i] = await Promise.allSettled([outsourcingApi.getTimeLogs(token), outsourcingApi.getInvoices(token)]);
-    const all = l.status === 'fulfilled' ? l.value?.data || [] : [];
-    setLogs(all.filter((x) => x.verificationStatus === 'approved'));
-    setInvoices(i.status === 'fulfilled' ? i.value?.data || [] : []);
-    setLoading(false);
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const generate = async () => {
-    if (!selectedLog) return;
-    try {
-      setBusy(true); setMsg('');
-      await outsourcingApi.generateInvoice(token, { timeLogId: selectedLog });
-      setMsg('Invoice generated!');
-      setSelectedLog('');
-      await load();
-    } catch (e) { setMsg(e.message || 'Failed'); } finally { setBusy(false); }
-  };
-
-  const totalAmt = invoices.reduce((s, i) => s + Number(i.amount || 0), 0);
-  const paidAmt = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.amount || 0), 0);
-
-  return (
-    <div className="space-y-5">
-      <OutsourcingPageHdr title="Invoices" subtitle="Generate and review invoices for approved work" icon="receipt_long" accent="#6366f1" />
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard icon="receipt_long" label="Total Invoices" value={invoices.length} loading={loading} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
-        <StatCard icon="paid" label="Paid" value={invoices.filter((i) => i.status === 'paid').length} loading={loading} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
-        <StatCard icon="currency_rupee" label="Total Amount" value={`₹${totalAmt.toLocaleString('en-IN')}`} loading={loading} accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
-        <StatCard icon="account_balance_wallet" label="Amount Paid" value={`₹${paidAmt.toLocaleString('en-IN')}`} loading={loading} accentIcon="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
-      </div>
-
-      <Card>
-        <Inner>
-          <SectionHdr title="Generate Invoice" />
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-48">
-              <Sel value={selectedLog} onChange={(e) => setSelectedLog(e.target.value)}>
-                <option value="">Select approved time log</option>
-                {logs.map((l) => (
-                  <option key={l._id} value={l._id}>
-                    {`${new Date(l.logDate).toLocaleDateString()} — ${l?.job?.title || 'Job'} (${l.hours}h)`}
-                  </option>
-                ))}
-              </Sel>
-            </div>
-            <BtnPrimary onClick={generate} disabled={!selectedLog || busy}>{busy ? 'Generating…' : 'Generate Invoice'}</BtnPrimary>
-          </div>
-          {msg && <p className={`mt-2 text-sm ${msg.includes('!') ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</p>}
-        </Inner>
-      </Card>
-
-      <Card>
-        <Inner>
-          <SectionHdr title="Invoice History" />
-          {loading ? <Skeleton rows={4} /> : invoices.length === 0 ? (
-            <EmptyState icon="receipt_long" title="No invoices yet" subtitle="Generate an invoice from approved time logs above." />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-100 dark:border-neutral-800">
-                    {['Invoice ID', 'Project', 'Amount', 'Status', 'Date'].map((h) => (
-                      <th key={h} className="pb-2.5 pr-6 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-50 dark:divide-neutral-900">
-                  {invoices.map((r) => (
-                    <tr key={r.invoiceId || r._id}>
-                      <td className="py-3 pr-6 font-mono text-xs text-neutral-500">{r.invoiceId || r._id?.slice(0, 8)}</td>
-                      <td className="py-3 pr-6 font-medium text-neutral-900 dark:text-white">{r.jobTitle || '—'}</td>
-                      <td className="py-3 pr-6 font-semibold text-neutral-900 dark:text-white">₹{Number(r.amount || 0).toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-6"><Pill value={r.status || 'unpaid'} /></td>
-                      <td className="py-3 pr-6 text-neutral-500">{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Inner>
-      </Card>
-    </div>
-  );
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings  (new)

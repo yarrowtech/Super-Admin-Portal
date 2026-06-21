@@ -60,9 +60,9 @@ router.use(async (req, res, next) => {
 
 router.get('/notifications', outsourcingController.getMyNotifications);
 router.get('/payments', outsourcingController.getMyPayments);
-router.get('/invoices', outsourcingController.getMyInvoices);
 router.get('/profile', outsourcingController.getMyProfile);
 router.put('/profile', outsourcingController.updateMyProfile);
+router.post('/profile/document', uploadSingle('file'), outsourcingController.uploadProfileDocument);
 router.get('/workspace/me', outsourcingController.getMyWorkspace);
 router.get('/activity-feed', outsourcingController.getMyActivityFeed);
 router.get('/analytics/me', outsourcingController.getMyAnalytics);
@@ -74,8 +74,6 @@ router.post('/sessions/pause', outsourcingController.pauseWorkSession);
 router.post('/sessions/resume', outsourcingController.resumeWorkSession);
 router.post('/sessions/stop', outsourcingController.stopWorkSession);
 router.post('/files/upload', uploadSingle('file'), outsourcingController.uploadFreelancerFile);
-router.post('/invoices/generate', outsourcingController.generateInvoice);
-
 router.get('/jobs', outsourcingController.listJobs);
 router.put('/jobs/:id/accept', outsourcingController.acceptJob);
 router.put('/jobs/:id/reject', outsourcingController.rejectJob);

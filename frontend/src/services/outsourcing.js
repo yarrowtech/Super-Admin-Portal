@@ -69,7 +69,6 @@ export const outsourcingApi = {
   verifySsoToken: async (payload = {}) => apiClient.post('/api/sso/verify-token', payload),
   getNotifications: async (token) => readCache(token, 'notifications', () => apiClient.get('/api/outsourcing/notifications', token), ttl.fast),
   getPayments: async (token) => readCache(token, 'payments', () => apiClient.get('/api/outsourcing/payments', token), ttl.medium),
-  getInvoices: async (token) => readCache(token, 'invoices', () => apiClient.get('/api/outsourcing/invoices', token), ttl.medium),
   getActivityFeed: async (token) => readCache(token, 'activity', () => apiClient.get('/api/outsourcing/activity-feed', token), ttl.fast),
   getMyWorkflow: async (token) => readCache(token, 'workflow', () => apiClient.get('/api/outsourcing/workflow/me', token), ttl.fast),
   getJobs: async (token) => readCache(token, 'jobs', () => apiClient.get('/api/outsourcing/jobs', token), ttl.fast),
@@ -103,6 +102,22 @@ export const outsourcingApi = {
     const res = await apiClient.put('/api/outsourcing/profile', payload, token);
     invalidateOutsourcingCache();
     return res;
+  },
+  uploadProfileDocument: async (token, file, docType) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('docType', docType);
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const res = await fetch(`${API_BASE}/api/outsourcing/profile/document`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+      credentials: 'include',
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || 'Upload failed');
+    invalidateOutsourcingCache();
+    return json;
   },
   createUser: async (token, payload) => {
     const res = await apiClient.post('/api/outsourcing/users', payload, token);
@@ -201,11 +216,6 @@ export const outsourcingApi = {
     return res;
   },
   getMyAnalytics: async (token) => readCache(token, 'analytics', () => apiClient.get('/api/outsourcing/analytics/me', token), ttl.fast),
-  generateInvoice: async (token, payload) => {
-    const res = await apiClient.post('/api/outsourcing/invoices/generate', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
   uploadFile: async (token, file) => {
     const formData = new FormData();
     formData.append('file', file);

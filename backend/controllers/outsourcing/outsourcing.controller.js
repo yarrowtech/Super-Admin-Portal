@@ -1301,58 +1301,6 @@ const getMyPayments = async (req, res) => {
   }
 };
 
-const getMyInvoices = async (req, res) => {
-  try {
-    const query = isAdmin(req.user)
-      ? { verificationStatus: 'approved' }
-      : { freelancer: req.user._id, verificationStatus: 'approved' };
-    const rows = await OutsourcingTimeLog.find(query)
-      .populate('contract', 'paymentType rate')
-      .populate('job', 'title')
-      .sort({ logDate: -1 })
-      .limit(100);
-
-    const invoices = rows.map((log) => {
-      const rate = Number(log.contract?.rate || 0);
-      const hours = Number(log.hours || 0);
-      let amount = 0;
-      switch (log.contract?.paymentType) {
-        case 'hourly':
-          amount = rate * hours;
-          break;
-        case 'daily':
-          amount = rate;
-          break;
-        case 'weekly':
-          amount = rate;
-          break;
-        case 'fixed':
-          amount = rate;
-          break;
-        default:
-          amount = 0;
-      }
-      return {
-        invoiceId: `INV-${log._id}`,
-        timeLogId: log._id,
-        contractId: log.contract?._id || null,
-        jobTitle: log.job?.title || 'N/A',
-        paymentType: log.contract?.paymentType || 'hourly',
-        rate,
-        hours,
-        amount,
-        status: log.verificationStatus,
-        logDate: log.logDate,
-      };
-    });
-
-    return res.status(200).json({ success: true, data: invoices });
-  } catch (error) {
-    logger.error({ err: error }, 'Get outsourcing invoices error');
-    return res.status(500).json({ success: false, error: 'Failed to fetch invoices', details: error.message });
-  }
-};
-
 const getMyProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
@@ -1378,7 +1326,9 @@ const updateMyProfile = async (req, res) => {
       hourlyRate,
       availability,
       skills,
-      paymentDetails
+      paymentDetails,
+      bankDetails,
+      paymentInfo
     } = req.body || {};
 
     const user = await User.findById(req.user._id);
@@ -1414,6 +1364,21 @@ const updateMyProfile = async (req, res) => {
         accountType: String(paymentDetails.accountType || '').trim(),
         upiId: String(paymentDetails.upiId || '').trim(),
         paypalEmail: String(paymentDetails.paypalEmail || '').trim()
+      };
+    }
+    if (bankDetails && typeof bankDetails === 'object') {
+      nextMeta.bankDetails = {
+        accountHolderName: String(bankDetails.accountHolderName || '').trim(),
+        bankName: String(bankDetails.bankName || '').trim(),
+        accountNumber: String(bankDetails.accountNumber || '').trim(),
+        ifscCode: String(bankDetails.ifscCode || '').trim().toUpperCase(),
+        accountType: String(bankDetails.accountType || '').trim(),
+      };
+    }
+    if (paymentInfo && typeof paymentInfo === 'object') {
+      nextMeta.paymentInfo = {
+        upiId: String(paymentInfo.upiId || '').trim(),
+        paypalEmail: String(paymentInfo.paypalEmail || '').trim(),
       };
     }
 
@@ -1888,6 +1853,51 @@ const getMyWorkflow = async (req, res) => {
   }
 };
 
+const uploadProfileDocument = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' });
+    const docType = String(req.body?.docType || 'document');
+    const allowed = ['avatar', 'cv', 'bankStatement'];
+    if (!allowed.includes(docType)) return res.status(400).json({ success: false, error: 'Invalid docType. Use: avatar, cv, bankStatement' });
+
+    const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const folderMap = { avatar: 'freelancer-portal/avatars', cv: 'freelancer-portal/cv', bankStatement: 'freelancer-portal/bank-statements' };
+    const uploaded = await cloudinary.uploader.upload(dataUri, {
+      folder: folderMap[docType],
+      resource_type: docType === 'avatar' ? 'image' : 'auto',
+      public_id: `${docType}_${req.user._id}_${Date.now()}`,
+      overwrite: true,
+    });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    const meta = { ...(user.metadata || {}) };
+    if (docType === 'avatar') {
+      meta.avatar = uploaded.secure_url;
+    } else {
+      meta.documents = { ...(meta.documents || {}) };
+      meta.documents[docType] = {
+        url: uploaded.secure_url,
+        fileName: req.file.originalname,
+        size: req.file.size,
+        uploadedAt: new Date().toISOString(),
+        publicId: uploaded.public_id,
+      };
+    }
+    user.metadata = meta;
+    await user.save();
+
+    return res.status(201).json({
+      success: true,
+      data: { docType, url: uploaded.secure_url, fileName: req.file.originalname, publicId: uploaded.public_id }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Profile document upload error');
+    return res.status(500).json({ success: false, error: 'Upload failed', details: error.message });
+  }
+};
+
 const uploadFreelancerFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -2018,44 +2028,6 @@ const getMyAnalytics = async (req, res) => {
   }
 };
 
-const generateInvoice = async (req, res) => {
-  try {
-    const { timeLogId } = req.body || {};
-    if (!timeLogId) {
-      return res.status(400).json({ success: false, error: 'timeLogId is required' });
-    }
-    const query = isAdmin(req.user) ? { _id: timeLogId } : { _id: timeLogId, freelancer: req.user._id };
-    const log = await OutsourcingTimeLog.findOne(query).populate('contract', 'paymentType rate').populate('job', 'title');
-    if (!log) return res.status(404).json({ success: false, error: 'Time log not found' });
-    if (log.verificationStatus !== 'approved') {
-      return res.status(400).json({ success: false, error: 'Only approved time logs can be invoiced' });
-    }
-
-    const rate = Number(log.contract?.rate || 0);
-    const hours = Number(log.hours || 0);
-    const paymentType = log.contract?.paymentType || 'hourly';
-    const amount = paymentType === 'hourly' ? rate * hours : rate;
-
-    return res.status(201).json({
-      success: true,
-      data: {
-        invoiceId: `INV-${log._id}`,
-        timeLogId: log._id,
-        jobTitle: log.job?.title || 'N/A',
-        paymentType,
-        rate,
-        hours,
-        amount,
-        currency: 'INR',
-        issuedAt: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Generate outsourcing invoice error');
-    return res.status(500).json({ success: false, error: 'Failed to generate invoice', details: error.message });
-  }
-};
-
 module.exports = {
   createOutsourcingUser,
   listFreelancers,
@@ -2086,9 +2058,9 @@ module.exports = {
   outsourcingDashboard,
   getMyNotifications,
   getMyPayments,
-  getMyInvoices,
   getMyProfile,
   updateMyProfile,
+  uploadProfileDocument,
   getMyWorkspace,
   getMyActivityFeed,
   checkIn,
@@ -2099,6 +2071,5 @@ module.exports = {
   getMySessionStatus,
   getMyWorkflow,
   uploadFreelancerFile,
-  getMyAnalytics,
-  generateInvoice
+  getMyAnalytics
 };

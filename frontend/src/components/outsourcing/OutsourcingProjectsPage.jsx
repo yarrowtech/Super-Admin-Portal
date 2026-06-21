@@ -1,116 +1,111 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
 import { resolveCanonicalProjects } from '../../config/projectNames';
-import {
-  OutsourcingCard,
-  OutsourcingEmptyState,
-  OutsourcingErrorState,
-  OutsourcingPageHeader,
-} from '../../features/outsourcing/components/OutsourcingUI';
+import { OutsourcingPageHeader } from '../../features/outsourcing/components/OutsourcingUI';
 
-const canOpenProject = (project, isPrivilegedProjectLauncher) => Boolean(
-  project?.access?.canLaunch ||
-  project?.code === 'EEC' ||
-  (project?.code === 'EFNBMMS' && isPrivilegedProjectLauncher)
-);
-
+// Backend access logic — unchanged
+const canOpenProject = (project, isPrivileged) =>
+  Boolean(project?.access?.canLaunch || project?.code === 'EEC' || (project?.code === 'EFNBMMS' && isPrivileged));
 const PRIVILEGED_PROJECT_ROLES = new Set(['admin', 'super_admin', 'freelancer']);
+
+const ACCENTS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#6366f1', '#ef4444'];
+
+const StatCard = ({ icon, label, count, accent, loading: ld }) => (
+  <div className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: accent }} />
+    <div className="mb-3 flex items-center justify-between">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: `${accent}18` }}>
+        <span className="material-symbols-outlined text-[19px]" style={{ color: accent }}>{icon}</span>
+      </div>
+      {ld
+        ? <div className="h-7 w-10 animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800" />
+        : <span className="text-2xl font-black text-neutral-900 dark:text-white">{count}</span>}
+    </div>
+    <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{label}</p>
+  </div>
+);
 
 export default function OutsourcingProjectsPage() {
   const { token, user } = useAuth();
+  const isPrivilegedProjectLauncher = PRIVILEGED_PROJECT_ROLES.has(String(user?.role || '').toLowerCase());
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [projects, setProjects] = useState([]);
-  const [summary, setSummary] = useState({ total: 0, assigned: 0, accessible: 0, blocked: 0 });
   const [launchingProject, setLaunchingProject] = useState('');
   const [launchError, setLaunchError] = useState({ code: '', message: '' });
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const isPrivilegedProjectLauncher = PRIVILEGED_PROJECT_ROLES.has(String(user?.role || '').toLowerCase());
+  const [jobs, setJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError('');
-
     try {
       const response = await outsourcingApi.getMyProjects(token);
-      const projectsData = response?.data || {};
-      const resolvedProjects = resolveCanonicalProjects(projectsData.projects || []);
-      setProjects(resolvedProjects);
-      setSummary({
-        total: resolvedProjects.length,
-        assigned: resolvedProjects.filter((project) => project.assigned).length,
-        accessible: resolvedProjects.filter((project) => canOpenProject(project, isPrivilegedProjectLauncher)).length,
-        blocked: resolvedProjects.filter((project) => !canOpenProject(project, isPrivilegedProjectLauncher)).length,
-      });
-    } catch (loadError) {
-      setError(loadError?.message || 'Failed to load project access hub');
+      const data = response?.data || {};
+      const resolved = resolveCanonicalProjects(data.projects || []);
+      setProjects(resolved);
+    } catch (e) {
+      setError(e?.message || 'Failed to load project access hub');
+    } finally {
+      setLoading(false);
     }
+  }, [token, isPrivilegedProjectLauncher]);
 
-    setLoading(false);
-  };
+  const loadJobs = useCallback(async () => {
+    if (!token) return;
+    setJobsLoading(true);
+    try {
+      const res = await outsourcingApi.getJobs(token);
+      const myId = String(user?._id || '');
+      const all = res?.data || [];
+      const mine = user?.role === 'admin'
+        ? all
+        : all.filter((j) => !j.assignedFreelancer || String(j.assignedFreelancer?._id || j.assignedFreelancer) === myId);
+      setJobs(mine);
+    } catch (_) {}
+    finally { setJobsLoading(false); }
+  }, [token, user]);
 
-  const filteredProjects = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return projects.filter((project) => {
-      const matchesQuery =
-        !q ||
-        [project.name, project.code, project.description, project.role, project.status]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(q));
-      const canLaunch = Boolean(project?.access?.canLaunch);
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'accessible' && canOpenProject(project, isPrivilegedProjectLauncher)) ||
-        (statusFilter === 'blocked' && !canOpenProject(project, isPrivilegedProjectLauncher));
-      return matchesQuery && matchesStatus;
-    });
-  }, [isPrivilegedProjectLauncher, projects, query, statusFilter]);
+  useEffect(() => { load(); loadJobs(); }, [load, loadJobs]);
 
-  const accessibleCount = summary.accessible ?? projects.filter((p) => p?.access?.canLaunch).length;
-  const blockedCount = summary.blocked ?? projects.filter((p) => !p?.access?.canLaunch).length;
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        await load();
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
+  const jobStats = useMemo(() => {
+    const now = new Date();
+    const week = new Date(now); week.setDate(week.getDate() + 7);
+    return {
+      total:     jobs.length,
+      active:    jobs.filter((j) => j.status === 'in_progress').length,
+      pending:   jobs.filter((j) => j.status === 'pending').length,
+      upcoming:  jobs.filter((j) => j.acceptanceStatus === 'accepted' && j.status !== 'in_progress' && j.status !== 'completed').length,
+      completed: jobs.filter((j) => j.status === 'completed').length,
+      overdue:   jobs.filter((j) => j.status !== 'completed' && j.dueDate && new Date(j.dueDate) < now).length,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [jobs]);
 
   const handleLaunch = async (projectCode) => {
     try {
       setLaunchingProject(projectCode);
       setLaunchError({ code: '', message: '' });
-      const response = projectCode === 'EEC'
-        ? await outsourcingApi.generateEecSsoToken(token, { projectCode: 'EEC', redirectTo: '/dashboard' })
-        : projectCode === 'EFNBMMS' && isPrivilegedProjectLauncher
-          ? await outsourcingApi.launchEfmbmms(token, { redirectTo: '/dashboard' })
-        : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
-      const redirectUrl = response?.redirectUrl || response?.data?.redirectUrl || response?.data?.data?.redirectUrl;
-      if (!redirectUrl) {
-        throw new Error(response?.message || response?.error || 'Failed to resolve launch URL');
-      }
+      const response =
+        projectCode === 'EEC'
+          ? await outsourcingApi.generateEecSsoToken(token, { projectCode: 'EEC', redirectTo: '/dashboard' })
+          : projectCode === 'EFNBMMS' && isPrivilegedProjectLauncher
+            ? await outsourcingApi.launchEfmbmms(token, { redirectTo: '/dashboard' })
+            : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
+      const redirectUrl =
+        response?.redirectUrl || response?.data?.redirectUrl || response?.data?.data?.redirectUrl;
+      if (!redirectUrl) throw new Error(response?.message || 'Failed to resolve launch URL');
       window.location.assign(redirectUrl);
-    } catch (launchError) {
-      setLaunchError({
-        code: projectCode,
-        message: launchError?.message || 'Access failed, try again',
-      });
-      setError(launchError.message || 'Failed to launch project');
+    } catch (e) {
+      setLaunchError({ code: projectCode, message: e?.message || 'Access failed, try again' });
+      setError(e.message || 'Failed to launch project');
     } finally {
       setLaunchingProject('');
     }
   };
+
 
   return (
     <div className="space-y-4">
@@ -121,9 +116,8 @@ export default function OutsourcingProjectsPage() {
         accent="#3b82f6"
         action={
           <button
-            type="button"
             onClick={load}
-            className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+            className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
           >
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Refresh
@@ -131,202 +125,142 @@ export default function OutsourcingProjectsPage() {
         }
       />
 
-      {error ? <OutsourcingErrorState message={error} onRetry={load} /> : null}
+      {error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+          {error}
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <OutsourcingCard className="relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-1 bg-blue-500" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Total</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950 dark:text-white">{summary.total || projects.length || 0}</p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Linked projects</p>
-        </OutsourcingCard>
-        <OutsourcingCard className="relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Assigned</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950 dark:text-white">{summary.assigned || 0}</p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Assigned to you</p>
-        </OutsourcingCard>
-        <OutsourcingCard className="relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-400" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Accessible</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950 dark:text-white">{accessibleCount}</p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Ready now</p>
-        </OutsourcingCard>
-        <OutsourcingCard className="relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-1 bg-rose-500" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Blocked</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950 dark:text-white">{blockedCount}</p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">No access</p>
-        </OutsourcingCard>
+      {/* Job assignment summary */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <StatCard icon="work"          label="Total Assigned"    count={jobStats.total}     accent="#6366f1" loading={jobsLoading} />
+        <StatCard icon="play_circle"   label="Active Projects"   count={jobStats.active}    accent="#3b82f6" loading={jobsLoading} />
+        <StatCard icon="pending"       label="Pending Projects"  count={jobStats.pending}   accent="#f59e0b" loading={jobsLoading} />
+        <StatCard icon="upcoming"      label="Upcoming Projects" count={jobStats.upcoming}  accent="#8b5cf6" loading={jobsLoading} />
+        <StatCard icon="task_alt"      label="Completed"         count={jobStats.completed} accent="#10b981" loading={jobsLoading} />
       </div>
 
-      <OutsourcingCard className="border-neutral-200/80 bg-white/95 dark:border-neutral-800 dark:bg-neutral-950">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filter</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_auto]">
-            <label className="relative block">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">
-                <span className="material-symbols-outlined text-[18px]">search</span>
-              </span>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search"
-                className="h-11 w-full rounded-2xl border border-neutral-300 bg-white pl-10 pr-3 text-sm text-neutral-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
-              />
-            </label>
-            <div className="inline-flex rounded-2xl border border-neutral-300 bg-white p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-              {[
-                { value: 'all', label: 'All', icon: 'apps' },
-                { value: 'accessible', label: 'Open', icon: 'lock_open' },
-                { value: 'blocked', label: 'Locked', icon: 'lock' },
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setStatusFilter(item.value)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                    statusFilter === item.value
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </OutsourcingCard>
-
+      {/* Project cards */}
       {loading ? (
-        <OutsourcingCard>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="min-h-[180px] animate-pulse rounded-[24px] border border-neutral-200 bg-neutral-100 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-                  <div className="h-4 w-20 rounded bg-neutral-200 dark:bg-neutral-800" />
-                  <div className="mt-4 h-5 w-40 rounded bg-neutral-200 dark:bg-neutral-800" />
-                  <div className="mt-3 h-3 w-3/4 rounded bg-neutral-200 dark:bg-neutral-800" />
-                  <div className="mt-2 h-3 w-2/3 rounded bg-neutral-200 dark:bg-neutral-800" />
-                  <div className="mt-8 h-11 w-32 rounded-2xl bg-neutral-200 dark:bg-neutral-800" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </OutsourcingCard>
-      ) : filteredProjects.length === 0 ? (
-        <OutsourcingCard>
-          <OutsourcingEmptyState title="No projects found" subtitle="Try another filter." />
-        </OutsourcingCard>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-72 animate-pulse rounded-2xl bg-neutral-100 dark:bg-neutral-800" />
+          ))}
+        </div>
+      ) : projects.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-neutral-200 py-16 text-center dark:border-neutral-800">
+          <span className="material-symbols-outlined text-4xl text-neutral-200 dark:text-neutral-700">folder_off</span>
+          <p className="text-sm font-bold text-neutral-500">No projects found</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
-          {filteredProjects.map((project, index) => {
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project, index) => {
             const canLaunch = canOpenProject(project, isPrivilegedProjectLauncher);
             const isEec = project.code === 'EEC';
             const isEfmbmms = project.code === 'EFNBMMS';
             const launchEnabled = isEec || canLaunch || (isEfmbmms && isPrivilegedProjectLauncher);
             const blockedReason = project?.access?.blockedReason || 'Access not available';
-            const accentClasses = [
-              'from-blue-500 to-cyan-500',
-              'from-violet-500 to-fuchsia-500',
-              'from-emerald-500 to-teal-500',
-              'from-amber-500 to-orange-500',
-            ];
-            const accent = accentClasses[index % accentClasses.length];
+            const accent = ACCENTS[index % ACCENTS.length];
+
             return (
-              <OutsourcingCard key={project.code} className="relative flex min-h-[220px] flex-col overflow-hidden border-neutral-200/80 bg-white/95 p-0 dark:border-neutral-800 dark:bg-neutral-950">
-                <div className={`h-2 w-full bg-gradient-to-r ${accent}`} />
-                <div className="flex h-full flex-col p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-xl font-black tracking-tight text-neutral-950 dark:text-white">{project.name}</h3>
-                        {project.code ? (
-                          <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-                            {project.code}
-                          </span>
-                        ) : null}
-                      </div>
-                      {project.description ? (
-                      <p className="mt-1.5 text-sm leading-6 text-neutral-600 dark:text-neutral-400">
-                          {project.description}
-                        </p>
-                      ) : null}
+              <div
+                key={project.code}
+                className="relative flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+              >
+                <div className="h-1 w-full" style={{ background: accent }} />
+                <div className="flex flex-1 flex-col p-5">
+                  {/* Card header */}
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl font-black text-white"
+                      style={{ background: accent }}
+                    >
+                      {(project.name || project.code || '?')[0]}
                     </div>
-                    <div className={`rounded-full px-3 py-1.5 text-xs font-semibold ${canLaunch ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/10 text-rose-700 dark:text-rose-300'}`}>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                        canLaunch
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                          : 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-300'
+                      }`}
+                    >
                       {canLaunch ? 'Accessible' : 'Blocked'}
-                    </div>
+                    </span>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div className="rounded-2xl bg-neutral-50 p-2.5 dark:bg-neutral-900/60">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Role</p>
-                      <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{project.role || 'member'}</p>
-                    </div>
-                    <div className="rounded-2xl bg-neutral-50 p-2.5 dark:bg-neutral-900/60">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Status</p>
-                      <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{project.status || 'unknown'}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-2.5 dark:border-neutral-800 dark:bg-neutral-900/50">
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex h-2.5 w-2.5 rounded-full ${canLaunch ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                        {canLaunch ? 'Ready to open' : isEec ? 'Open via SSO' : isEfmbmms ? 'Controlled by Super Admin' : 'Access blocked'}
-                      </p>
-                    </div>
-                      <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                        {canLaunch ? 'Open now' : isEec ? 'SSO token required' : isEfmbmms ? 'Assignment required in Super Admin' : blockedReason}
-                      </p>
-                  </div>
-
-                  {launchError.code === project.code ? (
-                    <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">
-                      <p className="font-semibold">
-                        {launchError.message === 'Failed to resolve launch URL'
-                          ? 'Access failed, try again'
-                          : launchError.message}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-auto pt-4">
-                    <button
-                      type="button"
-                      disabled={!launchEnabled || launchingProject === project.code}
-                      onClick={() => handleLaunch(project.code)}
-                      className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm transition ${
-                        launchEnabled
-                          ? 'bg-blue-600 text-white hover:-translate-y-0.5 hover:bg-blue-700'
-                          : 'cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400'
-                      } disabled:opacity-70`}
-                      >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {launchingProject === project.code ? 'hourglass_top' : launchEnabled ? 'open_in_new' : 'lock'}
+                  {/* Name + code */}
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-black text-neutral-900 dark:text-white">{project.name}</h3>
+                    {project.code && (
+                      <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400">
+                        {project.code}
                       </span>
-                      {launchingProject === project.code
-                        ? 'Generating secure access...'
-                        : launchError.code === project.code
-                          ? 'Access failed, try again'
-                          : launchEnabled
-                            ? project.code === 'EEC'
-                              ? 'Open EEC'
-                              : project.code === 'EFNBMMS'
-                                ? 'Open EFNBMMS'
-                              : 'Open'
-                          : project.code === 'EFNBMMS'
-                            ? 'Requires Super Admin access'
-                            : 'Locked'}
-                    </button>
+                    )}
                   </div>
+                  {project.description && (
+                    <p className="mb-4 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">{project.description}</p>
+                  )}
+
+                  {/* Meta */}
+                  <div className="mb-4 grid grid-cols-2 gap-1.5">
+                    <div className="rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-800">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Role</p>
+                      <p className="mt-0.5 text-xs font-semibold capitalize text-neutral-800 dark:text-neutral-100">{project.role || 'member'}</p>
+                    </div>
+                    <div className="rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-800">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Status</p>
+                      <p className="mt-0.5 text-xs font-semibold capitalize text-neutral-800 dark:text-neutral-100">{project.status || '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Access note */}
+                  <div className="mb-4 flex items-center gap-2 rounded-xl border border-neutral-100 bg-neutral-50/70 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-800/50">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${canLaunch ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                      {canLaunch
+                        ? 'Ready to open'
+                        : isEec
+                          ? 'SSO token required'
+                          : isEfmbmms
+                            ? 'Controlled by Super Admin'
+                            : blockedReason}
+                    </p>
+                  </div>
+
+                  {/* Launch error */}
+                  {launchError.code === project.code && (
+                    <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                      {launchError.message}
+                    </p>
+                  )}
+
+                  {/* Launch button */}
+                  <button
+                    type="button"
+                    disabled={!launchEnabled || launchingProject === project.code}
+                    onClick={() => handleLaunch(project.code)}
+                    className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-70 ${
+                      launchEnabled
+                        ? 'text-white hover:-translate-y-0.5'
+                        : 'cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800'
+                    }`}
+                    style={launchEnabled ? { background: accent } : {}}
+                  >
+                    <span className="material-symbols-outlined text-[17px]">
+                      {launchingProject === project.code ? 'hourglass_top' : launchEnabled ? 'open_in_new' : 'lock'}
+                    </span>
+                    {launchingProject === project.code
+                      ? 'Connecting…'
+                      : launchError.code === project.code
+                        ? 'Retry'
+                        : launchEnabled
+                          ? `Open ${project.code}`
+                          : isEfmbmms
+                            ? 'Requires Super Admin'
+                            : 'Locked'}
+                  </button>
                 </div>
-              </OutsourcingCard>
+              </div>
             );
           })}
         </div>

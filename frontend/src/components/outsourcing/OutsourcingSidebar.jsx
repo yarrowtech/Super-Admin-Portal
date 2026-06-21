@@ -12,9 +12,7 @@ const outsourcingNavItems = [
   { label: 'Contracts',     icon: 'contract',      path: '/outsourcing/contracts' },
   { label: 'Time Logs',     icon: 'schedule',      path: '/outsourcing/time-logs' },
   { label: 'Activity',      icon: 'timeline',      path: '/outsourcing/activity' },
-  { label: 'Invoices',      icon: 'receipt_long',  path: '/outsourcing/invoices' },
   { label: 'Payments',      icon: 'payments',      path: '/outsourcing/payments' },
-  { label: 'Notifications', icon: 'notifications', path: '/outsourcing/notifications' },
   { label: 'Profile',       icon: 'person',        path: '/outsourcing/profile' },
 ];
 

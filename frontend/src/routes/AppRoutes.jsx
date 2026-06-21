@@ -52,9 +52,7 @@ import {
   OutsourcingTimeLogsPage,
   OutsourcingProfilePage,
   OutsourcingActivityPage,
-  OutsourcingInvoicesPage,
   OutsourcingPaymentsPage,
-  OutsourcingNotificationsPage,
   OutsourcingSettingsPage,
   OutsourcingSupportPage,
   MediaDashboardPage,
@@ -497,9 +495,7 @@ export default function AppRoutes() {
           <Route path="time-logs" element={<OutsourcingTimeLogsPage />} />
           <Route path="profile" element={<OutsourcingProfilePage />} />
           <Route path="activity" element={<OutsourcingActivityPage />} />
-          <Route path="invoices" element={<OutsourcingInvoicesPage />} />
           <Route path="payments" element={<OutsourcingPaymentsPage />} />
-          <Route path="notifications" element={<OutsourcingNotificationsPage />} />
           <Route path="settings" element={<OutsourcingSettingsPage />} />
           <Route path="support" element={<OutsourcingSupportPage />} />
         </Route>

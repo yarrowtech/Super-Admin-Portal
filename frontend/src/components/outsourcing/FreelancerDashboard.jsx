@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { outsourcingApi } from '../../services/outsourcing';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
@@ -74,48 +75,82 @@ export const FreelancerActivityFeed = ({ sessions }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 // Notification Panel
 // ─────────────────────────────────────────────────────────────────────────────
-const relativeTime = (dateStr) => {
-  const diff = Date.now() - new Date(dateStr || 0).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+const fmtNotifTime = (d) => {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    + ' • ' + new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
-const avatarColor = (str = '') => {
-  const colors = ['bg-violet-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-pink-500'];
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xfffffff;
-  return colors[h % colors.length];
+const typeIcon = (type = '') => {
+  if (type.toLowerCase().includes('contract')) return 'contract';
+  if (type.toLowerCase().includes('project') || type.toLowerCase().includes('job')) return 'work';
+  if (type.toLowerCase().includes('approv')) return 'check_circle';
+  if (type.toLowerCase().includes('payment')) return 'payments';
+  return 'mail';
+};
+
+const groupByDay = (items) => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  const groups = {};
+  items.forEach((n) => {
+    const d = new Date(n.createdAt || 0); d.setHours(0, 0, 0, 0);
+    let key = d >= today ? 'Today' : d >= yesterday ? 'Yesterday' : new Date(n.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(n);
+  });
+  return groups;
+};
+
+const notifRoute = (n) => {
+  const t = (n.type || n.title || '').toLowerCase();
+  if (t.includes('contract')) return '/outsourcing/contracts';
+  if (t.includes('approv') || t.includes('time') || t.includes('log')) return '/outsourcing/time-logs';
+  if (t.includes('payment')) return '/outsourcing/payments';
+  if (t.includes('job') || t.includes('project') || t.includes('assign')) return '/outsourcing/jobs';
+  return null;
 };
 
 const NotificationPanel = ({ notifications = [] }) => {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState(notifications);
-  const [tab, setTab] = useState('inbox');
-  const ref = useRef(null);
+  const [dropPos, setDropPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
 
   useEffect(() => { setItems(notifications); }, [notifications]);
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const handler = (e) => {
+      if (
+        btnRef.current && !btnRef.current.contains(e.target) &&
+        panelRef.current && !panelRef.current.contains(e.target)
+      ) setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const markAllRead = () => setItems((prev) => prev.map((n) => ({ ...n, read: true })));
-  const unread = items.filter((n) => !n.read).length;
+  const toggleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
+    setOpen((v) => !v);
+  };
 
-  const displayed = tab === 'inbox'
-    ? items.filter((n) => ['Project assignment', 'Contract', 'Approval'].includes(n.type))
-    : items.filter((n) => !['Project assignment', 'Contract', 'Approval'].includes(n.type));
+  const markRead = (id) => setItems((prev) => prev.map((n) => n._id === id ? { ...n, read: true } : n));
+  const unread = items.filter((n) => !n.read).length;
+  const groups = groupByDay(items);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
+      {/* Bell button */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={btnRef}
+        onClick={toggleOpen}
+        data-tour="notif-bell"
         className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
         aria-label="Notifications"
       >
@@ -127,75 +162,86 @@ const NotificationPanel = ({ notifications = [] }) => {
         )}
       </button>
 
+      {/* Dropdown panel — fixed so it escapes parent overflow:hidden */}
       {open && (
-        <div className="absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-950 sm:w-96">
+        <div
+          ref={panelRef}
+          style={{ top: dropPos.top, right: dropPos.right }}
+          className="fixed z-9999 flex w-95 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
-            <p className="text-sm font-semibold text-neutral-900 dark:text-white">Notifications</p>
-            {unread > 0 && (
-              <button onClick={markAllRead} className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
-                Mark all as read
-              </button>
-            )}
-          </div>
-
-          {/* Tabs */}
-          <div className="flex border-b border-neutral-100 dark:border-neutral-800">
-            {['inbox', 'general'].map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 py-2 text-xs font-semibold capitalize transition ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}`}
-              >
-                {t}
-                {t === 'inbox' && unread > 0 && (
-                  <span className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                    {unread}
-                  </span>
-                )}
-              </button>
-            ))}
+          <div className="flex items-start justify-between border-b border-neutral-100 px-5 py-4 dark:border-neutral-800">
+            <div>
+              <p className="text-base font-bold text-neutral-900 dark:text-white">Notification</p>
+              <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
+                {unread > 0 ? `You have ${unread} unread notification${unread !== 1 ? 's' : ''}.` : 'You\'re all caught up.'}
+              </p>
+            </div>
+            <button
+              onClick={() => setOpen(false)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
           </div>
 
           {/* List */}
-          <div className="max-h-72 overflow-y-auto">
-            {displayed.length === 0 ? (
-              <div className="py-8 text-center text-sm text-neutral-400">No notifications</div>
+          <div className="max-h-105 overflow-y-auto">
+            {items.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <span className="material-symbols-outlined text-4xl text-neutral-200 dark:text-neutral-700">notifications_off</span>
+                <p className="text-sm font-semibold text-neutral-400">No notifications yet</p>
+              </div>
             ) : (
-              displayed.map((n) => (
-                <div
-                  key={n._id}
-                  className={`flex gap-3 border-b border-neutral-50 px-4 py-3 last:border-0 dark:border-neutral-900 ${!n.read ? 'bg-blue-50/60 dark:bg-blue-950/20' : ''}`}
-                >
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarColor(n.from || 'A')}`}>
-                    {(n.from || 'A').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-xs leading-snug ${!n.read ? 'font-semibold text-neutral-900 dark:text-white' : 'text-neutral-700 dark:text-neutral-300'}`}>
-                      {n.title || 'Notification'}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-neutral-400">
-                      {relativeTime(n.createdAt)} · {n.type || 'General'}
-                    </p>
-                    {n.hasActions && (
-                      <div className="mt-1.5 flex gap-2">
-                        <button className="rounded bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">Accept</button>
-                        <button className="rounded border border-neutral-300 px-2 py-0.5 text-[10px] font-semibold text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">Decline</button>
+              Object.entries(groups).map(([group, notifs]) => (
+                <div key={group}>
+                  {/* Group label */}
+                  <p className="sticky top-0 bg-neutral-50 px-5 py-2 text-xs font-bold text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
+                    {group}
+                  </p>
+                  {notifs.map((n) => (
+                    <div
+                      key={n._id}
+                      onClick={() => { markRead(n._id); const r = notifRoute(n); if (r) { setOpen(false); navigate(r); } }}
+                      className={`flex cursor-pointer gap-3.5 border-b border-neutral-50 px-5 py-3.5 transition last:border-0 hover:bg-neutral-50 dark:border-neutral-900 dark:hover:bg-neutral-900/50 ${!n.read ? 'bg-blue-50/40 dark:bg-blue-950/10' : ''}`}
+                    >
+                      {/* Icon circle */}
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 dark:bg-indigo-500">
+                        <span className="material-symbols-outlined text-[17px] text-white">{typeIcon(n.type)}</span>
                       </div>
-                    )}
-                  </div>
-                  {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
+                      {/* Content */}
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm leading-snug ${!n.read ? 'font-semibold text-neutral-900 dark:text-white' : 'font-medium text-neutral-700 dark:text-neutral-300'}`}>
+                          {n.title || 'Notification'}
+                        </p>
+                        {n.message && (
+                          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                            {n.message}
+                          </p>
+                        )}
+                        <p className="mt-1.5 text-[11px] text-neutral-400 dark:text-neutral-500">
+                          {fmtNotifTime(n.createdAt)}
+                        </p>
+                      </div>
+                      {/* Unread dot */}
+                      {!n.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />}
+                    </div>
+                  ))}
                 </div>
               ))
             )}
           </div>
 
           {/* Footer */}
-          <div className="border-t border-neutral-100 px-4 py-2.5 dark:border-neutral-800">
-            <button className="w-full text-center text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
-              View all notifications
-            </button>
-          </div>
+          {items.length > 0 && (
+            <div className="border-t border-neutral-100 px-5 py-3 dark:border-neutral-800">
+              <button
+                onClick={() => setItems((prev) => prev.map((n) => ({ ...n, read: true })))}
+                className="w-full text-center text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+              >
+                Mark all as read
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -370,6 +416,38 @@ const TaskProgressGraph = ({ jobs = [], logs = [] }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Session Badge — live timer shown in header when checked in
+// ─────────────────────────────────────────────────────────────────────────────
+const SessionBadge = ({ session }) => {
+  const navigate = useNavigate();
+  const [elapsed, setElapsed] = useState('');
+
+  useEffect(() => {
+    if (!session?.isCheckedIn || !session?.activeSession?.startTime) { setElapsed(''); return; }
+    const tick = () => {
+      const diff = Date.now() - new Date(session.activeSession.startTime).getTime();
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      setElapsed(`${h}h ${m}m`);
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [session]);
+
+  if (!session?.isCheckedIn || !elapsed) return null;
+  return (
+    <button
+      onClick={() => navigate('/outsourcing/time-logs')}
+      className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
+    >
+      <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+      Session · {elapsed}
+    </button>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Mini Donut Chart
 // ─────────────────────────────────────────────────────────────────────────────
 const MiniDonut = ({ pct = 0, color = '#6366f1', size = 64 }) => {
@@ -425,27 +503,35 @@ const StatBox = ({ label, value, display, icon, accent = '#6366f1', pct = 0, loa
 // Default export — simplified dashboard
 // ─────────────────────────────────────────────────────────────────────────────
 export default function FreelancerDashboard({ token, user }) {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [logs, setLogs] = useState([]);
   const [rawNotifs, setRawNotifs] = useState([]);
+  const [session, setSession] = useState({ isCheckedIn: false, activeSession: null });
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const [j, c, l, n] = await Promise.allSettled([
+      const [j, c, l, n, s, p] = await Promise.allSettled([
         outsourcingApi.getJobs(token),
         outsourcingApi.getContracts(token),
         outsourcingApi.getTimeLogs(token),
-        outsourcingApi.getNotifications(token)
+        outsourcingApi.getNotifications(token),
+        outsourcingApi.getMySessions(token),
+        outsourcingApi.getMyProfile(token),
       ]);
       setJobs(j.status === 'fulfilled' ? (j.value?.data || []) : []);
       setContracts(c.status === 'fulfilled' ? (c.value?.data || []) : []);
       setLogs(l.status === 'fulfilled' ? (l.value?.data || []) : []);
       setRawNotifs(n.status === 'fulfilled' ? (n.value?.data || []) : []);
+      setSession(s.status === 'fulfilled' ? (s.value?.data || { isCheckedIn: false, activeSession: null }) : { isCheckedIn: false, activeSession: null });
+      setProfile(p.status === 'fulfilled' ? p.value?.data : null);
     } catch (e) {
       setError(e.message || 'Failed to load dashboard');
     } finally {
@@ -488,6 +574,13 @@ export default function FreelancerDashboard({ token, user }) {
 
   const totalRevenue = useMemo(() => calcRevenue((l) => l.verificationStatus === 'approved'), [calcRevenue]);
 
+  const profileCompletion = useMemo(() => {
+    if (!profile) return 0;
+    const m = profile.metadata || {};
+    const fields = [profile.firstName, profile.lastName, profile.email, m.phone, m.title, m.bio, m.city, m.country, m.hourlyRate, (m.skills || []).length > 0];
+    return Math.round((fields.filter(Boolean).length / fields.length) * 100);
+  }, [profile]);
+
   // Synthetic notifications when API returns empty
   const notifications = useMemo(() => {
     if (rawNotifs.length > 0) return rawNotifs;
@@ -515,8 +608,28 @@ export default function FreelancerDashboard({ token, user }) {
           showSearch={false}
           showThemeToggle
         >
+          <SessionBadge session={session} />
           <NotificationPanel notifications={notifications} />
         </PortalHeader>
+
+        {/* Profile completion nudge */}
+        {!loading && profileCompletion > 0 && profileCompletion < 60 && !nudgeDismissed && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800 dark:bg-indigo-950/20">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-[20px] text-indigo-600">account_circle</span>
+              <div>
+                <p className="text-sm font-bold text-indigo-900 dark:text-indigo-100">Your profile is {profileCompletion}% complete</p>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400">Complete your profile to improve visibility for job assignments.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate('/outsourcing/profile')} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700">Complete Profile →</button>
+              <button onClick={() => setNudgeDismissed(true)} className="flex h-7 w-7 items-center justify-center rounded-lg text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40">
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
@@ -527,42 +640,26 @@ export default function FreelancerDashboard({ token, user }) {
           </div>
         )}
 
-        {/* 4 Stat Boxes */}
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          <StatBox
-            label="In Progress"
-            value={inProgress}
-            icon="pending"
-            accent="#3b82f6"
-            pct={totalProjects > 0 ? inProgress / totalProjects : 0}
-            loading={loading}
-          />
-          <StatBox
-            label="Upcoming"
-            value={upcoming}
-            icon="upcoming"
-            accent="#f59e0b"
-            pct={totalProjects > 0 ? upcoming / totalProjects : 0}
-            loading={loading}
-          />
-          <StatBox
-            label="Total Projects"
-            value={totalProjects}
-            icon="folder_open"
-            accent="#8b5cf6"
-            pct={totalProjects > 0 ? completedProjects / totalProjects : 0}
-            loading={loading}
-          />
-          <StatBox
-            label="Monthly Revenue"
-            value={monthlyRevenue}
-            display={`₹${monthlyRevenue.toLocaleString('en-IN')}`}
-            icon="currency_rupee"
-            accent="#10b981"
-            pct={totalRevenue > 0 ? Math.min(monthlyRevenue / totalRevenue, 1) : 0}
-            loading={loading}
-          />
-        </div>
+        {/* 4 Stat Boxes — or empty state */}
+        {!loading && myJobs.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-neutral-200 py-14 text-center dark:border-neutral-700">
+            <span className="material-symbols-outlined text-5xl text-neutral-200 dark:text-neutral-700">work_off</span>
+            <div>
+              <p className="text-base font-bold text-neutral-700 dark:text-neutral-200">No jobs assigned yet</p>
+              <p className="mt-1 text-sm text-neutral-400">Browse available jobs or wait for admin to assign you work.</p>
+            </div>
+            <button onClick={() => navigate('/outsourcing/jobs')} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">
+              Browse Jobs →
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+            <StatBox label="In Progress" value={inProgress} icon="pending" accent="#3b82f6" pct={totalProjects > 0 ? inProgress / totalProjects : 0} loading={loading} />
+            <StatBox label="Upcoming" value={upcoming} icon="upcoming" accent="#f59e0b" pct={totalProjects > 0 ? upcoming / totalProjects : 0} loading={loading} />
+            <StatBox label="Total Projects" value={totalProjects} icon="folder_open" accent="#8b5cf6" pct={totalProjects > 0 ? completedProjects / totalProjects : 0} loading={loading} />
+            <StatBox label="Monthly Revenue" value={monthlyRevenue} display={`₹${monthlyRevenue.toLocaleString('en-IN')}`} icon="currency_rupee" accent="#10b981" pct={totalRevenue > 0 ? Math.min(monthlyRevenue / totalRevenue, 1) : 0} loading={loading} />
+          </div>
+        )}
 
         {/* Task Progress Line Graph */}
         <div className="mt-4">

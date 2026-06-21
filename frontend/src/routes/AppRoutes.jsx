@@ -55,6 +55,8 @@ import {
   OutsourcingInvoicesPage,
   OutsourcingPaymentsPage,
   OutsourcingNotificationsPage,
+  OutsourcingSettingsPage,
+  OutsourcingSupportPage,
   MediaDashboardPage,
   SalesDashboardPage,
   ResearchDashboardPage,
@@ -498,6 +500,8 @@ export default function AppRoutes() {
           <Route path="invoices" element={<OutsourcingInvoicesPage />} />
           <Route path="payments" element={<OutsourcingPaymentsPage />} />
           <Route path="notifications" element={<OutsourcingNotificationsPage />} />
+          <Route path="settings" element={<OutsourcingSettingsPage />} />
+          <Route path="support" element={<OutsourcingSupportPage />} />
         </Route>
 
         <Route

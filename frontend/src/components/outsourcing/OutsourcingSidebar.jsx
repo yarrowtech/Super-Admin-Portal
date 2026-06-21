@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
@@ -6,17 +6,30 @@ import PortalSidebar from '../common/PortalSidebar';
 import { useSidebar } from '../../context/SidebarContext';
 
 const outsourcingNavItems = [
-  { label: 'Dashboard',    icon: 'dashboard',      path: '/outsourcing/dashboard' },
-  { label: 'Projects',     icon: 'apps',           path: '/outsourcing/projects' },
-  { label: 'Jobs',         icon: 'work',           path: '/outsourcing/jobs' },
-  { label: 'Contracts',    icon: 'contract',       path: '/outsourcing/contracts' },
-  { label: 'Time Logs',    icon: 'schedule',       path: '/outsourcing/time-logs' },
-  { label: 'Activity',     icon: 'timeline',       path: '/outsourcing/activity' },
-  { label: 'Invoices',     icon: 'receipt_long',   path: '/outsourcing/invoices' },
-  { label: 'Payments',     icon: 'payments',       path: '/outsourcing/payments' },
-  { label: 'Notifications',icon: 'notifications',  path: '/outsourcing/notifications' },
-  { label: 'Profile',      icon: 'person',         path: '/outsourcing/profile' },
+  { label: 'Dashboard',     icon: 'dashboard',     path: '/outsourcing/dashboard' },
+  { label: 'Projects',      icon: 'apps',          path: '/outsourcing/projects' },
+  { label: 'Jobs',          icon: 'work',          path: '/outsourcing/jobs' },
+  { label: 'Contracts',     icon: 'contract',      path: '/outsourcing/contracts' },
+  { label: 'Time Logs',     icon: 'schedule',      path: '/outsourcing/time-logs' },
+  { label: 'Activity',      icon: 'timeline',      path: '/outsourcing/activity' },
+  { label: 'Invoices',      icon: 'receipt_long',  path: '/outsourcing/invoices' },
+  { label: 'Payments',      icon: 'payments',      path: '/outsourcing/payments' },
+  { label: 'Notifications', icon: 'notifications', path: '/outsourcing/notifications' },
+  { label: 'Profile',       icon: 'person',        path: '/outsourcing/profile' },
 ];
+
+const outsourcingFooterItems = [
+  { path: '/outsourcing/settings', label: 'Settings', icon: 'settings' },
+  { path: '/outsourcing/support',  label: 'Support',  icon: 'support_agent' },
+];
+
+const sidebarProps = {
+  brandingTitle: 'Outsourcing Portal',
+  brandingSubtitle: 'Freelance & Contracts',
+  brandingIcon: 'work',
+  navItems: outsourcingNavItems,
+  footerItems: outsourcingFooterItems,
+};
 
 const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
   const { user, logout } = useAuth();
@@ -35,13 +48,10 @@ const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
   return (
     <>
       {/* Desktop sidebar */}
-      <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
+      <div className={`fixed left-0 top-0 z-1000 hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-62.5'}`}>
         <PortalSidebar
-          brandingTitle="Outsourcing Portal"
-          brandingSubtitle="Freelance & Contracts"
-          brandingIcon="work"
+          {...sidebarProps}
           user={user}
-          navItems={outsourcingNavItems}
           currentPath={location.pathname}
           onLogout={handleLogout}
         />
@@ -56,17 +66,14 @@ const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
 
       {/* Mobile drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[84%] max-w-[300px] overflow-hidden md:hidden transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[84%] max-w-75 overflow-hidden transition-transform duration-300 md:hidden ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Outsourcing navigation"
       >
         <PortalSidebar
-          brandingTitle="Outsourcing Portal"
-          brandingSubtitle="Freelance & Contracts"
-          brandingIcon="work"
+          {...sidebarProps}
           user={user}
-          navItems={outsourcingNavItems}
           currentPath={location.pathname}
           onLogout={handleLogout}
           onNavigate={onClose}

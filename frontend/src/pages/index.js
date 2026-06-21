@@ -9,7 +9,7 @@ export { default as NotFoundPage } from '../components/404/NotFound';
 export const HRDashboardPage     = lazy(() => import('../components/hr/HRDashboard'));
 export const HRTasksPage         = lazy(() => import('../components/hr/HRTaskManagement'));
 export const HRProfilesPage      = lazy(() => import('../components/hr/HRProfiles'));
-export const HROutsourcingPage   = lazy(() => import('../components/hr/HROutsourcingPage'));
+export const HROutsourcingPage   = lazy(() => import('../components/manager/ManagerOutsourcingPage'));
 
 export const EmployeesPage    = lazy(() => import('../components/hr/pages/EmployeesPage'));
 export const AttendancePage   = lazy(() => import('../components/hr/pages/AttendancePage'));
@@ -68,6 +68,8 @@ export const OutsourcingActivityPage     = lazy(() => import('../components/outs
 export const OutsourcingInvoicesPage     = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingInvoicesPage })));
 export const OutsourcingPaymentsPage     = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingPaymentsPage })));
 export const OutsourcingNotificationsPage = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingNotificationsPage })));
+export const OutsourcingSettingsPage     = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingSettingsPage })));
+export const OutsourcingSupportPage      = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingSupportPage })));
 
 export const OutsourcingProjectsPage = lazy(() => import('../components/outsourcing/OutsourcingProjectsPage'));
 

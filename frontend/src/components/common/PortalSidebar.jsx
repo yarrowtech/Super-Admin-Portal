@@ -97,12 +97,13 @@ const PortalSidebar = ({
   currentPath = '',
   onLogout,
   onNavigate,
+  footerItems: footerItemsProp,
 }) => {
   const { collapsed, toggle } = useSidebar();
   const [openGroups, setOpenGroups] = useState({});
   const resolvedNavItems = useMemo(() => navItems, [navItems]);
 
-  const footerItems = [
+  const footerItems = footerItemsProp ?? [
     { path: '/settings', label: 'Settings', icon: 'settings' },
     { path: '/support', label: 'Support',  icon: 'help_outline' },
   ];

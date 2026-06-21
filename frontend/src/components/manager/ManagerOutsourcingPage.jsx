@@ -27,9 +27,10 @@ const TABS = ['Assign Work', 'Track Progress'];
 
 const emptyJob = { title: '', description: '', priority: 'medium', dueDate: '', budgetAmount: '', assignedFreelancer: '' };
 
-export default function ManagerOutsourcingPage() {
-  const { token } = useAuth();
+export default function ManagerOutsourcingPage({ portalRole }) {
+  const { token, user } = useAuth();
   const toast = useToast();
+  const coordinatorLabel = portalRole || (user?.role === 'hr' ? 'HR' : 'Manager');
 
   const [tab, setTab] = useState(0);
   const [jobs, setJobs] = useState([]);
@@ -41,9 +42,9 @@ export default function ManagerOutsourcingPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const safeFetch = useCallback(async (url) => {
+  const safeFetch = useCallback(async (url, options) => {
     try {
-      const res = await apiClient.get(url, token);
+      const res = await apiClient.get(url, token, options);
       return res;
     } catch (err) {
       if (err?.status === 403 || err?.message?.toLowerCase().includes('access denied') || err?.message?.toLowerCase().includes('forbidden')) {
@@ -59,7 +60,7 @@ export default function ManagerOutsourcingPage() {
     try {
       const [jobsRes, freelancersRes, logsRes] = await Promise.all([
         safeFetch('/api/outsourcing/jobs'),
-        safeFetch('/api/outsourcing/users'),
+        safeFetch('/api/outsourcing/users', { forceRefresh: true }),
         safeFetch('/api/outsourcing/time-logs'),
       ]);
       setJobs(jobsRes?.data?.jobs || jobsRes?.data || []);
@@ -88,6 +89,7 @@ export default function ManagerOutsourcingPage() {
         priority: form.priority,
         dueDate: form.dueDate,
         budgetAmount: Number(form.budgetAmount) || 0,
+        assignedFreelancerId: form.assignedFreelancer || undefined,
       }, token);
       toast?.success?.('Job created successfully');
       setForm(emptyJob);
@@ -111,6 +113,16 @@ export default function ManagerOutsourcingPage() {
     }
   };
 
+  const handleVerifyTimeLog = async (logId, status) => {
+    try {
+      await apiClient.put(`/api/outsourcing/time-logs/${logId}/verify`, { status }, token);
+      toast?.success?.(status === 'approved' ? 'Time log approved' : 'Time log rejected');
+      loadData();
+    } catch (err) {
+      toast?.error?.(err?.message || 'Failed to review time log');
+    }
+  };
+
   const stats = {
     total: jobs.length,
     inProgress: jobs.filter(j => j.status === 'in_progress').length,
@@ -123,8 +135,8 @@ export default function ManagerOutsourcingPage() {
       {/* Header */}
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Outsourcing Management</h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">Assign work to freelancers and track progress</p>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{coordinatorLabel} Outsourcing</h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Assign freelancer work and track your assignments</p>
         </div>
         {tab === 0 && (
           <button
@@ -223,6 +235,22 @@ export default function ManagerOutsourcingPage() {
                 </div>
               </div>
               <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Freelancer</label>
+                <select
+                  className="w-full rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  value={form.assignedFreelancer}
+                  onChange={e => setForm(f => ({ ...f, assignedFreelancer: e.target.value }))}
+                >
+                  <option value="">Create unassigned</option>
+                  {freelancers.length === 0 && <option value="" disabled>No freelancers available</option>}
+                  {freelancers.map(f => (
+                    <option key={f._id} value={f.user?._id || f._id}>
+                      {f.user?.firstName || f.firstName} {f.user?.lastName || f.lastName} ({f.user?.email || f.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Due Date *</label>
                 <input
                   type="date"
@@ -292,9 +320,10 @@ export default function ManagerOutsourcingPage() {
                           className="rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-xs focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
                         >
                           <option value="" disabled>Assign Freelancer</option>
+                          {freelancers.length === 0 && <option value="" disabled>No freelancers available</option>}
                           {freelancers.map(f => (
-                            <option key={f._id} value={f._id}>
-                              {f.user?.firstName || f.firstName} {f.user?.lastName || f.lastName}
+                            <option key={f._id} value={f.user?._id || f._id}>
+                              {f.user?.firstName || f.firstName} {f.user?.lastName || f.lastName} ({f.user?.email || f.email})
                             </option>
                           ))}
                         </select>
@@ -379,6 +408,7 @@ export default function ManagerOutsourcingPage() {
                       <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hours</th>
                       <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Date</th>
                       <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Status</th>
+                      <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -390,14 +420,22 @@ export default function ManagerOutsourcingPage() {
                         <td className="p-3 text-neutral-700 dark:text-neutral-300">{log.job?.title || '—'}</td>
                         <td className="p-3 font-medium text-neutral-900 dark:text-neutral-100">{log.hours ?? '—'}h</td>
                         <td className="p-3 text-neutral-500 dark:text-neutral-400">
-                          {log.date ? new Date(log.date).toLocaleDateString('en-IN') : '—'}
+                          {log.logDate ? new Date(log.logDate).toLocaleDateString('en-IN') : '—'}
                         </td>
                         <td className="p-3">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            log.verified ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                            log.verificationStatus === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : log.verificationStatus === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                           }`}>
-                            {log.verified ? 'Verified' : 'Pending'}
+                            {log.verificationStatus || 'pending'}
                           </span>
+                        </td>
+                        <td className="p-3">
+                          {(log.verificationStatus || 'pending') === 'pending' && (
+                            <div className="flex gap-2">
+                              <button onClick={() => handleVerifyTimeLog(log._id, 'approved')} className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700">Approve</button>
+                              <button onClick={() => handleVerifyTimeLog(log._id, 'rejected')} className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/30">Reject</button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
 import Button from '../common/Button';
@@ -11,7 +11,7 @@ const initUser = {
   firstName: '',
   lastName: '',
   phone: '',
-  role: 'employee',
+  role: 'freelancer',
   department: 'Outsourcing',
   outsourcingType: 'freelancer'
 };
@@ -28,7 +28,7 @@ const useOutsourcingAdminData = () => {
   const [timeLogs, setTimeLogs] = useState([]);
   const [freelancers, setFreelancers] = useState([]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -49,11 +49,11 @@ const useOutsourcingAdminData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (token) loadData();
-  }, [token]);
+  }, [token, loadData]);
 
   return { token, user, loading, error, setError, dashboard, jobs, contracts, timeLogs, freelancers, loadData };
 };
@@ -243,7 +243,7 @@ export const AdminOutsourcingFreelancersPage = () => {
             <div>
               <label className="mb-1 block text-xs text-neutral-500">Role</label>
               <select className="w-full rounded border p-2" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>
-                <option value="employee">Employee</option>
+                <option value="freelancer">Freelancer</option>
               </select>
             </div>
             <div>
@@ -338,7 +338,7 @@ export const AdminOutsourcingJobsPage = () => {
 };
 
 export const AdminOutsourcingContractsPage = () => {
-  const { token, user, loading, error, setError, jobs, freelancers, contracts, loadData } = useOutsourcingAdminData();
+  const { token, user, loading, error, setError, jobs, contracts, loadData } = useOutsourcingAdminData();
   const [newContract, setNewContract] = useState(initContract);
   const pendingAcceptedJobs = useMemo(
     () => jobs.filter((j) => j.acceptanceStatus === 'accepted' && !contracts.some((c) => String(c?.job?._id || c?.job) === String(j._id))),

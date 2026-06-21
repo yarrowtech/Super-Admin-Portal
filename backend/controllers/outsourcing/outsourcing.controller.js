@@ -28,6 +28,10 @@ const PAYMENT_TYPES = ['hourly', 'daily', 'weekly', 'fixed'];
 const JOB_STATUSES = ['pending', 'accepted', 'in_progress', 'completed', 'rejected'];
 
 const isAdmin = (user) => user?.role === ADMIN_ROLE;
+const isOutsourcingCoordinator = (user) => [ROLES.HR, ROLES.MANAGER].includes(user?.role);
+
+const canManageJob = (user, job) =>
+  isAdmin(user) || (isOutsourcingCoordinator(user) && String(job?.createdBy) === String(user?._id));
 
 const normalizeNumber = (value, fallback = 0) => {
   const n = Number(value);
@@ -45,7 +49,7 @@ const normalizeOutsourcingType = (value) => {
 
 const isWorkerUser = (userDoc) => {
   const normalizedType = normalizeOutsourcingType(userDoc?.metadata?.outsourcingType);
-  return normalizedType === 'third_party_worker' || normalizedType === 'freelancer';
+  return userDoc?.role === ROLES.FREELANCER || normalizedType === 'third_party_worker' || normalizedType === 'freelancer';
 };
 
 const generateFreelancerId = () => {
@@ -207,11 +211,37 @@ const createOutsourcingUser = async (req, res) => {
 
 const listFreelancers = async (req, res) => {
   try {
-    const rows = await OutsourcingFreelancer.find()
-      .populate('user', 'firstName lastName email phone isActive metadata')
-      .populate('assignedProjects', 'title status dueDate')
-      .populate('contract', 'status lawStatus ndaSigned agreementSigned paymentTermsAccepted')
-      .sort({ createdAt: -1 });
+    const [users, profiles] = await Promise.all([
+      User.find({
+        $or: [
+          { role: ROLES.FREELANCER },
+          { 'metadata.outsourcingType': { $in: ['freelancer', 'freelaner', 'third_party_worker', '3rd_party_worker', 'thirdpartyworker'] } }
+        ]
+      })
+        .select('firstName lastName email phone role department isActive metadata')
+        .sort({ createdAt: -1 }),
+      OutsourcingFreelancer.find()
+        .populate('assignedProjects', 'title status dueDate')
+        .populate('contract', 'status lawStatus ndaSigned agreementSigned paymentTermsAccepted')
+    ]);
+
+    const profileByUser = new Map(profiles.map((profile) => [String(profile.user), profile]));
+    const rows = users.map((user) => {
+      const userData = user.toObject();
+      const profile = profileByUser.get(String(user._id));
+      return {
+        ...userData,
+        user: userData,
+        freelancerEntityId: profile?._id || null,
+        freelancerId: profile?.freelancerId || '',
+        skills: profile?.skills || [],
+        domain: profile?.domain || '',
+        assignedProjects: profile?.assignedProjects || [],
+        contract: profile?.contract || null,
+        status: profile?.status || (user.isActive ? 'active' : 'blocked'),
+        lawValidated: Boolean(profile?.lawValidated)
+      };
+    });
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {
     logger.error({ err: error }, 'List freelancers error');
@@ -245,6 +275,21 @@ const createJob = async (req, res) => {
       budgetAmount: normalizeNumber(budgetAmount),
       createdBy: req.user._id
     });
+    if (freelancer) {
+      await OutsourcingFreelancer.findOneAndUpdate(
+        { user: freelancer._id },
+        { $addToSet: { assignedProjects: job._id } }
+      );
+      await Notification.create({
+        manager: freelancer._id,
+        managerDepartment: freelancer.department || 'Outsourcing',
+        department: 'Outsourcing',
+        title: 'New Task Assigned',
+        message: `You have a new outsourcing task: "${job.title}"`,
+        type: 'outsourcing_job_assigned',
+        metadata: { jobId: job._id, freelancerId: freelancer._id }
+      });
+    }
     await writeOutsourcingActivity(req, 'outsourcing.job_created', job._id, {
       assignedFreelancerId: freelancer?._id || null,
       priority: job.priority
@@ -269,10 +314,14 @@ const assignJobToFreelancer = async (req, res) => {
     }
     const job = await OutsourcingJob.findById(req.params.id);
     if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (!canManageJob(req.user, job)) {
+      return res.status(403).json({ success: false, error: 'You can only assign jobs created by you' });
+    }
     if (job.status === 'completed') {
       return res.status(400).json({ success: false, error: 'Completed job cannot be reassigned' });
     }
 
+    const previousFreelancerId = job.assignedFreelancer;
     job.assignedFreelancer = freelancer._id;
     job.acceptanceStatus = 'pending';
     if (job.status === 'accepted') job.status = 'pending';
@@ -280,6 +329,16 @@ const assignJobToFreelancer = async (req, res) => {
     job.rejectedAt = null;
     job.rejectedBy = null;
     await job.save();
+    if (previousFreelancerId && String(previousFreelancerId) !== String(freelancer._id)) {
+      await OutsourcingFreelancer.findOneAndUpdate(
+        { user: previousFreelancerId },
+        { $pull: { assignedProjects: job._id } }
+      );
+    }
+    await OutsourcingFreelancer.findOneAndUpdate(
+      { user: freelancer._id },
+      { $addToSet: { assignedProjects: job._id } }
+    );
     await writeOutsourcingActivity(req, 'outsourcing.job_assigned', job._id, {
       freelancerId: freelancer._id
     });
@@ -307,7 +366,9 @@ const listJobs = async (req, res) => {
 
     if (status && JOB_STATUSES.includes(status)) query.status = status;
 
-    if (!isAdmin(req.user)) {
+    if (isOutsourcingCoordinator(req.user)) {
+      query.createdBy = req.user._id;
+    } else if (!isAdmin(req.user)) {
       const me = await User.findById(req.user._id);
       if (isWorkerUser(me)) {
         // Strict isolation: worker can only view jobs assigned to self.
@@ -965,7 +1026,12 @@ const logTime = async (req, res) => {
 const listTimeLogs = async (req, res) => {
   try {
     const query = {};
-    if (!isAdmin(req.user)) query.freelancer = req.user._id;
+    if (isOutsourcingCoordinator(req.user)) {
+      const managedJobIds = await OutsourcingJob.find({ createdBy: req.user._id }).distinct('_id');
+      query.job = { $in: managedJobIds };
+    } else if (!isAdmin(req.user)) {
+      query.freelancer = req.user._id;
+    }
     const rows = await OutsourcingTimeLog.find(query)
       .populate('contract', 'paymentType rate')
       .populate('job', 'title')
@@ -986,6 +1052,12 @@ const verifyTimeLog = async (req, res) => {
     }
     const row = await OutsourcingTimeLog.findById(req.params.id);
     if (!row) return res.status(404).json({ success: false, error: 'Time log not found' });
+    if (isOutsourcingCoordinator(req.user)) {
+      const managedJob = await OutsourcingJob.exists({ _id: row.job, createdBy: req.user._id });
+      if (!managedJob) {
+        return res.status(403).json({ success: false, error: 'You can only verify logs for jobs created by you' });
+      }
+    }
 
     row.verificationStatus = status;
     row.verifiedBy = req.user._id;

@@ -116,12 +116,12 @@ const NotificationPanel = ({ notifications = [] }) => {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
         aria-label="Notifications"
       >
-        <span className="material-symbols-outlined text-[20px]">notifications</span>
+        <span className="material-symbols-outlined text-[22px]">notifications</span>
         {unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+          <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-neutral-900">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -261,8 +261,8 @@ const TaskProgressGraph = ({ jobs = [], logs = [] }) => {
 
   const maxHours = Math.max(...series.map((s) => s.hours), 1);
   const W = 600;
-  const H = 180;
-  const pad = { t: 16, r: 16, b: 36, l: 36 };
+  const H = 220;
+  const pad = { t: 20, r: 20, b: 42, l: 44 };
   const cW = W - pad.l - pad.r;
   const cH = H - pad.t - pad.b;
   const pts = series.map((s, i) => {
@@ -270,8 +270,23 @@ const TaskProgressGraph = ({ jobs = [], logs = [] }) => {
     const y = pad.t + cH - (s.hours / maxHours) * cH;
     return { x, y, ...s };
   });
-  const polyline = pts.map((p) => `${p.x},${p.y}`).join(' ');
-  const area = `M ${pts[0]?.x ?? 0} ${H - pad.b} ${pts.map((p) => `L ${p.x} ${p.y}`).join(' ')} L ${pts[pts.length - 1]?.x ?? 0} ${H - pad.b} Z`;
+
+  const smoothPath = (points) => {
+    if (points.length < 2) return '';
+    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let i = 1; i < points.length; i++) {
+      const p0 = points[i - 1];
+      const p1 = points[i];
+      const cpx = ((p0.x + p1.x) / 2).toFixed(1);
+      d += ` C ${cpx},${p0.y.toFixed(1)} ${cpx},${p1.y.toFixed(1)} ${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
+    }
+    return d;
+  };
+
+  const linePath = smoothPath(pts);
+  const areaPath = pts.length > 1
+    ? `${linePath} L ${pts[pts.length - 1].x} ${H - pad.b} L ${pts[0].x} ${H - pad.b} Z`
+    : '';
 
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -302,10 +317,10 @@ const TaskProgressGraph = ({ jobs = [], logs = [] }) => {
       )}
 
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 280, maxHeight: 200 }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 300, maxHeight: 240 }}>
           <defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.18" />
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.22" />
               <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
             </linearGradient>
           </defs>
@@ -314,22 +329,22 @@ const TaskProgressGraph = ({ jobs = [], logs = [] }) => {
             const y = pad.t + cH * (1 - t);
             return (
               <g key={t}>
-                <line x1={pad.l} y1={y} x2={W - pad.r} y2={y} stroke="currentColor" strokeOpacity="0.07" strokeWidth="1" />
-                <text x={pad.l - 4} y={y + 4} textAnchor="end" fontSize="9" fill="currentColor" opacity="0.4">
+                <line x1={pad.l} y1={y} x2={W - pad.r} y2={y} stroke="currentColor" strokeOpacity="0.06" strokeWidth="1" strokeDasharray={t > 0 ? '4 4' : '0'} />
+                <text x={pad.l - 6} y={y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.45">
                   {Math.round(maxHours * t)}h
                 </text>
               </g>
             );
           })}
           {/* Area fill */}
-          {pts.length > 1 && <path d={area} fill="url(#areaGrad)" />}
-          {/* Line */}
-          {pts.length > 1 && <polyline points={polyline} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+          {pts.length > 1 && <path d={areaPath} fill="url(#areaGrad)" />}
+          {/* Smooth bezier line */}
+          {pts.length > 1 && <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
           {/* Dots + labels */}
           {pts.map((p, i) => (
             <g key={i}>
-              <circle cx={p.x} cy={p.y} r="4" fill="#6366f1" stroke="white" strokeWidth="2" />
-              <text x={p.x} y={H - 8} textAnchor="middle" fontSize="9" fill="currentColor" opacity="0.5">{p.label}</text>
+              <circle cx={p.x} cy={p.y} r="5" fill="#6366f1" stroke="white" strokeWidth="2.5" />
+              <text x={p.x} y={H - 10} textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">{p.label}</text>
             </g>
           ))}
         </svg>
@@ -355,21 +370,54 @@ const TaskProgressGraph = ({ jobs = [], logs = [] }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Mini Donut Chart
+// ─────────────────────────────────────────────────────────────────────────────
+const MiniDonut = ({ pct = 0, color = '#6366f1', size = 64 }) => {
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = (size / 2) - 8;
+  const circ = 2 * Math.PI * r;
+  const filled = Math.max(0, Math.min(pct, 1)) * circ;
+  const label = `${Math.round(pct * 100)}%`;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeWidth="8" opacity="0.1" />
+      {pct > 0 && (
+        <circle
+          cx={cx} cy={cy} r={r} fill="none"
+          stroke={color} strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={`${filled} ${circ}`}
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+      )}
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill={color}>
+        {label}
+      </text>
+    </svg>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Stat Box
 // ─────────────────────────────────────────────────────────────────────────────
-const StatBox = ({ label, value, display, icon, accent = 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200', loading }) => (
-  <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-    <div className="flex items-center justify-between">
+const StatBox = ({ label, value, display, icon, accent = '#6366f1', pct = 0, loading }) => (
+  <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="mb-3 flex items-center gap-2">
+      <span className="material-symbols-outlined text-[18px]" style={{ color: accent }}>{icon}</span>
       <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{label}</p>
-      <span className={`material-symbols-outlined rounded-xl p-2 text-base ${accent}`}>{icon}</span>
     </div>
-    {loading ? (
-      <div className="h-8 w-24 animate-pulse rounded-lg bg-neutral-200 dark:bg-neutral-800" />
-    ) : (
-      <p className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
-        {display ?? String(value < 10 ? `0${value}` : value)}
-      </p>
-    )}
+    <div className="flex items-end justify-between gap-2">
+      <div>
+        {loading ? (
+          <div className="h-9 w-20 animate-pulse rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+        ) : (
+          <p className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white">
+            {display ?? String(value < 10 ? `0${value}` : value)}
+          </p>
+        )}
+      </div>
+      {!loading && <MiniDonut pct={pct} color={accent} />}
+    </div>
   </div>
 );
 
@@ -416,24 +464,29 @@ export default function FreelancerDashboard({ token, user }) {
   // 4 stat values
   const inProgress = useMemo(() => myJobs.filter((j) => j.status === 'in_progress').length, [myJobs]);
   const upcoming = useMemo(() => myJobs.filter((j) => j.status === 'pending' || j.status === 'accepted').length, [myJobs]);
+  const completedProjects = useMemo(() => myJobs.filter((j) => j.status === 'completed').length, [myJobs]);
   const totalProjects = myJobs.length;
 
-  const monthlyRevenue = useMemo(() => {
+  const calcRevenue = useCallback((filterFn) => {
     const byContract = new Map(contracts.map((c) => [String(c._id), c]));
+    return logs.filter(filterFn).reduce((sum, l) => {
+      const c = byContract.get(String(l?.contract?._id || l?.contract));
+      if (!c) return sum;
+      const rate = Number(c.rate || 0);
+      if (c.paymentType === 'hourly') return sum + Number(l.hours || 0) * rate;
+      if (c.paymentType === 'daily') return sum + (Number(l.hours || 0) / 8) * rate;
+      if (c.paymentType === 'weekly') return sum + (Number(l.hours || 0) / 40) * rate;
+      return sum + rate;
+    }, 0);
+  }, [logs, contracts]);
+
+  const monthlyRevenue = useMemo(() => {
     const now = new Date();
     const yyyyMM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    return logs
-      .filter((l) => l.verificationStatus === 'approved' && (l.logDate || '').startsWith(yyyyMM))
-      .reduce((sum, l) => {
-        const c = byContract.get(String(l?.contract?._id || l?.contract));
-        if (!c) return sum;
-        const rate = Number(c.rate || 0);
-        if (c.paymentType === 'hourly') return sum + Number(l.hours || 0) * rate;
-        if (c.paymentType === 'daily') return sum + (Number(l.hours || 0) / 8) * rate;
-        if (c.paymentType === 'weekly') return sum + (Number(l.hours || 0) / 40) * rate;
-        return sum + rate;
-      }, 0);
-  }, [logs, contracts]);
+    return calcRevenue((l) => l.verificationStatus === 'approved' && (l.logDate || '').startsWith(yyyyMM));
+  }, [calcRevenue]);
+
+  const totalRevenue = useMemo(() => calcRevenue((l) => l.verificationStatus === 'approved'), [calcRevenue]);
 
   // Synthetic notifications when API returns empty
   const notifications = useMemo(() => {
@@ -476,15 +529,37 @@ export default function FreelancerDashboard({ token, user }) {
 
         {/* 4 Stat Boxes */}
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          <StatBox label="In Progress" value={inProgress} icon="pending" accent="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" loading={loading} />
-          <StatBox label="Upcoming" value={upcoming} icon="upcoming" accent="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" loading={loading} />
-          <StatBox label="Total Projects" value={totalProjects} icon="folder_open" accent="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" loading={loading} />
+          <StatBox
+            label="In Progress"
+            value={inProgress}
+            icon="pending"
+            accent="#3b82f6"
+            pct={totalProjects > 0 ? inProgress / totalProjects : 0}
+            loading={loading}
+          />
+          <StatBox
+            label="Upcoming"
+            value={upcoming}
+            icon="upcoming"
+            accent="#f59e0b"
+            pct={totalProjects > 0 ? upcoming / totalProjects : 0}
+            loading={loading}
+          />
+          <StatBox
+            label="Total Projects"
+            value={totalProjects}
+            icon="folder_open"
+            accent="#8b5cf6"
+            pct={totalProjects > 0 ? completedProjects / totalProjects : 0}
+            loading={loading}
+          />
           <StatBox
             label="Monthly Revenue"
             value={monthlyRevenue}
             display={`₹${monthlyRevenue.toLocaleString('en-IN')}`}
             icon="currency_rupee"
-            accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+            accent="#10b981"
+            pct={totalRevenue > 0 ? Math.min(monthlyRevenue / totalRevenue, 1) : 0}
             loading={loading}
           />
         </div>

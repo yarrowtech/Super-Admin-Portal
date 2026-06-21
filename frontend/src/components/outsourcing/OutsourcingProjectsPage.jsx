@@ -114,40 +114,22 @@ export default function OutsourcingProjectsPage() {
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[28px] border border-neutral-200 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_34%),linear-gradient(135deg,_#ffffff_0%,_#f8fafc_60%,_#eef2ff_100%)] shadow-sm dark:border-neutral-800 dark:bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.22),_transparent_34%),linear-gradient(135deg,_#0a0f1c_0%,_#0f172a_60%,_#111827_100%)]">
-        <div className="flex flex-col gap-5 p-5 md:p-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 shadow-sm backdrop-blur dark:border-blue-900/60 dark:bg-slate-900/60 dark:text-blue-300">
-              <span className="material-symbols-outlined text-[16px]">workspaces</span>
-              Project Access Hub
-            </div>
-            <h1 className="mt-3 text-2xl font-black tracking-tight text-neutral-950 dark:text-white md:text-4xl">
-              Your project workspaces
-            </h1>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200 dark:bg-slate-900/60 dark:text-neutral-200 dark:ring-neutral-700">
-                {summary.total || projects.length || 0} projects
-              </span>
-              <span className="rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:text-emerald-300 dark:ring-emerald-900/60">
-                {accessibleCount} accessible
-              </span>
-              <span className="rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 dark:text-rose-300 dark:ring-rose-900/60">
-                {blockedCount} blocked
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={load}
-              className="inline-flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-slate-900 dark:text-neutral-100 dark:hover:bg-slate-800"
-            >
-              <span className="material-symbols-outlined text-[18px]">refresh</span>
-              Refresh
-            </button>
-          </div>
-        </div>
-      </section>
+      <OutsourcingPageHeader
+        title="Projects"
+        subtitle="Your linked project workspaces and access hub"
+        icon="workspaces"
+        accent="#3b82f6"
+        action={
+          <button
+            type="button"
+            onClick={load}
+            className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          >
+            <span className="material-symbols-outlined text-[18px]">refresh</span>
+            Refresh
+          </button>
+        }
+      />
 
       {error ? <OutsourcingErrorState message={error} onRetry={load} /> : null}
 

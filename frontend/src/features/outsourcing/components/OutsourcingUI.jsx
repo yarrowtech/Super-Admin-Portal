@@ -23,14 +23,22 @@ export const OutsourcingBadge = memo(({ value }) => (
   </span>
 ));
 
-export const OutsourcingPageHeader = memo(({ title, subtitle, right }) => (
-  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h1 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white lg:text-2xl">{title}</h1>
-      {subtitle ? <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p> : null}
+export const OutsourcingPageHeader = memo(({ title, subtitle, icon = 'dashboard', accent = '#6366f1', right, action }) => (
+  <header className="mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+    <div className="h-1 w-full" style={{ background: accent }} />
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: accent }}>
+          <span className="material-symbols-outlined text-[20px] text-white">{icon}</span>
+        </div>
+        <div>
+          <h1 className="text-[17px] font-black leading-tight text-neutral-900 dark:text-neutral-100">{title}</h1>
+          {subtitle && <p className="text-[12px] text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
+        </div>
+      </div>
+      {(right || action) && <div className="shrink-0">{right || action}</div>}
     </div>
-    <div className="w-full sm:w-auto">{right}</div>
-  </div>
+  </header>
 ));
 
 export const OutsourcingEmptyState = memo(({ title, subtitle }) => (

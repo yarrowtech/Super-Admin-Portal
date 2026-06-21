@@ -50,6 +50,24 @@ const PageHdr = ({ title, subtitle, action }) => (
   </div>
 );
 
+const OutsourcingPageHdr = ({ title, subtitle, icon = 'dashboard', accent = '#6366f1', action }) => (
+  <header className="mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+    <div className="h-1 w-full" style={{ background: accent }} />
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: accent }}>
+          <span className="material-symbols-outlined text-[20px] text-white">{icon}</span>
+        </div>
+        <div>
+          <h1 className="text-[17px] font-black leading-tight text-neutral-900 dark:text-neutral-100">{title}</h1>
+          {subtitle && <p className="text-[12px] text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
+        </div>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  </header>
+);
+
 const SectionHdr = ({ title, action }) => (
   <div className="mb-3 flex items-center justify-between gap-3">
     <h3 className="text-base font-semibold text-neutral-900 dark:text-white">{title}</h3>
@@ -173,7 +191,7 @@ export const OutsourcingDashboardPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr title="Outsourcing Dashboard" subtitle="Jobs, contracts, and work logs overview" />
+      <OutsourcingPageHdr title="Outsourcing Dashboard" subtitle="Jobs, contracts, and work logs overview" icon="dashboard" accent="#6366f1" />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {kpis.map((k) => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} accentIcon={k.accent} loading={loading} />)}
       </div>
@@ -256,9 +274,22 @@ export const OutsourcingJobsPage = () => {
     [contracts]
   );
 
+  const jobRateMap = useMemo(() => {
+    const map = new Map();
+    contracts.forEach((c) => {
+      const jId = String(c?.job?._id || c?.job || '');
+      if (jId) map.set(jId, { rate: Number(c.rate || 0), paymentType: c.paymentType || 'fixed' });
+    });
+    return map;
+  }, [contracts]);
+
   const filtered = useMemo(() => {
+    const n = new Date();
     let r = rows;
-    if (statusFilter !== 'all') r = r.filter((x) => x.status === statusFilter);
+    if (statusFilter === 'working')   r = r.filter((x) => x.status === 'in_progress');
+    else if (statusFilter === 'submitted') r = r.filter((x) => x.status === 'completed');
+    else if (statusFilter === 'following') r = r.filter((x) => x.acceptanceStatus === 'accepted' && x.status !== 'in_progress' && x.status !== 'completed');
+    else if (statusFilter === 'overdue')   r = r.filter((x) => x.status === 'rejected' || (x.dueDate && new Date(x.dueDate) < n && x.status !== 'completed'));
     const q = query.trim().toLowerCase();
     if (q) r = r.filter((x) => `${x.title} ${x.description || ''}`.toLowerCase().includes(q));
     return r;
@@ -271,91 +302,168 @@ export const OutsourcingJobsPage = () => {
     try { setBusyId(id); await outsourcingApi.updateJobStatus(token, id, s); await load({ silent: true }); } catch (e) { setError(e.message); } finally { setBusyId(''); }
   };
 
-  const statusCounts = useMemo(() => ({
-    all: rows.length,
-    pending: rows.filter((r) => r.status === 'pending').length,
-    in_progress: rows.filter((r) => r.status === 'in_progress').length,
-    completed: rows.filter((r) => r.status === 'completed').length,
-  }), [rows]);
+  const tabCounts = useMemo(() => {
+    const n = new Date();
+    return {
+      all: rows.length,
+      working:   rows.filter((r) => r.status === 'in_progress').length,
+      submitted: rows.filter((r) => r.status === 'completed').length,
+      following: rows.filter((r) => r.acceptanceStatus === 'accepted' && r.status !== 'in_progress' && r.status !== 'completed').length,
+      overdue:   rows.filter((r) => r.status === 'rejected' || (r.dueDate && new Date(r.dueDate) < n && r.status !== 'completed')).length,
+    };
+  }, [rows]);
+
+  const idNum = (id) => { let h = 0; const s = String(id || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffff; return (h % 14) + 2; };
+
+  const tabs = [
+    { key: 'overdue', label: 'Overdue' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'following', label: 'Following' },
+    { key: 'working', label: 'Working' },
+    { key: 'all', label: 'All' },
+  ];
 
   return (
-    <div className="space-y-5">
-      <PageHdr
-        title="Jobs"
-        subtitle="View, accept, and track job assignments"
-        action={<Inp className="w-64" placeholder="Search jobs…" value={query} onChange={(e) => setQuery(e.target.value)} />}
-      />
+    <div className="space-y-4">
+      <OutsourcingPageHdr title="Jobs" subtitle="View, accept, and track job assignments" icon="work" accent="#3b82f6" />
       {error && <ErrorBanner message={error} onRetry={load} />}
 
-      {/* Status filter tabs */}
-      <div className="flex flex-wrap gap-2">
-        {Object.entries({ all: 'All', pending: 'Pending', in_progress: 'In Progress', completed: 'Completed' }).map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setStatusFilter(k)}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${statusFilter === k ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'}`}
-          >
-            {label}
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${statusFilter === k ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black' : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'}`}>
-              {statusCounts[k]}
+      {/* Tab bar + controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {tabs.map((t) => {
+            const active = statusFilter === t.key;
+            const count = tabCounts[t.key] ?? 0;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setStatusFilter(t.key)}
+                className={`flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                  active
+                    ? 'border-indigo-500 text-neutral-900 dark:border-indigo-400 dark:text-white'
+                    : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-neutral-600'
+                }`}
+              >
+                <span className={`text-xs font-bold tabular-nums ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-neutral-400 dark:text-neutral-500'}`}>{count}</span>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+              <span className="material-symbols-outlined text-[18px] text-neutral-400">search</span>
             </span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search jobs…"
+              className="h-9 w-44 rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+            />
+          </div>
+          <button className="flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <span className="material-symbols-outlined text-[18px]">swap_vert</span>
+            Sort
           </button>
-        ))}
+          <button className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900">
+            <span className="material-symbols-outlined text-[18px]">tune</span>
+          </button>
+        </div>
       </div>
 
-      {loading ? <Skeleton rows={5} /> : (
-        filtered.length === 0 ? (
-          <Card><Inner><EmptyState icon="work" title="No jobs found" subtitle="Try adjusting your filters." /></Inner></Card>
-        ) : (
-          <div className="space-y-3">
+      {/* Table */}
+      {loading ? <Skeleton rows={5} /> : filtered.length === 0 ? (
+        <Card><Inner><EmptyState icon="work" title="No jobs found" subtitle="Try adjusting your filters." /></Inner></Card>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+          {/* Column headers */}
+          <div className="grid items-center border-b border-neutral-100 px-5 py-3 dark:border-neutral-800" style={{ gridTemplateColumns: '1fr 140px 260px' }}>
+            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Client</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Price</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Status</span>
+          </div>
+
+          {/* Rows */}
+          <div className="divide-y divide-neutral-50 dark:divide-neutral-900">
             {filtered.map((r) => {
+              const contract = jobRateMap.get(String(r._id));
               const hasContract = activeContractJobIds.has(String(r._id));
               const isAssigned = r?.assignedFreelancer?._id === user?._id;
               const canAccept = user?.role !== 'admin' && r.acceptanceStatus !== 'accepted' && (!r?.assignedFreelancer || isAssigned);
               const canUpdate = user?.role !== 'admin' && isAssigned && r.acceptanceStatus === 'accepted';
+
+              const statusLabel = r.status === 'in_progress' ? 'Working' : r.status === 'completed' ? 'Submitted' : r.status === 'rejected' ? 'Overdue' : r.status.replace(/_/g, ' ');
+              const statusColor = r.status === 'in_progress' ? 'text-indigo-600 dark:text-indigo-400' : r.status === 'completed' ? 'text-amber-600 dark:text-amber-400' : r.status === 'rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-neutral-500 dark:text-neutral-400';
+
               return (
-                <Card key={r._id}>
-                  <Inner>
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-semibold text-neutral-900 dark:text-white">{r.title}</h3>
-                          <Pill value={r.status} />
-                          <Pill value={r.acceptanceStatus || 'pending'} />
-                        </div>
-                        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{r.description || 'No description provided.'}</p>
-                        <div className="mt-2 flex flex-wrap gap-4 text-xs text-neutral-400 dark:text-neutral-500">
-                          <span><span className="font-medium text-neutral-600 dark:text-neutral-300">Created by:</span> {r?.createdBy?.email || 'Admin'}</span>
-                          <span><span className="font-medium text-neutral-600 dark:text-neutral-300">Assigned:</span> {r?.assignedFreelancer?.email || 'Unassigned'}</span>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
+                <div key={r._id} className="grid items-start px-5 py-4 transition hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40" style={{ gridTemplateColumns: '1fr 140px 260px' }}>
+                  {/* Client / title */}
+                  <div className="min-w-0 pr-4">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-neutral-900 dark:text-white">{r.title}</p>
+                      <span className="flex items-center gap-0.5 text-xs text-neutral-400 dark:text-neutral-500">
+                        <span className="material-symbols-outlined text-[14px]">chat_bubble_outline</span>
+                        {idNum(r._id)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-neutral-400 dark:text-neutral-500">
+                      {r.description || `Assigned by ${r?.createdBy?.email || 'Admin'}`}
+                    </p>
+                    {(canAccept || canUpdate) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {canAccept && (
-                          <BtnPrimary onClick={() => doAccept(r._id)} disabled={busyId === r._id} className="text-xs py-2 px-3">
-                            {busyId === r._id ? 'Accepting…' : 'Accept Job'}
-                          </BtnPrimary>
+                          <button onClick={() => doAccept(r._id)} disabled={busyId === r._id} className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600">
+                            {busyId === r._id ? 'Accepting…' : 'Accept'}
+                          </button>
                         )}
-                        {canUpdate && !hasContract && (
-                          <span className="self-center text-xs text-amber-600 dark:text-amber-400">Waiting for contract</span>
-                        )}
+                        {canUpdate && !hasContract && <span className="text-[11px] text-amber-600 dark:text-amber-400">Awaiting contract</span>}
                         {canUpdate && hasContract && r.status !== 'in_progress' && r.status !== 'completed' && (
-                          <BtnPrimary onClick={() => doStatus(r._id, 'in_progress')} disabled={busyId === r._id} className="bg-blue-600 hover:bg-blue-700 text-xs py-2 px-3 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-700">
+                          <button onClick={() => doStatus(r._id, 'in_progress')} disabled={busyId === r._id} className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
                             Start Work
-                          </BtnPrimary>
+                          </button>
                         )}
                         {canUpdate && hasContract && r.status !== 'completed' && (
-                          <BtnSecondary onClick={() => doStatus(r._id, 'completed')} disabled={busyId === r._id} className="text-xs py-2 px-3">
+                          <button onClick={() => doStatus(r._id, 'completed')} disabled={busyId === r._id} className="rounded-lg border border-neutral-200 px-2.5 py-1 text-[11px] font-semibold text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300">
                             {busyId === r._id ? 'Updating…' : 'Mark Done'}
-                          </BtnSecondary>
+                          </button>
                         )}
                       </div>
-                    </div>
-                  </Inner>
-                </Card>
+                    )}
+                  </div>
+
+                  {/* Price */}
+                  <div className="pt-0.5">
+                    {contract?.rate ? (
+                      <p className="flex items-center gap-1 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                        <span className="text-neutral-400">₹</span>
+                        {contract.rate.toLocaleString('en-IN')}
+                      </p>
+                    ) : (
+                      <span className="text-sm text-neutral-300 dark:text-neutral-600">—</span>
+                    )}
+                  </div>
+
+                  {/* Status pills */}
+                  <div className="flex flex-wrap items-start gap-1.5 pt-0.5">
+                    {r.acceptanceStatus && r.acceptanceStatus !== 'pending' && (
+                      <span className="rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs font-medium capitalize text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+                        {r.acceptanceStatus.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    {contract?.paymentType && (
+                      <span className="rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs font-medium capitalize text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+                        {contract.paymentType}
+                      </span>
+                    )}
+                    <span className={`text-xs font-semibold capitalize ${statusColor}`}>{statusLabel}</span>
+                  </div>
+                </div>
               );
             })}
           </div>
-        )
+        </div>
       )}
     </div>
   );
@@ -382,7 +490,7 @@ export const OutsourcingContractsPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr title="Contracts" subtitle="Payment terms, rates, and resource assignments" />
+      <OutsourcingPageHdr title="Contracts" subtitle="Payment terms, rates, and resource assignments" icon="contract" accent="#10b981" />
       {error && <ErrorBanner message={error} />}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard icon="contract" label="Total" value={rows.length} loading={loading} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
@@ -479,9 +587,11 @@ export const OutsourcingTimeLogsPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr
+      <OutsourcingPageHdr
         title="Time Logs"
         subtitle="Submit, review, and verify work effort records"
+        icon="schedule"
+        accent="#8b5cf6"
         action={isWorker && <BtnPrimary onClick={() => setShowForm((v) => !v)}>{showForm ? 'Cancel' : 'Log Time'}</BtnPrimary>}
       />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
@@ -685,6 +795,7 @@ export const OutsourcingProfilePage = () => {
 
   return (
     <div className="space-y-5">
+      <OutsourcingPageHdr title="Profile" subtitle="Your professional profile and payment details" icon="person" accent="#6366f1" action={<BtnPrimary onClick={() => setEditOpen(true)}><span className="flex items-center gap-2"><span className="material-symbols-outlined text-base">edit</span>Edit Profile</span></BtnPrimary>} />
       {/* Hero card */}
       <Card>
         <div className="h-28 rounded-t-2xl bg-linear-to-r from-violet-600 via-indigo-600 to-blue-500" />
@@ -705,9 +816,6 @@ export const OutsourcingProfilePage = () => {
                 )}
               </div>
             </div>
-            <BtnPrimary onClick={() => setEditOpen(true)} className="shrink-0">
-              <span className="flex items-center gap-2"><span className="material-symbols-outlined text-base">edit</span>Edit Profile</span>
-            </BtnPrimary>
           </div>
 
           {/* Completion bar */}
@@ -919,7 +1027,7 @@ export const OutsourcingPaymentsPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr title="Payments" subtitle="Earnings, transactions, and payment methods" />
+      <OutsourcingPageHdr title="Payments" subtitle="Earnings, transactions, and payment methods" icon="payments" accent="#10b981" />
       {error && <ErrorBanner message={error} />}
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
@@ -1063,9 +1171,11 @@ export const OutsourcingNotificationsPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr
+      <OutsourcingPageHdr
         title="Notifications"
         subtitle="Project, contract, and work activity alerts"
+        icon="notifications"
+        accent="#3b82f6"
         action={unread > 0 && <BtnSecondary onClick={markAll} className="text-xs py-2 px-3">Mark all read ({unread})</BtnSecondary>}
       />
 
@@ -1139,7 +1249,7 @@ export const OutsourcingActivityPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr title="Activity" subtitle="Session, job, and work log timeline" />
+      <OutsourcingPageHdr title="Activity" subtitle="Session, job, and work log timeline" icon="timeline" accent="#f59e0b" />
       {analytics && (
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           <StatCard icon="handshake" label="Active Contracts" value={analytics?.contracts?.active || 0} loading={loading} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
@@ -1223,7 +1333,7 @@ export const OutsourcingInvoicesPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr title="Invoices" subtitle="Generate and review invoices for approved work" />
+      <OutsourcingPageHdr title="Invoices" subtitle="Generate and review invoices for approved work" icon="receipt_long" accent="#6366f1" />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard icon="receipt_long" label="Total Invoices" value={invoices.length} loading={loading} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
         <StatCard icon="paid" label="Paid" value={invoices.filter((i) => i.status === 'paid').length} loading={loading} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
@@ -1337,7 +1447,7 @@ export const OutsourcingSettingsPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr title="Settings" subtitle="Manage your account preferences and security" />
+      <OutsourcingPageHdr title="Settings" subtitle="Manage your account preferences and security" icon="settings" accent="#64748b" />
       <div className="flex flex-col gap-5 xl:flex-row">
         {/* Sidebar nav */}
         <aside className="shrink-0 xl:w-52">
@@ -1500,7 +1610,7 @@ export const OutsourcingSupportPage = () => {
 
   return (
     <div className="space-y-5">
-      <PageHdr title="Support" subtitle="Get help, report issues, and find answers" />
+      <OutsourcingPageHdr title="Support" subtitle="Get help, report issues, and find answers" icon="support_agent" accent="#06b6d4" />
 
       <div className="flex flex-wrap gap-2">
         {[{ key: 'ticket', label: 'Open a Ticket' }, { key: 'my', label: 'My Tickets' }, { key: 'faq', label: 'FAQ' }].map((t) => (

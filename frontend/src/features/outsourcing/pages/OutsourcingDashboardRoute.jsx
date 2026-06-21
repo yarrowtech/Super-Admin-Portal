@@ -51,7 +51,7 @@ export default function OutsourcingDashboardRoute() {
 
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-4">
-      <OutsourcingPageHeader title="Outsourcing Dashboard" subtitle="" />
+      <OutsourcingPageHeader title="Outsourcing Dashboard" subtitle="Jobs, contracts, and work logs overview" icon="dashboard" accent="#6366f1" />
       {error ? <OutsourcingErrorState message={error.message || 'Failed to load outsourcing dashboard'} /> : null}
       <KpiGrid items={kpis} loading={loading} />
       <OutsourcingCard className="min-h-[180px]">

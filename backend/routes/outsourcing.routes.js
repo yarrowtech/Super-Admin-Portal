@@ -84,7 +84,15 @@ router.get('/contracts/:contractId/history', outsourcingController.getContractHi
 router.put('/contracts/:contractId/terms', outsourcingController.updateContractTerms);
 router.put('/contracts/:contractId/law-validate', authorize(ROLES.ADMIN, ROLES.LAW), outsourcingController.validateContractByLaw);
 router.post('/time-logs', outsourcingTimeLogValidation, validate, outsourcingController.logTime);
+router.put('/time-logs/:id', outsourcingController.updateMyTimeLog);
 router.get('/time-logs', outsourcingController.listTimeLogs);
+
+// Support tickets — freelancer
+router.post('/support/tickets', outsourcingController.createSupportTicket);
+router.get('/support/tickets', outsourcingController.getMyTickets);
+
+// Preferences (notifications + privacy)
+router.put('/preferences', outsourcingController.updateMyPreferences);
 
 // HR/Manager can view dashboard, freelancer list, create/assign jobs, manage milestones
 router.get('/dashboard', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.outsourcingDashboard);
@@ -97,6 +105,10 @@ router.put('/milestones/:id/approve', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MAN
 
 // Law creates and validates contracts
 router.post('/contracts', authorize(ROLES.ADMIN, ROLES.LAW, ROLES.LEGAL_HEAD), outsourcingCreateContractValidation, validate, outsourcingController.createContract);
+
+// Admin/HR/Manager: all support tickets
+router.get('/support/tickets/all', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.getAllSupportTickets);
+router.put('/support/tickets/:id', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.updateSupportTicket);
 
 // Admin-only: user creation, payments, lifecycle, escrow
 router.post('/users', authorize(ROLES.ADMIN), outsourcingCreateUserValidation, validate, outsourcingController.createOutsourcingUser);

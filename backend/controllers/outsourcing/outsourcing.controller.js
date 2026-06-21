@@ -9,6 +9,7 @@ const OutsourcingPayment = require('../../models/outsourcing/OutsourcingPayment'
 const OutsourcingFreelancer = require('../../models/outsourcing/OutsourcingFreelancer');
 const OutsourcingMilestone = require('../../models/outsourcing/OutsourcingMilestone');
 const OutsourcingWorkSession = require('../../models/outsourcing/OutsourcingWorkSession');
+const OutsourcingSupportTicket = require('../../models/outsourcing/OutsourcingSupportTicket');
 const Notification = require('../../models/common/Notification');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const { buildProjectAccessSummary } = require('../../utils/projectAccess');
@@ -478,6 +479,7 @@ const acceptJob = async (req, res) => {
       metadata: { jobId: job._id, freelancerId: req.user._id, step: 'legal_agreement' }
     });
 
+    req.app.get('io')?.to('outsourcing:admins').emit('outsourcing:update', { type: 'job:accepted', data: { _id: job._id, freelancerId: req.user._id } });
     return res.status(200).json({ success: true, data: job });
   } catch (error) {
     logger.error({ err: error }, 'Accept outsourcing job error');
@@ -528,6 +530,7 @@ const rejectJob = async (req, res) => {
       metadata: { jobId: job._id, freelancerId: req.user._id, rejectionReason }
     });
 
+    req.app.get('io')?.to('outsourcing:admins').emit('outsourcing:update', { type: 'job:rejected', data: { _id: job._id, freelancerId: req.user._id } });
     return res.status(200).json({ success: true, data: job });
   } catch (error) {
     logger.error({ err: error }, 'Reject outsourcing job error');
@@ -1016,10 +1019,34 @@ const logTime = async (req, res) => {
       metadata: { timeLogId: timeLog._id, contractId: contract._id, jobId: contract.job }
     });
 
+    req.app.get('io')?.to('outsourcing:admins').emit('outsourcing:update', { type: 'timelog:new', data: { _id: timeLog._id, jobId: contract.job, freelancerId: req.user._id } });
+    req.app.get('io')?.to(`outsourcing:user:${req.user._id}`).emit('outsourcing:update', { type: 'timelog:new' });
     return res.status(201).json({ success: true, data: timeLog });
   } catch (error) {
     logger.error({ err: error }, 'Outsourcing time log error');
     return res.status(500).json({ success: false, error: 'Failed to log time', details: error.message });
+  }
+};
+
+const updateMyTimeLog = async (req, res) => {
+  try {
+    const log = await OutsourcingTimeLog.findOne({ _id: req.params.id, freelancer: req.user._id });
+    if (!log) return res.status(404).json({ success: false, error: 'Time log not found' });
+    if (log.verificationStatus !== 'pending') {
+      return res.status(400).json({ success: false, error: 'Only pending logs can be edited' });
+    }
+    const { logDate, hours, workSummary, deliverableUrl, note, workStatus } = req.body || {};
+    if (logDate) log.logDate = new Date(logDate);
+    if (hours !== undefined) log.hours = normalizeNumber(hours);
+    if (workSummary !== undefined) log.workSummary = String(workSummary).trim();
+    if (deliverableUrl !== undefined) log.deliverableUrl = String(deliverableUrl).trim();
+    if (note !== undefined) log.note = String(note).trim();
+    if (workStatus && ['in_progress', 'completed'].includes(workStatus)) log.workStatus = workStatus;
+    await log.save();
+    return res.status(200).json({ success: true, data: log });
+  } catch (error) {
+    logger.error({ err: error }, 'Update time log error');
+    return res.status(500).json({ success: false, error: 'Failed to update log', details: error.message });
   }
 };
 
@@ -1067,6 +1094,8 @@ const verifyTimeLog = async (req, res) => {
       jobId: row.job,
       freelancerId: row.freelancer
     });
+    req.app.get('io')?.to(`outsourcing:user:${row.freelancer}`).emit('outsourcing:update', { type: `timelog:${status}`, data: { _id: row._id, status } });
+    req.app.get('io')?.to('outsourcing:admins').emit('outsourcing:update', { type: `timelog:${status}`, data: { _id: row._id } });
     return res.status(200).json({ success: true, data: row });
   } catch (error) {
     logger.error({ err: error }, 'Verify outsourcing time log error');
@@ -1591,6 +1620,7 @@ const checkIn = async (req, res) => {
       contractId: activeContract._id
     });
 
+    req.app.get('io')?.to('outsourcing:admins').emit('outsourcing:update', { type: 'session:checkin', data: { userId: req.user._id } });
     return res.status(201).json({ success: true, data: session });
   } catch (error) {
     logger.error({ err: error }, 'Outsourcing check-in error');
@@ -1633,6 +1663,7 @@ const checkOut = async (req, res) => {
       durationMinutes
     });
 
+    req.app.get('io')?.to('outsourcing:admins').emit('outsourcing:update', { type: 'session:checkout', data: { userId: req.user._id, durationMinutes } });
     return res.status(200).json({
       success: true,
       data: {
@@ -1888,6 +1919,7 @@ const uploadProfileDocument = async (req, res) => {
     user.metadata = meta;
     await user.save();
 
+    req.app.get('io')?.to(`outsourcing:user:${req.user._id}`).emit('outsourcing:update', { type: 'profile:updated', data: { docType, url: uploaded.secure_url } });
     return res.status(201).json({
       success: true,
       data: { docType, url: uploaded.secure_url, fileName: req.file.originalname, publicId: uploaded.public_id }
@@ -2028,6 +2060,110 @@ const getMyAnalytics = async (req, res) => {
   }
 };
 
+// ─── Support Tickets ──────────────────────────────────────────────────────────
+const createSupportTicket = async (req, res) => {
+  try {
+    const { subject, category, priority, description } = req.body || {};
+    if (!subject || !description) return res.status(400).json({ success: false, error: 'subject and description are required' });
+    const ticket = await OutsourcingSupportTicket.create({
+      user: req.user._id,
+      subject: String(subject).trim(),
+      category: ['general','payment','job','technical','account'].includes(category) ? category : 'general',
+      priority: ['low','normal','high','urgent'].includes(priority) ? priority : 'normal',
+      description: String(description).trim(),
+    });
+    req.app.get('io')?.to('outsourcing:admins').emit('outsourcing:update', { type: 'ticket:new', data: { _id: ticket._id, priority: ticket.priority } });
+    return res.status(201).json({ success: true, data: ticket });
+  } catch (error) {
+    logger.error({ err: error }, 'Create support ticket error');
+    return res.status(500).json({ success: false, error: 'Failed to create ticket', details: error.message });
+  }
+};
+
+const getMyTickets = async (req, res) => {
+  try {
+    const tickets = await OutsourcingSupportTicket.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .populate('assignedTo', 'firstName lastName email')
+      .lean();
+    return res.status(200).json({ success: true, data: tickets });
+  } catch (error) {
+    logger.error({ err: error }, 'Get my tickets error');
+    return res.status(500).json({ success: false, error: 'Failed to fetch tickets', details: error.message });
+  }
+};
+
+const getAllSupportTickets = async (req, res) => {
+  try {
+    const { status, priority, category, page = 1, limit = 50 } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+    if (category) query.category = category;
+    const skip = (Number(page) - 1) * Number(limit);
+    const [tickets, total] = await Promise.all([
+      OutsourcingSupportTicket.find(query)
+        .sort({ priority: -1, createdAt: -1 })
+        .skip(skip).limit(Number(limit))
+        .populate('user', 'firstName lastName email')
+        .populate('assignedTo', 'firstName lastName email')
+        .lean(),
+      OutsourcingSupportTicket.countDocuments(query),
+    ]);
+    return res.status(200).json({ success: true, data: tickets, total, page: Number(page) });
+  } catch (error) {
+    logger.error({ err: error }, 'Get all support tickets error');
+    return res.status(500).json({ success: false, error: 'Failed to fetch tickets', details: error.message });
+  }
+};
+
+const updateSupportTicket = async (req, res) => {
+  try {
+    const ticket = await OutsourcingSupportTicket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ success: false, error: 'Ticket not found' });
+    const { status, reply, assignedTo } = req.body || {};
+    if (status && ['open','in_progress','resolved','closed'].includes(status)) {
+      ticket.status = status;
+      if (status === 'resolved') ticket.resolvedAt = new Date();
+      if (status === 'closed') ticket.closedAt = new Date();
+    }
+    if (assignedTo !== undefined) ticket.assignedTo = assignedTo || null;
+    if (reply && String(reply).trim()) {
+      const admin = await User.findById(req.user._id).select('firstName lastName email').lean();
+      ticket.replies.push({
+        author: req.user._id,
+        authorName: `${admin?.firstName || ''} ${admin?.lastName || ''}`.trim() || admin?.email || 'Admin',
+        message: String(reply).trim(),
+        isAdminReply: true,
+      });
+      if (ticket.status === 'open') ticket.status = 'in_progress';
+    }
+    await ticket.save();
+    req.app.get('io')?.to(`outsourcing:user:${ticket.user}`).emit('outsourcing:update', { type: 'ticket:updated', data: { _id: ticket._id, status: ticket.status } });
+    return res.status(200).json({ success: true, data: ticket });
+  } catch (error) {
+    logger.error({ err: error }, 'Update support ticket error');
+    return res.status(500).json({ success: false, error: 'Failed to update ticket', details: error.message });
+  }
+};
+
+const updateMyPreferences = async (req, res) => {
+  try {
+    const { notifPrefs, privacyPrefs } = req.body || {};
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    const nextMeta = { ...(user.metadata || {}) };
+    if (notifPrefs && typeof notifPrefs === 'object') nextMeta.notifPrefs = { ...(nextMeta.notifPrefs || {}), ...notifPrefs };
+    if (privacyPrefs && typeof privacyPrefs === 'object') nextMeta.privacyPrefs = { ...(nextMeta.privacyPrefs || {}), ...privacyPrefs };
+    user.metadata = nextMeta;
+    await user.save();
+    return res.status(200).json({ success: true, data: { notifPrefs: nextMeta.notifPrefs, privacyPrefs: nextMeta.privacyPrefs } });
+  } catch (error) {
+    logger.error({ err: error }, 'Update preferences error');
+    return res.status(500).json({ success: false, error: 'Failed to update preferences', details: error.message });
+  }
+};
+
 module.exports = {
   createOutsourcingUser,
   listFreelancers,
@@ -2049,6 +2185,7 @@ module.exports = {
   getContractHistory,
   updateContractTerms,
   logTime,
+  updateMyTimeLog,
   listTimeLogs,
   verifyTimeLog,
   requestTimeLogRevision,
@@ -2071,5 +2208,10 @@ module.exports = {
   getMySessionStatus,
   getMyWorkflow,
   uploadFreelancerFile,
-  getMyAnalytics
+  getMyAnalytics,
+  createSupportTicket,
+  getMyTickets,
+  getAllSupportTickets,
+  updateSupportTicket,
+  updateMyPreferences,
 };

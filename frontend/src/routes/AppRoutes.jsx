@@ -17,6 +17,7 @@ import {
   AdminOutsourcingJobsPage,
   AdminOutsourcingContractsPage,
   AdminOutsourcingReportsPage,
+  AdminOutsourcingSupportPage,
   HRDashboardPage,
   HRTasksPage,
   HROutsourcingPage,
@@ -474,6 +475,17 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.ADMIN}>
               <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminOutsourcingReportsPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+
+        <Route
+          path="/admin/outsourcing/support"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminOutsourcingSupportPage)}
               </PrivateRoute>
             </PortalRoute>
           }

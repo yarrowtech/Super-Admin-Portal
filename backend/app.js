@@ -295,6 +295,20 @@ io.on("connection", (socket) => {
     socket.leave("hr");
   });
 
+  // Outsourcing portal rooms
+  socket.on("outsourcing:subscribe", (payload = {}) => {
+    const userId = payload?.userId || socket.data.userId;
+    if (userId) socket.join(`outsourcing:user:${userId}`);
+    const adminRoles = ["admin", "hr", "manager", "finance", "law", "legal_head"];
+    if (adminRoles.includes(socket.data.role)) socket.join("outsourcing:admins");
+  });
+
+  socket.on("outsourcing:unsubscribe", (payload = {}) => {
+    const userId = payload?.userId || socket.data.userId;
+    if (userId) socket.leave(`outsourcing:user:${userId}`);
+    socket.leave("outsourcing:admins");
+  });
+
   socket.on("disconnect", () => {
     if (socket.data.userId) {
       const uid = String(socket.data.userId);

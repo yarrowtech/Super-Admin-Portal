@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
+import { useOutsourcingSocket } from '../../hooks/useOutsourcingSocket';
 import FreelancerDashboard from './FreelancerDashboard';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -251,6 +252,8 @@ export const OutsourcingJobsPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [busyId, setBusyId] = useState('');
   const [confirmId, setConfirmId] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [sortBy, setSortBy] = useState('newest');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -269,6 +272,7 @@ export const OutsourcingJobsPage = () => {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useOutsourcingSocket(token, user, useCallback(() => load({ silent: true }), [load]));
 
   const activeContractJobIds = useMemo(
     () => new Set(contracts.filter((c) => c.status === 'active').map((c) => String(c?.job?._id || c?.job || '')).filter(Boolean)),
@@ -293,8 +297,12 @@ export const OutsourcingJobsPage = () => {
     else if (statusFilter === 'overdue')   r = r.filter((x) => x.status === 'rejected' || (x.dueDate && new Date(x.dueDate) < n && x.status !== 'completed'));
     const q = query.trim().toLowerCase();
     if (q) r = r.filter((x) => `${x.title} ${x.description || ''}`.toLowerCase().includes(q));
+    if (sortBy === 'due-asc') r = [...r].sort((a, b) => (a.dueDate ? new Date(a.dueDate) : Infinity) - (b.dueDate ? new Date(b.dueDate) : Infinity));
+    else if (sortBy === 'due-desc') r = [...r].sort((a, b) => (b.dueDate ? new Date(b.dueDate) : -Infinity) - (a.dueDate ? new Date(a.dueDate) : -Infinity));
+    else if (sortBy === 'newest') r = [...r].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    else if (sortBy === 'oldest') r = [...r].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     return r;
-  }, [rows, query, statusFilter]);
+  }, [rows, query, statusFilter, sortBy]);
 
   const doAccept = async (id) => {
     try { setBusyId(id); await outsourcingApi.acceptJob(token, id); await load({ silent: true }); } catch (e) { setError(e.message); } finally { setBusyId(''); }
@@ -390,10 +398,16 @@ export const OutsourcingJobsPage = () => {
               className="h-9 w-44 rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
             />
           </div>
-          <button className="flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-            <span className="material-symbols-outlined text-[18px]">swap_vert</span>
-            Sort
-          </button>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="h-9 rounded-full border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-600 focus:border-indigo-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="due-asc">Due date ↑</option>
+            <option value="due-desc">Due date ↓</option>
+          </select>
           <button className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900">
             <span className="material-symbols-outlined text-[18px]">tune</span>
           </button>
@@ -424,16 +438,32 @@ export const OutsourcingJobsPage = () => {
               const statusLabel = r.status === 'in_progress' ? 'Working' : r.status === 'completed' ? 'Submitted' : r.status === 'rejected' ? 'Overdue' : r.status.replace(/_/g, ' ');
               const statusColor = r.status === 'in_progress' ? 'text-indigo-600 dark:text-indigo-400' : r.status === 'completed' ? 'text-amber-600 dark:text-amber-400' : r.status === 'rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-neutral-500 dark:text-neutral-400';
 
+              const now = new Date();
+              const dueDate = r.dueDate ? new Date(r.dueDate) : null;
+              const isOverdue = dueDate && dueDate < now && r.status !== 'completed';
+              const isDueSoon = dueDate && !isOverdue && dueDate < new Date(now.getTime() + 48 * 3600000) && r.status !== 'completed';
+              const daysLeft = dueDate ? Math.ceil((dueDate - now) / 86400000) : null;
+
               return (
-                <div key={r._id} className="grid items-start px-5 py-4 transition hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40" style={{ gridTemplateColumns: '1fr 140px 260px' }}>
+                <div key={r._id} className={`grid items-start px-5 py-4 transition hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40 ${isOverdue ? 'border-l-2 border-rose-500' : isDueSoon ? 'border-l-2 border-amber-400' : ''}`} style={{ gridTemplateColumns: '1fr 140px 260px' }}>
                   {/* Client / title */}
                   <div className="min-w-0 pr-4">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-neutral-900 dark:text-white">{r.title}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={() => setSelectedJob(r)} className="text-left font-semibold text-neutral-900 hover:text-indigo-600 dark:text-white dark:hover:text-indigo-400">{r.title}</button>
                       <span className="flex items-center gap-0.5 text-xs text-neutral-400 dark:text-neutral-500">
                         <span className="material-symbols-outlined text-[14px]">chat_bubble_outline</span>
                         {idNum(r._id)}
                       </span>
+                      {isOverdue && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                          <span className="material-symbols-outlined text-[10px]">warning</span>Overdue
+                        </span>
+                      )}
+                      {isDueSoon && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
+                          <span className="material-symbols-outlined text-[10px]">alarm</span>Due in {daysLeft}d
+                        </span>
+                      )}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-neutral-400 dark:text-neutral-500">
                       {r.description || `Assigned by ${r?.createdBy?.email || 'Admin'}`}
@@ -493,6 +523,92 @@ export const OutsourcingJobsPage = () => {
         </div>
       )}
 
+      {/* Job detail slide-over */}
+      {selectedJob && (() => {
+        const j = selectedJob;
+        const now = new Date();
+        const dueDate = j.dueDate ? new Date(j.dueDate) : null;
+        const isOverdue = dueDate && dueDate < now && j.status !== 'completed';
+        const daysLeft = dueDate ? Math.ceil((dueDate - now) / 86400000) : null;
+        const contract = jobRateMap.get(String(j._id));
+        return (
+          <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={() => setSelectedJob(null)}>
+            <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-white shadow-2xl dark:bg-neutral-950" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className={`h-1 w-full ${isOverdue ? 'bg-rose-500' : daysLeft !== null && daysLeft <= 2 ? 'bg-amber-400' : 'bg-indigo-600'}`} />
+              <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4 dark:border-neutral-800">
+                <div>
+                  <h3 className="text-base font-bold text-neutral-900 dark:text-white">{j.title}</h3>
+                  <p className="text-xs text-neutral-400">Job #{String(j._id).slice(-8).toUpperCase()}</p>
+                </div>
+                <button onClick={() => setSelectedJob(null)} className="flex h-8 w-8 items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                  <span className="material-symbols-outlined text-[20px] text-neutral-500">close</span>
+                </button>
+              </div>
+              {/* Body */}
+              <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                {/* Status hero */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Pill value={j.status} />
+                  {j.acceptanceStatus && <Pill value={j.acceptanceStatus} />}
+                  {isOverdue && <Pill value="overdue" />}
+                  {contract && <Pill value={contract.paymentType || 'fixed'} />}
+                </div>
+
+                {/* Description */}
+                {j.description && (
+                  <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                    <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-neutral-400">Description</p>
+                    <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">{j.description}</p>
+                  </div>
+                )}
+
+                {/* Details grid */}
+                {[
+                  { label: 'Assigned To', value: j?.assignedFreelancer?.email || 'Unassigned' },
+                  { label: 'Created By', value: j?.createdBy?.email || 'Admin' },
+                  contract && { label: 'Rate', value: `₹${Number(contract.rate || 0).toLocaleString('en-IN')} (${contract.paymentType})` },
+                  { label: 'Due Date', value: dueDate ? dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+                  dueDate && { label: 'Days Remaining', value: isOverdue ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left` },
+                  { label: 'Created', value: j.createdAt ? new Date(j.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+                ].filter(Boolean).map((row) => (
+                  <div key={row.label} className="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-2.5 dark:bg-neutral-900">
+                    <span className="text-xs text-neutral-400">{row.label}</span>
+                    <span className={`text-sm font-semibold ${row.label === 'Days Remaining' && isOverdue ? 'text-rose-600 dark:text-rose-400' : row.label === 'Days Remaining' && daysLeft <= 2 ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-800 dark:text-neutral-100'}`}>{row.value}</span>
+                  </div>
+                ))}
+
+                {/* Due date progress bar */}
+                {j.createdAt && dueDate && (
+                  <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">Timeline</p>
+                      <p className="text-xs text-neutral-400">{isOverdue ? 'Past deadline' : `${daysLeft}d remaining`}</p>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                      <div
+                        className={`h-full rounded-full transition-all ${isOverdue ? 'bg-rose-500' : daysLeft <= 2 ? 'bg-amber-400' : 'bg-indigo-500'}`}
+                        style={{ width: `${Math.min(100, Math.max(0, isOverdue ? 100 : (1 - daysLeft / Math.max(1, Math.ceil((dueDate - new Date(j.createdAt)) / 86400000))) * 100))}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 flex justify-between text-[10px] text-neutral-400">
+                      <span>{new Date(j.createdAt).toLocaleDateString('en-IN')}</span>
+                      <span>{dueDate.toLocaleDateString('en-IN')}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Footer */}
+              <div className="border-t border-neutral-100 px-5 py-4 dark:border-neutral-800">
+                <button onClick={() => setSelectedJob(null)} className="w-full rounded-xl border border-neutral-200 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Accept confirmation dialog */}
       {confirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -528,18 +644,18 @@ export const OutsourcingJobsPage = () => {
 // Contracts
 // ─────────────────────────────────────────────────────────────────────────────
 export const OutsourcingContractsPage = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    outsourcingApi.getContracts(token)
-      .then((r) => setRows(r.data || []))
-      .catch((e) => setError(e.message || 'Failed to load contracts'))
-      .finally(() => setLoading(false));
-  }, [token]);
+  const loadContracts = useCallback(() =>
+    outsourcingApi.getContracts(token).then((r) => setRows(r.data || [])).catch((e) => setError(e.message || 'Failed to load contracts')),
+  [token]);
+
+  useEffect(() => { loadContracts().finally(() => setLoading(false)); }, [loadContracts]);
+  useOutsourcingSocket(token, user, useCallback(() => loadContracts(), [loadContracts]));
 
   const active = rows.filter((r) => r.status === 'active').length;
   const totalValue = rows.reduce((s, r) => s + Number(r.rate || 0), 0);
@@ -672,6 +788,8 @@ export const OutsourcingTimeLogsPage = () => {
   const [sessionMsg, setSessionMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingLog, setEditingLog] = useState(null);
+  const [logFilter, setLogFilter] = useState({ month: '', status: 'all' });
   const [contracts, setContracts] = useState([]);
 
   const isWorker = user?.role === 'freelancer' || String(user?.metadata?.outsourcingType || '').toLowerCase().includes('worker') || String(user?.metadata?.outsourcingType || '').toLowerCase().includes('freelan');
@@ -686,6 +804,7 @@ export const OutsourcingTimeLogsPage = () => {
   useEffect(() => {
     Promise.all([loadLogs(), loadSessions(), loadContracts()]).finally(() => setLoading(false));
   }, [loadLogs, loadSessions, loadContracts]);
+  useOutsourcingSocket(token, user, useCallback(() => { loadLogs(); loadSessions(); }, [loadLogs, loadSessions]));
 
   const onCheckIn = async () => {
     try { setSessionBusy(true); setSessionMsg(''); await outsourcingApi.checkIn(token, {}); setSessionMsg('Checked in.'); await loadSessions(); } catch (e) { setSessionMsg(e.message || 'Failed'); } finally { setSessionBusy(false); }
@@ -697,15 +816,45 @@ export const OutsourcingTimeLogsPage = () => {
     e.preventDefault();
     try {
       setSubmitting(true);
-      await outsourcingApi.logTime(token, { ...form, hours: Number(form.hours) });
+      if (editingLog) {
+        await outsourcingApi.updateTimeLog(token, editingLog._id, { ...form, hours: Number(form.hours) });
+        setEditingLog(null);
+      } else {
+        await outsourcingApi.logTime(token, { ...form, hours: Number(form.hours) });
+      }
       setForm({ contractId: '', logDate: '', hours: '', workSummary: '', deliverableUrl: '', note: '', workStatus: 'in_progress' });
       setShowForm(false);
       await loadLogs();
     } finally { setSubmitting(false); }
   };
 
+  const startEdit = (log) => {
+    setEditingLog(log);
+    setForm({
+      contractId: String(log.contract?._id || log.contract || ''),
+      logDate: log.logDate ? new Date(log.logDate).toISOString().slice(0, 10) : '',
+      hours: String(log.hours || ''),
+      workSummary: log.workSummary || '',
+      deliverableUrl: log.deliverableUrl || '',
+      note: log.note || '',
+      workStatus: log.workStatus || 'in_progress',
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const totalHours = useMemo(() => rows.reduce((s, r) => s + Number(r.hours || 0), 0).toFixed(1), [rows]);
   const approvedCount = useMemo(() => rows.filter((r) => r.verificationStatus === 'approved').length, [rows]);
+
+  const filteredRows = useMemo(() => {
+    let r = rows;
+    if (logFilter.status !== 'all') r = r.filter((x) => x.verificationStatus === logFilter.status);
+    if (logFilter.month) {
+      const [y, m] = logFilter.month.split('-').map(Number);
+      r = r.filter((x) => { const d = new Date(x.logDate); return d.getFullYear() === y && d.getMonth() + 1 === m; });
+    }
+    return r;
+  }, [rows, logFilter]);
 
   return (
     <div className="space-y-5">
@@ -714,7 +863,7 @@ export const OutsourcingTimeLogsPage = () => {
         subtitle="Submit, review, and verify work effort records"
         icon="schedule"
         accent="#8b5cf6"
-        action={isWorker && <BtnPrimary onClick={() => setShowForm((v) => !v)}>{showForm ? 'Cancel' : 'Log Time'}</BtnPrimary>}
+        action={isWorker && <BtnPrimary onClick={() => { setShowForm((v) => !v); if (showForm) { setEditingLog(null); setForm({ contractId: '', logDate: '', hours: '', workSummary: '', deliverableUrl: '', note: '', workStatus: 'in_progress' }); } }}>{showForm ? (editingLog ? 'Cancel Edit' : 'Cancel') : 'Log Time'}</BtnPrimary>}
       />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard icon="schedule" label="Total Hours" value={`${totalHours}h`} loading={loading} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
@@ -745,9 +894,9 @@ export const OutsourcingTimeLogsPage = () => {
       {isWorker && showForm && (
         <Card>
           <Inner>
-            <SectionHdr title="Submit Work Update" />
+            <SectionHdr title={editingLog ? 'Edit Time Log' : 'Submit Work Update'} />
             <form className="grid grid-cols-1 gap-3 md:grid-cols-2" onSubmit={submitLog}>
-              <Sel value={form.contractId} onChange={(e) => setForm({ ...form, contractId: e.target.value })} required>
+              <Sel value={form.contractId} onChange={(e) => setForm({ ...form, contractId: e.target.value })} required disabled={!!editingLog}>
                 <option value="">Select contract</option>
                 {contracts.filter((c) => c.status === 'active').map((c) => (
                   <option key={c._id} value={c._id}>{c?.job?.title || 'Contract'} ({c.paymentType})</option>
@@ -762,7 +911,7 @@ export const OutsourcingTimeLogsPage = () => {
               <Inp className="md:col-span-2" placeholder="Work summary" value={form.workSummary} onChange={(e) => setForm({ ...form, workSummary: e.target.value })} />
               <Inp className="md:col-span-2" placeholder="Deliverable URL (Drive / GitHub / Figma)" value={form.deliverableUrl} onChange={(e) => setForm({ ...form, deliverableUrl: e.target.value })} />
               <Txa className="md:col-span-2" rows={3} placeholder="Daily note / update" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-              <BtnPrimary disabled={submitting} className="md:col-span-2 w-full">{submitting ? 'Submitting…' : 'Submit Log'}</BtnPrimary>
+              <BtnPrimary disabled={submitting} className="md:col-span-2 w-full">{submitting ? (editingLog ? 'Saving…' : 'Submitting…') : (editingLog ? 'Save Changes' : 'Submit Log')}</BtnPrimary>
             </form>
           </Inner>
         </Card>
@@ -771,27 +920,60 @@ export const OutsourcingTimeLogsPage = () => {
       {/* Log history */}
       <Card>
         <Inner>
-          <SectionHdr title="Time Log History" />
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <SectionHdr title="Time Log History" />
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="month"
+                value={logFilter.month}
+                onChange={(e) => setLogFilter((f) => ({ ...f, month: e.target.value }))}
+                className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-600 focus:border-indigo-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+              />
+              <select
+                value={logFilter.status}
+                onChange={(e) => setLogFilter((f) => ({ ...f, status: e.target.value }))}
+                className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-600 focus:border-indigo-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+              >
+                <option value="all">All status</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              {(logFilter.month || logFilter.status !== 'all') && (
+                <button onClick={() => setLogFilter({ month: '', status: 'all' })} className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">Clear</button>
+              )}
+            </div>
+          </div>
           {loading ? <Skeleton rows={4} /> : rows.length === 0 ? (
             <EmptyState icon="schedule" title="No time logs yet" subtitle="Submit a log entry once contracts are active." />
+          ) : filteredRows.length === 0 ? (
+            <EmptyState icon="filter_list" title="No logs match your filters" subtitle="Try changing the month or status filter." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-100 dark:border-neutral-800">
-                    {['Date', 'Project', 'Hours', 'Status', 'Verification'].map((h) => (
+                    {['Date', 'Project', 'Hours', 'Status', 'Verification', ''].map((h) => (
                       <th key={h} className="pb-2.5 pr-6 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-50 dark:divide-neutral-900">
-                  {rows.map((r) => (
+                  {filteredRows.map((r) => (
                     <tr key={r._id} className="align-middle">
                       <td className="py-3 pr-6 text-neutral-600 dark:text-neutral-300">{r.logDate ? new Date(r.logDate).toLocaleDateString() : '—'}</td>
                       <td className="py-3 pr-6 font-medium text-neutral-900 dark:text-white">{r?.job?.title || 'Untitled'}</td>
                       <td className="py-3 pr-6 text-neutral-600 dark:text-neutral-300">{r.hours}h</td>
                       <td className="py-3 pr-6"><Pill value={r.workStatus || 'in_progress'} /></td>
                       <td className="py-3 pr-6"><Pill value={r.verificationStatus} /></td>
+                      <td className="py-3">
+                        {isWorker && r.verificationStatus === 'pending' && (
+                          <button onClick={() => startEdit(r)} className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 text-[11px] font-semibold text-neutral-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-neutral-700 dark:text-neutral-400 dark:hover:border-indigo-600 dark:hover:text-indigo-400">
+                            <span className="material-symbols-outlined text-[13px]">edit</span>
+                            Edit
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1594,6 +1776,8 @@ export const OutsourcingSettingsPage = () => {
         setProfile(p);
         const m = p?.metadata || {};
         setForm({ firstName: p?.firstName || '', lastName: p?.lastName || '', email: p?.email || '', phone: m.phone || '', timezone: m.timezone || 'Asia/Kolkata', language: m.language || 'English' });
+        if (m.notifPrefs) setNotifPrefs((prev) => ({ ...prev, ...m.notifPrefs }));
+        if (m.privacyPrefs) setPrivacyPrefs((prev) => ({ ...prev, ...m.privacyPrefs }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -1605,6 +1789,35 @@ export const OutsourcingSettingsPage = () => {
       await outsourcingApi.updateMyProfile(token, { firstName: form.firstName, lastName: form.lastName, phone: form.phone, timezone: form.timezone, language: form.language });
       setMsg({ type: 'ok', text: 'Account settings saved!' });
     } catch (e) { setMsg({ type: 'err', text: e.message || 'Failed to save' }); } finally { setSaving(false); }
+  };
+
+  const savePreferences = async (type) => {
+    try {
+      setSaving(true); setMsg({ type: '', text: '' });
+      await outsourcingApi.updatePreferences(token, type === 'notif' ? { notifPrefs } : { privacyPrefs });
+      setMsg({ type: 'ok', text: 'Preferences saved!' });
+    } catch (e) { setMsg({ type: 'err', text: e.message || 'Failed to save' }); } finally { setSaving(false); }
+  };
+
+  const changePassword = async () => {
+    setMsg({ type: '', text: '' });
+    if (!pwForm.current || !pwForm.next || !pwForm.confirm) { setMsg({ type: 'err', text: 'All fields are required.' }); return; }
+    if (pwForm.next !== pwForm.confirm) { setMsg({ type: 'err', text: 'New passwords do not match.' }); return; }
+    if (pwForm.next.length < 6) { setMsg({ type: 'err', text: 'New password must be at least 6 characters.' }); return; }
+    try {
+      setSaving(true);
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || json?.error || 'Failed to change password');
+      setPwForm({ current: '', next: '', confirm: '' });
+      setMsg({ type: 'ok', text: 'Password updated successfully!' });
+    } catch (e) { setMsg({ type: 'err', text: e.message || 'Failed to change password' }); } finally { setSaving(false); }
   };
 
   const tabs = [
@@ -1684,7 +1897,7 @@ export const OutsourcingSettingsPage = () => {
                   <div><label className="mb-1 block text-xs font-semibold text-neutral-500">Current Password</label><Inp type="password" value={pwForm.current} onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })} placeholder="••••••••" /></div>
                   <div><label className="mb-1 block text-xs font-semibold text-neutral-500">New Password</label><Inp type="password" value={pwForm.next} onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })} placeholder="••••••••" /></div>
                   <div><label className="mb-1 block text-xs font-semibold text-neutral-500">Confirm New Password</label><Inp type="password" value={pwForm.confirm} onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })} placeholder="••••••••" /></div>
-                  <BtnPrimary onClick={() => setMsg({ type: 'ok', text: 'Password change is handled by the admin portal.' })}>Update Password</BtnPrimary>
+                  <BtnPrimary onClick={changePassword} disabled={saving}>{saving ? 'Updating…' : 'Update Password'}</BtnPrimary>
                   {msg.text && <p className={`text-sm ${msg.type === 'ok' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
                 </div>
                 <div className="mt-6 border-t border-neutral-100 pt-5 dark:border-neutral-800">
@@ -1721,8 +1934,10 @@ export const OutsourcingSettingsPage = () => {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 flex justify-end"><BtnPrimary onClick={() => setMsg({ type: 'ok', text: 'Preferences saved!' })}>{saving ? 'Saving…' : 'Save Preferences'}</BtnPrimary></div>
-                {msg.text && <p className={`mt-2 text-sm ${msg.type === 'ok' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
+                <div className="mt-4 flex items-center justify-between">
+                  {msg.text && tab === 'notifications' && <p className={`text-sm ${msg.type === 'ok' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
+                  <div className="ml-auto"><BtnPrimary onClick={() => savePreferences('notif')} disabled={saving}>{saving ? 'Saving…' : 'Save Preferences'}</BtnPrimary></div>
+                </div>
               </Inner>
             </Card>
           )}
@@ -1746,6 +1961,10 @@ export const OutsourcingSettingsPage = () => {
                     </div>
                   ))}
                 </div>
+                <div className="mt-4 flex items-center justify-between">
+                  {msg.text && tab === 'privacy' && <p className={`text-sm ${msg.type === 'ok' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
+                  <div className="ml-auto"><BtnPrimary onClick={() => savePreferences('privacy')} disabled={saving}>{saving ? 'Saving…' : 'Save Preferences'}</BtnPrimary></div>
+                </div>
               </Inner>
             </Card>
           )}
@@ -1768,20 +1987,34 @@ const FAQ_ITEMS = [
 ];
 
 export const OutsourcingSupportPage = () => {
+  const { token } = useAuth();
   const [tab, setTab] = useState('ticket');
-  const [tickets] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
   const [form, setForm] = useState({ subject: '', category: 'general', priority: 'normal', description: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
+  const [err, setErr] = useState('');
+
+  const loadTickets = useCallback(async () => {
+    setTicketsLoading(true);
+    try { const r = await outsourcingApi.getMyTickets(token); setTickets(r.data || []); } catch {}
+    finally { setTicketsLoading(false); }
+  }, [token]);
+
+  useEffect(() => { if (tab === 'my') loadTickets(); }, [tab, loadTickets]);
 
   const submitTicket = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSubmitting(false);
-    setSubmitted(true);
-    setForm({ subject: '', category: 'general', priority: 'normal', description: '' });
+    setSubmitting(true); setErr('');
+    try {
+      await outsourcingApi.createSupportTicket(token, form);
+      setSubmitted(true);
+      setForm({ subject: '', category: 'general', priority: 'normal', description: '' });
+    } catch (ex) { setErr(ex.message || 'Failed to submit ticket'); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -1841,31 +2074,35 @@ export const OutsourcingSupportPage = () => {
       {tab === 'my' && (
         <Card>
           <Inner>
-            <SectionHdr title="My Support Tickets" />
-            {tickets.length === 0 ? (
+            <div className="mb-4 flex items-center justify-between">
+              <SectionHdr title="My Support Tickets" />
+              <button onClick={loadTickets} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                <span className="material-symbols-outlined text-[14px]">refresh</span>Refresh
+              </button>
+            </div>
+            {ticketsLoading ? <Skeleton rows={3} /> : tickets.length === 0 ? (
               <EmptyState icon="support_agent" title="No tickets yet" subtitle="Submit a ticket from the 'Open a Ticket' tab." />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-neutral-100 dark:border-neutral-800">
-                      {['Ticket ID', 'Subject', 'Category', 'Status', 'Created'].map((h) => (
-                        <th key={h} className="pb-2.5 pr-6 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tickets.map((t) => (
-                      <tr key={t.id} className="border-b border-neutral-50 dark:border-neutral-900">
-                        <td className="py-3 pr-6 font-mono text-xs">{t.id}</td>
-                        <td className="py-3 pr-6 font-medium">{t.subject}</td>
-                        <td className="py-3 pr-6">{t.category}</td>
-                        <td className="py-3 pr-6"><Pill value={t.status} /></td>
-                        <td className="py-3 pr-6 text-neutral-400">{t.createdAt}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {tickets.map((t) => (
+                  <button key={t._id} onClick={() => setSelectedTicket(t)} className="w-full rounded-xl border border-neutral-100 bg-neutral-50 p-4 text-left transition hover:border-indigo-200 hover:bg-indigo-50/30 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-800">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-neutral-900 dark:text-white">{t.subject}</p>
+                        <p className="mt-0.5 text-xs text-neutral-400 capitalize">{t.category} · {new Date(t.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <Pill value={t.status} />
+                        <Pill value={t.priority} />
+                      </div>
+                    </div>
+                    {t.replies?.length > 0 && (
+                      <p className="mt-2 text-xs text-indigo-600 dark:text-indigo-400">
+                        <span className="material-symbols-outlined text-[12px] align-middle">chat</span> {t.replies.length} repl{t.replies.length === 1 ? 'y' : 'ies'}
+                      </p>
+                    )}
+                  </button>
+                ))}
               </div>
             )}
           </Inner>
@@ -1876,10 +2113,7 @@ export const OutsourcingSupportPage = () => {
         <div className="space-y-3">
           {FAQ_ITEMS.map((item, i) => (
             <Card key={i}>
-              <button
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                className="flex w-full items-center justify-between gap-4 p-5"
-              >
+              <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="flex w-full items-center justify-between gap-4 p-5">
                 <p className="text-left text-sm font-semibold text-neutral-900 dark:text-white">{item.q}</p>
                 <span className={`material-symbols-outlined shrink-0 text-xl text-neutral-400 transition ${openFaq === i ? 'rotate-180' : ''}`}>expand_more</span>
               </button>
@@ -1890,6 +2124,73 @@ export const OutsourcingSupportPage = () => {
               )}
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Ticket detail slide-over */}
+      {selectedTicket && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={() => setSelectedTicket(null)}>
+          <div className="flex h-full w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl dark:bg-neutral-950" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-neutral-100 px-5 py-4 dark:border-neutral-800">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-neutral-400 mb-0.5">#{String(selectedTicket._id).slice(-8).toUpperCase()}</p>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white leading-tight">{selectedTicket.subject}</h3>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <Pill value={selectedTicket.status} />
+                  <Pill value={selectedTicket.priority} />
+                  <span className="inline-flex items-center rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs font-medium capitalize text-neutral-500 dark:border-neutral-700">{selectedTicket.category}</span>
+                </div>
+              </div>
+              <button onClick={() => setSelectedTicket(null)} className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <span className="material-symbols-outlined text-[20px] text-neutral-400">close</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Original description */}
+              <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-neutral-400">Your Request</p>
+                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">{selectedTicket.description}</p>
+                <p className="mt-2 text-xs text-neutral-400">{new Date(selectedTicket.createdAt).toLocaleString('en-IN')}</p>
+              </div>
+
+              {/* Reply thread */}
+              {(selectedTicket.replies || []).length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">Replies</p>
+                  {selectedTicket.replies.map((r, i) => (
+                    <div key={i} className={`rounded-xl p-4 ${r.isAdminReply ? 'border border-indigo-100 bg-indigo-50 dark:border-indigo-900/30 dark:bg-indigo-950/20' : 'border border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900'}`}>
+                      <div className="mb-1.5 flex items-center gap-2">
+                        <span className={`text-xs font-bold ${r.isAdminReply ? 'text-indigo-700 dark:text-indigo-300' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                          {r.isAdminReply ? `${r.authorName || 'Admin'} (Support)` : 'You'}
+                        </span>
+                        <span className="text-[10px] text-neutral-400">{new Date(r.createdAt).toLocaleString('en-IN')}</span>
+                      </div>
+                      <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">{r.message}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-neutral-200 p-6 text-center dark:border-neutral-700">
+                  <span className="material-symbols-outlined text-3xl text-neutral-300 dark:text-neutral-600">forum</span>
+                  <p className="mt-2 text-sm text-neutral-400">No replies yet. Our team will respond within 24 hours.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-neutral-100 px-5 py-4 dark:border-neutral-800">
+              <div className="flex items-center gap-2 text-xs text-neutral-400">
+                <span className="material-symbols-outlined text-[14px]">schedule</span>
+                Opened {new Date(selectedTicket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
+              <button onClick={() => setSelectedTicket(null)} className="mt-3 w-full rounded-xl border border-neutral-200 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300">
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

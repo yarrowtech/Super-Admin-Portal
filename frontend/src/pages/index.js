@@ -57,6 +57,7 @@ export const AdminOutsourcingFreelancersPage = lazy(() => import('../components/
 export const AdminOutsourcingJobsPage       = lazy(() => import('../components/admin/AdminOutsourcingPages').then(m => ({ default: m.AdminOutsourcingJobsPage })));
 export const AdminOutsourcingContractsPage  = lazy(() => import('../components/admin/AdminOutsourcingPages').then(m => ({ default: m.AdminOutsourcingContractsPage })));
 export const AdminOutsourcingReportsPage    = lazy(() => import('../components/admin/AdminOutsourcingPages').then(m => ({ default: m.AdminOutsourcingReportsPage })));
+export const AdminOutsourcingSupportPage    = lazy(() => import('../components/admin/AdminOutsourcingPages').then(m => ({ default: m.AdminOutsourcingSupportPage })));
 
 // ── Outsourcing portal (named exports from barrel) ────────────────────────────
 export const OutsourcingDashboardPage    = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingDashboardPage })));

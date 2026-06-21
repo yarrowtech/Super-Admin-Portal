@@ -5,6 +5,23 @@ import Button from '../common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
 
+// ── Shared mini design tokens for admin support page ──────────────────────────
+const tone = {
+  open:        'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:ring-blue-700',
+  in_progress: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-700',
+  resolved:    'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700',
+  closed:      'bg-neutral-100 text-neutral-500 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700',
+  low:         'bg-neutral-100 text-neutral-500 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700',
+  normal:      'bg-blue-50 text-blue-600 ring-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:ring-blue-700',
+  high:        'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-700',
+  urgent:      'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-700',
+};
+const Badge = ({ value }) => (
+  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${tone[value] || tone.normal}`}>
+    {String(value || '').replace(/_/g, ' ')}
+  </span>
+);
+
 const initUser = {
   email: '',
   password: '',
@@ -416,6 +433,195 @@ export const AdminOutsourcingReportsPage = () => {
         <KPICard title="Approved Logs" value={approvedLogs} icon="check_circle" colorScheme="green" subtitle="VERIFIED" />
         <KPICard title="Rejected Logs" value={rejectedLogs} icon="cancel" colorScheme="purple" subtitle="ACTION" />
       </section>
+    </PageShell>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Support Tickets
+// ─────────────────────────────────────────────────────────────────────────────
+export const AdminOutsourcingSupportPage = () => {
+  const { token, user } = useAuth();
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [filters, setFilters] = useState({ status: '', priority: '', category: '' });
+  const [replyText, setReplyText] = useState('');
+  const [newStatus, setNewStatus] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = Object.entries(filters).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join('&');
+      const r = await outsourcingApi.getAllTickets(token, params);
+      setTickets(r.data || []);
+    } catch {}
+    finally { setLoading(false); }
+  }, [token, filters]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openTicket = (t) => { setSelected(t); setReplyText(''); setNewStatus(t.status); setMsg(''); };
+
+  const saveTicket = async () => {
+    if (!selected) return;
+    setSaving(true); setMsg('');
+    try {
+      const payload = {};
+      if (newStatus && newStatus !== selected.status) payload.status = newStatus;
+      if (replyText.trim()) payload.reply = replyText.trim();
+      const r = await outsourcingApi.updateTicket(token, selected._id, payload);
+      setSelected(r.data);
+      setReplyText('');
+      setMsg('Saved!');
+      setTickets((prev) => prev.map((t) => t._id === r.data._id ? r.data : t));
+    } catch (e) { setMsg(e.message || 'Failed'); }
+    finally { setSaving(false); }
+  };
+
+  const counts = useMemo(() => ({
+    open: tickets.filter((t) => t.status === 'open').length,
+    in_progress: tickets.filter((t) => t.status === 'in_progress').length,
+    resolved: tickets.filter((t) => t.status === 'resolved').length,
+    urgent: tickets.filter((t) => t.priority === 'urgent').length,
+  }), [tickets]);
+
+  const inpCls = 'w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+
+  return (
+    <PageShell title="Support Tickets" user={user}>
+      {/* KPI row */}
+      <section className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[
+          { label: 'Open', value: counts.open, color: 'blue' },
+          { label: 'In Progress', value: counts.in_progress, color: 'orange' },
+          { label: 'Resolved', value: counts.resolved, color: 'green' },
+          { label: 'Urgent', value: counts.urgent, color: 'red' },
+        ].map((k) => <KPICard key={k.label} title={k.label} value={k.value} icon="support_agent" colorScheme={k.color} subtitle="TICKETS" />)}
+      </section>
+
+      {/* Filters */}
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        {[
+          { label: 'All Status', key: 'status', opts: [['', 'All Status'], ['open', 'Open'], ['in_progress', 'In Progress'], ['resolved', 'Resolved'], ['closed', 'Closed']] },
+          { label: 'All Priority', key: 'priority', opts: [['', 'All Priority'], ['urgent', 'Urgent'], ['high', 'High'], ['normal', 'Normal'], ['low', 'Low']] },
+          { label: 'All Category', key: 'category', opts: [['', 'All Category'], ['general', 'General'], ['payment', 'Payment'], ['job', 'Job/Contract'], ['technical', 'Technical'], ['account', 'Account']] },
+        ].map((f) => (
+          <select key={f.key} value={filters[f.key]} onChange={(e) => setFilters((p) => ({ ...p, [f.key]: e.target.value }))}
+            className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-600 focus:border-indigo-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        ))}
+        <button onClick={load} className="flex h-9 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+          <span className="material-symbols-outlined text-[16px]">refresh</span>Refresh
+        </button>
+      </div>
+
+      {/* Ticket list + detail */}
+      <div className="mt-4 flex gap-4 items-start">
+        {/* List */}
+        <div className={`flex-1 min-w-0 space-y-2 ${selected ? 'hidden xl:block' : ''}`}>
+          {loading ? (
+            <div className="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-950">
+              {[1,2,3,4].map((i) => <div key={i} className="mb-3 h-16 animate-pulse rounded-xl bg-neutral-100 dark:bg-neutral-800" />)}
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="rounded-2xl border border-neutral-200 bg-white p-12 text-center dark:border-neutral-800 dark:bg-neutral-950">
+              <span className="material-symbols-outlined text-4xl text-neutral-300">support_agent</span>
+              <p className="mt-2 text-sm text-neutral-400">No tickets match your filters.</p>
+            </div>
+          ) : tickets.map((t) => (
+            <button key={t._id} onClick={() => openTicket(t)}
+              className={`w-full rounded-2xl border p-4 text-left transition hover:shadow-sm ${selected?._id === t._id ? 'border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-950/20' : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-neutral-900 dark:text-white">{t.subject}</p>
+                  <p className="mt-0.5 text-xs text-neutral-400">
+                    {t?.user?.firstName} {t?.user?.lastName} · {t.category} · {new Date(t.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge value={t.status} />
+                  <Badge value={t.priority} />
+                </div>
+              </div>
+              {t.replies?.length > 0 && (
+                <p className="mt-1.5 text-xs text-indigo-600 dark:text-indigo-400">
+                  <span className="material-symbols-outlined text-[12px] align-middle">chat</span> {t.replies.length} repl{t.replies.length === 1 ? 'y' : 'ies'}
+                </p>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Detail panel */}
+        {selected && (
+          <div className="w-full xl:w-120 shrink-0 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)', minHeight: 400 }}>
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-neutral-100 px-5 py-4 dark:border-neutral-800">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">#{String(selected._id).slice(-8).toUpperCase()}</p>
+                <h3 className="mt-0.5 text-sm font-bold text-neutral-900 dark:text-white leading-snug">{selected.subject}</h3>
+                <p className="mt-0.5 text-xs text-neutral-400">
+                  {selected?.user?.firstName} {selected?.user?.lastName} &lt;{selected?.user?.email}&gt;
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge value={selected.status} /><Badge value={selected.priority} />
+                  <span className="inline-flex items-center rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs font-medium capitalize text-neutral-500 dark:border-neutral-700">{selected.category}</span>
+                </div>
+              </div>
+              <button onClick={() => setSelected(null)} className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <span className="material-symbols-outlined text-[18px] text-neutral-400">close</span>
+              </button>
+            </div>
+
+            {/* Thread */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {/* Original */}
+              <div className="rounded-xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Original Request</p>
+                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">{selected.description}</p>
+                <p className="mt-2 text-[10px] text-neutral-400">{new Date(selected.createdAt).toLocaleString('en-IN')}</p>
+              </div>
+              {/* Replies */}
+              {(selected.replies || []).map((r, i) => (
+                <div key={i} className={`rounded-xl p-4 ${r.isAdminReply ? 'border border-indigo-100 bg-indigo-50 dark:border-indigo-900/30 dark:bg-indigo-950/20' : 'border border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900'}`}>
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className={`text-xs font-bold ${r.isAdminReply ? 'text-indigo-700 dark:text-indigo-300' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                      {r.isAdminReply ? `${r.authorName} (Admin)` : 'Freelancer'}
+                    </span>
+                    <span className="text-[10px] text-neutral-400">{new Date(r.createdAt).toLocaleString('en-IN')}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">{r.message}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Reply + status controls */}
+            <div className="border-t border-neutral-100 p-5 space-y-3 dark:border-neutral-800">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-neutral-400">Change Status</label>
+                <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} className={inpCls}>
+                  {['open', 'in_progress', 'resolved', 'closed'].map((s) => (
+                    <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-neutral-400">Reply to Freelancer</label>
+                <textarea rows={3} value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Type your reply…" className={`${inpCls} resize-none`} />
+              </div>
+              {msg && <p className={`text-xs font-semibold ${msg === 'Saved!' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</p>}
+              <button onClick={saveTicket} disabled={saving || (!replyText.trim() && newStatus === selected.status)}
+                className="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
+                {saving ? 'Saving…' : 'Send Reply & Save'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </PageShell>
   );
 };

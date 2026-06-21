@@ -179,6 +179,11 @@ export const outsourcingApi = {
     invalidateOutsourcingCache();
     return res;
   },
+  updateTimeLog: async (token, id, payload) => {
+    const res = await apiClient.put(`/api/outsourcing/time-logs/${id}`, payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
   verifyTimeLog: async (token, id, status) => {
     const res = await apiClient.put(`/api/outsourcing/time-logs/${id}/verify`, { status }, token);
     invalidateOutsourcingCache();
@@ -233,6 +238,23 @@ export const outsourcingApi = {
     }
     invalidateOutsourcingCache();
     return data;
+  },
+  createSupportTicket: async (token, payload) => {
+    const res = await apiClient.post('/api/outsourcing/support/tickets', payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  getMyTickets: async (token) => readCache(token, 'myTickets', () => apiClient.get('/api/outsourcing/support/tickets', token), ttl.fast),
+  getAllTickets: async (token, params = '') => apiClient.get(`/api/outsourcing/support/tickets/all${params ? `?${params}` : ''}`, token),
+  updateTicket: async (token, id, payload) => {
+    const res = await apiClient.put(`/api/outsourcing/support/tickets/${id}`, payload, token);
+    invalidateOutsourcingCache();
+    return res;
+  },
+  updatePreferences: async (token, payload) => {
+    const res = await apiClient.put('/api/outsourcing/preferences', payload, token);
+    invalidateOutsourcingCache();
+    return res;
   },
   clearClientCache: invalidateOutsourcingCache
 };

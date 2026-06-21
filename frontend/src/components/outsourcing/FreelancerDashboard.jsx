@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { outsourcingApi } from '../../services/outsourcing';
+import { useOutsourcingSocket } from '../../hooks/useOutsourcingSocket';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
 
@@ -540,6 +541,9 @@ export default function FreelancerDashboard({ token, user }) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Real-time: reload data when any outsourcing event arrives for this user
+  useOutsourcingSocket(token, user, useCallback(() => { load(); }, [load]));
 
   // Filter to this user's assigned jobs only
   const myJobs = useMemo(

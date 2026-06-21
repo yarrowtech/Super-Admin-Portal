@@ -39,6 +39,7 @@ const navItems = [
           { label: 'Jobs', path: '/admin/outsourcing/jobs' },
           { label: 'Contracts', path: '/admin/outsourcing/contracts' },
           { label: 'Reports', path: '/admin/outsourcing/reports' },
+          { label: 'Support Tickets', path: '/admin/outsourcing/support' },
         ],
       },
     ]

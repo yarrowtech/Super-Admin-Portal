@@ -9,7 +9,9 @@ const HRPortal = () => {
   const { user } = useAuth();
   const location = useLocation();
   const hrMobileItems = resolvePortalMenu('hr').map(({ label, icon, path }) => ({ label, icon, path }));
-  const hideHeader = ['/hr/dashboard', '/hr/outsourcing'].some(p => location.pathname.startsWith(p));
+  const hideHeader = ['/hr/dashboard', '/hr/outsourcing', '/hr/users', '/hr/employees'].some((p) =>
+    location.pathname.startsWith(p)
+  );
 
   return (
     <AppLayout

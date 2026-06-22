@@ -121,7 +121,13 @@ const HRSystemStructure = () => {
         const response = await hrApi.getDashboard(token);
         setDashboardData(response.data);
       } catch (err) {
-        setError(err.message || 'Failed to load HR summary');
+        const message = err.message || 'Failed to load HR summary';
+        if (/project\s*id required/i.test(message)) {
+          setDashboardData(null);
+          setError(null);
+          return;
+        }
+        setError(message);
       } finally {
         setLoading(false);
       }

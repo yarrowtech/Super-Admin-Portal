@@ -13,7 +13,7 @@ const initialForm = {
   lastName: '',
   email: '',
   password: '',
-  role: 'employee',
+  role: '',
   department: '',
   phone: '',
   accountStatus: 'active',
@@ -21,7 +21,10 @@ const initialForm = {
   projectAssignments: '',
 };
 
-const UserRoleManagement = () => {
+const isProjectContextError = (error) => /project\s*id required/i.test(error?.message || '');
+
+const UserRoleManagement = ({ api = adminApi } = {}) => {
+  const userApi = api || adminApi;
   const { token } = useAuth();
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -44,8 +47,8 @@ const UserRoleManagement = () => {
     try {
       setLoading(true);
       setError('');
-      const [res, dashboardRes] = await Promise.all([
-        adminApi.getAllUsers(token, {
+      const [usersResult, dashboardResult] = await Promise.allSettled([
+        userApi.getAllUsers(token, {
           page,
           limit: 10,
           role: filters.role || undefined,
@@ -53,11 +56,18 @@ const UserRoleManagement = () => {
           accountStatus: filters.accountStatus || undefined,
           search: filters.search || undefined,
         }),
-        adminApi.getDashboard(token),
+        userApi.getDashboard(token),
       ]);
 
-      const payload = res?.data || {};
-      const dashboard = dashboardRes?.data || {};
+      if (usersResult.status === 'rejected') {
+        const error = usersResult.reason;
+        if (!isProjectContextError(error)) {
+          throw error;
+        }
+      }
+
+      const payload = usersResult.status === 'fulfilled' ? usersResult.value?.data || {} : {};
+      const dashboard = dashboardResult.status === 'fulfilled' ? dashboardResult.value?.data || {} : {};
       const fetchedUsers = payload.users || [];
       setUsers(fetchedUsers);
       setStats({
@@ -84,7 +94,7 @@ const UserRoleManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, page, filters, selectedUser]);
+  }, [token, page, filters, selectedUser, userApi]);
 
   useEffect(() => {
     fetchUsers();
@@ -102,6 +112,11 @@ const UserRoleManagement = () => {
     }, {});
   }, [users]);
 
+  const hasLegacyEmployeeUsers = useMemo(
+    () => users.some((user) => String(user?.role || '').toLowerCase() === 'employee'),
+    [users]
+  );
+
   const openCreateModal = () => {
     setEditingUser(null);
     setForm(initialForm);
@@ -112,6 +127,10 @@ const UserRoleManagement = () => {
 
   const openEditModal = (targetUser = selectedUser) => {
     if (!targetUser) return;
+    if (String(targetUser.role || '').toLowerCase() === 'employee') {
+      setError('Legacy employee users are read-only and cannot be edited from admin.');
+      return;
+    }
     setEditingUser(targetUser);
 
     setForm({
@@ -159,6 +178,10 @@ const UserRoleManagement = () => {
 
   const handleSubmit = async () => {
     if (!token) return;
+    if (String(editingUser?.role || '').toLowerCase() === 'employee') {
+      setFormError('Legacy employee users are read-only and cannot be saved from admin.');
+      return;
+    }
     setFormTouched(true);
     setActionState((prev) => ({ ...prev, saving: true }));
     setFormError('');
@@ -199,10 +222,10 @@ const UserRoleManagement = () => {
       }
 
       if (!editingUser) {
-        await adminApi.createUser(token, payload);
+        await userApi.createUser(token, payload);
       } else {
         const userId = editingUser._id || editingUser.id;
-        await adminApi.updateUser(token, userId, payload);
+        await userApi.updateUser(token, userId, payload);
       }
 
       closeModal();
@@ -220,7 +243,7 @@ const UserRoleManagement = () => {
     setActionState((prev) => ({ ...prev, togglingId: userId }));
 
     try {
-      await adminApi.toggleUserStatus(token, userId);
+      await userApi.toggleUserStatus(token, userId);
       fetchUsers();
     } catch (err) {
       setError(err.message || 'Failed to update status');
@@ -235,7 +258,7 @@ const UserRoleManagement = () => {
     setActionState((prev) => ({ ...prev, togglingId: userId }));
 
     try {
-      await adminApi.setUserStatus(token, userId, accountStatus);
+      await userApi.setUserStatus(token, userId, accountStatus);
       fetchUsers();
     } catch (err) {
       setError(err.message || 'Failed to update account status');
@@ -247,7 +270,7 @@ const UserRoleManagement = () => {
   const handleExportUsers = async () => {
     if (!token) return;
     try {
-      const blob = await adminApi.exportUsers(token);
+      const blob = await userApi.exportUsers(token);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -271,7 +294,7 @@ const UserRoleManagement = () => {
     setActionState((prev) => ({ ...prev, deletingId: userId }));
 
     try {
-      await adminApi.deleteUser(token, userId);
+      await userApi.deleteUser(token, userId);
       fetchUsers();
     } catch (err) {
       setError(err.message || 'Failed to delete user');
@@ -351,7 +374,6 @@ const UserRoleManagement = () => {
               </Button>
             </div>
           </PortalHeader>
-
           {/* Error Message */}
           {error && (
             <div className="mb-6 animate-in slide-in-from-top-2 rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm dark:border-red-800 dark:bg-red-900/20">

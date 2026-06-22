@@ -43,6 +43,11 @@ const isAttendanceRouteUnavailable = (err) => {
   return message.includes('route not found') || message.includes('route not available') || err?.status === 404;
 };
 
+const isProjectContextError = (err) => {
+  const message = (err?.message || '').toLowerCase();
+  return message.includes('projectid required') || message.includes('project id required');
+};
+
 export const useHrDashboard = () => {
   const { token, user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
@@ -65,18 +70,26 @@ export const useHrDashboard = () => {
   const fetchPendingLeaves = useCallback(async () => {
     if (!token) return;
 
-    const pendingResponse = await hrApi.getLeaveRequests(token, { status: 'pending', limit: 3, page: 1 });
-    const pendingList = pendingResponse?.data?.leaves || [];
+    try {
+      const pendingResponse = await hrApi.getLeaveRequests(token, { status: 'pending', limit: 3, page: 1 });
+      const pendingList = pendingResponse?.data?.leaves || [];
 
-    if (pendingList.length > 0) {
-      setPendingLeaves(pendingList);
-      setLeaveListMode('pending');
-      return;
+      if (pendingList.length > 0) {
+        setPendingLeaves(pendingList);
+        setLeaveListMode('pending');
+        return;
+      }
+
+      const recentResponse = await hrApi.getLeaveRequests(token, { limit: 3, page: 1 });
+      setPendingLeaves(recentResponse?.data?.leaves || []);
+      setLeaveListMode('recent');
+    } catch (err) {
+      if (!isProjectContextError(err)) {
+        console.warn('Failed to load HR leave requests', err);
+      }
+      setPendingLeaves([]);
+      setLeaveListMode('recent');
     }
-
-    const recentResponse = await hrApi.getLeaveRequests(token, { limit: 3, page: 1 });
-    setPendingLeaves(recentResponse?.data?.leaves || []);
-    setLeaveListMode('recent');
   }, [token]);
 
   const fetchWorkUpdates = useCallback(async () => {
@@ -90,7 +103,12 @@ export const useHrDashboard = () => {
       setWorkUpdates(payload.reports || []);
       setWorkUpdatesTotal(payload.total || 0);
     } catch (err) {
-      setWorkUpdatesError(err.message || 'Failed to load work updates');
+      if (!isProjectContextError(err)) {
+        setWorkUpdatesError(err.message || 'Failed to load work updates');
+      } else {
+        setWorkUpdates([]);
+        setWorkUpdatesTotal(0);
+      }
     } finally {
       setWorkUpdatesLoading(false);
     }
@@ -103,7 +121,7 @@ export const useHrDashboard = () => {
       setLoading(true);
       setError('');
 
-      const [dashboardRes, attendanceRes, analyticsRes, predictiveRes, automationRes] = await Promise.all([
+      const [dashboardRes, attendanceRes, analyticsRes, predictiveRes, automationRes] = await Promise.allSettled([
         hrApi.getDashboard(token),
         hrApi.getAttendanceStatus(token).catch(() => null),
         hrApi.getAnalyticsOverview(token).catch(() => null),
@@ -111,15 +129,23 @@ export const useHrDashboard = () => {
         hrApi.getAutomationOverview(token).catch(() => null),
       ]);
 
-      setDashboardData(dashboardRes?.data || null);
-      setAnalyticsOverview(analyticsRes?.data || null);
-      setPredictiveApiAlerts(predictiveRes?.data?.alerts || []);
-      setAutomationOverview(automationRes?.data || null);
+      if (dashboardRes.status === 'fulfilled') {
+        setDashboardData(dashboardRes.value?.data || null);
+      } else if (!isProjectContextError(dashboardRes.reason)) {
+        throw dashboardRes.reason;
+      }
 
-      const normalizedAttendance = normalizeAttendance(attendanceRes?.data || attendanceRes);
-      if (normalizedAttendance) {
-        setAttendanceStatus(normalizedAttendance);
-        persistAttendance(normalizedAttendance);
+      if (attendanceRes.status === 'fulfilled') {
+        const normalizedAttendance = normalizeAttendance(attendanceRes.value?.data || attendanceRes.value);
+        if (normalizedAttendance) {
+          setAttendanceStatus(normalizedAttendance);
+          persistAttendance(normalizedAttendance);
+        } else {
+          const storedAttendance = loadStoredAttendance();
+          if (storedAttendance) {
+            setAttendanceStatus(storedAttendance);
+          }
+        }
       } else {
         const storedAttendance = loadStoredAttendance();
         if (storedAttendance) {
@@ -127,7 +153,19 @@ export const useHrDashboard = () => {
         }
       }
 
-      await Promise.all([fetchPendingLeaves(), fetchWorkUpdates()]);
+      if (analyticsRes.status === 'fulfilled') {
+        setAnalyticsOverview(analyticsRes.value?.data || null);
+      }
+
+      if (predictiveRes.status === 'fulfilled') {
+        setPredictiveApiAlerts(predictiveRes.value?.data?.alerts || []);
+      }
+
+      if (automationRes.status === 'fulfilled') {
+        setAutomationOverview(automationRes.value?.data || null);
+      }
+
+      await Promise.allSettled([fetchPendingLeaves(), fetchWorkUpdates()]);
     } catch (err) {
       setError(err.message || 'Failed to load dashboard data');
     } finally {

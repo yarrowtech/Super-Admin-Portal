@@ -144,6 +144,11 @@ const ROLE_PERMISSIONS = {
     "payroll_access",
     "performance_reviews",
     "leave_management",
+    "users:read",
+    "users:create",
+    "users:update",
+    "users:delete",
+    "users:export",
   ],
   [ROLES.MEDIA]: [
     "content_management",

@@ -21,6 +21,8 @@ const ALLOWED_METADATA_FIELDS = [
   'notes'
 ];
 
+const isLegacyEmployeeUser = (user) => String(user?.role || '').trim().toLowerCase() === 'employee';
+
 const prepareMetadataPayload = (metadata) => {
   const sanitized = {};
   const fieldsToRemove = [];
@@ -319,6 +321,12 @@ exports.createUser = async (req, res) => {
         error: `Invalid role. Valid roles are: ${validRoles.join(', ')}`
       });
     }
+    if (String(role).trim().toLowerCase() === 'employee') {
+      return res.status(400).json({
+        success: false,
+        error: 'Employee role is deprecated. Choose a portal role such as freelancer, manager, hr, it, law, media, finance, sales, or research_operator.'
+      });
+    }
 
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -412,7 +420,26 @@ exports.updateUser = async (req, res) => {
           error: `Invalid role. Valid roles are: ${validRoles.join(', ')}`
         });
       }
+      if (String(role).trim().toLowerCase() === 'employee') {
+        return res.status(400).json({
+          success: false,
+          error: 'Employee role is deprecated. Choose a portal role such as freelancer, manager, hr, it, law, media, finance, sales, or research_operator.'
+        });
+      }
+      if (isLegacyEmployeeUser(user)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Legacy employee users are read-only and cannot be re-assigned from the admin portal.'
+        });
+      }
       user.role = role;
+    }
+
+    if (isLegacyEmployeeUser(user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Legacy employee users are read-only and cannot be updated from the admin portal.'
+      });
     }
 
     // Update fields with validation
@@ -521,6 +548,12 @@ exports.deleteUser = async (req, res) => {
         error: 'User not found'
       });
     }
+    if (isLegacyEmployeeUser(user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Legacy employee users are read-only and cannot be deleted from the admin portal.'
+      });
+    }
 
     // Prevent deleting yourself
     if (req.user && req.user.id === req.params.id) {
@@ -568,6 +601,12 @@ exports.toggleUserStatus = async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'User not found'
+      });
+    }
+    if (isLegacyEmployeeUser(user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Legacy employee users are read-only and cannot be changed from the admin portal.'
       });
     }
 
@@ -623,6 +662,12 @@ exports.setUserStatus = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    if (isLegacyEmployeeUser(user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Legacy employee users are read-only and cannot be changed from the admin portal.'
+      });
     }
 
     if (req.user && req.user.id.toString() === req.params.id && accountStatus !== 'active') {

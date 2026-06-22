@@ -548,7 +548,7 @@ const workUpdateStatusLabels = {
               </div>
               <div className="space-y-2 p-4">
                 <button
-                  onClick={() => navigate('/hr/employees?new=1')}
+                  onClick={() => navigate('/hr/users?new=1')}
                   className="group flex w-full items-center gap-3 rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-200 hover:scale-105 hover:border-purple-400 hover:bg-purple-50 hover:shadow-md dark:border-purple-900/50 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:border-purple-700 dark:hover:bg-purple-900/20"
                 >
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 group-hover:bg-purple-200 dark:bg-purple-900/40 dark:group-hover:bg-purple-800/60">

@@ -122,7 +122,13 @@ const PortalRoute = ({ portal, children }) => {
         if (alive) setWorkflowLoading(false);
       } catch (err) {
         if (alive) {
-          setWorkflowError(err.message || 'Failed to load dashboard workflow');
+          const message = err?.message || 'Failed to load dashboard workflow';
+          const isProjectContextError = /project\s*id required/i.test(message);
+          if (portal === PORTALS.HR && isProjectContextError) {
+            setWorkflowLoading(false);
+            return;
+          }
+          setWorkflowError(message);
           setWorkflowLoading(false);
         }
       }
@@ -211,6 +217,7 @@ export default function AppRoutes() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<HRDashboardPage />} />
           <Route path="employees" element={<EmployeesPage />} />
+          <Route path="users" element={<EmployeesPage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="leave" element={<LeavePage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />

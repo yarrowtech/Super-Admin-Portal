@@ -7,7 +7,7 @@ export const portalMenuConfig = {
   ],
   hr: [
     { label: 'Dashboard',   icon: 'dashboard',       path: '/hr/dashboard',    description: 'HR command center' },
-    { label: 'Employees',   icon: 'manage_accounts', path: '/hr/employees',    description: 'Employee records' },
+    { label: 'Users',       icon: 'manage_accounts', path: '/hr/users',        description: 'Employee records' },
     { label: 'Recruitment', icon: 'person_search',   path: '/hr/recruitment',  description: 'Hiring pipeline' },
     { label: 'Attendance',  icon: 'calendar_month',  path: '/hr/attendance',   description: 'Attendance operations' },
     { label: 'Leave',       icon: 'event_note',      path: '/hr/leave',        description: 'Leave approvals and policy' },

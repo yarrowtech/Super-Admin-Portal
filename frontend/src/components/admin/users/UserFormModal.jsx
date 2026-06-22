@@ -3,7 +3,6 @@ import Button from '../../common/Button';
 import { PROJECT_NAME_PLACEHOLDER } from '../../../config/projectNames';
 
 const roles = [
-  { value: 'employee', label: 'Employee' },
   { value: 'freelancer', label: 'Freelancer' },
   { value: 'manager', label: 'Manager' },
   { value: 'hr', label: 'Human Resources' },
@@ -199,6 +198,9 @@ const UserFormModal = ({
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">System Role <span className="text-red-500">*</span></label>
                   <select required value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} className={inputClass}>
+                    <option value="" disabled>
+                      Select role
+                    </option>
                     {resolvedRoles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
                   </select>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Role controls module and API permissions.</p>

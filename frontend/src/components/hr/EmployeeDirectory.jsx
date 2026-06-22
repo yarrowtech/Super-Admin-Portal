@@ -13,14 +13,13 @@ const initialForm = {
   lastName: '',
   email: '',
   password: '',
-  role: 'employee',
+  role: '',
   department: '',
   phoneCountry: 'IN',
   phone: '',
 };
 
 const hrRoleOptions = [
-  { value: 'employee', label: 'Employee' },
   { value: 'freelancer', label: 'Freelancer' },
   { value: 'manager', label: 'Manager' },
   { value: 'hr', label: 'Human Resources' },
@@ -133,6 +132,8 @@ const validateEmployeeForm = (form, editingEmployee) => {
   return errors;
 };
 
+const isProjectContextError = (error) => /project\s*id required/i.test(error?.message || '');
+
 const EmployeeDirectory = () => {
   const { token } = useAuth();
   const { confirm } = useConfirmDialog();
@@ -170,7 +171,12 @@ const EmployeeDirectory = () => {
       setEmployees(payload.employees || []);
       setTotalPages(payload.totalPages || 1);
     } catch (err) {
-      setError(err.message || 'Failed to load employees');
+      if (!isProjectContextError(err)) {
+        setError(err.message || 'Failed to load employees');
+      } else {
+        setEmployees([]);
+        setTotalPages(1);
+      }
     } finally {
       setLoading(false);
     }
@@ -232,7 +238,7 @@ const EmployeeDirectory = () => {
       lastName: employee.lastName || '',
       email: employee.email || '',
       password: '',
-      role: employee.role || 'employee',
+      role: employee.role || '',
       department: employee.department || '',
       phoneCountry: parsedPhone.phoneCountry,
       phone: parsedPhone.phone,
@@ -376,9 +382,9 @@ const EmployeeDirectory = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 pb-6">
           <div className="flex flex-col gap-1">
             <h1 className="text-4xl font-black leading-tight tracking-[-0.033em] text-neutral-800 dark:text-neutral-100">
-              Employee Directory
+              User Management
             </h1>
-            <p className="text-base text-neutral-600 dark:text-neutral-400">Manage all employees in one place.</p>
+            <p className="text-base text-neutral-600 dark:text-neutral-400">Manage all users in one place.</p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -393,7 +399,7 @@ const EmployeeDirectory = () => {
               className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-white"
             >
               <span className="material-symbols-outlined text-base">add</span>
-              <span>Add Employee</span>
+              <span>Add User</span>
             </button>
           </div>
         </div>
@@ -456,7 +462,7 @@ const EmployeeDirectory = () => {
                       }}
                       className="size-4 rounded border-neutral-300 text-primary focus:ring-primary/50 dark:border-neutral-700 dark:bg-neutral-900"
                     />
-                    <span>Employee Name</span>
+              <span>User Name</span>
                   </div>
                 </th>
                 <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
@@ -470,14 +476,14 @@ const EmployeeDirectory = () => {
               {loading && (
                 <tr>
                   <td colSpan={6} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                    Loading employees...
+                    Loading users...
                   </td>
                 </tr>
               )}
               {!loading && formattedEmployees.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                    No employees found.
+                    No users found.
                   </td>
                 </tr>
               )}
@@ -566,7 +572,7 @@ const EmployeeDirectory = () => {
         saving={actionState.saving}
         roleOptions={hrRoleOptions}
         departmentOptions={hrDepartmentOptions}
-        showAdminFields={false}
+        showAdminFields={true}
       />
 
       <ExportModal

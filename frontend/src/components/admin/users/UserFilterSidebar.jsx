@@ -12,7 +12,6 @@ const roleOptions = [
   { value: 'freelancer', label: 'Freelancer', icon: 'person' },
   { value: 'sales', label: 'Sales', icon: 'trending_up' },
   { value: 'research_operator', label: 'Research', icon: 'science' },
-  { value: 'employee', label: 'Employee', icon: 'person' },
 ];
 
 const filterButtonClass = (active, activeClass = 'bg-gradient-to-r from-primary to-primary/80 text-white font-semibold shadow-md') =>

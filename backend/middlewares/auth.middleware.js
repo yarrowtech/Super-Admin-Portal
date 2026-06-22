@@ -6,6 +6,7 @@ const User = require('../models/auth/User');
 const PortalAccess = require('../models/superAdmin/PortalAccess');
 const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
+const { getRolePermissions } = require('../config/roles');
 
 const DEFAULT_MANAGER_PORTALS = new Set(['manager', 'admin', 'hr', 'it', 'law', 'employee']);
 const DEFAULT_IT_PORTALS = new Set(['it', 'admin', 'hr', 'law', 'employee', 'manager']);
@@ -128,7 +129,10 @@ const authenticate = async (req, res, next) => {
       department: user.department,
       isActive: user.isActive,
       accountStatus: user.accountStatus,
-      permissions: user.permissions || [],
+      permissions: Array.from(new Set([
+        ...(Array.isArray(user.permissions) ? user.permissions : []),
+        ...getRolePermissions(user.role),
+      ])),
       metadata: user.metadata || {},
       assignedProjects: normalizeProjectAssignments(user.metadata || {})
     };
@@ -199,6 +203,9 @@ const authorizePortalAccess = (portal) => {
       if (!rule && req.user.role === 'it' && DEFAULT_IT_PORTALS.has(portal)) {
         return next();
       }
+      if (!rule && req.user.role === 'hr' && portal === 'admin') {
+        return next();
+      }
       // Fail-open for first-party same-role portal access when rule seeding is missing.
       // Explicit stored deny rules still take precedence.
       if (!rule && req.user.role === portal) return next();
@@ -259,7 +266,10 @@ const optionalAuth = async (req, res, next) => {
           firstName: user.firstName,
           lastName: user.lastName,
           department: user.department,
-          permissions: user.permissions || [],
+          permissions: Array.from(new Set([
+            ...(Array.isArray(user.permissions) ? user.permissions : []),
+            ...getRolePermissions(user.role),
+          ])),
           metadata: user.metadata || {},
           assignedProjects: normalizeProjectAssignments(user.metadata || {})
         };

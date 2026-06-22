@@ -138,7 +138,6 @@ const monthRange = (year, month) => {
 };
 
 const HR_MANAGEABLE_ROLES = [
-  ROLES.EMPLOYEE,
   ROLES.MANAGER,
   ROLES.HR,
   ROLES.FINANCE,
@@ -150,6 +149,57 @@ const HR_MANAGEABLE_ROLES = [
 ];
 
 const normalizeRoleValue = (role) => String(role || '').trim().toLowerCase();
+const HR_ACCOUNT_STATUSES = ['active', 'inactive', 'suspended', 'blocked', 'pending_verification'];
+const isLegacyEmployeeUser = (user) => String(user?.role || '').trim().toLowerCase() === 'employee';
+
+const normalizeStringArray = (value) =>
+  Array.isArray(value)
+    ? Array.from(
+        new Set(
+          value
+            .map((item) => (typeof item === 'string' ? item.trim() : ''))
+            .filter(Boolean)
+        )
+      )
+    : [];
+
+const sanitizeMetadataPayload = (metadata) => {
+  if (!metadata || typeof metadata !== 'object') return {};
+
+  const cleaned = {};
+
+  Object.entries(metadata).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (key === 'projectAssignments' && Array.isArray(value)) {
+      cleaned.projectAssignments = value
+        .map((entry) => {
+          if (typeof entry === 'string') {
+            const projectName = entry.trim();
+            return projectName ? { projectName } : null;
+          }
+
+          if (!entry || typeof entry !== 'object') return null;
+
+          const sanitizedEntry = {};
+          if (typeof entry.projectId === 'string' && entry.projectId.trim()) sanitizedEntry.projectId = entry.projectId.trim();
+          if (typeof entry.projectCode === 'string' && entry.projectCode.trim()) sanitizedEntry.projectCode = entry.projectCode.trim();
+          if (typeof entry.projectName === 'string' && entry.projectName.trim()) sanitizedEntry.projectName = entry.projectName.trim();
+          if (typeof entry.role === 'string' && entry.role.trim()) sanitizedEntry.role = entry.role.trim();
+          if (Array.isArray(entry.permissions)) {
+            const permissions = normalizeStringArray(entry.permissions);
+            if (permissions.length > 0) sanitizedEntry.permissions = permissions;
+          }
+          return Object.keys(sanitizedEntry).length > 0 ? sanitizedEntry : null;
+        })
+        .filter(Boolean);
+      return;
+    }
+
+    cleaned[key] = value;
+  });
+
+  return cleaned;
+};
 
 /**
  * @route   GET /api/dept/hr/dashboard
@@ -647,12 +697,13 @@ exports.getEmployeeAttendance = async (req, res) => {
  */
 exports.getEmployees = async (req, res) => {
   try {
-    const { page = 1, limit = 10, role, department, isActive, search } = req.query;
+    const { page = 1, limit = 10, role, department, isActive, accountStatus, search } = req.query;
     const query = {};
 
     if (role) query.role = role;
     if (department) query.department = new RegExp(department, 'i');
     if (isActive !== undefined) query.isActive = isActive === 'true';
+    if (accountStatus) query.accountStatus = accountStatus;
     if (search) {
       query.$or = [
         { firstName: { $regex: search, $options: 'i' } },
@@ -1675,7 +1726,7 @@ exports.addComplaintComment = async (req, res) => {
  */
 exports.createEmployee = async (req, res) => {
   try {
-    const { email, password, role, firstName, lastName, phone, department } = req.body;
+    const { email, password, role, firstName, lastName, phone, department, accountStatus, permissions, metadata } = req.body;
 
     if (!email || !password || !role || !firstName || !lastName) {
       return res.status(400).json({
@@ -1716,6 +1767,12 @@ exports.createEmployee = async (req, res) => {
         error: 'HR cannot create admin or CEO accounts'
       });
     }
+    if (normalizedRole === 'employee') {
+      return res.status(400).json({
+        success: false,
+        error: 'Employee role is deprecated. Choose a portal role such as freelancer, manager, hr, it, law, media, finance, sales, or research_operator.'
+      });
+    }
 
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
@@ -1725,6 +1782,10 @@ exports.createEmployee = async (req, res) => {
       });
     }
 
+    const selectedStatus = HR_ACCOUNT_STATUSES.includes(accountStatus) ? accountStatus : 'active';
+    const selectedPermissions = normalizeStringArray(permissions);
+    const sanitizedMetadata = sanitizeMetadataPayload(metadata);
+
     const user = await User.create({
       email: normalizedEmail,
       password,
@@ -1732,7 +1793,11 @@ exports.createEmployee = async (req, res) => {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: phone?.trim(),
-      department: department?.trim()
+      department: department?.trim(),
+      accountStatus: selectedStatus,
+      isActive: selectedStatus === 'active',
+      permissions: selectedPermissions,
+      metadata: sanitizedMetadata
     });
 
     res.status(201).json({
@@ -1752,7 +1817,7 @@ exports.createEmployee = async (req, res) => {
 
 exports.updateEmployee = async (req, res) => {
   try {
-    const { role, firstName, lastName, phone, department, isActive } = req.body;
+    const { role, firstName, lastName, phone, department, isActive, accountStatus, permissions, metadata } = req.body;
 
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -1767,6 +1832,12 @@ exports.updateEmployee = async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Employee not found'
+      });
+    }
+    if (isLegacyEmployeeUser(user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Legacy employee users are read-only and cannot be updated from the HR portal.'
       });
     }
 
@@ -1786,13 +1857,49 @@ exports.updateEmployee = async (req, res) => {
           error: 'HR cannot assign admin or CEO roles'
         });
       }
+      if (normalizedRole === 'employee') {
+        return res.status(400).json({
+          success: false,
+          error: 'Employee role is deprecated. Choose a portal role such as freelancer, manager, hr, it, law, media, finance, sales, or research_operator.'
+        });
+      }
       user.role = normalizedRole;
     }
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
     if (phone !== undefined) user.phone = phone?.trim();
     if (department !== undefined) user.department = department?.trim();
-    if (isActive !== undefined) user.isActive = isActive;
+    if (accountStatus !== undefined) {
+      if (!HR_ACCOUNT_STATUSES.includes(accountStatus)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid accountStatus. Valid statuses are: ${HR_ACCOUNT_STATUSES.join(', ')}`
+        });
+      }
+      user.accountStatus = accountStatus;
+      user.isActive = accountStatus === 'active';
+    } else if (isActive !== undefined) {
+      user.isActive = Boolean(isActive);
+      user.accountStatus = user.isActive ? 'active' : 'inactive';
+    }
+
+    if (permissions !== undefined) {
+      if (!Array.isArray(permissions)) {
+        return res.status(400).json({
+          success: false,
+          error: 'permissions must be an array'
+        });
+      }
+      user.permissions = normalizeStringArray(permissions);
+    }
+
+    if (metadata !== undefined) {
+      user.metadata = {
+        ...(user.metadata && typeof user.metadata === 'object' ? user.metadata : {}),
+        ...sanitizeMetadataPayload(metadata)
+      };
+      user.markModified('metadata');
+    }
 
     await user.save();
 
@@ -1806,6 +1913,52 @@ exports.updateEmployee = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update employee',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteEmployee = async (req, res) => {
+  try {
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Employee not found'
+      });
+    }
+    if (isLegacyEmployeeUser(user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Legacy employee users are read-only and cannot be deleted from the HR portal.'
+      });
+    }
+
+    if (req.user && req.user.id === req.params.id) {
+      return res.status(400).json({
+        success: false,
+        error: 'You cannot delete your own account'
+      });
+    }
+
+    await user.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'Employee deleted successfully'
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Delete employee error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete employee',
       details: error.message
     });
   }

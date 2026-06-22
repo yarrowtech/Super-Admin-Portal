@@ -34,6 +34,7 @@ const ensureSuperAdminDefaults = async () => {
     { role: 'manager', portal: 'it', canAccess: true },
     { role: 'manager', portal: 'law', canAccess: true },
     { role: 'manager', portal: 'employee', canAccess: true },
+    { role: 'hr', portal: 'admin', canAccess: true },
     { role: 'it', portal: 'admin', canAccess: true },
     { role: 'it', portal: 'hr', canAccess: true },
     { role: 'it', portal: 'law', canAccess: true },

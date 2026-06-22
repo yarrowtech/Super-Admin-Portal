@@ -21,6 +21,10 @@ const normalizeProjectId = (projectId) => {
 const requireProjectContext = (req, res, next) => {
   const projectId = normalizeProjectId(extractProjectId(req));
   if (!projectId) {
+    const baseUrl = String(req.baseUrl || '');
+    if (baseUrl.startsWith('/api/dept/hr') || baseUrl.startsWith('/api/dashboard')) {
+      return next();
+    }
     return res.status(400).json({ success: false, error: "ProjectId required" });
   }
   if (!hasProjectAccess(req.user, projectId)) {

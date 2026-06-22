@@ -38,6 +38,9 @@ export const hrApi = {
   createEmployee: async (data, token) => {
     return apiClient.post('/api/dept/hr/employees', data, token);
   },
+  deleteEmployee: async (id, token) => {
+    return apiClient.delete(`/api/dept/hr/employees/${id}`, token);
+  },
   exportEmployeesCsv: async ({ token, search, selectedIds = [] }) => {
     const params = new URLSearchParams();
     if (search?.trim()) params.set('search', search.trim());
@@ -74,6 +77,9 @@ export const hrApi = {
   },
   updateEmployee: async (id, data, token) => {
     return apiClient.put(`/api/dept/hr/employees/${id}`, data, token);
+  },
+  setEmployeeStatus: async (id, accountStatus, token) => {
+    return apiClient.patch(`/api/dept/hr/employees/${id}/status`, { accountStatus }, token);
   },
   toggleEmployeeStatus: async (id, token) => {
     return apiClient.post(`/api/dept/hr/employees/${id}/toggle-status`, {}, token);

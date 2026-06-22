@@ -6,9 +6,9 @@ export const hrNavItems = [
     description: 'People operations overview',
   },
   {
-    label: 'Employees',
+    label: 'Users',
     icon: 'manage_accounts',
-    path: '/hr/employees',
+    path: '/hr/users',
     description: 'Employee records and structure',
   },
   {

@@ -59,6 +59,8 @@ const UserDataTable = ({
     return iconMap[role] || 'person';
   };
 
+  const isLegacyEmployee = (role) => String(role || '').trim().toLowerCase() === 'employee';
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -201,6 +203,7 @@ const UserDataTable = ({
               {sortedUsers.map((user) => {
                 const userId = user._id || user.id;
                 const isSelected = (selectedUser?._id || selectedUser?.id) === userId;
+                const legacyEmployee = isLegacyEmployee(user.role);
                 const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || '?';
                 const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User';
 
@@ -232,8 +235,8 @@ const UserDataTable = ({
                         <span className="material-symbols-outlined text-lg text-neutral-500">
                           {getRoleIcon(user.role)}
                         </span>
-                        <span className="capitalize font-medium text-neutral-700 dark:text-neutral-300">
-                          {user.role?.replace('_', ' ') || 'N/A'}
+                        <span className={`capitalize font-medium ${legacyEmployee ? 'text-amber-700 dark:text-amber-300' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                          {legacyEmployee ? 'Legacy Employee' : (user.role?.replace('_', ' ') || 'N/A')}
                         </span>
                       </div>
                     </td>
@@ -267,6 +270,7 @@ const UserDataTable = ({
                             e.stopPropagation();
                             onEditUser(user);
                           }}
+                          disabled={legacyEmployee}
                           className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
                           title="Edit user"
                         >
@@ -278,7 +282,7 @@ const UserDataTable = ({
                             e.stopPropagation();
                             onSetStatus?.(user, user.accountStatus === 'blocked' ? 'active' : 'blocked');
                           }}
-                          disabled={actionState.togglingId === userId}
+                          disabled={legacyEmployee || actionState.togglingId === userId}
                           className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
                           title={user.accountStatus === 'blocked' ? 'Unblock user' : 'Block user'}
                         >
@@ -292,7 +296,7 @@ const UserDataTable = ({
                             e.stopPropagation();
                             onToggleStatus(user);
                           }}
-                          disabled={actionState.togglingId === userId}
+                          disabled={legacyEmployee || actionState.togglingId === userId}
                           className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${
                             user.isActive
                               ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/30'
@@ -317,7 +321,7 @@ const UserDataTable = ({
                             e.stopPropagation();
                             onDeleteUser(user);
                           }}
-                          disabled={actionState.deletingId === userId}
+                          disabled={legacyEmployee || actionState.deletingId === userId}
                           className="flex h-10 w-10 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
                           title="Delete user"
                         >
@@ -345,6 +349,7 @@ const UserDataTable = ({
             {sortedUsers.map((user) => {
               const userId = user._id || user.id;
               const isSelected = (selectedUser?._id || selectedUser?.id) === userId;
+              const legacyEmployee = isLegacyEmployee(user.role);
               const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || '?';
               const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User';
 
@@ -377,7 +382,7 @@ const UserDataTable = ({
                       <div className="flex items-center gap-2">
                         <span className="inline-flex items-center gap-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-xs font-semibold capitalize">
                           <span className="material-symbols-outlined text-sm">{getRoleIcon(user.role)}</span>
-                          {user.role?.replace('_', ' ') || 'N/A'}
+                          {legacyEmployee ? 'Legacy Employee' : (user.role?.replace('_', ' ') || 'N/A')}
                         </span>
                         {user.department && (
                           <span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
@@ -396,6 +401,7 @@ const UserDataTable = ({
                         e.stopPropagation();
                         onEditUser(user);
                       }}
+                      disabled={legacyEmployee}
                       className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:hover:bg-blue-900/30"
                       aria-label={`Edit ${fullName}`}
                     >

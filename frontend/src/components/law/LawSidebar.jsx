@@ -70,6 +70,10 @@ const LawSidebar = () => {
           navItems={lawNavItems}
           currentPath={location.pathname}
           onLogout={handleLogout}
+          footerItems={[
+            { path: '/law/settings', label: 'Settings', icon: 'settings' },
+            { path: '/law/support',  label: 'Support',  icon: 'support_agent' },
+          ]}
         />
       </div>
 
@@ -92,6 +96,10 @@ const LawSidebar = () => {
               currentPath={location.pathname}
               onLogout={handleLogout}
               onNavigate={closeMobile}
+              footerItems={[
+                { path: '/law/settings', label: 'Settings', icon: 'settings' },
+                { path: '/law/support',  label: 'Support',  icon: 'support_agent' },
+              ]}
             />
           </div>
         </div>

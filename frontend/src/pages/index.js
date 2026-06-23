@@ -100,3 +100,17 @@ export const ITTicketsPage         = lazy(() => import('../components/it/ITWorks
 export const ITTicketDetailPage    = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITTicketDetailPage })));
 export const ITAssetsPage          = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITAssetsPage })));
 export const ITAssetDetailPage     = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITAssetDetailPage })));
+export const ITSettingsPage        = lazy(() => import('../components/it/ITSettingsPage'));
+export const ITSupportCenterPage   = lazy(() => import('../components/admin/AdminSupportCenter'));
+
+// ── Shared Settings & Support pages ──────────────────────────────────────────
+export const HRSettingsPage        = lazy(() => import('../components/hr/HRSettingsPage'));
+export const HRSupportPage         = lazy(() => import('../components/hr/HRSupportPage'));
+export const ManagerSettingsPage   = lazy(() => import('../components/manager/ManagerSettingsPage'));
+export const ManagerSupportPage    = lazy(() => import('../components/manager/ManagerSupportPage'));
+export const EmployeeSettingsPage  = lazy(() => import('../components/employee/EmployeeSettingsPage'));
+export const EmployeeSupportPage   = lazy(() => import('../components/employee/EmployeeSupportPage'));
+
+// ── Admin Support Center & Settings ──────────────────────────────────────────
+export const AdminSupportCenterPage = lazy(() => import('../components/admin/AdminSupportCenter'));
+export const AdminSettingsPage      = lazy(() => import('../components/admin/AdminSettingsPage'));

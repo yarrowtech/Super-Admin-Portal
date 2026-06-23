@@ -73,6 +73,16 @@ import {
   ITTicketDetailPage,
   ITAssetsPage,
   ITAssetDetailPage,
+  ITSettingsPage,
+  ITSupportCenterPage,
+  HRSettingsPage,
+  HRSupportPage,
+  ManagerSettingsPage,
+  ManagerSupportPage,
+  EmployeeSettingsPage,
+  EmployeeSupportPage,
+  AdminSupportCenterPage,
+  AdminSettingsPage,
 } from '../pages';
 import OutsourcingProjectsPage from '../components/outsourcing/OutsourcingProjectsPage';
 import {
@@ -227,6 +237,8 @@ export default function AppRoutes() {
           <Route path="work-updates" element={<Navigate to="/hr/tasks?view=updates" replace />} />
           <Route path="tasks" element={<HRTasksPage />} />
           <Route path="outsourcing" element={<HROutsourcingPage />} />
+          <Route path="settings" element={<HRSettingsPage />} />
+          <Route path="support" element={<HRSupportPage />} />
         </Route>
 
         <Route
@@ -248,7 +260,8 @@ export default function AppRoutes() {
           <Route path="assets/:assetId" element={<ITAssetDetailPage />} />
           <Route path="operations" element={<ITDashboard activeSection="monitoring" />} />
           <Route path="activity" element={<ITDashboard activeSection="audit-logs" />} />
-          <Route path="settings" element={<ITDashboard activeSection="settings" />} />
+          <Route path="settings" element={<ITSettingsPage />} />
+          <Route path="support-center" element={<ITSupportCenterPage />} />
         </Route>
 
         <Route
@@ -497,6 +510,26 @@ export default function AppRoutes() {
             </PortalRoute>
           }
         />
+        <Route
+          path="/admin/support-center"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminSupportCenterPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminSettingsPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
 
         <Route
           path="/outsourcing"
@@ -630,6 +663,26 @@ export default function AppRoutes() {
             </PortalRoute>
           }
         />
+        <Route
+          path="/manager/settings"
+          element={
+            <PortalRoute portal={PORTALS.MANAGER}>
+              <PrivateRoute roles={allow('manager')}>
+                {withPortal(ManagerLayout, ManagerSettingsPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/manager/support"
+          element={
+            <PortalRoute portal={PORTALS.MANAGER}>
+              <PrivateRoute roles={allow('manager')}>
+                {withPortal(ManagerLayout, ManagerSupportPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
 
         <Route
           path="/employee"
@@ -727,6 +780,26 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.EMPLOYEE}>
               <PrivateRoute roles={allow('employee')}>
                 {withPortal(EmployeeLayout, EmployeeJobBoardPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/employee/settings"
+          element={
+            <PortalRoute portal={PORTALS.EMPLOYEE}>
+              <PrivateRoute roles={allow('employee')}>
+                {withPortal(EmployeeLayout, EmployeeSettingsPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/employee/support"
+          element={
+            <PortalRoute portal={PORTALS.EMPLOYEE}>
+              <PrivateRoute roles={allow('employee')}>
+                {withPortal(EmployeeLayout, EmployeeSupportPage)}
               </PrivateRoute>
             </PortalRoute>
           }

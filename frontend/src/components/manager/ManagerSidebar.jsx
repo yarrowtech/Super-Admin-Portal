@@ -111,6 +111,10 @@ const ManagerSidebar = () => {
           navItems={navItems}
           currentPath={location.pathname}
           onLogout={handleLogout}
+          footerItems={[
+            { path: '/manager/settings', label: 'Settings', icon: 'settings' },
+            { path: '/manager/support',  label: 'Support',  icon: 'support_agent' },
+          ]}
         />
       </div>
 
@@ -133,6 +137,10 @@ const ManagerSidebar = () => {
               currentPath={location.pathname}
               onLogout={handleLogout}
               onNavigate={closeMobile}
+              footerItems={[
+                { path: '/manager/settings', label: 'Settings', icon: 'settings' },
+                { path: '/manager/support',  label: 'Support',  icon: 'support_agent' },
+              ]}
             />
           </div>
         </div>

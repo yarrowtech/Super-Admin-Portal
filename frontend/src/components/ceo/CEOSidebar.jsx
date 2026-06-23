@@ -137,16 +137,46 @@ const CEOSidebar = ({ onViewChange }) => {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-neutral-100 px-2 pb-3 pt-2 dark:border-neutral-800">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition-all duration-150 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 ${collapsed ? 'justify-center px-0' : ''}`}
-          aria-label={collapsed ? 'Logout' : undefined}
-        >
-          <span className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}>logout</span>
-          {!collapsed && <span className="flex-1 text-left">Logout</span>}
-          {collapsed && <MiniTooltip label="Logout" />}
-        </button>
+        <div className="space-y-0.5">
+          {[
+            { key: 'settings', label: 'Settings', icon: 'settings' },
+            { key: 'support',  label: 'Support',  icon: 'support_agent' },
+          ].map((item) => {
+            const active = activeView === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handleViewChange(item.key)}
+                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                  active
+                    ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+                    : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                } ${collapsed ? 'justify-center px-0' : ''}`}
+                aria-label={collapsed ? item.label : undefined}
+              >
+                <span
+                  className={`material-symbols-outlined shrink-0 text-[20px] transition-none ${collapsed ? 'mx-auto' : ''}`}
+                  style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
+                >
+                  {item.icon}
+                </span>
+                {!collapsed && <span className="flex-1 truncate text-left leading-none">{item.label}</span>}
+                {collapsed && <MiniTooltip label={item.label} />}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition-all duration-150 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 ${collapsed ? 'justify-center px-0' : ''}`}
+            aria-label={collapsed ? 'Logout' : undefined}
+          >
+            <span className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}>logout</span>
+            {!collapsed && <span className="flex-1 text-left">Logout</span>}
+            {collapsed && <MiniTooltip label="Logout" />}
+          </button>
+        </div>
       </div>
     </aside>
   );

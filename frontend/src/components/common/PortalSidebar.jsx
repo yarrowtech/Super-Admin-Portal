@@ -103,10 +103,7 @@ const PortalSidebar = ({
   const [openGroups, setOpenGroups] = useState({});
   const resolvedNavItems = useMemo(() => navItems, [navItems]);
 
-  const footerItems = footerItemsProp ?? [
-    { path: '/settings', label: 'Settings', icon: 'settings' },
-    { path: '/support', label: 'Support',  icon: 'help_outline' },
-  ];
+  const footerItems = footerItemsProp ?? [];
 
   const isPathActive  = (path) => Boolean(path) && (currentPath === path || currentPath.startsWith(path + '/'));
   const isGroupActive = (item) => Boolean(item?.children?.some((c) => isPathActive(c.path) || isGroupActive(c)));

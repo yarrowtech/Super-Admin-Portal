@@ -11,6 +11,8 @@ const CEORevenueAnalytics = lazy(() => import('./CEORevenueAnalytics'));
 const CEOProductInsights = lazy(() => import('./CEOProductInsights'));
 const CEONotifications = lazy(() => import('./CEONotifications'));
 const CEOLegalApproval = lazy(() => import('./CEOLegalApproval'));
+const CEOSettingsPage = lazy(() => import('../shared/PortalSettingsPage').then(m => ({ default: () => <m.default portalLabel="CEO" accentColor="#ef4444" /> })));
+const CEOSupportPage = lazy(() => import('../shared/PortalSupportPage').then(m => ({ default: () => <m.default portal="ceo" portalLabel="CEO" accentColor="#ef4444" /> })));
 import { NotificationProvider } from '../../context/NotificationContext';
 import MobilePortalNav from '../common/MobilePortalNav';
 
@@ -65,6 +67,10 @@ const CEOPortal = () => {
         return <CEONotifications />;
       case 'legalApproval':
         return <CEOLegalApproval />;
+      case 'settings':
+        return <CEOSettingsPage />;
+      case 'support':
+        return <CEOSupportPage />;
       default:
         return <CEODashboard />;
     }

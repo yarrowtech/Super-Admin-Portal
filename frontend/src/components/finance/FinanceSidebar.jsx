@@ -13,7 +13,8 @@ const navItems = [
   { id: 'reports', label: 'Financial Reports', icon: 'bar_chart' },
   { id: 'audit', label: 'Audit Logs', icon: 'policy' },
   { id: 'approvals', label: 'Approvals & Workflows', icon: 'approval' },
-  { id: 'settings', label: 'Settings', icon: 'settings' }
+  { id: 'settings', label: 'Settings',        icon: 'settings' },
+  { id: 'support',  label: 'Support',         icon: 'support_agent' },
 ];
 
 const FinanceSidebar = ({ activeTab = 'invoices', onSelect }) => {

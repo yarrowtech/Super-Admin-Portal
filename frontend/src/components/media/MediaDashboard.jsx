@@ -51,7 +51,8 @@ const MEDIA_SECTIONS = [
   { id: 'channels', label: 'Channels', icon: 'share', description: 'Distribution and audience reach' },
   { id: 'approvals', label: 'Approvals', icon: 'fact_check', description: 'Review and sign-off queue' },
   { id: 'analytics', label: 'Analytics', icon: 'analytics', description: 'Performance and health metrics' },
-  { id: 'settings', label: 'Settings', icon: 'settings', description: 'Controls and access rules' },
+  { id: 'settings', label: 'Settings', icon: 'settings',      description: 'Controls and access rules' },
+  { id: 'support',  label: 'Support',  icon: 'support_agent', description: 'Get help and submit tickets' },
 ];
 
 const MEDIA_STRICT_PROJECTS = CANONICAL_PROJECT_NAMES;

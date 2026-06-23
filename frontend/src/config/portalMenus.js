@@ -1,9 +1,10 @@
 export const portalMenuConfig = {
   admin: [
-    { label: 'Dashboard', icon: 'dashboard', path: '/admin/dashboard', description: 'Overview and analytics' },
-    { label: 'HR Management', icon: 'badge', path: '/hr/dashboard', description: 'People operations workspace' },
-    { label: 'Employees', icon: 'group', path: '/admin/users', description: 'Users and role management' },
-    { label: 'Reports', icon: 'bar_chart', path: '/admin/reports', description: 'Company performance reports' },
+    { label: 'Dashboard',      icon: 'dashboard',    path: '/admin/dashboard',         description: 'Overview and analytics' },
+    { label: 'HR Management',  icon: 'badge',        path: '/hr/dashboard',            description: 'People operations workspace' },
+    { label: 'Employees',      icon: 'group',        path: '/admin/users',             description: 'Users and role management' },
+    { label: 'Reports',        icon: 'bar_chart',    path: '/admin/reports',           description: 'Company performance reports' },
+    { label: 'Support Center', icon: 'support_agent', path: '/admin/support-center',  description: 'Manage all portal support tickets' },
   ],
   hr: [
     { label: 'Dashboard',   icon: 'dashboard',       path: '/hr/dashboard',    description: 'HR command center' },
@@ -43,9 +44,9 @@ export const portalMenuConfig = {
     { label: 'Dashboard', icon: 'dashboard', path: '/ceo/dashboard', description: 'Executive overview' },
   ],
   law: [
-    { label: 'Dashboard',  icon: 'gavel',    path: '/law/dashboard',   description: 'Legal operations' },
-    { label: 'Contracts',  icon: 'contract', path: '/law/contracts',   description: 'Outsourcing contract validation' },
-    { label: 'Legal Docs', icon: 'description', path: '/law/legal-docs', description: 'Legal document management' },
+    { label: 'Dashboard',  icon: 'gavel',         path: '/law/dashboard',   description: 'Legal operations' },
+    { label: 'Contracts',  icon: 'contract',      path: '/law/contracts',   description: 'Outsourcing contract validation' },
+    { label: 'Legal Docs', icon: 'description',   path: '/law/legal-docs',  description: 'Legal document management' },
   ],
   media: [
     { label: 'Dashboard', icon: 'campaign', path: '/media/dashboard', description: 'Media command center' },

@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import AppLayout from '../../layouts/AppLayout';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import MediaSidebar from './MediaSidebar';
 import MediaDashboard, { MEDIA_SECTIONS } from './MediaDashboard';
+const MediaSettingsPage = lazy(() => import('../shared/PortalSettingsPage').then(m => ({ default: () => <m.default portalLabel="Media" accentColor="#f97316" /> })));
+const MediaSupportPage  = lazy(() => import('../shared/PortalSupportPage').then(m => ({ default: () => <m.default portal="media" portalLabel="Media" accentColor="#f97316" /> })));
 
 const MediaPortal = () => {
   const { user } = useAuth();
@@ -90,12 +92,18 @@ const MediaPortal = () => {
       user={user}
     >
       <div className="portal-content p-0">
-        <MediaDashboard
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          selectedProjectId={isVirtualProjectId ? '' : selectedProjectId}
-          onProjectChange={handleProjectChange}
-        />
+        {activeSection === 'settings' ? (
+          <Suspense fallback={null}><MediaSettingsPage /></Suspense>
+        ) : activeSection === 'support' ? (
+          <Suspense fallback={null}><MediaSupportPage /></Suspense>
+        ) : (
+          <MediaDashboard
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            selectedProjectId={isVirtualProjectId ? '' : selectedProjectId}
+            onProjectChange={handleProjectChange}
+          />
+        )}
       </div>
     </AppLayout>
   );

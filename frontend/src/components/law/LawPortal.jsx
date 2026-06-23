@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import LawDashboard from './LawDashboard';
 import LawSidebar from './LawSidebar';
+import LawSettingsPage from './LawSettingsPage';
+import LawSupportPage from './LawSupportPage';
 import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 
@@ -31,7 +33,9 @@ const LawPortal = () => {
       showHeader={false}
     >
       <div className="portal-content p-0">
-        <LawDashboard />
+        {location.pathname === '/law/settings' ? <LawSettingsPage /> :
+         location.pathname === '/law/support'  ? <LawSupportPage /> :
+         <LawDashboard />}
       </div>
     </AppLayout>
   );

@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import PortalSidebar from '../common/PortalSidebar';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import { useSidebar } from '../../context/SidebarContext';
+
+const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const navItems = [
   {
@@ -80,6 +83,12 @@ const navItems = [
     path: '/admin/legal-library',
     description: 'Approved legal documents'
   },
+  {
+    label: 'Support Center',
+    icon: 'support_agent',
+    path: '/admin/support-center',
+    description: 'Manage all portal support tickets'
+  },
 ];
 
 const menuConfig = {
@@ -95,14 +104,40 @@ const menuConfig = {
   ],
 };
 
+const ADMIN_ROLES = ['admin', 'super_admin', 'superadmin'];
+
 const AdminSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout, user, token } = useAuth();
   const { collapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [supportBadge, setSupportBadge] = useState(0);
   const role = String(user?.role || '').toLowerCase();
-  const resolvedNavItems = useMemo(() => menuConfig[role] || navItems, [role]);
+
+  // Real-time badge: count new support tickets while away from support-center
+  useEffect(() => {
+    if (!token || !ADMIN_ROLES.includes(role)) return undefined;
+    const socket = io(SOCKET_URL, { auth: { token }, withCredentials: true, transports: ['websocket'] });
+    socket.emit('join_room', 'support:admins');
+    socket.on('support:new_ticket', () => {
+      setSupportBadge((n) => n + 1);
+    });
+    return () => socket.disconnect();
+  }, [token, role]);
+
+  // Clear badge when admin navigates to support center
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin/support-center')) setSupportBadge(0);
+  }, [location.pathname]);
+
+  const resolvedNavItems = useMemo(() => {
+    const items = menuConfig[role] || navItems;
+    if (!supportBadge) return items;
+    return items.map((item) =>
+      item.path === '/admin/support-center' ? { ...item, badge: supportBadge } : item
+    );
+  }, [role, supportBadge]);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -152,6 +187,9 @@ const AdminSidebar = () => {
           navItems={resolvedNavItems}
           currentPath={location.pathname}
           onLogout={handleLogout}
+          footerItems={[
+            { path: '/admin/settings', label: 'Settings', icon: 'settings' },
+          ]}
         />
       </div>
 
@@ -173,6 +211,9 @@ const AdminSidebar = () => {
               currentPath={location.pathname}
               onLogout={handleLogout}
               onNavigate={closeMobile}
+              footerItems={[
+                { path: '/admin/settings', label: 'Settings', icon: 'settings' },
+              ]}
             />
           </div>
         </div>

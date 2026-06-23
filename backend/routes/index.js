@@ -33,6 +33,7 @@ exports.profileRoutes = require("./profile.routes");
 exports.hrProfileRoutes = require("./hr.profile.routes");
 exports.analyticsRoutes = require("./analytics.routes");
 exports.automationRoutes = require("./automation.routes");
+exports.portalSupportRoutes = require("./portalSupport.routes");
 
 const legalDocRoutes = express.Router();
 legalDocRoutes.use((req, res) => {

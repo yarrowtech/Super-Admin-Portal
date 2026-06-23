@@ -121,10 +121,20 @@ const SectionSidebar = ({
                         <div className="mt-0.5 truncate text-[11px] text-neutral-400 dark:text-neutral-500">{item.description}</div>
                       )}
                     </div>
+                    {item.badge > 0 && !isActive && (
+                      <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                     {isActive && <span className="material-symbols-outlined shrink-0 text-[14px] text-white/70">chevron_right</span>}
                   </>
                 )}
-                {collapsed && <MiniTooltip label={item.label} />}
+                {collapsed && item.badge > 0 && !isActive && (
+                  <span className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-0.5 text-[8px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+                {collapsed && <MiniTooltip label={item.badge > 0 ? `${item.label} (${item.badge})` : item.label} />}
               </button>
             );
           })}

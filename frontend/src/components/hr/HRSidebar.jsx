@@ -30,6 +30,10 @@ const HRSidebar = () => {
         navItems={hrNavItems}
         currentPath={location.pathname}
         onLogout={handleLogout}
+        footerItems={[
+          { path: '/hr/settings', label: 'Settings', icon: 'settings' },
+          { path: '/hr/support',  label: 'Support',  icon: 'support_agent' },
+        ]}
       />
     </aside>
   );

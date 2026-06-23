@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import FinanceSidebar from './FinanceSidebar';
 import FinanceDashboard from './FinanceDashboard';
+import FinanceSettingsPage from './FinanceSettingsPage';
+import FinanceSupportPage from './FinanceSupportPage';
 import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 
 const financeTabs = [
-  { id: 'invoices', label: 'Invoices', icon: 'receipt_long' },
-  { id: 'payments', label: 'Payments', icon: 'payments' },
-  { id: 'expenses', label: 'Expenses', icon: 'request_quote' },
-  { id: 'budgets', label: 'Budgets', icon: 'account_balance_wallet' },
-  { id: 'payroll', label: 'Payroll', icon: 'badge' },
-  { id: 'reports', label: 'Reports', icon: 'bar_chart' },
-  { id: 'compliance', label: 'Compliance', icon: 'verified' },
-  { id: 'vendors', label: 'Vendors', icon: 'storefront' },
-  { id: 'clients', label: 'Clients', icon: 'groups' },
+  { id: 'invoices',    label: 'Invoices',    icon: 'receipt_long' },
+  { id: 'payments',   label: 'Payments',    icon: 'payments' },
+  { id: 'expenses',   label: 'Expenses',    icon: 'request_quote' },
+  { id: 'budgets',    label: 'Budgets',     icon: 'account_balance_wallet' },
+  { id: 'payroll',    label: 'Payroll',     icon: 'badge' },
+  { id: 'reports',    label: 'Reports',     icon: 'bar_chart' },
+  { id: 'compliance', label: 'Compliance',  icon: 'verified' },
+  { id: 'vendors',    label: 'Vendors',     icon: 'storefront' },
+  { id: 'clients',    label: 'Clients',     icon: 'groups' },
+  { id: 'settings',   label: 'Settings',    icon: 'settings' },
+  { id: 'support',    label: 'Support',     icon: 'support_agent' },
 ];
 
 const FinancePortal = () => {
@@ -27,6 +31,12 @@ const FinancePortal = () => {
     onClick: () => setActiveTab(tab.id),
   }));
 
+  const renderContent = () => {
+    if (activeTab === 'settings') return <FinanceSettingsPage />;
+    if (activeTab === 'support')  return <FinanceSupportPage />;
+    return <FinanceDashboard activeTab={activeTab} onTabChange={setActiveTab} />;
+  };
+
   return (
     <AppLayout
       sidebar={<FinanceSidebar activeTab={activeTab} onSelect={setActiveTab} />}
@@ -37,7 +47,7 @@ const FinancePortal = () => {
       user={user}
     >
       <div className="portal-content p-0">
-        <FinanceDashboard activeTab={activeTab} onTabChange={setActiveTab} />
+        {renderContent()}
       </div>
     </AppLayout>
   );

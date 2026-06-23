@@ -197,6 +197,10 @@ const EmployeeSidebar = () => {
           navItems={navItems}
           currentPath={location.pathname}
           onLogout={handleLogout}
+          footerItems={[
+            { path: '/employee/settings', label: 'Settings', icon: 'settings' },
+            { path: '/employee/support',  label: 'Support',  icon: 'support_agent' },
+          ]}
         />
       </div>
 
@@ -219,6 +223,10 @@ const EmployeeSidebar = () => {
               currentPath={location.pathname}
               onLogout={handleLogout}
               onNavigate={closeMobile}
+              footerItems={[
+                { path: '/employee/settings', label: 'Settings', icon: 'settings' },
+                { path: '/employee/support',  label: 'Support',  icon: 'support_agent' },
+              ]}
             />
           </div>
         </div>

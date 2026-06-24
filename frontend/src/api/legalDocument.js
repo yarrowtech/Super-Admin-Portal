@@ -13,7 +13,7 @@ export const createLegalDocument = (token, payload) =>
 /** Get current user's documents */
 export const getMyDocuments = (token, params = {}) => {
   const q = new URLSearchParams(params).toString();
-  return apiClient.get(`${P}/my/documents${q ? `?${q}` : ''}`, token);
+  return apiClient.get(`${P}/my/documents${q ? `?${q}` : ''}`, token, { cache: false, forceRefresh: true });
 };
 
 /** Get a single document by ID */
@@ -53,13 +53,13 @@ export const rejectDocument = (token, id, remarks) =>
 /** Get all approved/published documents */
 export const getApprovedDocuments = (token, params = {}) => {
   const q = new URLSearchParams(params).toString();
-  return apiClient.get(`${P}/registry/approved${q ? `?${q}` : ''}`, token);
+  return apiClient.get(`${P}/registry/approved${q ? `?${q}` : ''}`, token, { cache: false, forceRefresh: true });
 };
 
 /** Get all documents (admin oversight) */
 export const getAllDocuments = (token, params = {}) => {
   const q = new URLSearchParams(params).toString();
-  return apiClient.get(`${P}/registry/all${q ? `?${q}` : ''}`, token);
+  return apiClient.get(`${P}/registry/all${q ? `?${q}` : ''}`, token, { cache: false, forceRefresh: true });
 };
 
 /** Delete a document (admin only, must not be approved/locked) */

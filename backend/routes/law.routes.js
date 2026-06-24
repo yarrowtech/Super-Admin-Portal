@@ -47,7 +47,7 @@ router.get('/projects', async (req, res) => {
 // Law/Legal specific routes
 router.get('/dashboard', lawController.getDashboard);
 router.post('/references/upload', requireProjectContext, uploadMany('files', 10), lawController.uploadReferencePdfs);
-router.get('/records', requireProjectContext, lawController.getRecords);
+router.get('/records', lawController.getRecords);
 router.post('/records', requireProjectContext, lawController.createRecord);
 router.put('/records/:id', requireProjectContext, lawController.updateRecord);
 router.delete('/records/:id', requireProjectContext, lawController.deleteRecord);

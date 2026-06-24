@@ -11,15 +11,21 @@ const LawPortal = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const projectId = new URLSearchParams(location.search).get('projectId') || '';
+  const withProjectContext = (path) => (
+    projectId && !String(projectId).startsWith('virtual-')
+      ? `${path}?projectId=${encodeURIComponent(projectId)}`
+      : path
+  );
 
   const mobileItems = useMemo(
     () => [
-      { key: 'dashboard',   label: 'Workflow',   icon: 'gavel',         active: location.pathname === '/law/dashboard',                onClick: () => navigate('/law/dashboard') },
-      { key: 'contracts',   label: 'Contracts',  icon: 'contract',      active: location.pathname.startsWith('/law/contracts'),       onClick: () => navigate('/law/contracts') },
-      { key: 'legal-docs',  label: 'Legal Docs', icon: 'description',   active: location.pathname.startsWith('/law/legal-docs'),      onClick: () => navigate('/law/legal-docs') },
-      { key: 'agreements',  label: 'Agreements', icon: 'handshake',     active: location.pathname.startsWith('/law/agreements'),      onClick: () => navigate('/law/agreements') },
+      { key: 'dashboard',   label: 'Workflow',   icon: 'gavel',         active: location.pathname === '/law/dashboard',                onClick: () => navigate(withProjectContext('/law/dashboard')) },
+      { key: 'contracts',   label: 'Contracts',  icon: 'contract',      active: location.pathname.startsWith('/law/contracts'),       onClick: () => navigate(withProjectContext('/law/contracts')) },
+      { key: 'legal-docs',  label: 'Legal Docs', icon: 'description',   active: location.pathname.startsWith('/law/legal-docs'),      onClick: () => navigate(withProjectContext('/law/legal-docs')) },
+      { key: 'agreements',  label: 'Agreements', icon: 'handshake',     active: location.pathname.startsWith('/law/agreements'),      onClick: () => navigate(withProjectContext('/law/agreements')) },
     ],
-    [location.pathname, navigate]
+    [location.pathname, navigate, projectId]
   );
 
   return (

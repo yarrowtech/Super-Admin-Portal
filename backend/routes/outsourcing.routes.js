@@ -82,7 +82,7 @@ router.put('/jobs/:id/status', outsourcingController.updateJobStatus);
 router.get('/contracts', outsourcingController.listContracts);
 router.get('/contracts/:contractId/history', outsourcingController.getContractHistory);
 router.put('/contracts/:contractId/terms', outsourcingController.updateContractTerms);
-router.put('/contracts/:contractId/law-validate', authorize(ROLES.ADMIN, ROLES.LAW), outsourcingController.validateContractByLaw);
+router.put('/contracts/:contractId/law-validate', authorize(ROLES.ADMIN, ROLES.LAW, ROLES.LEGAL_HEAD), outsourcingController.validateContractByLaw);
 router.post('/time-logs', outsourcingTimeLogValidation, validate, outsourcingController.logTime);
 router.put('/time-logs/:id', outsourcingController.updateMyTimeLog);
 router.get('/time-logs', outsourcingController.listTimeLogs);

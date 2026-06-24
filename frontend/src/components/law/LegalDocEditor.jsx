@@ -192,6 +192,17 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
     setShowTableDialog(false);
   };
 
+  const insertClause = (type) => {
+    const clauses = {
+      confidentiality: '<h2>Confidentiality</h2><p>Each party shall keep confidential all non-public information received from the other party and shall use such information only for the purposes of this document.</p>',
+      ip: '<h2>Intellectual Property</h2><p>All intellectual property rights in deliverables, work product, materials, and related documentation shall be owned or licensed as expressly stated in this document.</p>',
+      termination: '<h2>Termination</h2><p>Either party may terminate this document in accordance with the agreed notice period, provided that accrued obligations shall survive termination.</p>',
+      signature: '<h2>Execution</h2><table style="width:100%;border-collapse:collapse;margin-top:16px"><tbody><tr><td style="border:1px solid #aaa;padding:18px;width:50%">For Company<br><br>Name:<br>Title:<br>Date:</td><td style="border:1px solid #aaa;padding:18px;width:50%">For Counterparty<br><br>Name:<br>Title:<br>Date:</td></tr></tbody></table>',
+      pageBreak: '<div style="page-break-after:always;border-top:1px dashed #bbb;margin:18px 0;height:1px"></div><p><br></p>',
+    };
+    execCmd('insertHTML', clauses[type] || '');
+  };
+
   const handlePrint = () => {
     if (onDownloadPdf) {
       onDownloadPdf();
@@ -225,6 +236,28 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
       {/* ── TOOLBAR ── */}
       {!isReadOnly && (
         <div className="no-print flex flex-wrap items-center gap-0.5 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-2 py-1.5">
+          <select
+            title="Font family"
+            onChange={(e) => execCmd('fontName', e.target.value)}
+            className="mr-1 h-8 rounded border border-neutral-300 bg-white px-2 text-xs text-neutral-700 outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+            defaultValue="'Times New Roman'"
+          >
+            <option value="'Times New Roman'">Times New Roman</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Arial">Arial</option>
+            <option value="Calibri">Calibri</option>
+          </select>
+          <select
+            title="Font size"
+            onChange={(e) => execCmd('fontSize', e.target.value)}
+            className="mr-1 h-8 rounded border border-neutral-300 bg-white px-2 text-xs text-neutral-700 outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+            defaultValue="3"
+          >
+            <option value="2">10 pt</option>
+            <option value="3">12 pt</option>
+            <option value="4">14 pt</option>
+            <option value="5">18 pt</option>
+          </select>
           {TOOL_GROUPS.map((group, gi) => (
             <React.Fragment key={gi}>
               {group.map((btn) => (
@@ -276,6 +309,23 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
 
           {/* Separator */}
           <div className="mx-1 h-6 w-px bg-neutral-300 dark:bg-neutral-600" />
+
+          <select
+            title="Insert legal clause"
+            onChange={(e) => {
+              if (e.target.value) insertClause(e.target.value);
+              e.target.value = '';
+            }}
+            className="h-8 rounded border border-neutral-300 bg-white px-2 text-xs text-neutral-700 outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+            defaultValue=""
+          >
+            <option value="">Insert clause</option>
+            <option value="confidentiality">Confidentiality</option>
+            <option value="ip">IP rights</option>
+            <option value="termination">Termination</option>
+            <option value="signature">Signature block</option>
+            <option value="pageBreak">Page break</option>
+          </select>
 
           {/* Print / PDF */}
             <button

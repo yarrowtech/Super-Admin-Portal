@@ -110,6 +110,7 @@ const LAW_STRICT_PROJECTS = CANONICAL_PROJECT_NAMES;
 const LAW_PROJECT_FALLBACK_ORDER = CANONICAL_PROJECT_NAMES;
 const OPEN_STATUSES = new Set(['pending', 'in review', 'attention']);
 const RESOLVED_STATUSES = new Set(['active', 'ready', 'archived']);
+const isRealProjectId = (projectId) => Boolean(projectId) && !String(projectId).startsWith('virtual-');
 
 const formatDate = (value) => {
   if (!value) return 'N/A';
@@ -161,7 +162,8 @@ const LawDashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedProjectId = searchParams.get('projectId') || '';
+  const rawSelectedProjectId = searchParams.get('projectId') || '';
+  const selectedProjectId = isRealProjectId(rawSelectedProjectId) ? rawSelectedProjectId : '';
   const activeSection = moduleToSection(location.pathname);
   const isCreateMode = location.pathname.endsWith('/create');
   const [searchTerm, setSearchTerm] = useState('');
@@ -210,7 +212,11 @@ const LawDashboard = () => {
     setAgreementsLoading(false);
   };
 
-  const buildRecordsCacheKey = () => `${activeSection}::${selectedProjectId || 'all'}`;
+  const buildRecordsCacheKey = (projectId = selectedProjectId) => `${activeSection}::${projectId || 'all'}`;
+
+  const withProjectContext = (path, projectId = selectedProjectId) => (
+    isRealProjectId(projectId) ? `${path}?projectId=${encodeURIComponent(projectId)}` : path
+  );
 
   const readRecordsCache = (key) => {
     const entry = recordsCache.current[key];
@@ -233,27 +239,21 @@ const LawDashboard = () => {
         const matched = projectItems.find(
           (p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase()
         );
-        return matched || { _id: `virtual-${name}`, name };
-      });
+        return matched || null;
+      }).filter(Boolean);
       setProjects(strictProjects);
 
       const fallbackProject = LAW_PROJECT_FALLBACK_ORDER.map((name) =>
         strictProjects.find((p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase())
       ).find(Boolean);
-      const effectiveProjectId =
-        selectedProjectId ||
-        fallbackProject?._id ||
-        fallbackProject?.id ||
-        strictProjects[0]?._id ||
-        strictProjects[0]?.id ||
-        '';
-      const hasRealProjectId = effectiveProjectId && !String(effectiveProjectId).startsWith('virtual-');
+      const effectiveProjectId = selectedProjectId || fallbackProject?._id || fallbackProject?.id || '';
+      const hasRealProjectId = isRealProjectId(effectiveProjectId);
       if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
         setSearchParams({ projectId: effectiveProjectId });
         try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch {}
       }
 
-      const recordsCacheKey = buildRecordsCacheKey();
+      const recordsCacheKey = buildRecordsCacheKey(effectiveProjectId);
       const cached = readRecordsCache(recordsCacheKey);
       if (cached && activeSection !== 'agreements') {
         setRecords(cached.data || []);
@@ -279,7 +279,7 @@ const LawDashboard = () => {
         : hasRealProjectId ? lawApi.getCompliance(token, { projectId: effectiveProjectId }) : Promise.resolve({ data: { compliance: [] } });
 
       const [dashboardRes, recordsRes, contractsRes, complianceRes] = await Promise.allSettled([
-        lawApi.getDashboard(token),
+        lawApi.getDashboard(token, hasRealProjectId ? { projectId: effectiveProjectId } : {}),
         recordsPromise,
         contractsPromise,
         compliancePromise,
@@ -324,6 +324,18 @@ const LawDashboard = () => {
     loadLawData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, activeSection, selectedProjectId]);
+
+  useEffect(() => {
+    if (!rawSelectedProjectId || isRealProjectId(rawSelectedProjectId)) return;
+    setSearchParams({});
+    try {
+      if (localStorage.getItem('activeProjectId') === rawSelectedProjectId) {
+        localStorage.removeItem('activeProjectId');
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, [rawSelectedProjectId, setSearchParams]);
 
   useEffect(() => {
     if (!token || activeSection !== 'agreements' || !selectedProjectId || String(selectedProjectId).startsWith('virtual-')) return;
@@ -527,7 +539,7 @@ const LawDashboard = () => {
                   <button
                     key={sec.id}
                     type="button"
-                    onClick={() => navigate(sec.path)}
+                    onClick={() => navigate(withProjectContext(sec.path))}
                     className="group flex flex-col items-center gap-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-center transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/20"
                   >
                     <span className="material-symbols-outlined text-[28px] text-neutral-500 transition group-hover:text-indigo-600 dark:text-neutral-400 dark:group-hover:text-indigo-400">{sec.icon}</span>
@@ -694,7 +706,7 @@ const LawDashboard = () => {
   return (
     <>
       {ActivePage ? (
-        <ActivePage records={records} onSectionChange={(section) => navigate(sectionToPath(section))} />
+        <ActivePage records={records} onSectionChange={(section) => navigate(withProjectContext(sectionToPath(section)))} />
       ) : (
         <LawOpsPage
           sectionId={activeSection}
@@ -714,7 +726,7 @@ const LawDashboard = () => {
           lastUpdatedAt={lastUpdatedAt}
           saving={saving}
           onSearchChange={setSearchTerm}
-          onSectionChange={(section) => navigate(sectionToPath(section))}
+          onSectionChange={(section) => navigate(withProjectContext(sectionToPath(section)))}
           onSaveRecord={handleSaveRecord}
           onDeleteRecord={handleDeleteRecord}
           onRefresh={loadLawData}

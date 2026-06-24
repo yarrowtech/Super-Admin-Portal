@@ -1,7 +1,14 @@
 import { apiClient } from './client';
 
 export const lawApi = {
-  getDashboard: async (token) => apiClient.get('/api/dept/law/dashboard', token),
+  getDashboard: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') query.append(key, value);
+    });
+    const qs = query.toString();
+    return apiClient.get(`/api/dept/law/dashboard${qs ? `?${qs}` : ''}`, token);
+  },
   getRecords: async (token, params = {}) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

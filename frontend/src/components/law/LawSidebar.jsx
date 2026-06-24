@@ -24,6 +24,13 @@ const LawSidebar = () => {
   const navigate = useNavigate();
   const { collapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const projectId = new URLSearchParams(location.search).get('projectId') || '';
+  const lawNavWithProject = lawNavItems.map((item) => ({
+    ...item,
+    path: projectId && !String(projectId).startsWith('virtual-')
+      ? `${item.path}?projectId=${encodeURIComponent(projectId)}`
+      : item.path,
+  }));
 
   const handleLogout = useCallback(() => {
     logout();
@@ -67,7 +74,7 @@ const LawSidebar = () => {
           brandingSubtitle="Legal Department"
           brandingIcon="gavel"
           user={user}
-          navItems={lawNavItems}
+          navItems={lawNavWithProject}
           currentPath={location.pathname}
           onLogout={handleLogout}
           footerItems={[
@@ -92,7 +99,7 @@ const LawSidebar = () => {
               brandingSubtitle="Legal Department"
               brandingIcon="gavel"
               user={user}
-              navItems={lawNavItems}
+              navItems={lawNavWithProject}
               currentPath={location.pathname}
               onLogout={handleLogout}
               onNavigate={closeMobile}

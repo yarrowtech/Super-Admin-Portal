@@ -540,7 +540,7 @@ const rejectJob = async (req, res) => {
 
 const createContract = async (req, res) => {
   try {
-    const { jobId, freelancerId, paymentType, rate, escrowAmount, startDate, endDate, terms, ndaSigned, agreementSigned, paymentTermsAccepted } = req.body || {};
+    const { jobId, freelancerId, paymentType, rate, currency, escrowAmount, startDate, endDate, terms, ndaSigned, agreementSigned, paymentTermsAccepted } = req.body || {};
     if (!jobId || !freelancerId || !paymentType || rate === undefined) {
       return res.status(400).json({ success: false, error: 'jobId, freelancerId, paymentType and rate are required' });
     }
@@ -574,6 +574,7 @@ const createContract = async (req, res) => {
       freelancer: freelancer._id,
       paymentType,
       rate: normalizeNumber(rate),
+      currency: String(currency || 'INR').trim().toUpperCase() || 'INR',
       escrowAmount: normalizeNumber(escrowAmount),
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,

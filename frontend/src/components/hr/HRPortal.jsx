@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import HRSidebar from './HRSidebar';
 import { useAuth } from '../../context/AuthContext';
 import AppLayout from '../../layouts/AppLayout';
@@ -7,11 +7,7 @@ import { resolvePortalMenu } from '../../config/portalMenus';
 
 const HRPortal = () => {
   const { user } = useAuth();
-  const location = useLocation();
   const hrMobileItems = resolvePortalMenu('hr').map(({ label, icon, path }) => ({ label, icon, path }));
-  const hideHeader = ['/hr/dashboard', '/hr/outsourcing', '/hr/users', '/hr/employees'].some((p) =>
-    location.pathname.startsWith(p)
-  );
 
   return (
     <AppLayout
@@ -21,8 +17,8 @@ const HRPortal = () => {
       mobileIcon="badge"
       mobileItems={hrMobileItems}
       user={user}
-      showHeader={!hideHeader}
-      showMobileNav={!hideHeader}
+      showHeader={false}
+      showMobileNav={false}
     >
         <Outlet />
     </AppLayout>

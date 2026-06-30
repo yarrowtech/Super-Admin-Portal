@@ -28,6 +28,29 @@ const invalidateOutsourcingCache = () => clearCachedByPrefix(CACHE_NS);
 
 export const outsourcingApi = {
   getDashboard: async (token) => readCache(token, 'dashboard', () => apiClient.get('/api/outsourcing/dashboard', token), ttl.medium),
+  getEfnbmmsAdminManagement: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.append(key, String(value));
+    });
+    const qs = query.toString();
+    return readCache(
+      token,
+      `efnbmmsAdminManagement:${qs || 'all'}`,
+      () => apiClient.get(`/api/outsourcing/efnbmms/admin-management${qs ? `?${qs}` : ''}`, token, { cache: false }),
+      ttl.fast
+    );
+  },
+  getEfnbmmsAdminManagementSummary: async (token) =>
+    readCache(
+      token,
+      'efnbmmsAdminManagementSummary',
+      () => apiClient.get('/api/outsourcing/efnbmms/admin-management/summary', token, { cache: false }),
+      ttl.fast
+    ),
+  getEfnbmmsAdminManagementDetail: async (token, adminId) =>
+    apiClient.get(`/api/outsourcing/efnbmms/admin-management/${encodeURIComponent(adminId)}`, token, { cache: false }),
   getMyProjects: async (token) => readCache(token, 'myProjects', () => apiClient.get('/api/my-projects', token), ttl.fast),
   getProjectPermissions: async (token) => readCache(token, 'projectPermissions', () => apiClient.get('/api/project-permissions', token), ttl.fast),
   getProjectRoles: async (token) => readCache(token, 'projectRoles', () => apiClient.get('/api/project-roles', token), ttl.fast),
@@ -41,8 +64,6 @@ export const outsourcingApi = {
     invalidateOutsourcingCache();
     return res;
   },
-  launchEfmbmms: async (token, payload = {}) =>
-    apiClient.post('/api/integrations/efnbmms/identity/launch', payload, token),
   generateEecSsoToken: async (token, payload = {}) => {
     const requestId = `eec_${Date.now().toString(36)}`;
     const response = await fetch(`${getOutsourcingPortalBaseUrl()}/api/sso/token`, {

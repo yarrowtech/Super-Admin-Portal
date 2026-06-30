@@ -1,4 +1,3 @@
-const env = require('../config/env');
 const { ROLES, getRolePermissions } = require('../config/roles');
 
 const CANONICAL_PROJECT_NAMES = Object.freeze([
@@ -39,8 +38,8 @@ const PROJECT_REGISTRY = [
     code: 'EFNBMMS',
     name: 'EFNBMMS',
     description: 'Finance and business management system workspace.',
-    launchUrl: process.env.EFNBMMS_PORTAL_URL || 'https://www.efnbmms.com',
-    ssoPath: env.EFNBMMS_SSO_PATH || '/superadmin-login',
+    launchUrl: '',
+    ssoPath: '',
     aliases: ['EFMBMS', 'EFNBMMS Portal', 'EFMBMS Portal'],
   },
   {
@@ -194,27 +193,19 @@ const getAccessibleProjects = (user = {}) => {
     const assignment = assignments.find((item) => matchesProject(item, project)) || null;
     const accessGranted = Boolean(isAdmin || assignment) && (isAdmin || isAssignmentActive(assignment || {}));
     const isEfmbmms = normalizeProjectKey(project.code) === 'EFNBMMS';
-    const appRole = isEfmbmms
-      ? (String(user?.role || '').trim().toLowerCase() === 'freelancer' ? 'manager' : 'admin')
-      : assignment?.role || user?.role || 'member';
+    const appRole = assignment?.role || user?.role || 'member';
+    const integrationRole = isEfmbmms ? 'admin' : appRole;
     const appPermissions = isEfmbmms
-      ? (appRole === 'admin'
-          ? Array.from(new Set([
-            ...getRolePermissions(ROLES.ADMIN),
-            'invoice_management',
-            'payment_management',
-            'manage_efnbmms_users',
-            'manage_efnbmms_roles',
-            'manage_efnbmms_permissions',
-            'view_efnbmms_reports',
-            'manage_efnbmms_projects',
-          ]))
-          : Array.from(new Set([
-            ...getRolePermissions(ROLES.MANAGER),
-            'view_efnbmms_dashboard',
-            'manage_efnbmms_tasks',
-            'view_efnbmms_projects',
-          ])))
+      ? Array.from(new Set([
+          ...getRolePermissions(ROLES.ADMIN),
+          'invoice_management',
+          'payment_management',
+          'manage_efnbmms_users',
+          'manage_efnbmms_roles',
+          'manage_efnbmms_permissions',
+          'view_efnbmms_reports',
+          'manage_efnbmms_projects',
+        ]))
       : Array.from(
           new Set([
             ...(Array.isArray(assignment?.permissions) ? assignment.permissions : []),
@@ -232,6 +223,7 @@ const getAccessibleProjects = (user = {}) => {
       assigned: Boolean(assignment),
       accessGranted,
       role: appRole,
+      integrationRole,
       status: assignment?.status || (accessGranted ? 'active' : 'blocked'),
       startDate: assignment?.startDate || null,
       endDate: assignment?.endDate || null,
@@ -240,10 +232,12 @@ const getAccessibleProjects = (user = {}) => {
         ? {
             ...assignment,
             appRole,
+            integrationRole,
             appPermissions,
           }
         : {
             appRole,
+            integrationRole,
             appPermissions,
           },
     };
@@ -308,18 +302,6 @@ const getProjectRoleBinding = (projectCode, user = {}) => {
     return {
       appRole: normalizedRole || 'member',
       appPermissions: Array.isArray(user?.permissions) ? user.permissions : [],
-    };
-  }
-
-  if (normalizedRole === 'freelancer') {
-    return {
-      appRole: 'manager',
-      appPermissions: Array.from(new Set([
-        ...getRolePermissions(ROLES.MANAGER),
-        'view_efnbmms_dashboard',
-        'manage_efnbmms_tasks',
-        'view_efnbmms_projects',
-      ])),
     };
   }
 

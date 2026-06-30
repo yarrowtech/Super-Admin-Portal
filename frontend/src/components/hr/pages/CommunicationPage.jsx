@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import PortalHeader from '../../common/PortalHeader';
-import Notices from '../Notices';
-import ComplaintSolutions from '../ComplaintSolutions';
+import Notices from '../NoticesLive';
+import ComplaintSolutions from '../ComplaintSolutionsLive';
 import StaffWorkReport from '../StaffWorkReport';
 
 const communicationTabs = [

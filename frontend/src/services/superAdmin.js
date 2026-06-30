@@ -56,9 +56,6 @@ const del = (path, token) =>
     () => apiClient.delete(`${LEGACY_BASE}${path}`, token)
   );
 
-const launchEfmbmms = (token, payload = {}) =>
-  apiClient.post('/api/integrations/efnbmms/identity/launch', payload, token);
-
 export const superAdminApi = {
   getOverview: (token, params = {}) => get(`/overview${buildQueryString(params)}`, token),
   getMetrics: (token, params = {}) => get(`/metrics${buildQueryString(params)}`, token),
@@ -81,6 +78,5 @@ export const superAdminApi = {
   getSsoHealth: (token) => get('/health/sso', token),
   getPermissionsHealth: (token) => get('/health/permissions', token),
   getSessionsHealth: (token) => get('/health/sessions', token),
-  launchEfmbmms,
   del,
 };

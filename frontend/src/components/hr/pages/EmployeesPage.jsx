@@ -20,13 +20,15 @@ const mapDashboard = async (token) => {
 const mapUsers = async (token, params = {}) => {
   const response = await hrApi.getEmployees(token, params);
   const data = response?.data || {};
+  const users = data.employees || data.users || [];
+  const total = data.total ?? data.totalUsers ?? users.length;
   return {
     data: {
-      users: data.employees || [],
+      users,
       totalPages: data.totalPages || 1,
       currentPage: data.currentPage || 1,
       pageSize: params.limit || 10,
-      totalUsers: data.total || 0,
+      totalUsers: total,
     },
   };
 };

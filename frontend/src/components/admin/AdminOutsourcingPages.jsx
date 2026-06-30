@@ -35,6 +35,9 @@ const initUser = {
 const initJob = { title: '', description: '', assignedFreelancerId: '' };
 const initContract = { jobId: '', paymentType: 'hourly', rate: '', escrowAmount: '' };
 
+const unwrapEfnbmmsRows = (payload) => payload?.data?.items || payload?.items || [];
+const unwrapEfnbmmsSummary = (payload) => payload?.data?.summary || payload?.summary || {};
+
 const useOutsourcingAdminData = () => {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -44,23 +47,33 @@ const useOutsourcingAdminData = () => {
   const [contracts, setContracts] = useState([]);
   const [timeLogs, setTimeLogs] = useState([]);
   const [freelancers, setFreelancers] = useState([]);
+  const [efnbmmsAdmins, setEfnbmmsAdmins] = useState([]);
+  const [efnbmmsSummary, setEfnbmmsSummary] = useState({});
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const [d, j, c, t, f] = await Promise.all([
+      const [d, j, c, t, f, e] = await Promise.all([
         outsourcingApi.getDashboard(token),
         outsourcingApi.getJobs(token),
         outsourcingApi.getContracts(token),
         outsourcingApi.getTimeLogs(token),
-        outsourcingApi.getUsers(token)
+        outsourcingApi.getUsers(token),
+        outsourcingApi.getEfnbmmsAdminManagement(token, { limit: 50 }).catch((efnbmmsError) => ({
+          success: false,
+          error: efnbmmsError?.message || 'Failed to load EFNBMMS admin-management data',
+          data: { items: [], summary: {} },
+        }))
       ]);
       setDashboard(d.data);
       setJobs(j.data || []);
       setContracts(c.data || []);
       setTimeLogs(t.data || []);
       setFreelancers(f.data || []);
+      setEfnbmmsAdmins(unwrapEfnbmmsRows(e));
+      setEfnbmmsSummary(unwrapEfnbmmsSummary(e));
+      if (e?.success === false) setError(e.error);
     } catch (err) {
       setError(err.message || 'Failed to load outsourcing data');
     } finally {
@@ -72,7 +85,7 @@ const useOutsourcingAdminData = () => {
     if (token) loadData();
   }, [token, loadData]);
 
-  return { token, user, loading, error, setError, dashboard, jobs, contracts, timeLogs, freelancers, loadData };
+  return { token, user, loading, error, setError, dashboard, jobs, contracts, timeLogs, freelancers, efnbmmsAdmins, efnbmmsSummary, loadData };
 };
 
 const PageShell = ({ title, children, user, error }) => (
@@ -86,8 +99,9 @@ const PageShell = ({ title, children, user, error }) => (
 );
 
 export const AdminOutsourcingDashboardPage = () => {
-  const { user, loading, error, dashboard, jobs, contracts, timeLogs } = useOutsourcingAdminData();
+  const { user, loading, error, dashboard, jobs, contracts, timeLogs, efnbmmsAdmins, efnbmmsSummary } = useOutsourcingAdminData();
   const [query, setQuery] = useState('');
+  const [efnbmmsQuery, setEfnbmmsQuery] = useState('');
   const [jobStatus, setJobStatus] = useState('all');
   const [acceptance, setAcceptance] = useState('all');
   const [paymentType, setPaymentType] = useState('all');
@@ -114,6 +128,22 @@ export const AdminOutsourcingDashboardPage = () => {
     });
   }, [jobs, query, jobStatus, acceptance, paymentType, assignment, contractByJob]);
 
+  const filteredEfnbmmsAdmins = useMemo(() => {
+    const q = efnbmmsQuery.trim().toLowerCase();
+    if (!q) return efnbmmsAdmins;
+    return efnbmmsAdmins.filter((item) =>
+      [
+        item.businessName,
+        item.email,
+        item.mobile,
+        item.adminId,
+        ...(Array.isArray(item.restaurantNames) ? item.restaurantNames : []),
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q))
+    );
+  }, [efnbmmsAdmins, efnbmmsQuery]);
+
   if (loading) return <main className="p-6">Loading outsourcing admin...</main>;
   return (
     <PageShell title="Outsourcing Admin Dashboard" user={user} error={error}>
@@ -126,6 +156,63 @@ export const AdminOutsourcingDashboardPage = () => {
         <KPICard title="Paused Sessions" value={dashboard?.sessions?.paused || 0} icon="pause" colorScheme="orange" subtitle="HOLD" />
         <KPICard title="Validated Agreements" value={dashboard?.agreements?.validated || 0} icon="verified_user" colorScheme="blue" subtitle="LEGAL" />
         <KPICard title="Overdue Tasks" value={dashboard?.operations?.overdueTasks || 0} icon="warning" colorScheme="purple" subtitle="AT RISK" />
+        <KPICard title="EFNBMMS Admins" value={efnbmmsSummary?.admins?.total || efnbmmsAdmins.length} icon="store" colorScheme="blue" subtitle="API" />
+        <KPICard title="EFNBMMS Restaurants" value={efnbmmsSummary?.restaurants?.total || 0} icon="restaurant" colorScheme="green" subtitle="API" />
+        <KPICard title="EFNBMMS Staff" value={efnbmmsSummary?.staff?.total || 0} icon="groups" colorScheme="orange" subtitle="API" />
+      </section>
+      <section className="mt-6 rounded-lg border bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800">
+        <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">EFNBMMS Admin Management</h2>
+            <p className="text-xs text-neutral-500">Fetched from EFNBMMS via API. No EFNBMMS portal login required.</p>
+          </div>
+          <input
+            className="rounded border p-2 text-sm md:w-80"
+            placeholder="Search business, email, mobile, restaurant"
+            value={efnbmmsQuery}
+            onChange={(e) => setEfnbmmsQuery(e.target.value)}
+          />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-neutral-500">
+                <th className="py-2">Business</th>
+                <th className="py-2">Contact</th>
+                <th className="py-2">Restaurants</th>
+                <th className="py-2">Staff</th>
+                <th className="py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredEfnbmmsAdmins.map((item) => (
+                <tr key={item.id || item.adminId || item.email} className="border-b align-top">
+                  <td className="py-2">
+                    <p className="font-medium">{item.businessName || 'Business'}</p>
+                    <p className="text-xs text-neutral-500">{item.adminId || item.id || '-'}</p>
+                  </td>
+                  <td className="py-2">
+                    <p>{item.email || '-'}</p>
+                    <p className="text-xs text-neutral-500">{item.mobile || '-'}</p>
+                  </td>
+                  <td className="py-2">
+                    <p>{item.totalRestaurants || 0}</p>
+                    <p className="max-w-xs truncate text-xs text-neutral-500">
+                      {Array.isArray(item.restaurantNames) && item.restaurantNames.length ? item.restaurantNames.join(', ') : '-'}
+                    </p>
+                  </td>
+                  <td className="py-2">{item.totalStaff || 0}</td>
+                  <td className="py-2">
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${item.isActive === false ? 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'}`}>
+                      {item.isActive === false ? 'Inactive' : 'Active'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filteredEfnbmmsAdmins.length === 0 ? <p className="py-4 text-sm text-neutral-500">No EFNBMMS records found.</p> : null}
+        </div>
       </section>
       <section className="mt-6 rounded-lg border bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800">
         <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-6">

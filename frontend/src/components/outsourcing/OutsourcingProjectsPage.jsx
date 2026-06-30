@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
 import { resolveCanonicalProjects } from '../../config/projectNames';
 import { OutsourcingPageHeader } from '../../features/outsourcing/components/OutsourcingUI';
 
 // Backend access logic — unchanged
-const canOpenProject = (project, isPrivileged) =>
-  Boolean(project?.access?.canLaunch || project?.code === 'EEC' || (project?.code === 'EFNBMMS' && isPrivileged));
-const PRIVILEGED_PROJECT_ROLES = new Set(['admin', 'super_admin', 'freelancer']);
+const hasProjectAccess = (project) =>
+  Boolean(project?.access?.canUseApi || project?.accessGranted || project?.access?.canLaunch || project?.code === 'EEC');
+
+const canOpenProject = (project) =>
+  Boolean(project?.code !== 'EFNBMMS' && (project?.access?.canLaunch || project?.code === 'EEC'));
 
 const ACCENTS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#6366f1', '#ef4444'];
 
@@ -28,7 +31,7 @@ const StatCard = ({ icon, label, count, accent, loading: ld }) => (
 
 export default function OutsourcingProjectsPage() {
   const { token, user } = useAuth();
-  const isPrivilegedProjectLauncher = PRIVILEGED_PROJECT_ROLES.has(String(user?.role || '').toLowerCase());
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,7 +55,7 @@ export default function OutsourcingProjectsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, isPrivilegedProjectLauncher]);
+  }, [token]);
 
   const loadJobs = useCallback(async () => {
     if (!token) return;
@@ -85,15 +88,17 @@ export default function OutsourcingProjectsPage() {
   }, [jobs]);
 
   const handleLaunch = async (projectCode) => {
+    if (projectCode === 'EFNBMMS') {
+      navigate('/outsourcing/efnbmms-admin-management');
+      return;
+    }
     try {
       setLaunchingProject(projectCode);
       setLaunchError({ code: '', message: '' });
       const response =
         projectCode === 'EEC'
           ? await outsourcingApi.generateEecSsoToken(token, { projectCode: 'EEC', redirectTo: '/dashboard' })
-          : projectCode === 'EFNBMMS' && isPrivilegedProjectLauncher
-            ? await outsourcingApi.launchEfmbmms(token, { redirectTo: '/dashboard' })
-            : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
+          : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
       const redirectUrl =
         response?.redirectUrl || response?.data?.redirectUrl || response?.data?.data?.redirectUrl;
       if (!redirectUrl) throw new Error(response?.message || 'Failed to resolve launch URL');
@@ -155,12 +160,15 @@ export default function OutsourcingProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {projects.map((project, index) => {
-            const canLaunch = canOpenProject(project, isPrivilegedProjectLauncher);
+            const canLaunch = canOpenProject(project);
             const isEec = project.code === 'EEC';
             const isEfmbmms = project.code === 'EFNBMMS';
-            const launchEnabled = isEec || canLaunch || (isEfmbmms && isPrivilegedProjectLauncher);
+            const hasAccess = hasProjectAccess(project);
+            const launchEnabled = !isEfmbmms && (isEec || canLaunch);
+            const actionEnabled = isEfmbmms ? hasAccess : launchEnabled;
             const blockedReason = project?.access?.blockedReason || 'Access not available';
             const accent = ACCENTS[index % ACCENTS.length];
+            const displayRole = isEfmbmms ? user?.role || project.role || 'freelancer' : project.role || 'member';
 
             return (
               <div
@@ -179,12 +187,12 @@ export default function OutsourcingProjectsPage() {
                     </div>
                     <span
                       className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                        canLaunch
+                        hasAccess
                           ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
                           : 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-300'
                       }`}
                     >
-                      {canLaunch ? 'Accessible' : 'Blocked'}
+                      {hasAccess ? (isEfmbmms ? 'API Access' : 'Accessible') : 'Blocked'}
                     </span>
                   </div>
 
@@ -205,7 +213,7 @@ export default function OutsourcingProjectsPage() {
                   <div className="mb-4 grid grid-cols-2 gap-1.5">
                     <div className="rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-800">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Role</p>
-                      <p className="mt-0.5 text-xs font-semibold capitalize text-neutral-800 dark:text-neutral-100">{project.role || 'member'}</p>
+                      <p className="mt-0.5 text-xs font-semibold capitalize text-neutral-800 dark:text-neutral-100">{displayRole}</p>
                     </div>
                     <div className="rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-800">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Status</p>
@@ -215,14 +223,14 @@ export default function OutsourcingProjectsPage() {
 
                   {/* Access note */}
                   <div className="mb-4 flex items-center gap-2 rounded-xl border border-neutral-100 bg-neutral-50/70 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-800/50">
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${canLaunch ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${hasAccess ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                     <p className="text-xs text-neutral-600 dark:text-neutral-400">
                       {canLaunch
                         ? 'Ready to open'
                         : isEec
                           ? 'SSO token required'
                           : isEfmbmms
-                            ? 'Controlled by Super Admin'
+                            ? 'Admin management API only'
                             : blockedReason}
                     </p>
                   </div>
@@ -237,27 +245,27 @@ export default function OutsourcingProjectsPage() {
                   {/* Launch button */}
                   <button
                     type="button"
-                    disabled={!launchEnabled || launchingProject === project.code}
+                    disabled={!actionEnabled || launchingProject === project.code}
                     onClick={() => handleLaunch(project.code)}
                     className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-70 ${
-                      launchEnabled
+                      actionEnabled
                         ? 'text-white hover:-translate-y-0.5'
                         : 'cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800'
                     }`}
-                    style={launchEnabled ? { background: accent } : {}}
+                    style={actionEnabled ? { background: accent } : {}}
                   >
                     <span className="material-symbols-outlined text-[17px]">
-                      {launchingProject === project.code ? 'hourglass_top' : launchEnabled ? 'open_in_new' : 'lock'}
+                      {launchingProject === project.code ? 'hourglass_top' : actionEnabled ? (isEfmbmms ? 'database' : 'open_in_new') : 'lock'}
                     </span>
                     {launchingProject === project.code
                       ? 'Connecting…'
                       : launchError.code === project.code
                         ? 'Retry'
-                        : launchEnabled
+                        : isEfmbmms
+                          ? 'View API data'
+                          : launchEnabled
                           ? `Open ${project.code}`
-                          : isEfmbmms
-                            ? 'Requires Super Admin'
-                            : 'Locked'}
+                          : 'Locked'}
                   </button>
                 </div>
               </div>

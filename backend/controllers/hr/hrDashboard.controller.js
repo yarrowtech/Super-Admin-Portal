@@ -9,7 +9,7 @@ const Leave = require('../../models/hr/Leave');
 const Notice = require('../../models/common/Notification');
 const Performance = require('../../models/hr/StaffWorkReport');
 const WorkReport = require('../../models/hr/StaffWorkReport');
-const Complaint = require('../../models/hr/EmployeeRecord');
+const Complaint = require('../../models/hr/Complaint');
 const Department = require('../../models/hr/EmployeeRecord');
 const Task = require('../../models/common/Task');
 const Designation = require('../../models/hr/EmployeeRecord');
@@ -953,28 +953,53 @@ exports.rejectLeave = async (req, res) => {
  */
 exports.getNotices = async (req, res) => {
   try {
-    const { page = 1, limit = 10, type, priority, isActive } = req.query;
-    const query = {};
+    const { page = 1, limit = 10, audience, status } = req.query;
+    const safePage = Math.max(parseInt(page, 10) || 1, 1);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+    const query = {
+      type: 'hr_notice',
+      'metadata.source': 'hr_communication',
+    };
 
-    if (type) query.type = type;
-    if (priority) query.priority = priority;
-    if (isActive !== undefined) query.isActive = isActive === 'true';
+    if (audience && audience !== 'all') query['metadata.audience'] = audience;
+    if (status && status !== 'all') query['metadata.status'] = status;
 
-    const notices = await Notice.find(query)
-      .populate('publishedBy', 'firstName lastName email')
-      .sort({ publishDate: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .exec();
+    const rawNotices = await Notice.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const count = await Notice.countDocuments(query);
+    const grouped = new Map();
+    rawNotices.forEach((notice) => {
+      const groupId = notice.metadata?.noticeId || notice._id.toString();
+      const existing = grouped.get(groupId);
+      if (!existing) {
+        grouped.set(groupId, {
+          ...notice,
+          _id: groupId,
+          originalId: notice._id,
+          recipientCount: notice.metadata?.targetRecipientCount ?? 1,
+          audience: notice.metadata?.audience || 'all',
+          status: notice.metadata?.status || 'published',
+          publishDate: notice.metadata?.publishDate || notice.createdAt,
+          publishedBy: notice.metadata?.publishedBy || null,
+        });
+        return;
+      }
+      if (notice.metadata?.targetRecipientCount === undefined) {
+        existing.recipientCount += 1;
+      }
+    });
+
+    const notices = Array.from(grouped.values());
+    const count = notices.length;
+    const pagedNotices = notices.slice((safePage - 1) * safeLimit, safePage * safeLimit);
 
     res.status(200).json({
       success: true,
       data: {
-        notices,
-        totalPages: Math.ceil(count / limit),
-        currentPage: parseInt(page),
+        notices: pagedNotices,
+        totalPages: Math.ceil(count / safeLimit),
+        currentPage: safePage,
         total: count
       }
     });
@@ -995,12 +1020,107 @@ exports.getNotices = async (req, res) => {
  */
 exports.createNotice = async (req, res) => {
   try {
-    const notice = await Notice.create({
-      ...req.body,
-      publishedBy: req.user._id
-    });
+    const { title, message, content, audience = 'all', publishDate, status = 'published' } = req.body;
+    const noticeMessage = message || content;
 
-    await notice.populate('publishedBy', 'firstName lastName email');
+    if (!title || !noticeMessage) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title and message are required'
+      });
+    }
+
+    const roleGroups = {
+      all: [],
+      admin: [ROLES.ADMIN, ROLES.SUPER_ADMIN],
+      ceo: [ROLES.CEO],
+      employee: [ROLES.EMPLOYEE],
+      freelancer: [ROLES.FREELANCER],
+      finance: [ROLES.FINANCE, ROLES.FINANCE_MANAGER, ROLES.ACCOUNTANT, ROLES.AUDITOR],
+      hr: [ROLES.HR],
+      it: [ROLES.IT, ROLES.IT_ADMIN, ROLES.SYSTEM_OPERATOR, ROLES.SECURITY_ANALYST, ROLES.DEVOPS_ENGINEER],
+      law: [ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.LSW],
+      manager: [ROLES.MANAGER, ROLES.PROJECT_MANAGER, ROLES.DEPARTMENT_HEAD],
+      media: [
+        ROLES.MEDIA,
+        ROLES.MARKETING_HEAD,
+        ROLES.MEDIA_MANAGER,
+        ROLES.CONTENT_WRITER,
+        ROLES.GRAPHIC_DESIGNER,
+        ROLES.VIDEO_EDITOR,
+        ROLES.SEO_SPECIALIST,
+        ROLES.SOCIAL_MEDIA_MANAGER
+      ],
+      research: [ROLES.RESEARCH_OPERATOR],
+      sales: [ROLES.SALES],
+    };
+
+    const audienceRoles = roleGroups[audience] || [audience];
+    const userQuery = {
+      isActive: true,
+      accountStatus: 'active',
+      ...(audience === 'all' ? {} : { role: { $in: audienceRoles } }),
+    };
+    const recipients = await User.find(userQuery).select('_id email role department firstName lastName').lean();
+
+    if (!recipients.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'No active users found for the selected audience'
+      });
+    }
+
+    const noticeId = new mongoose.Types.ObjectId().toString();
+    const publishedBy = {
+      id: req.user._id,
+      name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+      email: req.user.email,
+    };
+    const shouldDeliver = status === 'published';
+    const storageRecipients = shouldDeliver
+      ? recipients
+      : [{
+          _id: req.user._id,
+          email: req.user.email,
+          role: req.user.role,
+          department: req.user.department,
+        }];
+
+    const docs = storageRecipients.map((recipient) => ({
+      manager: recipient._id,
+      managerDepartment: recipient.department || recipient.role || 'general',
+      department: recipient.department || recipient.role || 'general',
+      title,
+      message: noticeMessage,
+      type: 'hr_notice',
+      metadata: {
+        source: 'hr_communication',
+        noticeId,
+        audience,
+        status,
+        publishDate: publishDate ? new Date(publishDate) : new Date(),
+        publishedBy,
+        targetRecipientCount: shouldDeliver ? recipients.length : 0,
+      },
+      target: {
+        departments: recipient.department ? [recipient.department] : [],
+        managerEmails: [recipient.email],
+        managerIds: [recipient._id.toString()],
+      },
+      read: !shouldDeliver,
+    }));
+
+    const notices = await Notice.insertMany(docs, { ordered: false });
+    const notice = {
+      _id: noticeId,
+      title,
+      message: noticeMessage,
+      audience,
+      status,
+      publishDate: publishDate || new Date(),
+      publishedBy,
+      recipientCount: shouldDeliver ? notices.length : 0,
+    };
 
     res.status(201).json({
       success: true,
@@ -1024,13 +1144,24 @@ exports.createNotice = async (req, res) => {
  */
 exports.updateNotice = async (req, res) => {
   try {
-    const notice = await Notice.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    ).populate('publishedBy', 'firstName lastName email');
+    const { title, message, content, status, publishDate } = req.body;
+    const update = {};
+    if (title) update.title = title;
+    if (message || content) update.message = message || content;
+    if (status) update['metadata.status'] = status;
+    if (publishDate) update['metadata.publishDate'] = new Date(publishDate);
 
-    if (!notice) {
+    const objectIdQuery = mongoose.Types.ObjectId.isValid(req.params.id) ? [{ _id: req.params.id }] : [];
+    const result = await Notice.updateMany(
+      {
+        type: 'hr_notice',
+        'metadata.source': 'hr_communication',
+        $or: [...objectIdQuery, { 'metadata.noticeId': req.params.id }],
+      },
+      { $set: update }
+    );
+
+    if (!result.matchedCount) {
       return res.status(404).json({
         success: false,
         error: 'Notice not found'
@@ -1059,9 +1190,14 @@ exports.updateNotice = async (req, res) => {
  */
 exports.deleteNotice = async (req, res) => {
   try {
-    const notice = await Notice.findByIdAndDelete(req.params.id);
+    const objectIdQuery = mongoose.Types.ObjectId.isValid(req.params.id) ? [{ _id: req.params.id }] : [];
+    const result = await Notice.deleteMany({
+      type: 'hr_notice',
+      'metadata.source': 'hr_communication',
+      $or: [...objectIdQuery, { 'metadata.noticeId': req.params.id }],
+    });
 
-    if (!notice) {
+    if (!result.deletedCount) {
       return res.status(404).json({
         success: false,
         error: 'Notice not found'

@@ -85,6 +85,7 @@ import {
   AdminSettingsPage,
 } from '../pages';
 import OutsourcingProjectsPage from '../components/outsourcing/OutsourcingProjectsPage';
+import OutsourcingEfnbmmsAdminManagementPage from '../components/outsourcing/OutsourcingEfnbmmsAdminManagementPage';
 import {
   AdminLayout,
   CEOPortalLayout,
@@ -390,6 +391,16 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/admin/efnbmms-admin-management"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, OutsourcingEfnbmmsAdminManagementPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/admin/departments"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
@@ -542,6 +553,7 @@ export default function AppRoutes() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<OutsourcingDashboardPage />} />
           <Route path="projects" element={<OutsourcingProjectsPage />} />
+          <Route path="efnbmms-admin-management" element={<OutsourcingEfnbmmsAdminManagementPage />} />
           <Route path="jobs" element={<OutsourcingJobsPage />} />
           <Route path="contracts" element={<OutsourcingContractsPage />} />
           <Route path="time-logs" element={<OutsourcingTimeLogsPage />} />

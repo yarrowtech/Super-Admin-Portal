@@ -15,7 +15,7 @@ export const portalMenuConfig = {
     { label: 'Performance', icon: 'trending_up',     path: '/hr/performance',  description: 'KPI and appraisal' },
     { label: 'Outsourcing', icon: 'handshake',       path: '/hr/outsourcing',  description: 'Freelancer task tracking' },
     { label: 'Tasks',       icon: 'smart_toy',       path: '/hr/tasks',        description: 'Workflow tasks and reminders' },
-    { label: 'Messages',    icon: 'forum',           path: '/hr/communication', description: 'Broadcast and communication' },
+    { label: 'Communication', icon: 'forum',          path: '/hr/communication', description: 'Broadcast and communication' },
   ],
   user: [
     { label: 'Dashboard', icon: 'dashboard',     path: '/employee/dashboard', description: 'Personal workspace' },

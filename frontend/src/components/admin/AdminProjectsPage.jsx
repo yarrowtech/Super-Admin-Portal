@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
-import { superAdminApi } from '../../services/superAdmin';
 import { resolveCanonicalProjects } from '../../config/projectNames';
 import {
   OutsourcingCard,
@@ -9,16 +9,17 @@ import {
   OutsourcingErrorState,
 } from '../../features/outsourcing/components/OutsourcingUI';
 
-const canOpenProject = (project, isPrivilegedProjectLauncher) => Boolean(
-  project?.access?.canLaunch ||
-  project?.code === 'EEC' ||
-  (project?.code === 'EFNBMMS' && isPrivilegedProjectLauncher)
-);
+const hasProjectAccess = (project) =>
+  Boolean(project?.access?.canUseApi || project?.accessGranted || project?.access?.canLaunch || project?.code === 'EEC');
 
-const PRIVILEGED_PROJECT_ROLES = new Set(['admin', 'super_admin', 'freelancer']);
+const canOpenProject = (project) => Boolean(
+  project?.code !== 'EFNBMMS' &&
+  (project?.access?.canLaunch || project?.code === 'EEC')
+);
 
 export default function AdminProjectsPage() {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [projects, setProjects] = useState([]);
@@ -27,8 +28,6 @@ export default function AdminProjectsPage() {
   const [launchError, setLaunchError] = useState({ code: '', message: '' });
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const isPrivilegedProjectLauncher = PRIVILEGED_PROJECT_ROLES.has(String(user?.role || '').toLowerCase());
-
   const load = async () => {
     if (!token) return;
     setLoading(true);
@@ -41,8 +40,8 @@ export default function AdminProjectsPage() {
       setSummary({
         total: resolvedProjects.length,
         assigned: resolvedProjects.filter((project) => project.assigned).length,
-        accessible: resolvedProjects.filter((project) => canOpenProject(project, isPrivilegedProjectLauncher)).length,
-        blocked: resolvedProjects.filter((project) => !canOpenProject(project, isPrivilegedProjectLauncher)).length,
+        accessible: resolvedProjects.filter((project) => hasProjectAccess(project)).length,
+        blocked: resolvedProjects.filter((project) => !hasProjectAccess(project)).length,
       });
     } catch (loadError) {
       setError(loadError?.message || 'Failed to load project hub');
@@ -71,26 +70,27 @@ export default function AdminProjectsPage() {
         [project.name, project.code, project.description, project.role, project.status]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(q));
-      const canLaunch = Boolean(project?.access?.canLaunch);
       const matchesStatus =
         statusFilter === 'all' ||
-        (statusFilter === 'accessible' && canOpenProject(project, isPrivilegedProjectLauncher)) ||
-        (statusFilter === 'blocked' && !canOpenProject(project, isPrivilegedProjectLauncher));
+        (statusFilter === 'accessible' && hasProjectAccess(project)) ||
+        (statusFilter === 'blocked' && !hasProjectAccess(project));
       return matchesQuery && matchesStatus;
     });
-  }, [isPrivilegedProjectLauncher, projects, query, statusFilter]);
+  }, [projects, query, statusFilter]);
 
-  const accessibleCount = summary.accessible ?? projects.filter((p) => p?.access?.canLaunch).length;
-  const blockedCount = summary.blocked ?? projects.filter((p) => !p?.access?.canLaunch).length;
+  const accessibleCount = summary.accessible ?? projects.filter((p) => hasProjectAccess(p)).length;
+  const blockedCount = summary.blocked ?? projects.filter((p) => !hasProjectAccess(p)).length;
 
   const handleLaunch = async (projectCode) => {
+    if (projectCode === 'EFNBMMS') {
+      navigate('/admin/efnbmms-admin-management');
+      return;
+    }
     try {
       setLaunchingProject(projectCode);
       setLaunchError({ code: '', message: '' });
       const response = projectCode === 'EEC'
         ? await outsourcingApi.generateEecSsoToken(token, { projectCode: 'EEC', redirectTo: '/dashboard' })
-        : projectCode === 'EFNBMMS' && isPrivilegedProjectLauncher
-          ? await superAdminApi.launchEfmbmms(token, { redirectTo: '/dashboard' })
         : await outsourcingApi.generateProjectAccessToken(token, projectCode, { projectCode });
       const redirectUrl = response?.redirectUrl || response?.data?.redirectUrl || response?.data?.data?.redirectUrl;
       if (!redirectUrl) {
@@ -238,11 +238,14 @@ export default function AdminProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
           {filteredProjects.map((project, index) => {
-            const canLaunch = canOpenProject(project, isPrivilegedProjectLauncher);
+            const canLaunch = canOpenProject(project);
             const isEec = project.code === 'EEC';
             const isEfmbmms = project.code === 'EFNBMMS';
-            const launchEnabled = isEec || canLaunch || (isEfmbmms && isPrivilegedProjectLauncher);
+            const hasAccess = hasProjectAccess(project);
+            const launchEnabled = !isEfmbmms && (isEec || canLaunch);
+            const actionEnabled = isEfmbmms ? hasAccess : launchEnabled;
             const blockedReason = project?.access?.blockedReason || 'Access not available';
+            const displayRole = isEfmbmms ? user?.role || project.role || 'freelancer' : project.role || 'member';
             const accentClasses = [
               'from-blue-500 to-cyan-500',
               'from-violet-500 to-fuchsia-500',
@@ -270,15 +273,15 @@ export default function AdminProjectsPage() {
                         </p>
                       ) : null}
                     </div>
-                    <div className={`rounded-full px-3 py-1.5 text-xs font-semibold ${canLaunch ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/10 text-rose-700 dark:text-rose-300'}`}>
-                      {canLaunch ? 'Accessible' : 'Blocked'}
+                    <div className={`rounded-full px-3 py-1.5 text-xs font-semibold ${hasAccess ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/10 text-rose-700 dark:text-rose-300'}`}>
+                      {hasAccess ? (isEfmbmms ? 'API Access' : 'Accessible') : 'Blocked'}
                     </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div className="rounded-2xl bg-neutral-50 p-2.5 dark:bg-neutral-900/60">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Role</p>
-                      <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{project.role || 'member'}</p>
+                      <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{displayRole}</p>
                     </div>
                     <div className="rounded-2xl bg-neutral-50 p-2.5 dark:bg-neutral-900/60">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Status</p>
@@ -288,13 +291,13 @@ export default function AdminProjectsPage() {
 
                   <div className="mt-3 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-2.5 dark:border-neutral-800 dark:bg-neutral-900/50">
                     <div className="flex items-center gap-2">
-                      <span className={`inline-flex h-2.5 w-2.5 rounded-full ${canLaunch ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                      <span className={`inline-flex h-2.5 w-2.5 rounded-full ${hasAccess ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                        {canLaunch ? 'Ready to open' : isEec ? 'Open via SSO' : isEfmbmms ? 'Controlled by Super Admin' : 'Access blocked'}
+                        {canLaunch ? 'Ready to open' : isEec ? 'Open via SSO' : isEfmbmms ? 'Admin management API only' : 'Access blocked'}
                       </p>
                     </div>
                     <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                      {canLaunch ? 'Open now' : isEec ? 'SSO token required' : isEfmbmms ? 'Assignment required in Super Admin' : blockedReason}
+                      {canLaunch ? 'Open now' : isEec ? 'SSO token required' : isEfmbmms ? 'Website launch is disabled' : blockedReason}
                     </p>
                   </div>
 
@@ -311,30 +314,28 @@ export default function AdminProjectsPage() {
                   <div className="mt-auto pt-4">
                     <button
                       type="button"
-                      disabled={!launchEnabled || launchingProject === project.code}
+                      disabled={!actionEnabled || launchingProject === project.code}
                       onClick={() => handleLaunch(project.code)}
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm transition ${
-                        launchEnabled
+                        actionEnabled
                           ? 'bg-blue-600 text-white hover:-translate-y-0.5 hover:bg-blue-700'
                           : 'cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400'
                       } disabled:opacity-70`}
                     >
                       <span className="material-symbols-outlined text-[18px]">
-                        {launchingProject === project.code ? 'hourglass_top' : launchEnabled ? 'open_in_new' : 'lock'}
+                        {launchingProject === project.code ? 'hourglass_top' : actionEnabled ? (isEfmbmms ? 'database' : 'open_in_new') : 'lock'}
                       </span>
                       {launchingProject === project.code
                         ? 'Generating secure access...'
                         : launchError.code === project.code
                           ? 'Access failed, try again'
-                          : launchEnabled
+                          : isEfmbmms
+                            ? 'View API data'
+                            : launchEnabled
                             ? project.code === 'EEC'
                               ? 'Open EEC'
-                              : project.code === 'EFNBMMS'
-                                ? 'Open EFNBMMS'
                               : 'Open'
-                            : project.code === 'EFNBMMS'
-                              ? 'Requires Super Admin access'
-                              : 'Locked'}
+                            : 'Locked'}
                     </button>
                   </div>
                 </div>

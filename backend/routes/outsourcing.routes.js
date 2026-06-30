@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const outsourcingController = require('../controllers/outsourcing/outsourcing.controller');
+const efnbmmsAdminManagementController = require('../controllers/outsourcing/efnbmmsAdminManagement.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { uploadSingle } = require('../middlewares/upload.middleware');
 const {
@@ -96,6 +97,9 @@ router.put('/preferences', outsourcingController.updateMyPreferences);
 
 // HR/Manager can view dashboard, freelancer list, create/assign jobs, manage milestones
 router.get('/dashboard', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.outsourcingDashboard);
+router.get('/efnbmms/admin-management', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.FREELANCER), efnbmmsAdminManagementController.listAdminManagement);
+router.get('/efnbmms/admin-management/summary', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementSummary);
+router.get('/efnbmms/admin-management/:adminId', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementDetail);
 router.get('/users', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.listFreelancers);
 router.post('/jobs', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingCreateJobValidation, validate, outsourcingController.createJob);
 router.put('/jobs/:id/assign', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.assignJobToFreelancer);

@@ -56,6 +56,7 @@ const canAccessProjectHub = (user = {}) => {
 
 const buildProjectEnvelope = (project, user) => {
   if (!project) return null;
+  const isEfnbmms = normalizeProjectKey(project.code) === 'EFNBMMS';
   return {
     code: project.code,
     name: project.name,
@@ -65,14 +66,20 @@ const buildProjectEnvelope = (project, user) => {
     assigned: project.assigned,
     accessGranted: project.accessGranted,
     role: project.role,
+    integrationRole: project.integrationRole || null,
+    apiRole: isEfnbmms ? 'admin' : project.integrationRole || project.role || null,
     status: project.status,
     permissions: project.permissions || [],
     startDate: project.startDate || null,
     endDate: project.endDate || null,
     projectAssignment: project.projectAssignment || null,
     access: {
-      canLaunch: Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
-      blockedReason: project.accessGranted ? null : 'Project not assigned or access has expired',
+      canLaunch: !isEfnbmms && Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
+      canUseApi: isEfnbmms && Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
+      mode: isEfnbmms ? 'admin_management_api' : 'launch',
+      blockedReason: isEfnbmms
+        ? 'EFNBMMS is connected by admin-management API only'
+        : project.accessGranted ? null : 'Project not assigned or access has expired',
     },
   };
 };
@@ -187,6 +194,13 @@ const generateProjectAccessToken = async (req, res) => {
     const projectCode = normalizeProjectKey(req.params.projectCode || req.body?.projectCode || req.query?.projectCode);
     if (!projectCode) {
       return res.status(400).json({ success: false, error: 'projectCode is required' });
+    }
+    if (projectCode === 'EFNBMMS') {
+      return res.status(400).json({
+        success: false,
+        error: 'EFNBMMS website launch is disabled. Use the admin-management API inside this portal.',
+        code: 'EFNBMMS_API_ONLY',
+      });
     }
 
     const projectFromRegistry = findProjectByCode(projectCode);

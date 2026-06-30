@@ -2,10 +2,14 @@ import pino from 'pino';
 
 const APP_NAME = 'super-admin-frontend';
 const ENV = import.meta.env.MODE || 'development';
+const LOG_LEVEL = import.meta.env.VITE_LOG_LEVEL || (import.meta.env.PROD ? 'info' : 'debug');
+
+const isTest = ENV === 'test';
 
 const logger = pino({
   name: APP_NAME,
-  level: ENV === 'production' ? 'info' : 'debug',
+  level: LOG_LEVEL,
+  enabled: !isTest,
   base: {
     service: APP_NAME,
     env: ENV,
@@ -18,6 +22,21 @@ const logger = pino({
   },
   serializers: {
     err: pino.stdSerializers.err,
+  },
+  redact: {
+    paths: [
+      'authorization',
+      'cookie',
+      'token',
+      'refreshToken',
+      'password',
+      '*.authorization',
+      '*.cookie',
+      '*.token',
+      '*.refreshToken',
+      '*.password',
+    ],
+    remove: true,
   },
   browser: {
     asObject: true,

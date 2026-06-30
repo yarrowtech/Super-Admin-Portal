@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { cachePolicyFor } from '../utils/queryKeys';
 
 const PREFETCH_DELAY_MS = 150;
 const prefetchedRoutes = new Set();
@@ -24,14 +25,16 @@ export const usePrefetch = () => {
   const timer = useRef(null);
 
   const prefetchHandlers = useCallback(
-    (queryFn, queryKey, routeImportFn = null, staleTime = 60_000) => {
+    (queryFn, queryKey, routeImportFn = null, staleTime = null) => {
       const run = () => {
+        const effectiveStaleTime = staleTime ?? cachePolicyFor(queryKey).staleTime;
+
         // Prefetch data
         if (queryFn && queryKey) {
           queryClient.prefetchQuery({
             queryKey,
             queryFn,
-            staleTime,
+            staleTime: effectiveStaleTime,
           }).catch(() => {});
         }
 
@@ -63,9 +66,10 @@ export const usePrefetch = () => {
    */
   const warmCache = useCallback(
     (entries) => {
-      entries.forEach(({ queryKey, queryFn, staleTime = 60_000 }) => {
+      entries.forEach(({ queryKey, queryFn, staleTime = null }) => {
+        const effectiveStaleTime = staleTime ?? cachePolicyFor(queryKey).staleTime;
         if (queryKey && queryFn) {
-          queryClient.prefetchQuery({ queryKey, queryFn, staleTime }).catch(() => {});
+          queryClient.prefetchQuery({ queryKey, queryFn, staleTime: effectiveStaleTime }).catch(() => {});
         }
       });
     },

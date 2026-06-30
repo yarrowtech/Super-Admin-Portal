@@ -195,17 +195,38 @@ export const QK = {
   },
 };
 
+const matchesAny = (segment, needles) => needles.some((needle) => segment.includes(needle));
+
 /**
- * Helper: derive staleTime from the first segment of a query key.
- * Mirrors the logic already in QueryProvider so hooks can read it too.
+ * Shared client-side cache policy for React Query.
+ *
+ * The first segment of the query key drives both stale time and cache
+ * retention so the policy stays consistent across providers, prefetching,
+ * and hooks.
  */
-export const staleTimeFor = (queryKey) => {
+export const cachePolicyFor = (queryKey) => {
   const seg = Array.isArray(queryKey) ? String(queryKey[0] || '') : String(queryKey || '');
-  if (['dashboard', 'kpi', 'metrics'].some(k => seg.includes(k))) return 60_000;         // 1 min
-  if (['settings', 'config', 'workflow', 'permissions'].some(k => seg.includes(k))) return 30 * 60_000; // 30 min
-  if (['report', 'analytic', 'stat'].some(k => seg.includes(k))) return 5 * 60_000;      // 5 min
-  if (['auth', 'profile', 'user'].some(k => seg.includes(k))) return 10 * 60_000;        // 10 min
-  if (['project', 'task', 'leave'].some(k => seg.includes(k))) return 2 * 60_000;        // 2 min
-  if (['notifications', 'chat'].some(k => seg.includes(k))) return 30_000;               // 30 s
-  return 90_000; // default 90 s
+
+  if (matchesAny(seg, ['dashboard', 'kpi', 'metric'])) {
+    return { staleTime: 60_000, gcTime: 10 * 60_000 };
+  }
+  if (matchesAny(seg, ['settings', 'config', 'workflow', 'permission', 'role'])) {
+    return { staleTime: 60 * 60_000, gcTime: 24 * 60 * 60_000 };
+  }
+  if (matchesAny(seg, ['report', 'analytic', 'stat'])) {
+    return { staleTime: 15 * 60_000, gcTime: 60 * 60_000 };
+  }
+  if (matchesAny(seg, ['auth', 'profile', 'user', 'session'])) {
+    return { staleTime: 30 * 60_000, gcTime: 24 * 60 * 60_000 };
+  }
+  if (matchesAny(seg, ['project', 'task', 'leave'])) {
+    return { staleTime: 5 * 60_000, gcTime: 30 * 60_000 };
+  }
+  if (matchesAny(seg, ['notification', 'chat'])) {
+    return { staleTime: 30_000, gcTime: 5 * 60_000 };
+  }
+
+  return { staleTime: 90_000, gcTime: 10 * 60_000 };
 };
+
+export const staleTimeFor = (queryKey) => cachePolicyFor(queryKey).staleTime;

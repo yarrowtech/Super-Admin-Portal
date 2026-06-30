@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../services/client';
-import logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
+
+const authLogger = createLogger({ module: 'auth' });
 
 const AuthContext = createContext(null);
 
@@ -27,7 +29,7 @@ export const AuthProvider = ({ children }) => {
         const profile = await apiClient.get('/api/auth/me', token);
         setUser(profile?.data?.user || null);
       } catch (err) {
-        logger.warn({ err }, 'Auth bootstrap failed');
+        authLogger.warn({ err }, 'Auth bootstrap failed');
         clearAuth();
       } finally {
         setLoading(false);
@@ -83,7 +85,7 @@ export const AuthProvider = ({ children }) => {
       }
       return authedUser;
     } catch (err) {
-      logger.error({ err, mode }, 'Login failed');
+      authLogger.error({ err, mode }, 'Login failed');
       setError(err.message || 'Login failed');
       throw err;
     }
@@ -96,7 +98,7 @@ export const AuthProvider = ({ children }) => {
         await apiClient.post('/api/auth/logout', {}, currentToken);
       }
     } catch {
-      logger.warn('Server logout failed; continuing local sign-out');
+      authLogger.warn('Server logout failed; continuing local sign-out');
       // server logout failure should not block local logout
     } finally {
       clearAuth();

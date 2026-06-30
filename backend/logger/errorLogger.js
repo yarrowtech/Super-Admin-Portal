@@ -12,6 +12,7 @@ const errorLogger = (err, req, statusCode) => {
       requestId: req.id || req.headers["x-request-id"] || null,
       userId: req.user?.id || null,
       role: req.user?.role || null,
+      ip: req.ip || req.socket?.remoteAddress || null,
     },
     "Request failed"
   );

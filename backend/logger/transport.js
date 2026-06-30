@@ -13,11 +13,13 @@ const buildTransport = () => {
         options: {
           colorize: true,
           translateTime: "SYS:standard",
-          singleLine: true,
+          singleLine: false,
           ignore: "pid,hostname",
+          errorLikeObjectKeys: ["err", "error"],
         },
       });
     } catch (err) {
+      // Fall back to raw JSON logs if pretty-print transport cannot start.
       return undefined;
     }
   }

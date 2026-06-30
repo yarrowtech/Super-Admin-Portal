@@ -35,6 +35,9 @@ const requestLogger = pinoHttp({
   customProps: (req) => ({
     requestId: req.id,
     route: req.route?.path || req.path,
+    userId: req.user?.id || null,
+    role: req.user?.role || null,
+    ip: req.ip || req.socket?.remoteAddress || null,
   }),
   customLogLevel: (req, res, err) => {
     if (err || res.statusCode >= 500) return "error";
@@ -43,6 +46,7 @@ const requestLogger = pinoHttp({
   },
   customSuccessMessage: (req) => `${req.method} ${req.url} completed`,
   customErrorMessage: (req, res, err) => `${req.method} ${req.url} failed: ${err.message}`,
+  quietReqLogger: true,
 });
 
 module.exports = requestLogger;

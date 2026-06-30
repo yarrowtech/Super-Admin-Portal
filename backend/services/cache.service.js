@@ -1,4 +1,4 @@
-const logger = require('../logger/logger');
+const logger = require('../utils/logger');
 const env = require('../config/env');
 
 const DEFAULT_TTL_SECONDS = 60;

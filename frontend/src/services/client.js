@@ -1,6 +1,7 @@
-import logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const httpLogger = createLogger({ module: 'http-client' });
 const CACHE_PREFIX = 'sap_http_cache_v1:';
 const DEFAULT_TTL_MS = 30 * 1000;
 const inflight = new Map();
@@ -113,7 +114,7 @@ const getDefaultHeaders = (token, requestId = createRequestId()) => {
 const parseResponse = async (res, requestId) => {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    logger.error({
+    httpLogger.error({
       requestId,
       status: res.status,
       statusText: res.statusText,

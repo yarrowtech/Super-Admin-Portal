@@ -1,23 +1,23 @@
 # Dependencies
-node_modules/
+/node_modules/
 
 # Build outputs
-dist/
-build/
-coverage/
+/dist/
+/build/
+/coverage/
 
 # Runtime / cache / temp
-logs/
+/.env
+/.env.*
+/*.local
+/logs/
 *.log
-.cache/
-.tmp/
-temp/
-tmp/
+/.cache/
+/.tmp/
+/temp/
+/tmp/
 
 # Environment files
-.env
-.env.*
-*.local
 !.env.example
 !.env.sample
 
@@ -25,8 +25,8 @@ tmp/
 API_DOCUMENTATION.md
 
 # Editor settings
-.vscode/
-.idea/
+/.vscode/
+/.idea/
 *.suo
 *.ntvs*
 *.njsproj

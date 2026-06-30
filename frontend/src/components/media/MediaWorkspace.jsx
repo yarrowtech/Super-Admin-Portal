@@ -87,7 +87,7 @@ const bytes = (value) => {
 const arr = (value) => (Array.isArray(value) ? value : []);
 const pick = (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '-';
 
-const MediaWorkspace = ({ activeSection, onSectionChange }) => {
+const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onProjectChange }) => {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -101,13 +101,26 @@ const MediaWorkspace = ({ activeSection, onSectionChange }) => {
   const [reporting, setReporting] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeProjectId, setActiveProjectId] = useState('');
+  const effectiveProjectId = selectedProjectId !== undefined ? selectedProjectId : activeProjectId;
 
   useEffect(() => {
+    if (selectedProjectId !== undefined) {
+      setActiveProjectId(String(selectedProjectId || ''));
+      return;
+    }
+
     try {
       const stored = localStorage.getItem('activeProjectId');
       if (stored) setActiveProjectId(stored);
     } catch {}
-  }, []);
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    try {
+      if (effectiveProjectId) localStorage.setItem('activeProjectId', String(effectiveProjectId));
+      else localStorage.removeItem('activeProjectId');
+    } catch {}
+  }, [effectiveProjectId]);
 
   useEffect(() => {
     let alive = true;
@@ -116,15 +129,16 @@ const MediaWorkspace = ({ activeSection, onSectionChange }) => {
       setLoading(true);
       setError('');
       try {
+        const projectParams = effectiveProjectId ? { projectId: effectiveProjectId } : {};
         const results = await Promise.allSettled([
-          departmentApi.getMediaDashboard(token),
+          departmentApi.getMediaDashboard(token, projectParams),
           departmentApi.getMediaProjects(token, { limit: 12 }),
-          departmentApi.getMediaAssets(token, { limit: 12 }),
-          departmentApi.getMediaCampaigns(token, { limit: 12 }),
-          departmentApi.getMediaContent(token, { limit: 12 }),
-          departmentApi.getMediaBrandAssets(token, { limit: 12 }),
-          departmentApi.getMediaApprovals(token, { limit: 12 }),
-          departmentApi.getMediaReportingSummary(token),
+          departmentApi.getMediaAssets(token, { ...projectParams, limit: 12 }),
+          departmentApi.getMediaCampaigns(token, { ...projectParams, limit: 12 }),
+          departmentApi.getMediaContent(token, { ...projectParams, limit: 12 }),
+          departmentApi.getMediaBrandAssets(token, { ...projectParams, limit: 12 }),
+          departmentApi.getMediaApprovals(token, { ...projectParams, limit: 12 }),
+          departmentApi.getMediaReportingSummary(token, projectParams),
         ]);
         if (!alive) return;
         const [dash, projs, ass, camp, cont, brand, appr, report] = results;
@@ -147,7 +161,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange }) => {
     return () => {
       alive = false;
     };
-  }, [token, activeProjectId]);
+  }, [token, effectiveProjectId]);
 
   const summary = useMemo(() => {
     const kpis = dashboard?.kpis || {};
@@ -186,11 +200,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange }) => {
   };
 
   const updateProject = (projectId) => {
-    setActiveProjectId(projectId);
-    try {
-      if (projectId) localStorage.setItem('activeProjectId', projectId);
-      else localStorage.removeItem('activeProjectId');
-    } catch {}
+    onProjectChange?.(projectId);
+    if (selectedProjectId === undefined) {
+      setActiveProjectId(projectId);
+    }
   };
 
   const renderMetric = (label, value, icon, detail) => (
@@ -577,7 +590,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange }) => {
           searchPlaceholder="Search assets, campaigns, content, approvals..."
         >
           <select
-            value={activeProjectId}
+            value={effectiveProjectId || ''}
             onChange={(e) => updateProject(e.target.value)}
             className="h-10 rounded-xl border border-white/10 bg-neutral-900 px-3 text-sm font-medium text-neutral-100 outline-none focus:border-cyan-400"
           >

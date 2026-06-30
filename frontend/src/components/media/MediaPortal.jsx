@@ -1,14 +1,8 @@
-import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import AppLayout from '../../layouts/AppLayout';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import MediaSidebar from './MediaSidebar';
-import MediaDashboard, { MEDIA_SECTIONS } from './MediaDashboard';
-const MediaSettingsPage = lazy(() => import('../shared/PortalSettingsPage').then(m => ({ default: () => <m.default portalLabel="Media" accentColor="#f97316" /> })));
-const MediaSupportPage  = lazy(() => import('../shared/PortalSupportPage').then(m => ({ default: () => <m.default portal="media" portalLabel="Media" accentColor="#f97316" /> })));
+import MediaWorkspace from './MediaWorkspace';
 
 const MediaPortal = () => {
-  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSection, setActiveSection] = useState('dashboard');
   const selectedProjectId = searchParams.get('projectId') || '';
@@ -70,42 +64,13 @@ const MediaPortal = () => {
     }
   };
 
-  const mobileItems = useMemo(
-    () =>
-      MEDIA_SECTIONS.map((item) => ({
-        key: item.id,
-        label: item.label,
-        icon: item.icon,
-        active: activeSection === item.id,
-        onClick: () => setActiveSection(item.id),
-      })),
-    [activeSection]
-  );
-
   return (
-    <AppLayout
-      sidebar={<MediaSidebar activeSection={activeSection} onSelect={setActiveSection} sections={MEDIA_SECTIONS} />}
-      title="Media Analytics"
-      subtitle="Executive media platform overview"
-      mobileIcon="campaign"
-      mobileItems={mobileItems}
-      user={user}
-    >
-      <div className="portal-content p-0">
-        {activeSection === 'settings' ? (
-          <Suspense fallback={null}><MediaSettingsPage /></Suspense>
-        ) : activeSection === 'support' ? (
-          <Suspense fallback={null}><MediaSupportPage /></Suspense>
-        ) : (
-          <MediaDashboard
-            activeSection={activeSection}
-            onSectionChange={setActiveSection}
-            selectedProjectId={isVirtualProjectId ? '' : selectedProjectId}
-            onProjectChange={handleProjectChange}
-          />
-        )}
-      </div>
-    </AppLayout>
+    <MediaWorkspace
+      activeSection={activeSection}
+      onSectionChange={setActiveSection}
+      selectedProjectId={isVirtualProjectId ? '' : selectedProjectId}
+      onProjectChange={handleProjectChange}
+    />
   );
 };
 

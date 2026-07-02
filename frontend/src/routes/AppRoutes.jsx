@@ -73,6 +73,12 @@ import {
   ITTicketDetailPage,
   ITAssetsPage,
   ITAssetDetailPage,
+  ITOperationsPage,
+  ITActivityPage,
+  ITSecurityPage,
+  ITUserAccessPage,
+  ITChangesPage,
+  ITReportsPage,
   ITSettingsPage,
   ITSupportCenterPage,
   HRSettingsPage,
@@ -259,9 +265,13 @@ export default function AppRoutes() {
           <Route path="tickets/:ticketId" element={<ITTicketDetailPage />} />
           <Route path="assets" element={<ITAssetsPage />} />
           <Route path="assets/:assetId" element={<ITAssetDetailPage />} />
-          <Route path="operations" element={<ITDashboard activeSection="monitoring" />} />
-          <Route path="activity" element={<ITDashboard activeSection="audit-logs" />} />
-          <Route path="settings" element={<ITSettingsPage />} />
+          <Route path="security"    element={<ITSecurityPage />} />
+          <Route path="iam"         element={<ITUserAccessPage />} />
+          <Route path="changes"     element={<ITChangesPage />} />
+          <Route path="reports"     element={<ITReportsPage />} />
+          <Route path="operations"  element={<ITOperationsPage />} />
+          <Route path="activity"    element={<ITActivityPage />} />
+          <Route path="settings"    element={<ITSettingsPage />} />
           <Route path="support-center" element={<ITSupportCenterPage />} />
         </Route>
 

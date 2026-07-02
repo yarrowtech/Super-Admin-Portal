@@ -122,6 +122,13 @@ const formatDate = (value) => {
 const normalizeLawStatus = (value = '') => String(value || '').trim().toLowerCase();
 const normalizePriority = (value = '') => String(value || '').trim().toLowerCase();
 const toCount = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+const MODULE_DATA_KEYS = {
+  agreements: 'agreements',
+  'privacy-policy': 'policy',
+  'disputes-fraud': 'disputes',
+  'ip-copyright': 'ip',
+  'third-party': 'third-party',
+};
 const isPastDue = (record) => {
   if (!record?.dueDate) return false;
   const due = new Date(record.dueDate);
@@ -246,7 +253,7 @@ const LawDashboard = () => {
       const fallbackProject = LAW_PROJECT_FALLBACK_ORDER.map((name) =>
         strictProjects.find((p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase())
       ).find(Boolean);
-      const effectiveProjectId = selectedProjectId || fallbackProject?._id || fallbackProject?.id || '';
+      const effectiveProjectId = selectedProjectId || (activeSection === 'dashboard' ? '' : fallbackProject?._id || fallbackProject?.id || '');
       const hasRealProjectId = isRealProjectId(effectiveProjectId);
       if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
         setSearchParams({ projectId: effectiveProjectId });
@@ -260,15 +267,11 @@ const LawDashboard = () => {
         setLastUpdatedAt(cached.timestamp);
       }
 
-      // Dashboard view doesn't need records (it uses the dashboard API summary); agreements fetches separately
-      const recordsPromise = activeSection === 'dashboard' || activeSection === 'agreements'
-        ? Promise.resolve({ data: [] })
-        : hasRealProjectId
-          ? lawApi.getProjectModuleData(
-              token,
-              activeSection === 'privacy-policy' ? 'policy' : activeSection === 'disputes-fraud' ? 'disputes' : activeSection === 'ip-copyright' ? 'ip' : activeSection,
-              effectiveProjectId
-            )
+      const moduleKey = MODULE_DATA_KEYS[activeSection];
+      const recordsPromise = activeSection === 'dashboard'
+        ? lawApi.getRecords(token, hasRealProjectId ? { projectId: effectiveProjectId } : {})
+        : hasRealProjectId && moduleKey
+          ? lawApi.getProjectModuleData(token, moduleKey, effectiveProjectId)
           : lawApi.getRecords(token, { section: activeSection, projectId: effectiveProjectId });
 
       const contractsPromise = activeSection === 'dashboard' || !effectiveProjectId

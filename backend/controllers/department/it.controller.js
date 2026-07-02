@@ -417,37 +417,42 @@ exports.updateProjectProgress = async (req, res) => {
  */
 exports.getITTickets = async (req, res) => {
   try {
-    if (!canManageIt(req)) {
-      return res.status(403).json({
-        success: false,
-        error: 'Insufficient role for IT support queue access'
-      });
-    }
-    const { page = 1, limit = 10, status, priority, category, assignedTo } = req.query;
+    const { page = 1, limit = 10, status, priority, category, assignedTo, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     const query = {};
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
     if (category) query.category = category;
     if (assignedTo) query.assignedTo = assignedTo;
+    if (search) {
+      const regex = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [{ title: regex }, { description: regex }, { category: regex }];
+    }
 
-    const tickets = await ITTicket.find(query)
-      .populate('requester', 'firstName lastName email department')
-      .populate('assignedTo', 'firstName lastName email')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .exec();
-
-    const count = await ITTicket.countDocuments(query);
+    const { page: pg, limit: lim, skip } = paged(req.query);
+    const [items, count, open, inProgress, resolved, closed] = await Promise.all([
+      ITTicket.find(query)
+        .populate('requester', 'firstName lastName email department')
+        .populate('assignedTo', 'firstName lastName email')
+        .sort({ [sortBy]: String(sortOrder).toLowerCase() === 'asc' ? 1 : -1 })
+        .skip(skip)
+        .limit(lim)
+        .exec(),
+      ITTicket.countDocuments(query),
+      ITTicket.countDocuments({ ...query, status: 'open' }),
+      ITTicket.countDocuments({ ...query, status: 'in-progress' }),
+      ITTicket.countDocuments({ ...query, status: 'resolved' }),
+      ITTicket.countDocuments({ ...query, status: 'closed' }),
+    ]);
 
     res.status(200).json({
       success: true,
       data: {
-        tickets,
-        totalPages: Math.ceil(count / limit),
-        currentPage: parseInt(page),
-        total: count
+        items,
+        totalPages: Math.ceil(count / lim),
+        currentPage: pg,
+        total: count,
+        summary: { total: count, open, inProgress, resolved, closed },
       }
     });
   } catch (error) {

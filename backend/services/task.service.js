@@ -74,7 +74,9 @@ const getTaskOverview = async (user, options = {}) => {
   const tasks = await Task.find({ assignedTo: userId })
     .sort({ dueDate: 1, createdAt: -1 })
     .populate('project', 'name')
-    .populate('assignedBy', 'firstName lastName email');
+    .populate('assignedBy', 'firstName lastName email')
+    .select('title description dueDate startDate completedDate status priority project assignedBy progress isOverdue tags estimatedHours actualHours')
+    .lean();
 
   const buckets = {
     today: [],
@@ -153,7 +155,8 @@ const getTaskList = async (user, filters = {}) => {
     .sort({ [sortBy]: sortDir, createdAt: -1 })
     .limit(limit)
     .skip((page - 1) * limit)
-    .exec();
+    .select('title description dueDate startDate completedDate status priority project assignedBy progress isOverdue tags estimatedHours actualHours')
+    .lean();
 
   const [total, summary] = await Promise.all([
     Task.countDocuments(query),

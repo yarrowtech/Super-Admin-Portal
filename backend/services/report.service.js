@@ -49,10 +49,14 @@ const getDocuments = async (user) => {
     WorkReport.find({ employee: userId })
       .sort({ reportDate: -1 })
       .limit(15)
-      .populate('project', 'name'),
+      .populate('project', 'name')
+      .select('title reportType status reportDate project attachments')
+      .lean(),
     Leave.find({ employee: userId })
       .sort({ updatedAt: -1 })
-      .limit(10),
+      .limit(10)
+      .select('leaveType status updatedAt createdAt totalDays')
+      .lean(),
     Notice.find({
       isActive: true,
       $or: [
@@ -62,8 +66,14 @@ const getDocuments = async (user) => {
       ],
     })
       .sort({ publishDate: -1 })
-      .limit(5),
-    EmployeeDocument.find({ user: userId }).sort({ updatedAt: -1 }).limit(20),
+      .limit(5)
+      .select('title priority publishDate targetAudience departments specificEmployees')
+      .lean(),
+    EmployeeDocument.find({ user: userId })
+      .sort({ updatedAt: -1 })
+      .limit(20)
+      .select('title type updatedAt createdAt metadata')
+      .lean(),
     WorkReport.countDocuments({ employee: userId }),
     Leave.countDocuments({ employee: userId, status: 'pending' }),
   ]);

@@ -96,7 +96,9 @@ const getThreadOrThrow = async (user, threadId) => {
   const thread = await ChatThread.findOne({
     _id: threadId,
     ...threadFilter(user._id),
-  });
+  })
+    .select('_id')
+    .lean();
   if (!thread) {
     const error = new Error('Thread not found or access denied');
     error.statusCode = 404;
@@ -151,7 +153,9 @@ const createDirectThread = async (user, targetUserId) => {
     throw err;
   }
 
-  const target = await User.findById(targetUserId);
+  const target = await User.findById(targetUserId)
+    .select('firstName lastName role department email')
+    .lean();
   if (!target) {
     const err = new Error('Target user not found');
     err.statusCode = 404;
@@ -161,7 +165,9 @@ const createDirectThread = async (user, targetUserId) => {
   const existing = await ChatThread.findOne({
     isDirect: true,
     members: { $all: [user._id, targetUserId] },
-  });
+  })
+    .select('_id members isDirect name meta createdBy updatedAt')
+    .lean();
 
   if (existing) {
     return existing;
@@ -205,7 +211,9 @@ const createGroupThread = async (user, payload = {}) => {
   }
 
   const objectIds = uniqueIds.map((id) => new mongoose.Types.ObjectId(id));
-  const members = await User.find({ _id: { $in: objectIds } });
+  const members = await User.find({ _id: { $in: objectIds } })
+    .select('firstName lastName email department role')
+    .lean();
 
   if (members.length < uniqueIds.length) {
     const err = new Error('One or more selected members were not found');

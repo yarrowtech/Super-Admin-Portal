@@ -107,7 +107,9 @@ const getProjectBoard = async (user) => {
   const [tasks, projects] = await Promise.all([
     Task.find(taskQuery)
       .sort({ dueDate: 1 })
-      .populate('project', 'name status deadline progress'),
+      .populate('project', 'name status deadline progress')
+      .select('title dueDate priority progress status attachments comments isOverdue project')
+      .lean(),
     Project.find(projectQuery)
       .select('name status progress deadline projectCode')
       .sort({ updatedAt: -1 })
@@ -115,6 +117,7 @@ const getProjectBoard = async (user) => {
   ]);
 
   const columns = buildColumns();
+  const defaultColumn = columns[0];
   const columnByStatus = new Map();
   columns.forEach((column) => {
     column.statuses.forEach((status) => columnByStatus.set(status, column));
@@ -122,7 +125,7 @@ const getProjectBoard = async (user) => {
 
   tasks.forEach((task) => {
     const column =
-      columnByStatus.get(task.status) || columns.find((col) => col.id === 'todo');
+      columnByStatus.get(task.status) || defaultColumn;
     column.cards.push({
       id: task._id,
       title: task.title,

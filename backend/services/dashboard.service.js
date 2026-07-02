@@ -69,23 +69,29 @@ const getDashboard = async (user) => {
     Attendance.findOne({
       employee: userId,
       date: { $gte: startOfDay, $lte: endOfDay },
-    }),
+    })
+      .select('checkIn checkOut status')
+      .lean(),
     Task.find({
       ...openTasksQuery,
       dueDate: { $gte: now, $lte: upcomingLimit },
     })
       .sort({ dueDate: 1 })
       .limit(5)
-      .populate('project', 'name'),
+      .populate('project', 'name')
+      .select('title dueDate project status priority')
+      .lean(),
     Notice.find(buildNoticeFilter(user))
       .sort({ publishDate: -1 })
       .limit(5)
-      .select('title type priority publishDate'),
+      .select('title type priority publishDate')
+      .lean(),
     WorkReport.find({ employee: userId })
       .sort({ reportDate: -1 })
       .limit(3)
       .select('title reportType status reportDate project')
-      .populate('project', 'name'),
+      .populate('project', 'name')
+      .lean(),
   ]);
 
   const totalTasksForProgress = openTasksCount + completedTasksCount || 1;

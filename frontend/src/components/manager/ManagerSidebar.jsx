@@ -5,6 +5,7 @@ import { employeeApi } from '../../services/employee';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import PortalSidebar from '../common/PortalSidebar';
 import { useSidebar } from '../../context/SidebarContext';
+import { createLogger } from '../../utils/logger';
 
 const BASE_NAV_ITEMS = [
   { label: 'Dashboard',   icon: 'dashboard',       path: '/manager/dashboard' },
@@ -18,6 +19,7 @@ const BASE_NAV_ITEMS = [
   { label: 'Reports',     icon: 'assessment',      path: '/manager/reports' },
   { label: 'Chat',        icon: 'forum',           path: '/manager/chat', showBadge: true },
 ];
+const managerSidebarLogger = createLogger({ module: 'manager-sidebar' });
 
 const deriveUnreadCount = (thread) => {
   if (!thread) return 0;
@@ -59,7 +61,7 @@ const ManagerSidebar = () => {
         const list = res?.data || res || [];
         setChatUnread(list.reduce((sum, t) => sum + deriveUnreadCount(t), 0));
       } catch (err) {
-        console.error('Failed to fetch manager chat unread count', err.message);
+        managerSidebarLogger.error({ err }, 'Failed to fetch manager chat unread count');
       }
     })();
     return () => { cancelled = true; };

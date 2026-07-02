@@ -5,6 +5,7 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import PortalSidebar from '../common/PortalSidebar';
 import { resolvePortalMenu } from '../../config/portalMenus';
 import { useSidebar } from '../../context/SidebarContext';
+import { createLogger } from '../../utils/logger';
 
 const HRSidebar = () => {
   const location = useLocation();
@@ -12,8 +13,9 @@ const HRSidebar = () => {
   const { user, logout } = useAuth();
   const { collapsed } = useSidebar();
   const hrNavItems = resolvePortalMenu('hr');
+  const hrSidebarLogger = createLogger({ module: 'hr-sidebar' });
   if (!canAccessPortal(user, PORTALS.HR)) return null;
-  console.debug('[HRSidebar] mounted', { role: user?.role || 'unknown' });
+  hrSidebarLogger.debug({ role: user?.role || 'unknown' }, 'HR sidebar mounted');
 
   const handleLogout = () => {
     logout();

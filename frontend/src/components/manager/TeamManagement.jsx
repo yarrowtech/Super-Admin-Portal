@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { managerApi } from '../../services/manager';
 import { useAuth } from '../../context/AuthContext';
+import { createLogger } from '../../utils/logger';
+
+const teamManagementLogger = createLogger({ module: 'team-management' });
 
 const TeamManagement = () => {
   const { token } = useAuth();
@@ -42,7 +45,7 @@ const TeamManagement = () => {
       const payload = response?.data || response || [];
       setManagedTeams(payload);
     } catch (err) {
-      console.error('Failed to load project teams', err);
+      teamManagementLogger.error({ err }, 'Failed to load project teams');
     } finally {
       setTeamsLoading(false);
     }

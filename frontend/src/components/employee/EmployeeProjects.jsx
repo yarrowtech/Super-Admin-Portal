@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { employeeApi } from '../../services/employee';
 import { useAuth } from '../../context/AuthContext';
 import { buildDepartmentTarget } from '../../utils/notificationRouting';
+import { createLogger } from '../../utils/logger';
 
 const formatDateKey = (value) => {
   if (!value) return '';
@@ -9,6 +10,7 @@ const formatDateKey = (value) => {
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString().split('T')[0];
 };
+const employeeProjectsLogger = createLogger({ module: 'employee-projects' });
 
 const EmployeeProjects = () => {
   const { token, user } = useAuth();
@@ -508,7 +510,7 @@ const EmployeeProjects = () => {
               department: user?.department,
             };
             await employeeApi.notifyManagerTaskReview(token, card.id, taskData);
-            console.log('Notification sent to manager for completed task:', card.title);
+            employeeProjectsLogger.info({ taskTitle: card.title }, 'Notification sent to manager for completed task');
             
             // For demo purposes: Also trigger a local notification event
             // This simulates the real-time notification that would come from the backend
@@ -541,7 +543,7 @@ const EmployeeProjects = () => {
               queue.push(notificationData);
               localStorage.setItem('pendingManagerNotifications', JSON.stringify(queue));
             } catch (queueErr) {
-              console.warn('Failed to persist manager notification queue', queueErr);
+              employeeProjectsLogger.warn({ err: queueErr }, 'Failed to persist manager notification queue');
               localStorage.setItem('pendingManagerNotifications', JSON.stringify([notificationData]));
             }
             
@@ -588,13 +590,13 @@ const EmployeeProjects = () => {
             window.dispatchEvent(new CustomEvent('employeeWorkCompleted', { detail: completedWork }));
             
           } catch (notificationErr) {
-            console.warn('Failed to send notification to manager (backend not implemented):', notificationErr);
+            employeeProjectsLogger.warn({ err: notificationErr }, 'Failed to send notification to manager');
             // Don't fail the entire operation if notification fails
             // In a real implementation, you might queue the notification for retry
           }
         }
       } catch (err) {
-        console.error('Failed to move task', err);
+        employeeProjectsLogger.error({ err }, 'Failed to move task');
         setBoard(previousBoard);
         setMoveError(err.message || 'Failed to move task, please try again.');
       } finally {

@@ -5,8 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 import PortalSidebar from '../common/PortalSidebar';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import { useSidebar } from '../../context/SidebarContext';
+import { createLogger } from '../../utils/logger';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const adminSidebarLogger = createLogger({ module: 'admin-sidebar' });
 
 const navItems = [
   {
@@ -147,7 +149,7 @@ const AdminSidebar = () => {
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   useEffect(() => {
-    console.debug('[AdminSidebar] role resolved', role);
+    adminSidebarLogger.debug({ role }, 'Role resolved');
   }, [role]);
 
   if (!canAccessPortal(user, PORTALS.ADMIN)) return null;

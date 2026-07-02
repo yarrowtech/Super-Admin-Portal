@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
+import { createLogger } from '../../utils/logger';
+
+const staffWorkReportLogger = createLogger({ module: 'staff-work-report' });
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   month: 'short',
@@ -337,7 +340,7 @@ const StaffWorkReport = ({
         text: `Exported ${filteredReports.length} report${filteredReports.length === 1 ? '' : 's'} to CSV.`,
       });
     } catch (exportError) {
-      console.error('Export reports error:', exportError);
+      staffWorkReportLogger.error({ err: exportError }, 'Export reports error');
       setExportFeedback({
         type: 'error',
         text: 'Failed to export reports. Please try again.',

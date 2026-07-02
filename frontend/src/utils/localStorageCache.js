@@ -9,6 +9,8 @@
  *   import { attachQueryPersister } from '@/utils/localStorageCache';
  *   attachQueryPersister(queryClient);
  */
+import { subscribeAuthSession } from '../lib/authSession';
+import { readAuthSession } from '../lib/authSession';
 
 const LS_KEY = 'sap_query_cache_v2';
 const PERSIST_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 h
@@ -57,8 +59,14 @@ export const clearPersistedCache = () => {
  * @param {import('@tanstack/react-query').QueryClient} queryClient
  */
 export const attachQueryPersister = (queryClient) => {
+  const { token } = readAuthSession();
+  if (!token) {
+    queryClient.clear();
+    clearPersistedCache();
+  }
+
   // Hydrate from previous session
-  const persisted = readPersistedCache();
+  const persisted = token ? readPersistedCache() : null;
   if (persisted) {
     try {
       queryClient.setQueryData = queryClient.setQueryData.bind(queryClient);
@@ -77,6 +85,11 @@ export const attachQueryPersister = (queryClient) => {
 
   // Debounced flush on every cache change
   let timer = null;
+  const clearAll = () => {
+    clearTimeout(timer);
+    queryClient.clear();
+    clearPersistedCache();
+  };
   const flush = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -95,7 +108,12 @@ export const attachQueryPersister = (queryClient) => {
   };
 
   const unsubscribe = queryClient.getQueryCache().subscribe(flush);
-  return unsubscribe;
+  const unsubscribeAuth = subscribeAuthSession(clearAll);
+  return () => {
+    clearTimeout(timer);
+    unsubscribe();
+    unsubscribeAuth();
+  };
 };
 
 // ── Per-module localStorage KV cache (long-lived static data) ────────────────

@@ -8,8 +8,10 @@ import TaskDetailsModal from './TaskDetailsModal';
 import NotificationDebug from './NotificationDebug';
 import { shouldDeliverToManager } from '../../utils/notificationRouting';
 import PortalHeader from '../common/PortalHeader';
+import { createLogger } from '../../utils/logger';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const managerDashboardLogger = createLogger({ module: 'manager-dashboard' });
 
 const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -64,7 +66,7 @@ const ManagerDashboard = () => {
       const raw = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (err) {
-      console.warn('Failed to load stored attendance', err);
+      managerDashboardLogger.warn({ err }, 'Failed to load stored attendance');
       return null;
     }
   };
@@ -77,7 +79,7 @@ const ManagerDashboard = () => {
       }
       localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(payload));
     } catch (err) {
-      console.warn('Failed to persist attendance', err);
+      managerDashboardLogger.warn({ err }, 'Failed to persist attendance');
     }
   };
 

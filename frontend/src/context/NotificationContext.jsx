@@ -3,10 +3,12 @@ import { managerApi } from '../services/manager';
 import { ceoApi } from '../services/ceo';
 import { useAuth } from './AuthContext';
 import { shouldDeliverToManager } from '../utils/notificationRouting';
+import { createLogger } from '../utils/logger';
 
 const NotificationContext = createContext();
 const LEGACY_PENDING_KEY = 'pendingManagerNotification';
 const PENDING_QUEUE_KEY = 'pendingManagerNotifications';
+const notificationLogger = createLogger({ module: 'notifications' });
 
 const getDateKey = (dateInput = new Date()) => {
   const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
@@ -98,7 +100,7 @@ export const NotificationProvider = ({ children }) => {
       setNotifications(todaysNotifications);
       setUnreadCount(todaysNotifications.filter(n => !n.read).length);
     } catch (error) {
-      console.warn('Failed to fetch notifications - backend not available:', error);
+      notificationLogger.warn({ err: error }, 'Failed to fetch notifications');
       // No mock data - only show real notifications from employee actions
       setNotifications([]);
       setUnreadCount(0);
@@ -113,7 +115,7 @@ export const NotificationProvider = ({ children }) => {
     try {
       await roleApi.markNotificationRead(token, notificationId);
     } catch (error) {
-      console.warn('Failed to mark notification as read (backend not implemented):', error);
+      notificationLogger.warn({ err: error }, 'Failed to mark notification as read');
     }
     
     // Update local state regardless of API success
@@ -131,7 +133,7 @@ export const NotificationProvider = ({ children }) => {
     try {
       await roleApi.markAllNotificationsRead(token);
     } catch (error) {
-      console.warn('Failed to mark all notifications as read (backend not implemented):', error);
+      notificationLogger.warn({ err: error }, 'Failed to mark all notifications as read');
     }
     
     // Update local state regardless of API success
@@ -153,7 +155,7 @@ export const NotificationProvider = ({ children }) => {
       try {
         deliverIfAllowed(JSON.parse(legacyValue));
       } catch (err) {
-        console.warn('Failed to parse legacy pending notification', err);
+        notificationLogger.warn({ err }, 'Failed to parse legacy pending notification');
       } finally {
         localStorage.removeItem(LEGACY_PENDING_KEY);
       }
@@ -167,7 +169,7 @@ export const NotificationProvider = ({ children }) => {
           queue.forEach(deliverIfAllowed);
         }
       } catch (err) {
-        console.warn('Failed to parse pending notification queue', err);
+        notificationLogger.warn({ err }, 'Failed to parse pending notification queue');
       } finally {
         localStorage.removeItem(PENDING_QUEUE_KEY);
       }

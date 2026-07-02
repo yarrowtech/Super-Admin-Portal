@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { managerApi } from '../../services/manager';
 import { useAuth } from '../../context/AuthContext';
 import { shouldDeliverToManager } from '../../utils/notificationRouting';
+import { createLogger } from '../../utils/logger';
 
 const getWorkItemKey = (item) => item?.taskId || item?.id || item?._id;
+const employeeWorkBoardLogger = createLogger({ module: 'employee-work-board' });
 
 const readLocalCompletedWork = () => {
   if (typeof window === 'undefined') return [];
@@ -12,7 +14,7 @@ const readLocalCompletedWork = () => {
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    console.warn('Failed to read cached employee work updates:', error);
+    employeeWorkBoardLogger.warn({ err: error }, 'Failed to read cached employee work updates');
     return [];
   }
 };
@@ -193,7 +195,7 @@ const EmployeeWorkBoard = () => {
       setStats(realStats ? { ...realStats, ...derivedStats } : derivedStats);
       
     } catch (error) {
-      console.error('Failed to fetch employee work:', error);
+      employeeWorkBoardLogger.error({ err: error }, 'Failed to fetch employee work');
       setError('Failed to load employee work data. Please try again.');
       const fallbackItems = mergeWithLocalWork([]);
       setWorkItems(fallbackItems);
@@ -278,9 +280,9 @@ const EmployeeWorkBoard = () => {
         pendingReview: Math.max(0, (prev.pendingReview || 0) - 1)
       } : null);
       
-      console.log('Work approved successfully:', workId);
+      employeeWorkBoardLogger.info({ workId }, 'Work approved successfully');
     } catch (error) {
-      console.error('Failed to approve work:', error);
+      employeeWorkBoardLogger.error({ err: error, workId }, 'Failed to approve work');
       setError('Failed to approve work. Please try again.');
     }
   };

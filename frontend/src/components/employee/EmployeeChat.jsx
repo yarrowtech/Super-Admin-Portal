@@ -5,6 +5,7 @@ import { employeeApi } from '../../services/employee';
 import { useAuth } from '../../context/AuthContext';
 import ChatSidebar from './chat/ChatSidebar';
 import ChatWindow from './chat/ChatWindow';
+import { createLogger } from '../../utils/logger';
 
 const defaultQuickReplies = ['On it', 'Need help', 'Can we sync?', 'Uploading shortly'];
 const defaultEmojiOptions = ['😀', '😁', '😂', '😅', '😍', '😎', '😢', '😡', '👍', '🙏', '🎉', '🔥', '🚀', '💡', '✅', '❗'];
@@ -12,6 +13,7 @@ const TYPING_STOP_DELAY_MS = 2000;
 const TYPING_KEEP_ALIVE_MS = 1500;
 const TYPING_DISPLAY_TIMEOUT_MS = 5000;
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const employeeChatLogger = createLogger({ module: 'employee-chat' });
 
 const defaultTeamMembersExtractor = (res) => {
   if (!res) return [];
@@ -357,7 +359,7 @@ const EmployeeChat = ({
           });
         setTeamMembers(normalizedMembers);
       } catch (err) {
-        console.error('Team fetch error:', err.message);
+        employeeChatLogger.error({ err }, 'Team fetch error');
       }
     })();
   }, [token, currentUserId, api, fetchTeamMembers, teamMembersExtractor]);
@@ -378,11 +380,11 @@ const EmployeeChat = ({
     
     // Add connection event listeners for production debugging
     socket.on('connect', () => {
-      console.log('Socket connected in production');
+      employeeChatLogger.debug({ socketId: socket.id }, 'Socket connected');
     });
     
     socket.on('disconnect', () => {
-      console.log('Socket disconnected in production');
+      employeeChatLogger.debug({ socketId: socket.id }, 'Socket disconnected');
     });
     
     return () => {
@@ -558,20 +560,20 @@ const EmployeeChat = ({
     };
 
     const seenHandler = (payload = {}) => {
-      console.log('Received seen event:', payload);
+      employeeChatLogger.debug({ payload }, 'Received seen event');
       const { threadId, seenMessageIds } = payload;
       if (!threadId || !Array.isArray(seenMessageIds) || seenMessageIds.length === 0) return;
       
-      console.log('Processing seen messages:', seenMessageIds);
+      employeeChatLogger.debug({ threadId, seenMessageIds }, 'Processing seen messages');
       setSeenByOthers((prev) => {
         const next = { ...prev };
         seenMessageIds.forEach((id) => {
           if (id) {
-            console.log('Marking message as seen:', id);
+            employeeChatLogger.debug({ id }, 'Marking message as seen');
             next[id] = true;
           }
         });
-        console.log('Updated seenByOthers:', next);
+        employeeChatLogger.debug({ threadId, updatedCount: Object.keys(next).length }, 'Updated seenByOthers');
         return next;
       });
     };
@@ -734,7 +736,7 @@ const EmployeeChat = ({
       sending: true,
     };
     
-    console.log('Adding optimistic message:', optimisticMessage);
+    employeeChatLogger.debug({ optimisticMessage }, 'Adding optimistic message');
     setMessages(prev => [...prev, optimisticMessage]);
 
     try {
@@ -999,14 +1001,14 @@ const EmployeeChat = ({
         newlySeen.push(msg.id);
       });
       if (newlySeen.length > 0) {
-        console.log('Emitting seen event for messages:', newlySeen);
+        employeeChatLogger.debug({ threadId: threadKey, newlySeen }, 'Emitting seen event for messages');
         socket.emit('chat:seen', {
           threadId: threadKey,
           readerId: currentUserId,
           seenMessageIds: newlySeen,
         });
         newlySeen.forEach((id) => emitted.add(id));
-        console.log('Added to emitted set:', newlySeen);
+        employeeChatLogger.debug({ newlySeen }, 'Added seen messages to emitted set');
       }
     }, 1000); // 1 second delay
 

@@ -1,23 +1,21 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../services/client';
 import { createLogger } from '../utils/logger';
+import { clearAuthSession, readAuthSession, writeAuthSession } from '../lib/authSession';
 
 const authLogger = createLogger({ module: 'auth' });
 
 const AuthContext = createContext(null);
-
-const TOKEN_KEY = 'sap_token';
-const REFRESH_KEY = 'sap_refresh_token';
-const MODE_KEY = 'sap_auth_mode';
 const CACHE_PREFIX = 'sap_cache_v1:';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
-  const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem(REFRESH_KEY));
+  const initialSession = readAuthSession();
+  const [token, setToken] = useState(() => initialSession.token);
+  const [refreshToken, setRefreshToken] = useState(() => initialSession.refreshToken);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [authMode, setAuthMode] = useState(() => localStorage.getItem(MODE_KEY) || 'default');
+  const [authMode, setAuthMode] = useState(() => initialSession.authMode || 'default');
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -44,9 +42,8 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setRefreshToken(null);
     setAuthMode('default');
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-    localStorage.removeItem(MODE_KEY);
+    clearAuthSession();
+    apiClient.clearCache();
     try {
       for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
         const key = sessionStorage.key(i);
@@ -76,13 +73,7 @@ export const AuthProvider = ({ children }) => {
       setToken(authToken);
       setRefreshToken(authRefresh || null);
       setAuthMode(mode);
-      localStorage.setItem(TOKEN_KEY, authToken);
-      localStorage.setItem(MODE_KEY, mode);
-      if (authRefresh) {
-        localStorage.setItem(REFRESH_KEY, authRefresh);
-      } else {
-        localStorage.removeItem(REFRESH_KEY);
-      }
+      writeAuthSession({ token: authToken, refreshToken: authRefresh || null, authMode: mode });
       return authedUser;
     } catch (err) {
       authLogger.error({ err, mode }, 'Login failed');
@@ -102,7 +93,6 @@ export const AuthProvider = ({ children }) => {
       // server logout failure should not block local logout
     } finally {
       clearAuth();
-      localStorage.removeItem(MODE_KEY);
       setAuthMode('default');
     }
   };

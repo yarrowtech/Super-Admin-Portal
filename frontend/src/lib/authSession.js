@@ -50,5 +50,15 @@ export const clearAuthSession = () => {
 export const subscribeAuthSession = (handler) => {
   if (typeof window === 'undefined') return () => {};
   window.addEventListener(AUTH_EVENT, handler);
-  return () => window.removeEventListener(AUTH_EVENT, handler);
+  const handleStorage = (event) => {
+    if (!event) return;
+    if (event.key === TOKEN_KEY || event.key === REFRESH_KEY || event.key === MODE_KEY || event.key === null) {
+      handler(event);
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+  return () => {
+    window.removeEventListener(AUTH_EVENT, handler);
+    window.removeEventListener('storage', handleStorage);
+  };
 };

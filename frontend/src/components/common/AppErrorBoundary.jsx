@@ -1,4 +1,7 @@
 import React from 'react';
+import { createLogger } from '../../utils/logger';
+
+const errorBoundaryLogger = createLogger({ module: 'app-error-boundary' });
 
 export default class AppErrorBoundary extends React.Component {
   constructor(props) {
@@ -12,7 +15,7 @@ export default class AppErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     // Keep a persistent trace for debugging blank-screen issues in production.
-    console.error('AppErrorBoundary caught:', error, errorInfo);
+    errorBoundaryLogger.error({ err: error, errorInfo }, 'AppErrorBoundary caught an error');
   }
 
   render() {

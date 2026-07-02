@@ -4,6 +4,7 @@ import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
 import HrPageShell from '../../features/hr/components/HrPageShell';
 import StaffWorkReport from './StaffWorkReport';
+import { createLogger } from '../../utils/logger';
 
 const priorityStyles = {
   low: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
@@ -27,6 +28,7 @@ const statusProgressMap = {
   completed: 100,
   cancelled: 0,
 };
+const hrTaskManagementLogger = createLogger({ module: 'hr-task-management' });
 
 const getProgressFromStatus = (status, fallback = 0) => {
   if (status && Object.prototype.hasOwnProperty.call(statusProgressMap, status)) {
@@ -93,7 +95,7 @@ const HRTaskManagement = () => {
       const payload = response?.data || {};
       setTeam(payload.employees || []);
     } catch (err) {
-      console.error('Failed to load team', err.message);
+      hrTaskManagementLogger.error({ err }, 'Failed to load team');
     }
   };
 

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { managerApi } from '../../services/manager';
 import { useAuth } from '../../context/AuthContext';
+import { createLogger } from '../../utils/logger';
+
+const taskDetailsLogger = createLogger({ module: 'task-details-modal' });
 
 const TaskDetailsModal = ({ isOpen, onClose, taskId, taskData }) => {
   const { token } = useAuth();
@@ -15,7 +18,7 @@ const TaskDetailsModal = ({ isOpen, onClose, taskId, taskData }) => {
       const response = await managerApi.getTaskDetails(token, taskId);
       setTask(response?.data || response);
     } catch (err) {
-      console.warn('Failed to load task details (backend not implemented) - using fallback data:', err);
+      taskDetailsLogger.warn({ err }, 'Failed to load task details; using fallback data');
       // Use fallback data if backend is not implemented yet, but use taskData if available
       const mockTask = {
         id: taskId,

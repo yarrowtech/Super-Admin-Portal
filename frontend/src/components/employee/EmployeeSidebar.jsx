@@ -7,8 +7,10 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import { resolvePortalMenu } from '../../config/portalMenus';
 import PortalSidebar from '../common/PortalSidebar';
 import { useSidebar } from '../../context/SidebarContext';
+import { createLogger } from '../../utils/logger';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const employeeSidebarLogger = createLogger({ module: 'employee-sidebar' });
 
 const BASE_NAV_ITEMS = resolvePortalMenu('user').map(({ label, icon, path }) => ({ label, icon, path }));
 
@@ -87,7 +89,7 @@ const EmployeeSidebar = () => {
       setThreadIds(ids);
       joinThreads(list);
     } catch (err) {
-      console.error('Failed to fetch chat unread count', err.message);
+      employeeSidebarLogger.error({ err }, 'Failed to fetch chat unread count');
     }
   }, [token, mergeUnreadMap, joinThreads]);
 

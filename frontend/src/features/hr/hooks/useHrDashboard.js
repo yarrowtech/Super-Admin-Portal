@@ -2,16 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../../context/AuthContext';
 import { hrApi } from '../../../services/hr';
+import { createLogger } from '../../../utils/logger';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const ATTENDANCE_STORAGE_KEY = 'hr-dashboard-attendance';
+const hrDashboardLogger = createLogger({ module: 'hr-dashboard' });
 
 const loadStoredAttendance = () => {
   try {
     const raw = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch (err) {
-    console.warn('Failed to load stored attendance', err);
+    hrDashboardLogger.warn({ err }, 'Failed to load stored attendance');
     return null;
   }
 };
@@ -24,7 +26,7 @@ const persistAttendance = (payload) => {
     }
     localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(payload));
   } catch (err) {
-    console.warn('Failed to persist attendance', err);
+    hrDashboardLogger.warn({ err }, 'Failed to persist attendance');
   }
 };
 
@@ -85,7 +87,7 @@ export const useHrDashboard = () => {
       setLeaveListMode('recent');
     } catch (err) {
       if (!isProjectContextError(err)) {
-        console.warn('Failed to load HR leave requests', err);
+        hrDashboardLogger.warn({ err }, 'Failed to load HR leave requests');
       }
       setPendingLeaves([]);
       setLeaveListMode('recent');

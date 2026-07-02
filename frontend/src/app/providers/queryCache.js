@@ -1,6 +1,9 @@
 import { QueryClient } from '@tanstack/react-query';
 import { attachQueryPersister } from '../../utils/localStorageCache';
 import { QK, cachePolicyFor } from '../../utils/queryKeys';
+import { createLogger } from '../../utils/logger';
+
+const queryLogger = createLogger({ module: 'query-client' });
 
 const queryRoots = [
   QK.auth.root(),
@@ -42,9 +45,7 @@ export const queryClient = new QueryClient({
     mutations: {
       retry: 0,
       onError: (error) => {
-        if (import.meta.env.DEV) {
-          console.error('[QueryClient] mutation error', error);
-        }
+        queryLogger.error({ err: error }, 'Mutation error');
       },
     },
   },

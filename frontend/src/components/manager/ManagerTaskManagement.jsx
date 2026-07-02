@@ -5,6 +5,7 @@ import ExportModal from '../common/ExportModal';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { useToast } from '../../context/ToastContext';
 import TableSkeleton from '../ui/TableSkeleton';
+import { createLogger } from '../../utils/logger';
 
 const priorityStyles = {
   low: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
@@ -31,6 +32,7 @@ const initialForm = {
   estimatedHours: '',
   progress: 0,
 };
+const managerTaskManagementLogger = createLogger({ module: 'manager-task-management' });
 
 const ManagerTaskManagement = () => {
   const { token } = useAuth();
@@ -70,12 +72,17 @@ const ManagerTaskManagement = () => {
       setTasks(payload.tasks || []);
       setTotalPages(payload.totalPages || 1);
     } catch (err) {
-      console.error('Failed to fetch manager tasks:', err);
-      console.error('Error status:', err.status);
-      console.error('Error code:', err.code);
-      console.error('Error details:', err.details);
-      console.error('User role:', err.userRole);
-      console.error('Required roles:', err.requiredRoles);
+      managerTaskManagementLogger.error(
+        {
+          err,
+          status: err?.status,
+          code: err?.code,
+          details: err?.details,
+          userRole: err?.userRole,
+          requiredRoles: err?.requiredRoles,
+        },
+        'Failed to fetch manager tasks'
+      );
       
       let errorMessage = err.message || 'Failed to load tasks. Please check your connection and try again.';
       if (err.status === 403 && err.code === 'INSUFFICIENT_PERMISSIONS') {
@@ -95,7 +102,7 @@ const ManagerTaskManagement = () => {
       const payload = response?.data || {};
       setTeam(payload.team || []);
     } catch (err) {
-      console.error('Failed to load team', err.message);
+      managerTaskManagementLogger.error({ err }, 'Failed to load team');
     }
   };
 

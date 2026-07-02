@@ -1,58 +1,35 @@
 import { apiClient } from './client';
 
+const toQueryString = (params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.append(key, value);
+  });
+  const qs = query.toString();
+  return qs ? `?${qs}` : '';
+};
+
 export const lawApi = {
   getDashboard: async (token, params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') query.append(key, value);
-    });
-    const qs = query.toString();
-    return apiClient.get(`/api/dept/law/dashboard${qs ? `?${qs}` : ''}`, token);
+    return apiClient.get(`/api/dept/law/dashboard${toQueryString(params)}`, token);
   },
   getRecords: async (token, params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        query.append(key, value);
-      }
-    });
-    const queryString = query.toString();
-    return apiClient.get(`/api/dept/law/records${queryString ? `?${queryString}` : ''}`, token);
+    return apiClient.get(`/api/dept/law/records${toQueryString(params)}`, token);
   },
   createRecord: async (token, data) => apiClient.post('/api/dept/law/records', data, token),
   updateRecord: async (token, id, data) => apiClient.put(`/api/dept/law/records/${id}`, data, token),
   deleteRecord: async (token, id) => apiClient.delete(`/api/dept/law/records/${id}`, token),
   getContracts: async (token, params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') query.append(key, value);
-    });
-    const qs = query.toString();
-    return apiClient.get(`/api/dept/law/contracts${qs ? `?${qs}` : ''}`, token);
+    return apiClient.get(`/api/dept/law/contracts${toQueryString(params)}`, token);
   },
   getCompliance: async (token, params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') query.append(key, value);
-    });
-    const qs = query.toString();
-    return apiClient.get(`/api/dept/law/compliance${qs ? `?${qs}` : ''}`, token);
+    return apiClient.get(`/api/dept/law/compliance${toQueryString(params)}`, token);
   },
   getProjects: async (token, params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') query.append(key, value);
-    });
-    const qs = query.toString();
-    return apiClient.get(`/api/law/projects${qs ? `?${qs}` : ''}`, token);
+    return apiClient.get(`/api/dept/law/projects${toQueryString(params)}`, token);
   },
   getProjectModuleData: async (token, moduleKey, projectId, params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') query.append(key, value);
-    });
-    const qs = query.toString();
-    return apiClient.get(`/api/law/module/${moduleKey}/project/${projectId}${qs ? `?${qs}` : ''}`, token);
+    return apiClient.get(`/api/dept/law/module/${moduleKey}/project/${projectId}${toQueryString(params)}`, token);
   },
   uploadReferencePdfs: async (token, projectId, files = []) => {
     const formData = new FormData();

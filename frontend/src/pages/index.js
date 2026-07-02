@@ -100,6 +100,12 @@ export const ITTicketsPage         = lazy(() => import('../components/it/ITWorks
 export const ITTicketDetailPage    = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITTicketDetailPage })));
 export const ITAssetsPage          = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITAssetsPage })));
 export const ITAssetDetailPage     = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITAssetDetailPage })));
+export const ITOperationsPage      = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITOperationsPage })));
+export const ITActivityPage        = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITActivityPage })));
+export const ITSecurityPage        = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITSecurityPage })));
+export const ITUserAccessPage      = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITUserAccessPage })));
+export const ITChangesPage         = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITChangesPage })));
+export const ITReportsPage         = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITReportsPage })));
 export const ITSettingsPage        = lazy(() => import('../components/it/ITSettingsPage'));
 export const ITSupportCenterPage   = lazy(() => import('../components/admin/AdminSupportCenter'));
 

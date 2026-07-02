@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
-import { CANONICAL_PROJECT_NAMES } from '../../config/projectNames';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
 
@@ -55,8 +54,7 @@ const MEDIA_SECTIONS = [
   { id: 'support',  label: 'Support',  icon: 'support_agent', description: 'Get help and submit tickets' },
 ];
 
-const MEDIA_STRICT_PROJECTS = CANONICAL_PROJECT_NAMES;
-const cardClass = 'rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm';
+const cardClass = 'rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)]';
 const MEDIA_CACHE_TTL = 45 * 1000;
 
 const metricValue = (value) => {
@@ -92,8 +90,28 @@ const CHART_COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#e
 const normalizeStatus = (value = '') => String(value || '').trim().toLowerCase();
 const toCount = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const pickValue = (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '-';
+const buildProjectOptions = (projects = []) =>
+  projects
+    .map((project) => {
+      const value = String(project?._id || project?.id || '').trim();
+      const code = String(project?.projectCode || project?.code || project?.name || '').trim();
+      const name = String(project?.name || '').trim();
+      const description = String(project?.description || '').trim();
 
-const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = '', onProjectChange }) => {
+      if (!value || !code) return null;
+
+      return {
+        code,
+        name,
+        description,
+        status: String(project?.status || '').trim(),
+        value,
+        label: `${code}${name && name !== code ? ` - ${name}` : ''}`,
+      };
+    })
+    .filter(Boolean);
+
+const MediaDashboard = ({ activeSection = 'dashboard', onSectionChange, selectedProjectId, onProjectChange }) => {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -106,6 +124,41 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
   const [approvals, setApprovals] = useState([]);
   const [reporting, setReporting] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [activeProjectId, setActiveProjectId] = useState('');
+  const effectiveProjectId = selectedProjectId !== undefined ? selectedProjectId : activeProjectId;
+
+  useEffect(() => {
+    if (selectedProjectId !== undefined) {
+      setActiveProjectId(String(selectedProjectId || ''));
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem('activeProjectId');
+      setActiveProjectId(stored && stored !== 'all' ? stored : '');
+    } catch {
+      setActiveProjectId('');
+    }
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (selectedProjectId !== undefined) {
+      try {
+        if (selectedProjectId) localStorage.setItem('activeProjectId', String(selectedProjectId));
+        else localStorage.removeItem('activeProjectId');
+      } catch {
+        // ignore storage issues
+      }
+      return;
+    }
+
+    try {
+      if (activeProjectId) localStorage.setItem('activeProjectId', String(activeProjectId));
+      else localStorage.removeItem('activeProjectId');
+    } catch {
+      // ignore storage issues
+    }
+  }, [activeProjectId, selectedProjectId]);
 
   useEffect(() => {
     let ignore = false;
@@ -116,31 +169,22 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
       setLoading(true);
       setError('');
       try {
-        const projectsRes = await departmentApi.getMediaProjects(token, { limit: 12 });
-        const projectItems = projectsRes?.data?.items || [];
-        const strictProjects = MEDIA_STRICT_PROJECTS.map((name) => {
-          const matched = projectItems.find(
-            (p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase()
-          );
-          return matched || { _id: `virtual-${name}`, name };
-        });
+        const projectsRes = await departmentApi.getMediaProjects(token, { limit: 200 });
+        const projectItems = projectsRes?.data?.items || projectsRes?.data?.data?.items || [];
+        const projectOptions = buildProjectOptions(projectItems);
+        const fallbackProject = projectOptions[0] || null;
+        const resolvedProjectId = effectiveProjectId || fallbackProject?.value || '';
 
-        const fallbackProject = strictProjects.find(Boolean);
-        const effectiveProjectId =
-          selectedProjectId ||
-          fallbackProject?._id ||
-          fallbackProject?.id ||
-          strictProjects[0]?._id ||
-          strictProjects[0]?.id ||
-          '';
-        const hasRealProjectId = effectiveProjectId && !String(effectiveProjectId).startsWith('virtual-');
-
-        if (activeSection !== 'dashboard' && hasRealProjectId && !selectedProjectId) {
-          onProjectChange?.(effectiveProjectId);
+        if (!effectiveProjectId && resolvedProjectId && selectedProjectId === undefined) {
+          setActiveProjectId(resolvedProjectId);
         }
 
-        const projectParams = effectiveProjectId ? { projectId: effectiveProjectId } : {};
-        const scopedParams = hasRealProjectId ? projectParams : {};
+        if (activeSection !== 'dashboard' && resolvedProjectId && !effectiveProjectId) {
+          onProjectChange?.(resolvedProjectId);
+        }
+
+        const projectParams = resolvedProjectId ? { projectId: resolvedProjectId } : {};
+        const scopedParams = projectParams;
 
         const [dashboardRes, assetsRes, campaignsRes, contentRes, brandRes, approvalsRes, reportingRes] = await Promise.allSettled([
           departmentApi.getMediaDashboard(token, scopedParams),
@@ -164,7 +208,7 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
         const approvalItems = approvalsRes.status === 'fulfilled' ? approvalsRes.value?.data?.items || [] : [];
 
         setDashboard(dashboardData);
-        setProjects(strictProjects);
+        setProjects(projectOptions);
         setAssets(Array.isArray(assetItems) ? assetItems : []);
         setCampaigns(Array.isArray(campaignItems) ? campaignItems : []);
         setContent(Array.isArray(contentItems) ? contentItems : []);
@@ -174,7 +218,7 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
         setUpdatedAt(Date.now());
         try {
           if (hasRealProjectId) {
-            localStorage.setItem('activeProjectId', String(effectiveProjectId));
+            localStorage.setItem('activeProjectId', String(resolvedProjectId));
           } else {
             localStorage.removeItem('activeProjectId');
           }
@@ -198,7 +242,7 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
     return () => {
       ignore = true;
     };
-  }, [token, selectedProjectId, activeSection, onProjectChange]);
+  }, [token, activeSection, effectiveProjectId, onProjectChange]);
 
   const summary = useMemo(() => {
     const permissions = Array.isArray(dashboard?.permissions) ? dashboard.permissions : [];
@@ -296,16 +340,18 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
 
   const meta = SECTION_META[activeSection] || SECTION_META.dashboard;
   const projectOptions = useMemo(
-    () =>
-      projects
-        .map((project) => ({
-          label: project?.name || project?.projectName || project?.title || 'Untitled Project',
-          value: String(project?._id || project?.id || ''),
-        }))
-        .filter((item) => item.value),
+    () => projects.filter((project) => project.value),
     [projects]
   );
-  const selectedProjectLabel = projectOptions.find((item) => item.value === selectedProjectId)?.label || 'All Projects';
+  const selectedProjectLabel = projectOptions.find((item) => item.value === effectiveProjectId)?.code || 'All Projects';
+  const updateProject = (projectId) => {
+    if (selectedProjectId !== undefined) {
+      onProjectChange?.(projectId);
+      return;
+    }
+
+    setActiveProjectId(projectId);
+  };
 
   const renderEmptyCard = (title, description) => (
     <article className={cardClass}>
@@ -552,10 +598,10 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
   const renderDashboard = () => {
     const contentRatio = summary.totalContent ? Math.round((summary.publishedContent / summary.totalContent) * 100) : 0;
     const campaignRatio = summary.totalCampaigns ? Math.round((summary.activeCampaigns / summary.totalCampaigns) * 100) : 0;
-    const dashboardCard = 'rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm';
+    const dashboardCard = 'rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)]';
 
     return (
-      <main className="portal-page">
+      <main className="portal-page bg-[linear-gradient(180deg,#f8fbfd_0%,#eef7f5_100%)]">
         <div className="portal-page-inner">
           <PortalHeader
             title="Media Analytics"
@@ -564,26 +610,26 @@ const MediaDashboard = ({ activeSection, onSectionChange, selectedProjectId = ''
             icon="campaign"
             showSearch={false}
             showNotifications
-            showThemeToggle={false}
+            showThemeToggle
             searchPlaceholder="Search media modules..."
           >
             <div className="flex flex-wrap gap-2">
               <select
-                value={selectedProjectId}
-                onChange={(e) => onProjectChange?.(e.target.value)}
-                className="h-10 rounded-xl border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary"
+                value={effectiveProjectId || ''}
+                onChange={(e) => updateProject(e.target.value)}
+                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-[var(--portal-accent)]"
               >
                 <option value="">All Projects</option>
                 {projectOptions.map((project) => (
                   <option key={project.value} value={project.value}>
-                    {project.label}
+                    {project.code} - {project.description}
                   </option>
                 ))}
               </select>
               <select
                 value={activeSection}
                 onChange={(e) => onSectionChange?.(e.target.value)}
-                className="h-10 rounded-xl border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-primary"
+                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-[var(--portal-accent)]"
               >
                 {MEDIA_SECTIONS.map((section) => (
                   <option key={section.id} value={section.id}>

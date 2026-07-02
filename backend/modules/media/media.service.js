@@ -13,6 +13,79 @@ const DEFAULT_APPROVAL_STEPS = [
   { role: 'admin' },
 ];
 
+const MEDIA_DEPARTMENT_STRUCTURE = {
+  department: 'MEDIA ON & OFFLINE',
+  summary:
+    'Centralizes branding, promotions, advertising, marketing materials, and communication across digital and traditional channels.',
+  purpose:
+    'The department aligns communication, brand consistency, promotional output, and creative delivery so campaigns stay coordinated end to end.',
+  teams: [
+    {
+      name: 'Branding Officer',
+      description: 'Manages brand identity, visual consistency, and brand campaigns.',
+      responsibilities: [
+        'Brand guidelines',
+        'Logo and visual consistency',
+        'Brand positioning',
+      ],
+    },
+    {
+      name: 'Marketing',
+      description: 'Plans and executes campaigns to promote products and services.',
+      responsibilities: [
+        'Campaign planning',
+        'Lead generation',
+        'Customer engagement',
+      ],
+    },
+    {
+      name: 'PR',
+      description: 'Handles public communication, press releases, and media relations.',
+      responsibilities: [
+        'Press releases',
+        'Public image',
+        'External stakeholders',
+      ],
+    },
+    {
+      name: 'Sales',
+      description: 'Supports revenue growth through lead conversion and client coordination.',
+      responsibilities: [
+        'Lead conversion',
+        'Client relationships',
+        'Sales targets',
+      ],
+    },
+    {
+      name: 'FAQs',
+      description: 'Creates customer support documentation and response libraries.',
+      responsibilities: [
+        'FAQ content',
+        'Support documentation',
+        'Customer query handling',
+      ],
+    },
+    {
+      name: 'Graphics',
+      description: 'Designs visuals for online and offline marketing use.',
+      responsibilities: [
+        'Social media assets',
+        'Brochures and posters',
+        'Presentations and ads',
+      ],
+    },
+  ],
+  reportingStructure: [
+    'MEDIA ON & OFFLINE',
+    'Branding Officer',
+    'Marketing',
+    'PR',
+    'Sales',
+    'FAQs',
+    'Graphics',
+  ],
+};
+
 const withPagination = (query = {}) => {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(query.limit, 10) || 20, 1), 200);
@@ -184,6 +257,7 @@ const getOverview = async (projectId) => {
     : 0;
 
   return {
+    departmentStructure: MEDIA_DEPARTMENT_STRUCTURE,
     kpis: {
       activeProjects: activeProjectIds.filter(Boolean).length,
       runningCampaigns,

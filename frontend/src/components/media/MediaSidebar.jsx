@@ -9,9 +9,9 @@ const MediaSidebar = ({ activeSection, onSelect, sections = [] }) => {
   if (!canAccessPortal(user, PORTALS.MEDIA)) return null;
 
   return (
-      <SectionSidebar
+    <SectionSidebar
       title="Media Portal"
-      subtitle="Executive media control center"
+      subtitle="Creative operations command center"
       icon="campaign"
       items={sections}
       activeId={activeSection}

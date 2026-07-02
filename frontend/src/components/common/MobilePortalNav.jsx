@@ -28,7 +28,7 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
 
     const className = `flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
       active
-        ? 'bg-primary text-white shadow-sm'
+        ? 'bg-[var(--portal-accent)] text-white shadow-sm'
         : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
     }`;
 
@@ -57,11 +57,11 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/95 px-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 md:hidden">
+      <div className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200/80 bg-white/95 px-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 md:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30 dark:text-neutral-200 dark:hover:bg-neutral-800"
           aria-label="Open navigation"
         >
           <span className="material-symbols-outlined">menu</span>
@@ -75,7 +75,7 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
         <button
           type="button"
           onClick={handleLogout}
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/20"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--portal-accent)] transition-colors hover:bg-[var(--portal-accent-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
           aria-label="Logout"
         >
           <span className="material-symbols-outlined">logout</span>
@@ -85,10 +85,10 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
       {open && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
           <button type="button" className="absolute inset-0 bg-black/50 transition-opacity duration-300" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />
-          <aside className="relative flex h-full w-[min(22rem,88vw)] flex-col border-r border-neutral-200 bg-white shadow-2xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900">
+          <aside className="relative flex h-full w-[min(22rem,88vw)] flex-col border-r border-neutral-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafb_100%)] shadow-2xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900">
             <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-white">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--portal-accent)] text-white">
                   <span className="material-symbols-outlined">{icon}</span>
                 </div>
                 <div className="min-w-0">

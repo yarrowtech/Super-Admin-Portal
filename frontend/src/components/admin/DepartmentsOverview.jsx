@@ -58,7 +58,10 @@ const departments = [
   {
     name: 'Media',
     icon: 'perm_media',
-    description: 'Create and manage marketing campaigns and brand presence.',
+    description: 'Centralize branding, promotions, advertising, marketing materials, and communication.',
+    route: '/media/dashboard?section=project-hub',
+    badge: 'MEDIA ON & OFFLINE',
+    teams: ['Branding Officer', 'Marketing', 'PR', 'Sales', 'FAQs', 'Graphics'],
   },
   {
     name: 'Research Operator',
@@ -143,11 +146,33 @@ const DepartmentsOverview = () => {
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
                   <span className="material-symbols-outlined text-2xl">{department.icon}</span>
                 </div>
+                {department.badge ? (
+                  <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.28em] text-primary">
+                    {department.badge}
+                  </p>
+                ) : null}
                 <h3 className="mt-3 text-lg font-bold text-neutral-900 dark:text-neutral-100">{department.name}</h3>
                 <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{department.description}</p>
+                {Array.isArray(department.teams) && department.teams.length > 0 ? (
+                  <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/40">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">
+                      Reporting Structure
+                    </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {department.teams.map((team) => (
+                        <span
+                          key={team}
+                          className="rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-xs font-semibold text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
+                        >
+                          {team}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-center text-sm font-medium text-primary">
-                <span>Go to module</span>
+                <span>{department.name === 'Media' ? 'Open media portal' : 'Go to module'}</span>
                 <span className="material-symbols-outlined ml-1 transition-transform group-hover:translate-x-1">
                   arrow_forward
                 </span>

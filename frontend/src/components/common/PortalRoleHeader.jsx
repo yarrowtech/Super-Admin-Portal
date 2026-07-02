@@ -17,7 +17,7 @@ const roleQuickMeta = {
   admin: 'System control actions ready',
   hr: 'Workforce status synchronized',
   employee: 'Check-in and task focus',
-  manager: 'Team delivery monitor active',
+  manager: 'Operations dashboard active',
   law: 'Compliance checkpoints enabled',
   outsourcing: 'External operations connected',
   media: 'Campaign analytics online',

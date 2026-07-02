@@ -77,17 +77,17 @@ const Login = ({ roleFocus = null, loginMode = 'default' }) => {
   };
 
   const heroTitle =
-    roleFocus === 'manager' ? 'Manager Portal Access' : loginMode === 'outsourcing' ? 'Outsourcing Portal Access' : 'Super Admin Portal';
+    roleFocus === 'manager' ? 'Operations Portal Access' : loginMode === 'outsourcing' ? 'Outsourcing Portal Access' : 'Super Admin Portal';
   const heroSubtitle =
     roleFocus === 'manager'
-      ? 'Lead your teams with live insights and collaboration.'
+      ? 'Coordinate projects, monitor teams, and review live metrics.'
       : 'Manage your organization with enterprise-grade security.';
-  const welcomeTitle = roleFocus === 'manager' ? 'Manager Sign In' : loginMode === 'outsourcing' ? 'Outsourcing Sign In' : 'Welcome Back';
+  const welcomeTitle = roleFocus === 'manager' ? 'Sign In' : loginMode === 'outsourcing' ? 'Outsourcing Sign In' : 'Welcome Back';
   const welcomeSubtitle =
     roleFocus === 'manager'
-      ? 'Sign in to orchestrate projects, monitor teams, and review live metrics.'
+      ? 'Sign in to manage projects, teams, and operational workflows.'
       : 'Sign in to continue to your workspace.';
-  const productLabel = roleFocus === 'manager' ? 'Manager Workspace' : loginMode === 'outsourcing' ? 'Freelancer Workspace' : 'Your Work Portal';
+  const productLabel = roleFocus === 'manager' ? 'Operations Workspace' : loginMode === 'outsourcing' ? 'Freelancer Workspace' : 'Your Work Portal';
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-background-light px-4 py-8 font-display text-text-light dark:bg-background-dark dark:text-text-dark">

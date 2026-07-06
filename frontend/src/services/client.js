@@ -219,6 +219,33 @@ export const apiClient = {
     clearApiCache();
     return parsed;
   },
+  async upload(path, formData, token) {
+    const requestId = createRequestId();
+    const headers = {
+      'x-request-id': requestId,
+      'x-client-source': 'frontend',
+    };
+    try {
+      const activeProjectId = getStoredProjectId();
+      if (activeProjectId && activeProjectId.toLowerCase() !== 'all') {
+        headers['x-project-id'] = activeProjectId;
+      }
+    } catch {
+      // ignore storage access errors
+    }
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+    const parsed = await parseResponse(res, requestId);
+    clearApiCache();
+    return parsed;
+  },
   getBaseUrl() {
     return API_BASE_URL;
   },

@@ -1,5 +1,6 @@
 const logger = require('../../utils/logger');
 const mediaService = require('./media.service');
+const dashboardAggregateService = require('./dashboardAggregate.service');
 
 const handleError = (res, err, message, logLabel) => {
   logger.error({ err }, logLabel);
@@ -19,7 +20,14 @@ exports.getOverview = async (req, res) => {
   }
 };
 
-exports.getDashboard = exports.getOverview;
+exports.getDashboard = async (req, res) => {
+  try {
+    const data = await dashboardAggregateService.getProjectDashboard(req.projectId);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to fetch media dashboard', 'Media module getDashboard error');
+  }
+};
 
 exports.getProjects = async (req, res) => {
   try {
@@ -81,27 +89,6 @@ exports.deleteAsset = async (req, res) => {
   }
 };
 
-exports.getCampaigns = async (req, res) => {
-  try {
-    const data = await mediaService.listMedia(req.query || {}, req.projectId, 'campaign');
-    res.status(200).json({ success: true, data });
-  } catch (err) {
-    handleError(res, err, 'Failed to fetch campaigns', 'Media module getCampaigns error');
-  }
-};
-
-exports.createCampaign = async (req, res) => {
-  try {
-    const data = await mediaService.createMediaRecord(req.body || {}, req.user?.id || req.user?._id, req.projectId, {
-      section: 'campaign',
-      moduleType: 'campaign',
-    });
-    res.status(201).json({ success: true, data });
-  } catch (err) {
-    handleError(res, err, 'Failed to create campaign', 'Media module createCampaign error');
-  }
-};
-
 exports.getContent = async (req, res) => {
   try {
     const data = await mediaService.listMedia(req.query || {}, req.projectId, 'content');
@@ -132,9 +119,76 @@ exports.getBrandAssets = async (req, res) => {
   }
 };
 
+const makeSectionController = (section, label) => ({
+  list: async (req, res) => {
+    try {
+      const data = await mediaService.listMedia(req.query || {}, req.projectId, section);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      handleError(res, err, `Failed to fetch ${label}`, `Media module list ${section} error`);
+    }
+  },
+  create: async (req, res) => {
+    try {
+      const data = await mediaService.createMediaRecord(req.body || {}, req.user?.id || req.user?._id, req.projectId, {
+        section,
+        moduleType: section,
+      });
+      res.status(201).json({ success: true, data });
+    } catch (err) {
+      handleError(res, err, `Failed to create ${label}`, `Media module create ${section} error`);
+    }
+  },
+  getById: async (req, res) => {
+    try {
+      const data = await mediaService.getMediaRecordById(req.params.id, req.projectId);
+      if (!data) return res.status(404).json({ success: false, error: `${label} not found` });
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      handleError(res, err, `Failed to fetch ${label}`, `Media module get ${section} error`);
+    }
+  },
+  update: async (req, res) => {
+    try {
+      const data = await mediaService.updateMediaRecord(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId);
+      if (!data) return res.status(404).json({ success: false, error: `${label} not found` });
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      handleError(res, err, `Failed to update ${label}`, `Media module update ${section} error`);
+    }
+  },
+  remove: async (req, res) => {
+    try {
+      const data = await mediaService.deleteMediaRecord(req.params.id, req.projectId, req.user?.id || req.user?._id);
+      if (!data) return res.status(404).json({ success: false, error: `${label} not found` });
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      handleError(res, err, `Failed to delete ${label}`, `Media module delete ${section} error`);
+    }
+  },
+});
+
+exports.brandAssets = makeSectionController('brand', 'brand asset');
+exports.design = makeSectionController('design', 'design item');
+exports.video = makeSectionController('video', 'video item');
+exports.social = makeSectionController('social', 'social post');
+
+exports.uploadFile = async (req, res) => {
+  try {
+    const data = await mediaService.uploadMediaFile({
+      file: req.file,
+      section: req.body?.section,
+      projectId: req.projectId,
+    });
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to upload media file', 'Media module uploadFile error');
+  }
+};
+
 exports.getApprovals = async (req, res) => {
   try {
-    const data = await mediaService.listMedia(req.query || {}, req.projectId, 'approval');
+    const data = await mediaService.listApprovals(req.query || {}, req.projectId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     handleError(res, err, 'Failed to fetch approvals', 'Media module getApprovals error');
@@ -146,6 +200,7 @@ exports.requestApproval = async (req, res) => {
     const data = await mediaService.requestApproval({
       mediaId: req.params.id,
       requestedBy: req.user?.id || req.user?._id,
+      projectId: req.projectId,
       steps: req.body?.steps,
     });
     res.status(201).json({ success: true, data });

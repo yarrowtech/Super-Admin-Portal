@@ -10,6 +10,7 @@ const { getRolePermissions } = require('../config/roles');
 
 const DEFAULT_MANAGER_PORTALS = new Set(['manager', 'admin', 'hr', 'it', 'law', 'employee']);
 const DEFAULT_IT_PORTALS = new Set(['it', 'admin', 'hr', 'law', 'employee', 'manager']);
+const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);
 
 const normalizeProjectAssignments = (metadata = {}) => {
   const raw = metadata?.projectAssignments ?? metadata?.assignedProjects ?? [];
@@ -201,6 +202,9 @@ const authorizePortalAccess = (portal) => {
         return next();
       }
       if (!rule && req.user.role === 'it' && DEFAULT_IT_PORTALS.has(portal)) {
+        return next();
+      }
+      if (!rule && req.user.role === 'ceo' && DEFAULT_CEO_PORTALS.has(portal)) {
         return next();
       }
       if (!rule && req.user.role === 'hr' && portal === 'admin') {

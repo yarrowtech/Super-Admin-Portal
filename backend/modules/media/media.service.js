@@ -1,16 +1,28 @@
+const { v2: cloudinary } = require('cloudinary');
+const logger = require('../../utils/logger');
 const Media = require('../../models/department/Media');
 const Project = require('../../models/common/Project');
+const Campaign = require('../../models/department/Campaign');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const { createApprovalRequest, decideApprovalRequest } = require('../../services/approvalEngine.service');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
+const { notifyApprovalPending } = require('../../services/notificationTrigger.service');
+const { PROJECT_REGISTRY } = require('../../utils/projectAccess');
 
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
+
+// Content-approval pipeline: Draft -> Designer -> Content Writer -> Marketing Head -> CEO (optional) -> Scheduled -> Published
 const DEFAULT_APPROVAL_STEPS = [
-  { role: 'media' },
-  { role: 'team_lead' },
-  { role: 'department_head' },
+  { role: 'graphic_designer' },
+  { role: 'content_writer' },
   { role: 'marketing_head' },
-  { role: 'client_viewer' },
-  { role: 'admin' },
+  { role: 'ceo', optional: true },
 ];
 
 const MEDIA_DEPARTMENT_STRUCTURE = {
@@ -92,6 +104,27 @@ const withPagination = (query = {}) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildAllowedProjectFilter = () => {
+  const projectTokens = PROJECT_REGISTRY.flatMap((project) => [
+    project.code,
+    project.name,
+    ...(Array.isArray(project.aliases) ? project.aliases : []),
+  ])
+    .map((token) => String(token || '').trim())
+    .filter(Boolean);
+
+  const tokenMatches = projectTokens.map((token) => new RegExp(escapeRegex(token), 'i'));
+
+  return {
+    $or: [
+      { name: { $in: tokenMatches } },
+      { projectCode: { $in: tokenMatches } },
+    ],
+  };
+};
+
 const toNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -159,6 +192,10 @@ const normalizeMediaPayload = (payload = {}) => {
     teamName: String(payload.teamName || '').trim(),
     campaignId: payload.campaignId || undefined,
     campaignName: String(payload.campaignName || '').trim(),
+    budgetImpact: {
+      spend: toNumber(payload.budgetImpact?.spend ?? payload.spend),
+      roiAtSnapshot: toNumber(payload.budgetImpact?.roiAtSnapshot ?? payload.roi),
+    },
     ownerId: payload.ownerId || undefined,
     ownerName: String(payload.ownerName || '').trim(),
     folderPath: String(payload.folderPath || '').trim(),
@@ -171,6 +208,7 @@ const normalizeMediaPayload = (payload = {}) => {
     thumbnailUrl: String(payload.thumbnailUrl || '').trim(),
     previewUrl: String(payload.previewUrl || '').trim(),
     fileSizeBytes: toNumber(payload.fileSizeBytes),
+    storageUsageBytes: toNumber(payload.fileSizeBytes),
     isWatermarked: Boolean(payload.isWatermarked),
     canDownload: payload.canDownload !== undefined ? Boolean(payload.canDownload) : true,
     canShare: payload.canShare !== undefined ? Boolean(payload.canShare) : true,
@@ -205,7 +243,7 @@ const getOverview = async (projectId) => {
     recentItems,
   ] = await Promise.all([
     Media.distinct('projectId', projectId ? { projectId } : { projectId: { $ne: null } }),
-    Media.countDocuments({ ...scope, moduleType: 'campaign', status: { $in: ['Live', 'Active', 'Running', 'Scheduled'] } }),
+    Campaign.countDocuments({ ...scope, status: { $in: Campaign.RUNNING_CAMPAIGN_STATUSES } }),
     Media.countDocuments({ ...scope, approvalStatus: 'pending' }),
     Media.countDocuments({ ...scope, moduleType: { $in: ['design'] } }),
     Media.countDocuments({ ...scope, moduleType: { $in: ['video'] } }),
@@ -217,12 +255,12 @@ const getOverview = async (projectId) => {
       { $group: { _id: null, totalBytes: { $sum: '$storageUsageBytes' } } },
     ]),
     Media.aggregate([
-      { $match: { ...scope, moduleType: { $in: ['advertisement', 'campaign'] } } },
-      { $group: { _id: null, spend: { $sum: { $ifNull: ['$metadata.spend', 0] } } } },
+      { $match: { ...scope, moduleType: 'advertisement' } },
+      { $group: { _id: null, spend: { $sum: { $ifNull: ['$budgetImpact.spend', 0] } } } },
     ]),
     Media.aggregate([
-      { $match: { ...scope, moduleType: { $in: ['advertisement', 'campaign'] } } },
-      { $group: { _id: null, roi: { $avg: { $ifNull: ['$metadata.roi', 0] } } } },
+      { $match: { ...scope, moduleType: 'advertisement' } },
+      { $group: { _id: null, roi: { $avg: { $ifNull: ['$budgetImpact.roiAtSnapshot', 0] } } } },
     ]),
     Media.aggregate([
       { $match: { ...scope } },
@@ -321,16 +359,20 @@ const listMedia = async (query = {}, projectId, section) => {
 
 const listProjects = async (query = {}) => {
   const { page, limit, skip } = withPagination(query);
+  const clauses = [buildAllowedProjectFilter()];
   const filter = {};
   if (query.status) filter.status = query.status;
   if (query.search) {
     const q = new RegExp(query.search, 'i');
-    filter.$or = [{ name: q }, { description: q }, { projectCode: q }];
+    clauses.push({ $or: [{ name: q }, { description: q }, { projectCode: q }] });
   }
+  if (Object.keys(filter).length > 0) clauses.push(filter);
+
+  const projectFilter = clauses.length > 1 ? { $and: clauses } : clauses[0];
 
   const [items, total] = await Promise.all([
-    Project.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
-    Project.countDocuments(filter),
+    Project.find(projectFilter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+    Project.countDocuments(projectFilter),
   ]);
 
   return {
@@ -346,8 +388,8 @@ const listProjects = async (query = {}) => {
 
 const createMediaRecord = async (payload = {}, actorId, projectId, defaults = {}) => {
   const doc = await Media.create({
-    ...defaults,
     ...normalizeMediaPayload(payload),
+    ...defaults,
     projectId: projectId || payload.projectId || defaults.projectId,
     createdBy: actorId,
     updatedBy: actorId,
@@ -427,6 +469,14 @@ const deleteMediaRecord = async (id, projectId, actorId) => {
   const doc = await Media.findOneAndDelete({ _id: id, ...(projectId ? { projectId } : {}) });
   if (!doc) return null;
 
+  if (doc.storageProvider === 'cloudinary' && doc.storageKey) {
+    try {
+      await cloudinary.uploader.destroy(doc.storageKey, { resource_type: resolveResourceType(doc.mimeType) });
+    } catch (err) {
+      logger.warn({ err, storageKey: doc.storageKey }, 'Failed to delete Cloudinary file for deleted media record');
+    }
+  }
+
   await writeAuditTrail({
     userId: actorId,
     module: 'media',
@@ -471,8 +521,47 @@ const getModuleDataByProject = async ({ moduleKey, projectId, query = {} }) => {
   return listMedia(query, projectId, section);
 };
 
-const requestApproval = async ({ mediaId, requestedBy, steps = DEFAULT_APPROVAL_STEPS }) => {
-  const record = await Media.findById(mediaId);
+const listApprovals = async (query = {}, projectId) => {
+  const { page, limit, skip } = withPagination(query);
+  const filter = {
+    ...(projectId ? { projectId } : {}),
+    approvalWorkflowId: { $ne: null },
+  };
+
+  if (query.approvalStatus) filter.approvalStatus = query.approvalStatus;
+  if (query.status) filter.status = query.status;
+  if (query.search) {
+    const q = new RegExp(query.search, 'i');
+    filter.$or = [
+      { title: q },
+      { description: q },
+      { projectName: q },
+      { campaignName: q },
+      { ownerName: q },
+    ];
+  }
+
+  const [items, total] = await Promise.all([
+    Media.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+    Media.countDocuments(filter),
+  ]);
+
+  return {
+    items: items.map((item) => ({
+      ...item,
+      workflowId: item.approvalWorkflowId,
+    })),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
+  };
+};
+
+const requestApproval = async ({ mediaId, requestedBy, projectId, steps = DEFAULT_APPROVAL_STEPS }) => {
+  const record = await Media.findOne({ _id: mediaId, ...(projectId ? { projectId } : {}) });
   if (!record) {
     const err = new Error('Media record not found');
     err.statusCode = 404;
@@ -494,6 +583,7 @@ const requestApproval = async ({ mediaId, requestedBy, steps = DEFAULT_APPROVAL_
   record.approvalSteps = workflow.steps.map((step) => ({
     role: step.role,
     status: step.status,
+    optional: Boolean(step.optional),
     decidedBy: step.decidedBy,
     decidedAt: step.decidedAt,
     remarks: step.remarks || '',
@@ -509,6 +599,15 @@ const requestApproval = async ({ mediaId, requestedBy, steps = DEFAULT_APPROVAL_
     targetId: workflow._id,
     metadata: { mediaId: record._id, projectId: record.projectId },
   });
+
+  const firstStep = workflow.steps.find((step) => step.status === 'pending');
+  if (firstStep) {
+    await notifyApprovalPending(firstStep.role, {
+      title: 'Approval pending',
+      message: `"${record.title}" is waiting on your approval.`,
+      metadata: { mediaId: record._id, workflowId: workflow._id, projectId: record.projectId },
+    });
+  }
 
   return workflow;
 };
@@ -528,6 +627,7 @@ const decideApproval = async ({ workflowId, actorId, actorRole, decision, remark
     media.approvalSteps = workflow.steps.map((step) => ({
       role: step.role,
       status: step.status,
+      optional: Boolean(step.optional),
       decidedBy: step.decidedBy,
       decidedAt: step.decidedAt,
       remarks: step.remarks || '',
@@ -545,6 +645,17 @@ const decideApproval = async ({ workflowId, actorId, actorRole, decision, remark
     await media.save();
   }
 
+  if (workflow.status === 'pending' && media) {
+    const nextStep = workflow.steps.find((step) => step.status === 'pending');
+    if (nextStep) {
+      await notifyApprovalPending(nextStep.role, {
+        title: 'Approval pending',
+        message: `"${media.title}" is waiting on your approval.`,
+        metadata: { mediaId: media._id, workflowId: workflow._id, projectId: media.projectId },
+      });
+    }
+  }
+
   await writeAuditTrail({
     userId: actorId,
     role: actorRole,
@@ -556,6 +667,63 @@ const decideApproval = async ({ workflowId, actorId, actorRole, decision, remark
   });
 
   return workflow;
+};
+
+const resolveResourceType = (mimetype = '') => {
+  if (mimetype.startsWith('image/')) return 'image';
+  if (mimetype.startsWith('video/')) return 'video';
+  return 'raw';
+};
+
+const uploadMediaFile = async ({ file, section, projectId }) => {
+  if (!file) {
+    const err = new Error('No file provided');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const resourceType = resolveResourceType(file.mimetype);
+  const folder = `media/${section || 'asset'}/${projectId || 'general'}`;
+  const cloudinaryConfigured = Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET
+  );
+
+  if (!cloudinaryConfigured) {
+    return {
+      url: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+      storageKey: '',
+      storageProvider: 'inline',
+      thumbnailUrl: '',
+      mimeType: file.mimetype,
+      fileSizeBytes: file.size,
+      originalName: file.originalname,
+    };
+  }
+
+  const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  const uploaded = await cloudinary.uploader.upload(dataUri, {
+    folder,
+    resource_type: resourceType,
+    use_filename: true,
+    unique_filename: true,
+  });
+
+  const thumbnailUrl =
+    resourceType === 'image'
+      ? cloudinary.url(uploaded.public_id, { width: 400, crop: 'limit', secure: true })
+      : resourceType === 'video'
+        ? cloudinary.url(uploaded.public_id, { resource_type: 'video', format: 'jpg', secure: true })
+        : '';
+
+  return {
+    url: uploaded.secure_url,
+    storageKey: uploaded.public_id,
+    storageProvider: 'cloudinary',
+    thumbnailUrl,
+    mimeType: file.mimetype,
+    fileSizeBytes: file.size,
+    originalName: file.originalname,
+  };
 };
 
 const getReportingSummary = async (projectId) => {
@@ -590,7 +758,9 @@ module.exports = {
   updateMediaRecord,
   deleteMediaRecord,
   getModuleDataByProject,
+  listApprovals,
   requestApproval,
   decideApproval,
   getReportingSummary,
+  uploadMediaFile,
 };

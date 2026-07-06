@@ -37,6 +37,7 @@ const approvalStepSchema = new mongoose.Schema(
   {
     role: { type: String, trim: true, default: '' },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    optional: { type: Boolean, default: false },
     decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     decidedAt: { type: Date },
     remarks: { type: String, trim: true, default: '' },
@@ -117,6 +118,11 @@ const mediaSchema = new mongoose.Schema(
     viewCount: { type: Number, default: 0, min: 0 },
     storageUsageBytes: { type: Number, default: 0, min: 0 },
     lastAccessedAt: { type: Date },
+
+    budgetImpact: {
+      spend: { type: Number, default: 0, min: 0 },
+      roiAtSnapshot: { type: Number, default: 0 },
+    },
 
     analytics: { type: mongoose.Schema.Types.Mixed, default: {} },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },

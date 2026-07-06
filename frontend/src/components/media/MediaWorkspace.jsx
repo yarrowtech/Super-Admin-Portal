@@ -2,7 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
+import { findCanonicalProject } from '../../config/projectNames';
 import PortalHeader from '../common/PortalHeader';
+import AdminProjectsPage from '../admin/AdminProjectsPage';
+import CampaignLifecycleStepper from './CampaignLifecycleStepper';
+import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
+import CampaignTaskBoard from './CampaignTaskBoard';
+import BudgetTracker from './BudgetTracker';
+import KpiFunnelChart from './KpiFunnelChart';
+import MarketingCalendar from './MarketingCalendar';
+import WeeklyPlanner from './WeeklyPlanner';
+import ProjectChecklists from './ProjectChecklists';
+import MarketingReportPanel from './MarketingReportPanel';
 
 const MEDIA_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'campaign' },
@@ -14,6 +25,12 @@ const MEDIA_SECTIONS = [
   { id: 'video', label: 'Video', icon: 'movie' },
   { id: 'social', label: 'Social', icon: 'chat_bubble' },
   { id: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
+  { id: 'tasks', label: 'Tasks', icon: 'checklist' },
+  { id: 'budget', label: 'Budget', icon: 'payments' },
+  { id: 'funnel', label: 'KPI & Funnel', icon: 'insights' },
+  { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
+  { id: 'weekly-planning', label: 'Weekly Planning', icon: 'event_note' },
+  { id: 'checklists', label: 'Checklists', icon: 'checklist_rtl' },
   { id: 'advertisements', label: 'Ads', icon: 'credit_card' },
   { id: 'seo', label: 'SEO', icon: 'search' },
   { id: 'website', label: 'Website', icon: 'public' },
@@ -52,6 +69,12 @@ const META = {
   video: ['Video Production', 'Scripts, footage, edits, reviews, and publishing', 'movie'],
   social: ['Social Media', 'Calendar, scheduling, and performance', 'chat_bubble'],
   campaigns: ['Campaign Management', 'Planning, budgets, and KPI tracking', 'ads_click'],
+  tasks: ['Campaign Tasks', 'Auto-generated task board across all campaigns', 'checklist'],
+  budget: ['Budget Logic', 'Total budget, allocations, expenses, ROI, ROAS, and cost per lead', 'payments'],
+  funnel: ['KPI & Marketing Funnel', 'Traffic-to-revenue KPIs and the awareness-to-referral funnel', 'insights'],
+  calendar: ['Marketing Calendar', 'Every campaign, task, publish, and approval date in one view', 'calendar_month'],
+  'weekly-planning': ['Weekly Planning', 'Objectives, owners, deadlines, and progress for the current week', 'event_note'],
+  checklists: ['Project Checklists', 'Website, SEO, CRM, Ads, Email, WhatsApp, and reporting readiness', 'checklist_rtl'],
   advertisements: ['Advertisement Management', 'CPC, CPM, CTR, and ROI', 'credit_card'],
   seo: ['SEO Management', 'Keywords, rankings, backlinks, and technical SEO', 'search'],
   website: ['Website Media', 'Publishing workflow and approval tracking', 'public'],
@@ -62,20 +85,12 @@ const META = {
   audit: ['Audit Trail', 'Immutable activity and compliance logging', 'history'],
 };
 
-const EDITABLE_SECTIONS = new Set(['assets', 'campaigns', 'content']);
+const EDITABLE_SECTIONS = new Set(['assets', 'content', 'brand', 'design', 'video', 'social']);
 const SECTION_ACTIONS = {
   assets: {
     label: 'Asset',
     create: 'Create asset',
     createFn: 'createMediaAsset',
-    updateFn: 'updateMediaAsset',
-    deleteFn: 'deleteMediaAsset',
-    requestApprovalFn: 'requestMediaApproval',
-  },
-  campaigns: {
-    label: 'Campaign',
-    create: 'Create campaign',
-    createFn: 'createMediaCampaign',
     updateFn: 'updateMediaAsset',
     deleteFn: 'deleteMediaAsset',
     requestApprovalFn: 'requestMediaApproval',
@@ -86,7 +101,39 @@ const SECTION_ACTIONS = {
     createFn: 'createMediaContent',
     updateFn: 'updateMediaAsset',
     deleteFn: 'deleteMediaAsset',
-    requestApprovalFn: 'requestMediaApproval',
+    requestApprovalFn: 'requestMediaContentApproval',
+  },
+  brand: {
+    label: 'Brand Asset',
+    create: 'Create brand asset',
+    createFn: 'createMediaBrandAsset',
+    updateFn: 'updateMediaBrandAsset',
+    deleteFn: 'deleteMediaBrandAsset',
+    requestApprovalFn: 'requestMediaBrandApproval',
+  },
+  design: {
+    label: 'Design Item',
+    create: 'Create design item',
+    createFn: 'createMediaDesignItem',
+    updateFn: 'updateMediaDesignItem',
+    deleteFn: 'deleteMediaDesignItem',
+    requestApprovalFn: 'requestMediaDesignApproval',
+  },
+  video: {
+    label: 'Video Item',
+    create: 'Create video item',
+    createFn: 'createMediaVideoItem',
+    updateFn: 'updateMediaVideoItem',
+    deleteFn: 'deleteMediaVideoItem',
+    requestApprovalFn: 'requestMediaVideoApproval',
+  },
+  social: {
+    label: 'Social Post',
+    create: 'Create social post',
+    createFn: 'createMediaSocialPost',
+    updateFn: 'updateMediaSocialPost',
+    deleteFn: 'deleteMediaSocialPost',
+    requestApprovalFn: 'requestMediaSocialApproval',
   },
 };
 const STATUS_OPTIONS = ['all', 'draft', 'pending', 'in review', 'approved', 'live', 'active', 'published', 'needs revision', 'rejected'];
@@ -94,9 +141,9 @@ const STATUS_OPTIONS = ['all', 'draft', 'pending', 'in review', 'approved', 'liv
 const EXPORT_OPTIONS = ['PDF', 'Excel', 'CSV', 'PPT'];
 const COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#ec4899'];
 
-const card = 'rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]';
-const soft = 'rounded-[1.5rem] border border-slate-200 bg-[#fbfeff] p-4';
-const glass = 'rounded-[1.75rem] border border-teal-200 bg-teal-50/80 p-5';
+const card = 'rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-neutral-800 dark:bg-neutral-900';
+const soft = 'rounded-[1.5rem] border border-slate-200 bg-[#fbfeff] p-4 dark:border-neutral-800 dark:bg-neutral-900/60';
+const glass = 'rounded-[1.75rem] border border-teal-200 bg-teal-50/80 p-5 dark:border-teal-900/60 dark:bg-teal-500/10';
 const tone = (status = '') => {
   const v = String(status).toLowerCase();
   if (v.includes('approved') || v.includes('live') || v.includes('published')) return 'border-emerald-300 bg-emerald-50 text-emerald-700';
@@ -125,8 +172,12 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [projects, setProjects] = useState([]);
   const [assets, setAssets] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [campaignTasks, setCampaignTasks] = useState([]);
   const [content, setContent] = useState([]);
   const [brandAssets, setBrandAssets] = useState([]);
+  const [designItems, setDesignItems] = useState([]);
+  const [videoItems, setVideoItems] = useState([]);
+  const [socialPosts, setSocialPosts] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [reporting, setReporting] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -134,10 +185,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [reloadTick, setReloadTick] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [projectQuery, setProjectQuery] = useState('');
-  const [projectVisibilityFilter, setProjectVisibilityFilter] = useState('all');
   const [actionBusy, setActionBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
+  const [campaignFormOpen, setCampaignFormOpen] = useState(false);
+  const [campaignForm, setCampaignForm] = useState({ name: '', objective: '', platform: '', budgetAllocated: '' });
   const [editor, setEditor] = useState({ open: false, mode: 'create', section: 'assets', record: null });
   const [draft, setDraft] = useState({
     title: '',
@@ -152,12 +203,15 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const buildProjectOptions = (projectItems = []) =>
     projectItems
       .map((project) => {
-        const value = String(project?._id || project?.id || '').trim();
-        const code = String(project?.projectCode || project?.code || project?.name || '').trim();
-        const name = String(project?.name || '').trim();
-        const description = String(project?.description || '').trim();
+        const canonicalProject = findCanonicalProject(project);
+        if (!canonicalProject) return null;
 
-        if (!value || !code) return null;
+        const value = String(project?._id || project?.id || '').trim();
+        const code = canonicalProject.code;
+        const name = canonicalProject.name;
+        const description = canonicalProject.description;
+
+        if (!value) return null;
 
         return {
           code,
@@ -166,7 +220,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           status: String(project?.status || 'active').trim() || 'active',
           accessGranted: true,
           assigned: false,
-          label: `${code}${name && name !== code ? ` - ${name}` : ''}`,
+          label: name,
           value,
         };
       })
@@ -226,9 +280,13 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           departmentApi.getMediaBrandAssets(token, { ...projectParams, limit: 12 }),
           departmentApi.getMediaApprovals(token, { ...projectParams, limit: 12 }),
           departmentApi.getMediaReportingSummary(token, projectParams),
+          departmentApi.getMediaCampaignTasks(token, projectParams),
+          departmentApi.getMediaDesignItems(token, { ...projectParams, limit: 12 }),
+          departmentApi.getMediaVideoItems(token, { ...projectParams, limit: 12 }),
+          departmentApi.getMediaSocialPosts(token, { ...projectParams, limit: 12 }),
         ]);
         if (!alive) return;
-        const [dash, ass, camp, cont, brand, appr, report] = results;
+        const [dash, ass, camp, cont, brand, appr, report, campTasks, design, video, social] = results;
         setDashboard(dash.status === 'fulfilled' ? dash.value?.data || null : null);
         setProjects(projectList);
         setAssets(ass.status === 'fulfilled' ? arr(ass.value?.data?.items) : []);
@@ -237,6 +295,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         setBrandAssets(brand.status === 'fulfilled' ? arr(brand.value?.data?.items) : []);
         setApprovals(appr.status === 'fulfilled' ? arr(appr.value?.data?.items) : []);
         setReporting(report.status === 'fulfilled' ? report.value?.data || null : null);
+        setCampaignTasks(campTasks.status === 'fulfilled' ? arr(campTasks.value?.data?.items) : []);
+        setDesignItems(design.status === 'fulfilled' ? arr(design.value?.data?.items) : []);
+        setVideoItems(video.status === 'fulfilled' ? arr(video.value?.data?.items) : []);
+        setSocialPosts(social.status === 'fulfilled' ? arr(social.value?.data?.items) : []);
         setLastUpdated(Date.now());
         if (shouldAutoSelectProject && resolvedProjectId) {
           onProjectChange?.(resolvedProjectId);
@@ -304,8 +366,16 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     status: toInputValue(record.status || record.state || 'Draft'),
     priority: toInputValue(record.priority || 'Medium'),
     category: toInputValue(record.category || record.type || ''),
+    tags: toInputValue(arr(record.tags).join(', ')),
     projectName: toInputValue(record.projectName || record.project?.name || ''),
     ownerName: toInputValue(record.ownerName || record.owner || record.author || record.assignedTo || ''),
+    storageUrl: toInputValue(record.storageUrl),
+    storageKey: toInputValue(record.storageKey),
+    storageProvider: toInputValue(record.storageProvider),
+    thumbnailUrl: toInputValue(record.thumbnailUrl),
+    mimeType: toInputValue(record.mimeType),
+    fileSizeBytes: record.fileSizeBytes || 0,
+    file: null,
     section,
   });
 
@@ -317,15 +387,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
   const closeEditor = () => {
     setEditor({ open: false, mode: 'create', section: activeSection, record: null });
-    setDraft({
-      title: '',
-      description: '',
-      status: 'Draft',
-      priority: 'Medium',
-      category: '',
-      projectName: '',
-      ownerName: '',
-    });
+    setDraft(buildDraftFromRecord({}, activeSection));
   };
 
   const refreshData = () => setReloadTick((value) => value + 1);
@@ -357,6 +419,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       record?.category,
       record?.moduleType,
       record?.section,
+      ...arr(record?.tags),
     ]
       .filter(Boolean)
       .join(' ')
@@ -371,35 +434,101 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
   const filterRecords = (records = []) => records.filter((record) => matchesSearch(record) && matchesStatusFilter(record));
 
+  const sectionStateSetter = (section) => {
+    switch (section) {
+      case 'assets': return setAssets;
+      case 'content': return setContent;
+      case 'brand': return setBrandAssets;
+      case 'design': return setDesignItems;
+      case 'video': return setVideoItems;
+      case 'social': return setSocialPosts;
+      default: return null;
+    }
+  };
+
+  const upsertLocalRecord = (section, record) => {
+    const setter = sectionStateSetter(section);
+    if (!setter || !record) return;
+    const id = resolveRecordId(record);
+    setter((prev) => {
+      const exists = prev.some((item) => resolveRecordId(item) === id);
+      return exists ? prev.map((item) => (resolveRecordId(item) === id ? record : item)) : [record, ...prev];
+    });
+  };
+
+  const removeLocalRecord = (section, id) => {
+    const setter = sectionStateSetter(section);
+    if (!setter || !id) return;
+    setter((prev) => prev.filter((item) => resolveRecordId(item) !== id));
+  };
+
+  const patchLocalRecord = (section, id, patch) => {
+    const setter = sectionStateSetter(section);
+    if (!setter || !id) return;
+    setter((prev) => prev.map((item) => (resolveRecordId(item) === id ? { ...item, ...patch } : item)));
+  };
+
   const persistRecord = async (mode, section, recordId) => {
     const config = getSectionAction(section);
     if (!config) throw new Error('Unsupported editor section');
     if (mode === 'create' && !effectiveProjectId) throw new Error('Select a project before creating media records.');
 
-    const payload = {
-      title: draft.title.trim(),
-      description: draft.description.trim(),
-      status: draft.status.trim() || 'Draft',
-      priority: draft.priority.trim() || 'Medium',
-      category: draft.category.trim(),
-      projectName: draft.projectName.trim(),
-      ownerName: draft.ownerName.trim(),
-      section: section === 'assets' ? 'asset' : section === 'campaigns' ? 'campaign' : 'content',
-      moduleType: section === 'assets' ? 'asset' : section === 'campaigns' ? 'campaign' : 'content',
-      projectId: effectiveProjectId || undefined,
-    };
+    const moduleType = MODULE_FOR_SECTION[section] || section;
 
     setActionBusy(true);
     try {
+      let fileFields = {
+        storageUrl: draft.storageUrl,
+        storageKey: draft.storageKey,
+        storageProvider: draft.storageProvider,
+        thumbnailUrl: draft.thumbnailUrl,
+        mimeType: draft.mimeType,
+        fileSizeBytes: draft.fileSizeBytes,
+      };
+
+      if (draft.file) {
+        const uploadRes = await departmentApi.uploadMediaFile(token, draft.file, {
+          section: moduleType,
+          projectId: effectiveProjectId,
+        });
+        const uploaded = uploadRes?.data || {};
+        fileFields = {
+          storageUrl: uploaded.url || '',
+          storageKey: uploaded.storageKey || '',
+          storageProvider: uploaded.storageProvider || 'cloudinary',
+          thumbnailUrl: uploaded.thumbnailUrl || '',
+          mimeType: uploaded.mimeType || '',
+          fileSizeBytes: uploaded.fileSizeBytes || 0,
+        };
+      }
+
+      const payload = {
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        status: draft.status.trim() || 'Draft',
+        priority: draft.priority.trim() || 'Medium',
+        category: draft.category.trim(),
+        tags: draft.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+        projectName: draft.projectName.trim(),
+        ownerName: draft.ownerName.trim(),
+        section: moduleType,
+        moduleType,
+        projectId: effectiveProjectId || undefined,
+        ...fileFields,
+      };
+
+      let saved;
       if (mode === 'edit') {
-        await departmentApi[config.updateFn](token, recordId, payload);
+        const res = await departmentApi[config.updateFn](token, recordId, payload);
+        saved = res?.data;
         setActionMessage(`${config.label} updated.`);
       } else {
-        await departmentApi[config.createFn](token, payload);
+        const res = await departmentApi[config.createFn](token, payload);
+        saved = res?.data;
         setActionMessage(`${config.label} created.`);
       }
+      upsertLocalRecord(section, saved);
       closeEditor();
-      refreshData();
     } catch (err) {
       setError(err.message || `Failed to save ${config.label.toLowerCase()}.`);
     } finally {
@@ -418,7 +547,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     try {
       await departmentApi[config.deleteFn](token, id);
       setActionMessage(`${config.label} deleted.`);
-      refreshData();
+      removeLocalRecord(section, id);
     } catch (err) {
       setError(err.message || `Failed to delete ${config.label.toLowerCase()}.`);
     } finally {
@@ -434,7 +563,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     try {
       await departmentApi[config.requestApprovalFn](token, id, {});
       setActionMessage(`${config.label} sent for approval.`);
-      refreshData();
+      patchLocalRecord(section, id, { approvalStatus: 'pending', status: 'In Review' });
     } catch (err) {
       setError(err.message || `Failed to request approval for ${config.label.toLowerCase()}.`);
     } finally {
@@ -448,7 +577,12 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     try {
       await departmentApi.decideMediaApproval(token, workflowId, { decision, remarks: '' });
       setActionMessage(`Approval ${decision === 'approve' ? 'approved' : 'rejected'}.`);
-      refreshData();
+      const nextStatus = decision === 'approve' ? 'Approved' : 'Needs Revision';
+      const patch = { approvalStatus: decision === 'approve' ? 'approved' : 'rejected', status: nextStatus };
+      const matchesWorkflow = (item) => item?.approvalWorkflowId === workflowId || item?.workflowId === workflowId;
+      [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts, setApprovals].forEach((setter) => {
+        setter((prev) => prev.map((item) => (matchesWorkflow(item) ? { ...item, ...patch } : item)));
+      });
     } catch (err) {
       setError(err.message || 'Failed to update approval decision.');
     } finally {
@@ -456,22 +590,186 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     }
   };
 
+  const createCampaignRecord = async (event) => {
+    event.preventDefault();
+    if (!effectiveProjectId) {
+      setError('Select a project before creating a campaign.');
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const res = await departmentApi.createMediaCampaign(token, {
+        projectId: effectiveProjectId,
+        name: campaignForm.name.trim(),
+        objective: campaignForm.objective.trim(),
+        platform: campaignForm.platform.split(',').map((item) => item.trim()).filter(Boolean),
+        budgetAllocated: Number(campaignForm.budgetAllocated) || 0,
+      });
+      if (res?.data) setCampaigns((prev) => [res.data, ...prev]);
+      setActionMessage('Campaign created.');
+      setCampaignForm({ name: '', objective: '', platform: '', budgetAllocated: '' });
+      setCampaignFormOpen(false);
+    } catch (err) {
+      setError(err.message || 'Failed to create campaign.');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const advanceCampaignStage = async (campaignId, nextStage) => {
+    setActionBusy(true);
+    try {
+      const res = await departmentApi.advanceMediaCampaignStage(token, campaignId, nextStage);
+      if (res?.data) {
+        setCampaigns((prev) => prev.map((item) => (String(item._id) === String(campaignId) ? res.data : item)));
+      }
+      setActionMessage(`Campaign moved to ${nextStage.replace(/-/g, ' ')}.`);
+    } catch (err) {
+      setError(err.message || 'Failed to update campaign stage.');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const deleteCampaignRecord = async (campaignId) => {
+    const ok = window.confirm('Delete this campaign? This cannot be undone.');
+    if (!ok) return;
+    setActionBusy(true);
+    try {
+      await departmentApi.deleteMediaCampaign(token, campaignId);
+      setActionMessage('Campaign deleted.');
+      setCampaigns((prev) => prev.filter((item) => String(item._id) !== String(campaignId)));
+    } catch (err) {
+      setError(err.message || 'Failed to delete campaign.');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const renderCampaigns = () => {
+    const rows = filterRecords(campaigns);
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">{rows.length} campaign{rows.length === 1 ? '' : 's'}</p>
+          <button
+            type="button"
+            onClick={() => setCampaignFormOpen((value) => !value)}
+            className="rounded-full border border-blue-200 bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            {campaignFormOpen ? 'Cancel' : 'New Campaign'}
+          </button>
+        </div>
+
+        {campaignFormOpen ? (
+          <form onSubmit={createCampaignRecord} className={`${card} grid grid-cols-1 gap-3 md:grid-cols-4`}>
+            <input required value={campaignForm.name} onChange={(e) => setCampaignForm((f) => ({ ...f, name: e.target.value }))} placeholder="Campaign name" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 md:col-span-2" />
+            <input value={campaignForm.platform} onChange={(e) => setCampaignForm((f) => ({ ...f, platform: e.target.value }))} placeholder="Platforms (comma separated)" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 md:col-span-2" />
+            <textarea value={campaignForm.objective} onChange={(e) => setCampaignForm((f) => ({ ...f, objective: e.target.value }))} placeholder="Objective" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 md:col-span-3" rows={2} />
+            <input type="number" min="0" value={campaignForm.budgetAllocated} onChange={(e) => setCampaignForm((f) => ({ ...f, budgetAllocated: e.target.value }))} placeholder="Budget" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500" />
+            <button type="submit" disabled={actionBusy} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 md:col-span-4">
+              Create campaign
+            </button>
+          </form>
+        ) : null}
+
+        {rows.length ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {rows.map((campaign) => (
+              <article key={campaign._id} className={card}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-bold text-neutral-950 dark:text-neutral-100">{campaign.name}</p>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">{campaign.objective || 'No objective set'}</p>
+                  </div>
+                  <button type="button" onClick={() => deleteCampaignRecord(campaign._id)} className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">
+                    Delete
+                  </button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                  {(campaign.platform || []).map((p) => (
+                    <span key={p} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 dark:border-neutral-700 dark:bg-neutral-800">{p}</span>
+                  ))}
+                  <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 dark:border-neutral-700 dark:bg-neutral-800">Budget: {money(campaign.budgetAllocated)}</span>
+                </div>
+                <div className="mt-4">
+                  <CampaignLifecycleStepper
+                    status={campaign.status}
+                    busy={actionBusy}
+                    onAdvance={(nextStage) => advanceCampaignStage(campaign._id, nextStage)}
+                  />
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : empty('No campaigns found', 'Create a campaign to start the objective, platform, budget, team, and content pipeline.')}
+      </div>
+    );
+  };
+
+  const moveCampaignTask = async (task, nextStatus) => {
+    setActionBusy(true);
+    try {
+      const res = await departmentApi.updateMediaCampaignTaskStatus(token, task.campaignId, task._id, nextStatus);
+      const saved = res?.data;
+      setCampaignTasks((prev) => prev.map((item) => (String(item._id) === String(task._id) ? (saved || { ...item, status: nextStatus }) : item)));
+      setActionMessage(`Task moved to ${nextStatus.replace(/-/g, ' ')}.`);
+    } catch (err) {
+      setError(err.message || 'Failed to update task status.');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const renderCampaignTasks = () => (
+    <div className="space-y-4">
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">
+        Tasks are generated automatically once a campaign moves into content production. {campaignTasks.length} task{campaignTasks.length === 1 ? '' : 's'} across all campaigns.
+      </p>
+      {campaignTasks.length ? (
+        <CampaignTaskBoard tasks={campaignTasks} busy={actionBusy} onMove={moveCampaignTask} />
+      ) : empty('No campaign tasks yet', 'Advance a campaign to "Content in progress" to auto-generate its Design/Write/Reel/Review/Approval/Publish tasks.')}
+    </div>
+  );
+
   const renderMetric = (label, value, icon, detail) => (
-    <article className="rounded-[1.5rem] border border-slate-200 bg-white p-4 transition-colors hover:border-teal-300 hover:bg-teal-50/40">
+    <article className="rounded-[1.5rem] border border-slate-200 bg-white p-4 transition-colors hover:border-teal-300 hover:bg-teal-50/40 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-teal-800 dark:hover:bg-teal-500/10">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-neutral-400">{label}</p>
+          <p className="mt-2 text-3xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
         </div>
-        <span className="material-symbols-outlined rounded-2xl border border-teal-200 bg-teal-100 p-3 text-2xl text-teal-700">
+        <span className="material-symbols-outlined rounded-2xl border border-teal-200 bg-teal-100 p-3 text-2xl text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
           {icon}
         </span>
       </div>
-      {detail ? <p className="mt-3 text-sm text-slate-500">{detail}</p> : null}
+      {detail ? <p className="mt-3 text-sm text-slate-500 dark:text-neutral-400">{detail}</p> : null}
     </article>
   );
 
-  const empty = (title, message) => <div className={soft}><p className="text-sm font-semibold text-slate-950">{title}</p><p className="mt-2 text-sm leading-6 text-slate-600">{message}</p></div>;
+  const empty = (title, message) => <div className={soft}><p className="text-sm font-semibold text-slate-950 dark:text-neutral-100">{title}</p><p className="mt-2 text-sm leading-6 text-slate-600 dark:text-neutral-400">{message}</p></div>;
+  const renderFileCell = (item) =>
+    item?.storageUrl ? (
+      <div className="flex items-center gap-2">
+        {item.thumbnailUrl ? (
+          <img src={item.thumbnailUrl} alt="" className="h-8 w-8 rounded-lg border border-slate-200 object-cover dark:border-neutral-700" />
+        ) : (
+          <span className="material-symbols-outlined text-base text-neutral-400">
+            {String(item.mimeType || '').startsWith('video/') ? 'movie' : 'description'}
+          </span>
+        )}
+        <a
+          href={item.storageUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
+        >
+          View file{item.fileSizeBytes ? ` (${bytes(item.fileSizeBytes)})` : ''}
+        </a>
+      </div>
+    ) : (
+      <span className="text-xs text-neutral-400 dark:text-neutral-500">No file</span>
+    );
   const sectionMeta = META[activeSection] || META.dashboard;
   const activeSectionAction = getSectionAction(activeSection);
 
@@ -700,24 +998,24 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const actionsEnabled = Boolean(options.rowActions);
 
     return rows.length ? (
-      <div className="overflow-hidden rounded-3xl border border-white/10">
-        <table className="min-w-full divide-y divide-white/10 text-sm">
-          <thead className="bg-white/5 text-left text-xs uppercase tracking-[0.2em] text-neutral-400">
+      <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-neutral-800">
+        <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-neutral-800">
+          <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.2em] text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
             <tr>
               {columns.map((column) => <th key={column.label} className="px-4 py-3">{column.label}</th>)}
               {actionsEnabled ? <th className="px-4 py-3">Actions</th> : null}
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/10">
+          <tbody className="divide-y divide-slate-200 bg-white dark:divide-neutral-800 dark:bg-neutral-900">
             {rows.map((item) => (
               <tr key={item._id || item.id || item.title}>
                 {columns.map((column) => (
-                  <td key={column.label} className="px-4 py-3 align-top text-neutral-200">
+                  <td key={column.label} className="px-4 py-3 align-top text-neutral-700 dark:text-neutral-300">
                     {column.render ? column.render(item) : pick(item?.[column.key], item?.metadata?.[column.key], '-')}
                   </td>
                 ))}
                 {actionsEnabled ? (
-                  <td className="px-4 py-3 align-top text-neutral-200">
+                  <td className="px-4 py-3 align-top text-neutral-700 dark:text-neutral-300">
                     <div className="flex flex-wrap gap-2">
                       {options.rowActions(item)}
                     </div>
@@ -739,178 +1037,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
-  const renderProjectHub = () => (
-    <div className="space-y-3">
-      <section className="overflow-hidden rounded-[28px] border border-neutral-200 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.16),_transparent_34%),linear-gradient(135deg,_#ffffff_0%,_#f8fafc_60%,_#eef2ff_100%)] shadow-sm">
-        <div className="flex flex-col gap-4 p-4 md:p-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 shadow-sm backdrop-blur">
-              <span className="material-symbols-outlined text-[16px]">folder_copy</span>
-              Project Hub
-            </div>
-            <h1 className="mt-3 text-2xl font-black tracking-tight text-neutral-950 md:text-3xl">
-              Project workspaces
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600">
-              Shared projects, EFNBMMS workstreams, and linked media records.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200">
-                {projects.length} projects
-              </span>
-              <span className="rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                {projects.filter((project) => project.accessGranted).length} open
-              </span>
-              <span className="rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">
-                0 locked
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={refreshData}
-            className="inline-flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-50"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-            Refresh
-          </button>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <article className={card}>
-          <div className="absolute inset-x-0 top-0 h-1 bg-blue-500" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Total</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950">{projects.length}</p>
-          <p className="mt-1 text-xs text-neutral-500">Linked projects</p>
-        </article>
-        <article className={card}>
-          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Assigned</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950">0</p>
-          <p className="mt-1 text-xs text-neutral-500">Assigned to you</p>
-        </article>
-        <article className={card}>
-          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-400" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Accessible</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950">{projects.length}</p>
-          <p className="mt-1 text-xs text-neutral-500">Ready now</p>
-        </article>
-        <article className={card}>
-          <div className="absolute inset-x-0 top-0 h-1 bg-rose-500" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Blocked</p>
-          <p className="mt-2 text-3xl font-black text-neutral-950">0</p>
-          <p className="mt-1 text-xs text-neutral-500">No access</p>
-        </article>
-      </div>
-
-      <article className="rounded-[28px] border border-neutral-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-neutral-900">Filter</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_auto]">
-            <label className="relative block">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">
-                <span className="material-symbols-outlined text-[18px]">search</span>
-              </span>
-              <input
-                type="search"
-                value={projectQuery}
-                onChange={(e) => setProjectQuery(e.target.value)}
-                placeholder="Search"
-                className="h-11 w-full rounded-2xl border border-neutral-300 bg-white pl-10 pr-3 text-sm text-neutral-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-              />
-            </label>
-            <div className="inline-flex rounded-2xl border border-neutral-300 bg-white p-1 shadow-sm">
-              {[
-                { value: 'all', label: 'All', icon: 'apps' },
-                { value: 'open', label: 'Open', icon: 'lock_open' },
-                { value: 'locked', label: 'Locked', icon: 'lock' },
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setProjectVisibilityFilter(item.value)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                    projectVisibilityFilter === item.value
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-neutral-600 hover:bg-neutral-100'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </article>
-
-      {projects.length ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          {projects
-            .filter((project) => {
-              const q = projectQuery.trim().toLowerCase();
-              const matchesQuery =
-                !q ||
-                [project.code, project.name, project.description, project.status]
-                  .filter(Boolean)
-                  .some((value) => String(value).toLowerCase().includes(q));
-              const locked = !project.accessGranted;
-              const matchesVisibility =
-                projectVisibilityFilter === 'all' ||
-                (projectVisibilityFilter === 'open' && !locked) ||
-                (projectVisibilityFilter === 'locked' && locked);
-              return matchesQuery && matchesVisibility;
-            })
-            .map((project, index) => {
-              const isLocked = !project.accessGranted;
-              const accentClasses = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-orange-500'];
-              const accent = accentClasses[index % accentClasses.length];
-
-              return (
-                <article key={project.code || project.value} className="rounded-[28px] border border-neutral-200 bg-white p-4 shadow-sm">
-                  <div className={`h-1.5 w-full rounded-full ${accent}`} />
-                  <div className="mt-4 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-lg font-semibold text-neutral-950">{project.code}</p>
-                        <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
-                          {project.status || 'active'}
-                        </span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-sm text-neutral-500">{project.description || 'Project workspace'}</p>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isLocked ? 'bg-rose-500/10 text-rose-700 ring-1 ring-rose-200' : 'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-200'}`}>
-                      {isLocked ? 'Locked' : 'Accessible'}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Role</p>
-                      <p className="mt-0.5 text-sm font-semibold text-neutral-950">{project.role || 'all'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Status</p>
-                      <p className="mt-0.5 text-sm font-semibold text-neutral-950">{project.status || 'active'}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={isLocked}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-500"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">{isLocked ? 'lock' : 'open_in_new'}</span>
-                    {isLocked ? 'Locked' : `Open${project.code ? ` ${project.code}` : ''}`}
-                  </button>
-                </article>
-              );
-            })}
-        </div>
-      ) : empty('No projects found', 'The portal only exposes shared projects and EFNBMMS workstreams.')}
-    </div>
-  );
+  const renderProjectHub = () => <AdminProjectsPage />;
 
   const renderGeneric = (section) => {
     const meta = META[section] || META.dashboard;
@@ -943,7 +1070,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             type="button"
             disabled={actionBusy}
             onClick={() => openEditor('edit', section, item)}
-            className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/20 disabled:opacity-50"
+            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
           >
             Edit
           </button>
@@ -953,7 +1080,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             type="button"
             disabled={actionBusy}
             onClick={() => requestApproval(section, item)}
-            className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-400/20 disabled:opacity-50"
+            className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
           >
             Request approval
           </button>
@@ -963,7 +1090,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             type="button"
             disabled={actionBusy}
             onClick={() => deleteRecord(section, item)}
-            className="rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:border-rose-300/40 hover:bg-rose-400/20 disabled:opacity-50"
+            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
           >
             Delete
           </button>
@@ -974,7 +1101,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
               type="button"
               disabled={actionBusy}
               onClick={() => decideApproval(workflowId, 'approve')}
-              className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300/40 hover:bg-emerald-400/20 disabled:opacity-50"
+              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
             >
               Approve
             </button>
@@ -982,17 +1109,17 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
               type="button"
               disabled={actionBusy}
               onClick={() => decideApproval(workflowId, 'reject')}
-              className="rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:border-rose-300/40 hover:bg-rose-400/20 disabled:opacity-50"
+              className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
             >
               Reject
             </button>
           </>
         ) : null}
-        {!config && !workflowId ? <span className="text-xs text-neutral-500">No actions</span> : null}
+        {!config && !workflowId ? <span className="text-xs text-neutral-500 dark:text-neutral-400">No actions</span> : null}
         {workflowId && approvalState !== 'pending' ? (
-          <span className="text-xs text-neutral-500">Workflow: {approvalState || 'n/a'}</span>
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">Workflow: {approvalState || 'n/a'}</span>
         ) : null}
-        {!id ? <span className="text-xs text-neutral-500">No ID</span> : null}
+        {!id ? <span className="text-xs text-neutral-500 dark:text-neutral-400">No ID</span> : null}
       </>
     );
   };
@@ -1001,37 +1128,68 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     if (activeSection === 'dashboard') return renderDashboard();
     if (activeSection === 'project-hub') return renderProjectHub();
     if (activeSection === 'assets') return renderTable(assets, [
-      { key: 'title', label: 'Asset', render: (item) => <div><p className="font-semibold text-white">{item.title}</p><p className="text-xs text-neutral-400">{item.category || item.moduleType || 'Asset'}</p></div> },
+      { key: 'title', label: 'Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || item.moduleType || 'Asset'}</p></div> },
       { key: 'projectName', label: 'Project' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'version', label: 'Version', render: (item) => item?.version?.current || 'v1.0' },
-      { key: 'storageUsageBytes', label: 'Storage', render: (item) => bytes(item.storageUsageBytes || item.fileSizeBytes) },
+      { key: 'file', label: 'File', render: renderFileCell },
     ], 'No assets uploaded yet', 'Upload images, logos, banners, PDFs, videos, or creative files to populate the DAM view.', {
       rowActions: (item) => renderRowActions('assets', item),
     });
-    if (activeSection === 'campaigns') return renderTable(campaigns, [
-      { key: 'title', label: 'Campaign', render: (item) => <div><p className="font-semibold text-white">{item.title}</p><p className="text-xs text-neutral-400">{item.objective || item.description || 'Campaign objective'}</p></div> },
-      { key: 'projectName', label: 'Project' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
-      { key: 'priority', label: 'Priority' },
-    ], 'No campaigns found', 'Create campaign records linked to projects, budgets, teams, and KPI targets.', {
-      rowActions: (item) => renderRowActions('campaigns', item),
-    });
+    if (activeSection === 'campaigns') return renderCampaigns();
+    if (activeSection === 'tasks') return renderCampaignTasks();
+    if (activeSection === 'budget') return <BudgetTracker projectId={effectiveProjectId} />;
+    if (activeSection === 'funnel') return <KpiFunnelChart projectId={effectiveProjectId} />;
+    if (activeSection === 'calendar') return <MarketingCalendar projectId={effectiveProjectId} />;
+    if (activeSection === 'weekly-planning') return <WeeklyPlanner projectId={effectiveProjectId} />;
+    if (activeSection === 'checklists') return <ProjectChecklists projectId={effectiveProjectId} />;
     if (activeSection === 'content') return renderTable(content, [
-      { key: 'title', label: 'Content', render: (item) => <div><p className="font-semibold text-white">{item.title}</p><p className="text-xs text-neutral-400">{item.description || 'Editorial item'}</p></div> },
+      { key: 'title', label: 'Content', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Editorial item'}</p></div> },
       { key: 'projectName', label: 'Project' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
     ], 'No content pieces found', 'Use the content studio to manage blogs, articles, landing pages, newsletters, and press releases.', {
       rowActions: (item) => renderRowActions('content', item),
     });
     if (activeSection === 'brand') return renderTable(brandAssets, [
-      { key: 'title', label: 'Brand Asset', render: (item) => <div><p className="font-semibold text-white">{item.title}</p><p className="text-xs text-neutral-400">{item.category || 'Brand guide'}</p></div> },
+      { key: 'title', label: 'Brand Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Brand guide'}</p></div> },
       { key: 'projectName', label: 'Project' },
       { key: 'approvalStatus', label: 'Approval' },
-    ], 'No brand assets found', 'Store brand guidelines, logo variations, typography rules, palette references, and templates.');
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No brand assets found', 'Store brand guidelines, logo variations, typography rules, palette references, and templates.', {
+      rowActions: (item) => renderRowActions('brand', item),
+    });
+    if (activeSection === 'design') return renderTable(designItems, [
+      { key: 'title', label: 'Design Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Design request'}</p></div> },
+      { key: 'projectName', label: 'Project' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No design requests found', 'Track banners, creatives, and layouts from intake through revision to final delivery.', {
+      rowActions: (item) => renderRowActions('design', item),
+    });
+    if (activeSection === 'video') return renderTable(videoItems, [
+      { key: 'title', label: 'Video Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Video production'}</p></div> },
+      { key: 'projectName', label: 'Project' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No video items found', 'Track scripts, footage, edits, reviews, and publishing for every video production.', {
+      rowActions: (item) => renderRowActions('video', item),
+    });
+    if (activeSection === 'social') return renderTable(socialPosts, [
+      { key: 'title', label: 'Social Post', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Social post'}</p></div> },
+      { key: 'projectName', label: 'Project' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'reach', label: 'Reach', render: (item) => num(item?.metadata?.reach || item?.analytics?.reach).toLocaleString() },
+      { key: 'engagement', label: 'Engagement', render: (item) => num(item?.metadata?.engagement || item?.analytics?.engagement).toLocaleString() },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No social posts found', 'Plan and track scheduled posts, captions, and performance across every platform.', {
+      rowActions: (item) => renderRowActions('social', item),
+    });
     if (activeSection === 'approvals') return renderTable(approvals, [
-      { key: 'title', label: 'Request', render: (item) => <div><p className="font-semibold text-white">{item.title}</p><p className="text-xs text-neutral-400">{item.description || 'Approval request'}</p></div> },
+      { key: 'title', label: 'Request', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Approval request'}</p></div> },
       { key: 'projectName', label: 'Project' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
     ], 'No pending approvals', 'Approval flows will appear here once records are submitted from asset, content, campaign, and design modules.', {
@@ -1054,6 +1212,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           { key: 'targetType', label: 'Target' },
           { key: 'createdAt', label: 'Timestamp', render: (item) => (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-') },
         ], 'No report data', 'Reporting data is unavailable.') : null}
+        <MarketingReportPanel projectId={effectiveProjectId} />
       </div>
     );
     if (activeSection === 'audit') return renderTable(summary.reportRows, [
@@ -1157,7 +1316,44 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                 placeholder="Category or type"
               />
             </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Tags</span>
+              <input
+                value={draft.tags}
+                onChange={(e) => setDraft((prev) => ({ ...prev, tags: e.target.value }))}
+                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
+                placeholder="Comma separated tags"
+              />
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">File</span>
+              <input
+                type="file"
+                onChange={(e) => setDraft((prev) => ({ ...prev, file: e.target.files?.[0] || null }))}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 outline-none file:mr-3 file:rounded-full file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyan-50 focus:border-cyan-400"
+              />
+              {draft.file ? (
+                <p className="text-xs text-cyan-300">Selected: {draft.file.name} ({bytes(draft.file.size)}) - will upload to Cloudinary on save.</p>
+              ) : draft.storageUrl ? (
+                <p className="text-xs text-neutral-400">
+                  Current file:{' '}
+                  <a href={draft.storageUrl} target="_blank" rel="noreferrer" className="font-semibold text-cyan-300 hover:underline">
+                    view{draft.fileSizeBytes ? ` (${bytes(draft.fileSizeBytes)})` : ''}
+                  </a>{' '}
+                  - choose a new file to replace it.
+                </p>
+              ) : (
+                <p className="text-xs text-neutral-500">No file attached yet. Images, video, PDFs, and docs are stored on Cloudinary.</p>
+              )}
+            </label>
           </div>
+
+          {editor.section === 'content' && editor.mode === 'edit' && arr(editor.record?.approvalSteps).length ? (
+            <div className="mt-6 rounded-2xl bg-white p-4">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-neutral-500">Approval history</p>
+              <ApprovalHistoryTimeline steps={editor.record.approvalSteps} />
+            </div>
+          ) : null}
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-neutral-400">
@@ -1186,8 +1382,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
+  const isProjectHub = activeSection === 'project-hub';
+
   return (
-    <main className="portal-page bg-[linear-gradient(180deg,#f8fbfd_0%,#eef7f5_100%)]">
+    <main className="portal-page">
       <div className="mx-auto w-full max-w-[1720px] p-3 sm:p-4 lg:p-6 2xl:p-8">
         <PortalHeader
           title={sectionMeta[0]}
@@ -1198,119 +1396,126 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           showNotifications
           showThemeToggle
         >
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={`Search ${activeSection === 'dashboard' ? 'media records' : activeSection}...`}
-            className="h-10 w-[220px] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-[var(--portal-accent)]"
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-950 outline-none focus:border-[var(--portal-accent)]"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option === 'all' ? 'All Statuses' : option}
-              </option>
-            ))}
-          </select>
-          {activeSectionAction ? (
-            <button
-              type="button"
-              onClick={() => openEditor('create', activeSection)}
-              disabled={actionBusy || !effectiveProjectId}
-              className="h-10 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
-            >
-              {activeSectionAction.create}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={refreshData}
-            disabled={actionBusy}
-            className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Refresh
-          </button>
-          {activeSection !== 'project-hub' ? (
-            <div className="w-full max-w-[560px] rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Projects</p>
+          <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[760px]">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!isProjectHub ? (
+                <div className="relative min-w-[220px] flex-1 xl:flex-none">
+                  <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400">search</span>
+                  <input
+                    type="search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={`Search ${activeSection === 'dashboard' ? 'media records' : activeSection}...`}
+                    className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-[var(--portal-accent)]"
+                  />
+                </div>
+              ) : null}
+              {!isProjectHub ? (
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-950 outline-none focus:border-[var(--portal-accent)]"
+                >
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option === 'all' ? 'All Statuses' : option}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {activeSectionAction ? (
                 <button
                   type="button"
-                  onClick={() => updateProject('')}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                    !effectiveProjectId
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                  onClick={() => openEditor('create', activeSection)}
+                  disabled={actionBusy || !effectiveProjectId}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
                 >
-                  All Projects
+                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                  {activeSectionAction.create}
                 </button>
-              </div>
-              <div className="grid max-h-[176px] grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2">
-                {projectOptions.map((project, index) => {
-                  const isActive = effectiveProjectId === project.value;
-                  const accentClasses = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-orange-500'];
-                  const accent = accentClasses[index % accentClasses.length];
-                  const isLocked = String(project.status || '').toLowerCase() !== 'active' && String(project.status || '').toLowerCase() !== 'open';
-
-                  return (
-                    <button
-                      key={project.value || project.code}
-                      type="button"
-                      onClick={() => updateProject(project.value)}
-                      className={`group rounded-2xl border p-3 text-left transition ${
-                        isActive
-                          ? 'border-teal-500 bg-teal-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm'
-                      }`}
-                    >
-                      <div className={`h-1.5 w-full rounded-full ${accent}`} />
-                      <div className="mt-3 flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-black text-slate-950">{project.code}</p>
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                              {project.status || 'active'}
-                            </span>
-                          </div>
-                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                            {project.description || 'Project workspace'}
-                          </p>
-                        </div>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isLocked ? 'bg-rose-500/10 text-rose-700' : 'bg-emerald-500/10 text-emerald-700'}`}>
-                          {isLocked ? 'Locked' : 'Open'}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              ) : null}
+              {!isProjectHub ? (
+                <button
+                  type="button"
+                  onClick={refreshData}
+                  disabled={actionBusy}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[18px]">refresh</span>
+                  Refresh
+                </button>
+              ) : null}
+              <select
+                value={activeSection}
+                onChange={(e) => onSectionChange?.(e.target.value)}
+                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-950 outline-none focus:border-[var(--portal-accent)]"
+              >
+                {MEDIA_SECTIONS.map((section) => <option key={section.id} value={section.id}>{section.label}</option>)}
+              </select>
             </div>
-          ) : null}
-          <select
-            value={activeSection}
-            onChange={(e) => onSectionChange?.(e.target.value)}
-            className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-950 outline-none focus:border-[var(--portal-accent)]"
-          >
-            {MEDIA_SECTIONS.map((section) => <option key={section.id} value={section.id}>{section.label}</option>)}
-          </select>
+            {activeSection !== 'project-hub' ? (
+              <div className="rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm">
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Project scope</p>
+                  <button
+                    type="button"
+                    onClick={() => updateProject('')}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                      !effectiveProjectId
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {projectOptions.map((project, index) => {
+                    const isActive = effectiveProjectId === project.value;
+                    const accentClasses = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500'];
+                    const accent = accentClasses[index % accentClasses.length];
+
+                    return (
+                      <button
+                        key={project.value || project.code}
+                        type="button"
+                        onClick={() => updateProject(project.value)}
+                        className={`group rounded-xl border p-3 text-left transition ${
+                          isActive
+                            ? 'border-teal-500 bg-teal-50 shadow-sm'
+                            : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className={`h-1 w-full rounded-full ${accent}`} />
+                        <p className="mt-2 truncate text-sm font-black text-slate-950">{project.name || project.code}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">{project.description || 'Project workspace'}</p>
+                      </button>
+                    );
+                  })}
+                  {!projectOptions.length ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs font-semibold text-slate-500 sm:col-span-3">
+                      No approved projects found.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </PortalHeader>
 
-        <section className="mb-4 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm text-cyan-50">
-          {user?.role ? `Signed in as ${user.role}.` : 'Media portal ready.'} Every media record should be linked to project, department, client, team, campaign, and assigned employees.
-        </section>
+        {!isProjectHub ? (
+          <section className="mb-4 rounded-3xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">
+            {user?.role ? `Signed in as ${user.role}.` : 'Media portal ready.'} Every media record should be linked to project, department, client, team, campaign, and assigned employees.
+          </section>
+        ) : null}
 
         {actionMessage ? (
-          <section className="mb-4 rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+          <section className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
             {actionMessage}
           </section>
         ) : null}
 
-        {loading ? <div className="h-72 animate-pulse rounded-3xl border border-white/10 bg-white/5" /> : error ? <div className="rounded-3xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-100">{error}</div> : renderSection()}
+        {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div> : renderSection()}
         {renderEditorModal()}
       </div>
     </main>

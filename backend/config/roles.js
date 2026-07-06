@@ -19,6 +19,7 @@ const ROLES = {
   VIDEO_EDITOR: "video_editor",
   SEO_SPECIALIST: "seo_specialist",
   SOCIAL_MEDIA_MANAGER: "social_media_manager",
+  ADS_MANAGER: "ads_manager",
   PROJECT_MANAGER: "project_manager",
   DEPARTMENT_HEAD: "department_head",
   CLIENT_VIEWER: "client_viewer",
@@ -53,6 +54,7 @@ const ROLE_HIERARCHY = {
   [ROLES.VIDEO_EDITOR]: 20,
   [ROLES.SEO_SPECIALIST]: 20,
   [ROLES.SOCIAL_MEDIA_MANAGER]: 20,
+  [ROLES.ADS_MANAGER]: 20,
   [ROLES.PROJECT_MANAGER]: 40,
   [ROLES.DEPARTMENT_HEAD]: 60,
   [ROLES.CLIENT_VIEWER]: 5,
@@ -192,6 +194,11 @@ const ROLE_PERMISSIONS = {
   [ROLES.SOCIAL_MEDIA_MANAGER]: [
     "social_media",
     "publishing",
+    "content_management",
+  ],
+  [ROLES.ADS_MANAGER]: [
+    "advertisement_management",
+    "budget_management",
     "content_management",
   ],
   [ROLES.PROJECT_MANAGER]: [

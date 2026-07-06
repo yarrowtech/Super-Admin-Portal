@@ -7,11 +7,11 @@ export const normalizeProjectNameKey = (value) =>
 export const CANONICAL_PROJECTS = Object.freeze([
   {
     code: 'EEC',
-    name: 'EEC',
-    description: 'Enterprise execution center and project workspace.',
+    name: 'EdifyEight',
+    description: 'EdifyEight project workspace.',
     launchUrl: 'https://www.edifyeight.com',
     ssoPath: '/sso/eec',
-    aliases: ['EEC LMS', 'EEC Portal', 'ECC'],
+    aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT'],
   },
   {
     code: 'EHC',
@@ -20,34 +20,49 @@ export const CANONICAL_PROJECTS = Object.freeze([
     aliases: ['EHC Portal'],
   },
   {
-    code: 'RMS',
-    name: 'RMS',
-    description: 'Records and management workspace.',
-    aliases: ['ERMS', 'RMS Portal'],
-  },
-  {
-    code: 'EFNBMMS',
-    name: 'EFNBMMS',
-    description: 'Finance and business management system workspace.',
-    aliases: ['EFMBMS', 'EFNBMMS Portal', 'EFMBMS Portal'],
-  },
-  {
-    code: 'ESPORTSM',
-    name: 'ESPORTSM',
-    description: 'Esports management workspace.',
-    aliases: ['ESPORTS M', 'ESPORTSM Portal'],
-  },
-  {
-    code: 'SMARTFARMING',
-    name: 'SMART FARMING',
-    description: 'Smart farming operations workspace.',
-    aliases: ['Smart Farming', 'SMART FARMING Portal'],
+    code: 'BETTERPASS',
+    name: 'Better Pass',
+    description: 'Better Pass project workspace.',
+    aliases: ['BETTER PASS', 'BetterPass', 'Better Pass Portal'],
   },
 ]);
 
 export const CANONICAL_PROJECT_NAMES = Object.freeze(CANONICAL_PROJECTS.map((project) => project.name));
 
 export const PROJECT_NAME_PLACEHOLDER = CANONICAL_PROJECT_NAMES.join(' / ');
+
+export const findCanonicalProject = (project = {}) => {
+  const tokens = [
+    project.code,
+    project.projectCode,
+    project.name,
+    ...(Array.isArray(project.aliases) ? project.aliases : []),
+  ]
+    .map(normalizeProjectNameKey)
+    .filter(Boolean);
+
+  if (tokens.length === 0) return null;
+
+  return CANONICAL_PROJECTS.find((canonical) => {
+    const canonicalTokens = [
+      canonical.code,
+      canonical.name,
+      ...(Array.isArray(canonical.aliases) ? canonical.aliases : []),
+    ]
+      .map(normalizeProjectNameKey)
+      .filter(Boolean);
+
+    return tokens.some((token) =>
+      canonicalTokens.some((canonicalToken) => (
+        token === canonicalToken ||
+        token.includes(canonicalToken) ||
+        canonicalToken.includes(token)
+      ))
+    );
+  }) || null;
+};
+
+export const isCanonicalProject = (project = {}) => Boolean(findCanonicalProject(project));
 
 export const resolveCanonicalProjects = (projects = []) => {
   const entries = Array.isArray(projects) ? projects : [];

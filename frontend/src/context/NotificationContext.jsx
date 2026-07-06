@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { managerApi } from '../services/manager';
 import { ceoApi } from '../services/ceo';
+import { apiClient } from '../services/client';
 import { useAuth } from './AuthContext';
 import { shouldDeliverToManager } from '../utils/notificationRouting';
 import { createLogger } from '../utils/logger';
@@ -9,6 +10,14 @@ const NotificationContext = createContext();
 const LEGACY_PENDING_KEY = 'pendingManagerNotification';
 const PENDING_QUEUE_KEY = 'pendingManagerNotifications';
 const notificationLogger = createLogger({ module: 'notifications' });
+
+// Generic, role-agnostic fallback backed by /api/notifications (common/notification.controller.js).
+// Used by any role without a dedicated notifications API (media, hr, employee, admin, etc.).
+const genericNotificationsApi = {
+  getNotifications: (token) => apiClient.get('/api/notifications', token),
+  markNotificationRead: (token, notificationId) => apiClient.put(`/api/notifications/${notificationId}/read`, {}, token),
+  markAllNotificationsRead: (token) => apiClient.put('/api/notifications/mark-all-read', {}, token),
+};
 
 const getDateKey = (dateInput = new Date()) => {
   const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
@@ -47,7 +56,7 @@ export const NotificationProvider = ({ children }) => {
   const roleApi = useMemo(() => {
     if (isManager) return managerApi;
     if (isCEO) return ceoApi;
-    return null;
+    return genericNotificationsApi;
   }, [isManager, isCEO]);
   const supportsNotifications = Boolean(token && roleApi);
 

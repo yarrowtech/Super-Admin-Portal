@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSidebar } from '../../context/SidebarContext';
 import MobilePortalNav from '../common/MobilePortalNav';
@@ -47,12 +47,23 @@ const MediaPortal = () => {
     onClick: () => setActiveSection(section.id),
   }));
 
+  // Reflects the LATEST activeSection without making the effect below re-run whenever
+  // activeSection changes locally — it should only react to real URL navigation
+  // (back/forward, deep link), never to its own sibling effect's URL write below.
+  // Depending on activeSection directly caused a race: switching to "dashboard" (which
+  // deletes the ?section param) would get immediately reverted because this effect ran
+  // in the same commit against the *old* searchParams, before the URL write took effect.
+  const activeSectionRef = useRef(activeSection);
+  useEffect(() => {
+    activeSectionRef.current = activeSection;
+  }, [activeSection]);
+
   useEffect(() => {
     const querySection = resolveSection(searchParams.get('section'));
-    if (searchParams.has('section') && querySection !== activeSection) {
+    if (searchParams.has('section') && querySection !== activeSectionRef.current) {
       setActiveSection(querySection);
     }
-  }, [activeSection, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     try {

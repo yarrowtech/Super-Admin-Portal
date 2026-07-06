@@ -1,22 +1,17 @@
-const { ROLES, getRolePermissions } = require('../config/roles');
-
 const CANONICAL_PROJECT_NAMES = Object.freeze([
-  'EEC',
+  'EdifyEight',
   'EHC',
-  'RMS',
-  'EFNBMMS',
-  'ESPORTSM',
-  'SMART FARMING',
+  'Better Pass',
 ]);
 
 const PROJECT_REGISTRY = [
   {
     code: 'EEC',
-    name: 'EEC',
-    description: 'Enterprise execution center and project workspace.',
+    name: 'EdifyEight',
+    description: 'EdifyEight project workspace.',
     launchUrl: process.env.EEC_PORTAL_URL || 'https://www.edifyeight.com',
     ssoPath: '/sso/eec',
-    aliases: ['EEC LMS', 'EEC Portal', 'ECC'],
+    aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT'],
   },
   {
     code: 'EHC',
@@ -27,36 +22,12 @@ const PROJECT_REGISTRY = [
     aliases: ['EHC Portal'],
   },
   {
-    code: 'RMS',
-    name: 'RMS',
-    description: 'Records and management workspace.',
-    launchUrl: process.env.RMS_PORTAL_URL || 'https://rms.company.com',
+    code: 'BETTERPASS',
+    name: 'Better Pass',
+    description: 'Better Pass project workspace.',
+    launchUrl: process.env.BETTER_PASS_PORTAL_URL || '',
     ssoPath: '/sso-login',
-    aliases: ['ERMS', 'RMS Portal'],
-  },
-  {
-    code: 'EFNBMMS',
-    name: 'EFNBMMS',
-    description: 'Finance and business management system workspace.',
-    launchUrl: '',
-    ssoPath: '',
-    aliases: ['EFMBMS', 'EFNBMMS Portal', 'EFMBMS Portal'],
-  },
-  {
-    code: 'ESPORTSM',
-    name: 'ESPORTSM',
-    description: 'Esports management workspace.',
-    launchUrl: process.env.ESPORTSM_PORTAL_URL || 'https://esportsm.company.com',
-    ssoPath: '/sso-login',
-    aliases: ['ESPORTS M', 'ESPORTSM Portal'],
-  },
-  {
-    code: 'SMARTFARMING',
-    name: 'SMART FARMING',
-    description: 'Smart farming operations workspace.',
-    launchUrl: process.env.SMARTFARMING_PORTAL_URL || 'https://smartfarming.company.com',
-    ssoPath: '/sso-login',
-    aliases: ['Smart Farming', 'SMART FARMING Portal'],
+    aliases: ['BETTER PASS', 'BetterPass', 'Better Pass Portal'],
   },
 ];
 
@@ -192,26 +163,14 @@ const getAccessibleProjects = (user = {}) => {
   return PROJECT_REGISTRY.map((project) => {
     const assignment = assignments.find((item) => matchesProject(item, project)) || null;
     const accessGranted = Boolean(isAdmin || assignment) && (isAdmin || isAssignmentActive(assignment || {}));
-    const isEfmbmms = normalizeProjectKey(project.code) === 'EFNBMMS';
     const appRole = assignment?.role || user?.role || 'member';
-    const integrationRole = isEfmbmms ? 'admin' : appRole;
-    const appPermissions = isEfmbmms
-      ? Array.from(new Set([
-          ...getRolePermissions(ROLES.ADMIN),
-          'invoice_management',
-          'payment_management',
-          'manage_efnbmms_users',
-          'manage_efnbmms_roles',
-          'manage_efnbmms_permissions',
-          'view_efnbmms_reports',
-          'manage_efnbmms_projects',
-        ]))
-      : Array.from(
-          new Set([
-            ...(Array.isArray(assignment?.permissions) ? assignment.permissions : []),
-            ...(Array.isArray(assignment?.moduleScopes) ? assignment.moduleScopes : []),
-          ])
-        );
+    const integrationRole = appRole;
+    const appPermissions = Array.from(
+      new Set([
+        ...(Array.isArray(assignment?.permissions) ? assignment.permissions : []),
+        ...(Array.isArray(assignment?.moduleScopes) ? assignment.moduleScopes : []),
+      ])
+    );
 
     return {
       code: project.code,
@@ -295,28 +254,11 @@ const isPrivilegedProjectLauncher = (user = {}) => {
   return role === 'admin' || role === 'super_admin' || role === 'freelancer';
 };
 
-const getProjectRoleBinding = (projectCode, user = {}) => {
-  const normalizedProjectCode = normalizeProjectKey(projectCode);
+const getProjectRoleBinding = (_projectCode, user = {}) => {
   const normalizedRole = String(user?.role || '').trim().toLowerCase();
-  if (normalizedProjectCode !== 'EFNBMMS') {
-    return {
-      appRole: normalizedRole || 'member',
-      appPermissions: Array.isArray(user?.permissions) ? user.permissions : [],
-    };
-  }
-
   return {
-    appRole: 'admin',
-    appPermissions: Array.from(new Set([
-      ...getRolePermissions(ROLES.ADMIN),
-      'invoice_management',
-      'payment_management',
-      'manage_efnbmms_users',
-      'manage_efnbmms_roles',
-      'manage_efnbmms_permissions',
-      'view_efnbmms_reports',
-      'manage_efnbmms_projects',
-    ])),
+    appRole: normalizedRole || 'member',
+    appPermissions: Array.isArray(user?.permissions) ? user.permissions : [],
   };
 };
 

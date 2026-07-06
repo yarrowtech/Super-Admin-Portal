@@ -22,6 +22,7 @@ const requestLogger = require("./logger/requestLogger");
 const { ensureSuperAdminDefaults } = require("./utils/bootstrapSuperAdminData");
 const { buildManagerSnapshot } = require("./services/dashboard.service");
 const { startLawExpiryTracker } = require("./modules/law/law.cron");
+const { startMediaNotificationScheduler } = require("./jobs/mediaNotificationScheduler");
 const { User } = require("./models/auth");
 const errorMiddleware = require("./middlewares/error.middleware");
 const cacheHeaders = require("./middlewares/cacheHeaders");
@@ -36,11 +37,13 @@ const ioOptions = {
 const io = new Server(server, ioOptions);
 app.set("io", io);
 const onlineUsers = new Map();
+require("./services/socketRegistry").registerSocket(io, onlineUsers);
 
 connectDB().then(async () => {
   try {
     await ensureSuperAdminDefaults();
     startLawExpiryTracker();
+    startMediaNotificationScheduler();
     logger.info("Super Admin defaults ensured");
   } catch (err) {
     logger.error({ err }, "Super Admin defaults bootstrap failed");

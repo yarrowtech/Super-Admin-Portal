@@ -5,6 +5,7 @@ const stepSchema = new mongoose.Schema(
     level: { type: Number, required: true },
     role: { type: String, required: true, trim: true },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    optional: { type: Boolean, default: false },
     decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     decidedAt: { type: Date },
     remarks: { type: String, trim: true, default: '' },

@@ -3,7 +3,13 @@
     "allow": [
       "Bash(grep -E \"\\\\.\\(tsx|jsx\\)$\")",
       "PowerShell(Get-ChildItem -Path \"e:\\\\Super-Admin-Portal\\\\frontend\\\\src\" -Recurse -Force | ForEach-Object { $_.FullName })",
-      "Bash(postcss\")"
+      "Bash(postcss\")",
+      "Bash(curl -s -o /dev/null -w \"backend status: %{http_code}\\\\n\" http://localhost:5000/api/dept/media/calendar)",
+      "Bash(node phase5Smoke.js)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"backend status: %{http_code}\\\\n\" http://localhost:5000/api/dept/media/weekly-plans)",
+      "Bash(node phase6Smoke.js)",
+      "Bash(node finalWalkthrough.js)"
     ]
   }
 }

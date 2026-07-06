@@ -17,6 +17,7 @@ const createApprovalRequest = async ({
       level: step.level || index + 1,
       role: step.role,
       status: "pending",
+      optional: Boolean(step.optional),
     })),
   });
 };
@@ -46,7 +47,8 @@ const decideApprovalRequest = async ({ workflowId, role, userId, decision, remar
   if (step.status === "rejected") {
     workflow.status = "rejected";
   } else {
-    workflow.status = workflow.steps.some((row) => row.status === "pending") ? "pending" : "approved";
+    const hasBlockingPendingStep = workflow.steps.some((row) => row.status === "pending" && !row.optional);
+    workflow.status = hasBlockingPendingStep ? "pending" : "approved";
   }
 
   await workflow.save();

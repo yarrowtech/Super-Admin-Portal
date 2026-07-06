@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
@@ -13,6 +13,11 @@ const MiniTooltip = memo(({ label }) => (
   </span>
 ));
 
+// A group item ({ id, label, icon, children: [...] }) renders as a collapsible
+// disclosure instead of a plain button. Flat items (no `children`) are unaffected —
+// this keeps Finance/IT, which only ever pass flat items, pixel-identical.
+const isGroupActive = (item, activeId) => Array.isArray(item.children) && item.children.some((child) => child.id === activeId);
+
 const SectionSidebar = ({
   title = 'Portal',
   subtitle = 'Department',
@@ -24,6 +29,19 @@ const SectionSidebar = ({
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const { collapsed, toggle } = useSidebar();
+  const [manualGroups, setManualGroups] = useState({});
+
+  // Derived, not effect-driven: whichever group contains the active section is
+  // open by default, unless the user has explicitly toggled it since.
+  const openGroups = useMemo(() => {
+    const computed = { ...manualGroups };
+    items.forEach((item) => {
+      if (isGroupActive(item, activeId) && !(item.id in manualGroups)) computed[item.id] = true;
+    });
+    return computed;
+  }, [items, activeId, manualGroups]);
+
+  const toggleGroup = (id) => setManualGroups((prev) => ({ ...prev, [id]: !(openGroups[id] ?? false) }));
 
   const handleLogout = () => {
     logout();
@@ -93,49 +111,108 @@ const SectionSidebar = ({
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 pb-2 pt-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-200 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700">
         <div className="space-y-0.5">
-          {items.map((item) => {
-            const isActive = activeId === item.id;
+          {items.map((item, idx) => {
+            const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+            const isActive = hasChildren ? isGroupActive(item, activeId) : activeId === item.id;
+            const isOpen = openGroups[item.id] ?? false;
+            // Groups always get a breathing-room break above them (a hairline rule
+            // when collapsed-open state changes context) so sibling sections never
+            // read as one continuous list — this is what the flat rendering lacked.
+            const sectionBreak = idx > 0 && hasChildren;
+
             return (
-              <button
+              <div
                 key={item.id}
-                type="button"
-                onClick={() => onSelect?.(item.id)}
-                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
-                } ${collapsed ? 'justify-center px-0' : ''}`}
-                aria-label={collapsed ? item.label : undefined}
+                className={sectionBreak ? 'mt-3 border-t border-neutral-100 pt-3 dark:border-neutral-800' : ''}
               >
-                <span
-                  className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}
-                  style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+                <button
+                  type="button"
+                  onClick={() => (hasChildren ? toggleGroup(item.id) : onSelect?.(item.id))}
+                  className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                    isActive
+                      ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+                      : hasChildren && isOpen
+                      ? 'bg-neutral-50 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200'
+                      : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                  } ${collapsed ? 'justify-center px-0' : ''}`}
+                  aria-label={collapsed ? item.label : undefined}
+                  aria-expanded={hasChildren ? isOpen : undefined}
                 >
-                  {item.icon}
-                </span>
-                {!collapsed && (
-                  <>
-                    <div className="min-w-0 flex-1 text-left">
-                      <div className="truncate font-medium leading-none">{item.label}</div>
-                      {item.description && !isActive && (
-                        <div className="mt-0.5 truncate text-[11px] text-neutral-400 dark:text-neutral-500">{item.description}</div>
-                      )}
-                    </div>
-                    {item.badge > 0 && !isActive && (
-                      <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                        {item.badge > 99 ? '99+' : item.badge}
-                      </span>
-                    )}
-                    {isActive && <span className="material-symbols-outlined shrink-0 text-[14px] text-white/70">chevron_right</span>}
-                  </>
-                )}
-                {collapsed && item.badge > 0 && !isActive && (
-                  <span className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-0.5 text-[8px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
-                    {item.badge > 99 ? '99+' : item.badge}
+                  <span
+                    className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}
+                    style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+                  >
+                    {item.icon}
                   </span>
+                  {!collapsed && (
+                    <>
+                      <div className="min-w-0 flex-1 text-left">
+                        <div className={`truncate leading-none ${hasChildren ? 'font-semibold' : 'font-medium'}`}>{item.label}</div>
+                        {item.description && !isActive && !hasChildren && (
+                          <div className="mt-0.5 truncate text-[11px] text-neutral-400 dark:text-neutral-500">{item.description}</div>
+                        )}
+                      </div>
+                      {item.badge > 0 && !isActive && (
+                        <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                          {item.badge > 99 ? '99+' : item.badge}
+                        </span>
+                      )}
+                      {hasChildren ? (
+                        <span
+                          className={`material-symbols-outlined shrink-0 text-[18px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isActive ? 'text-white/80' : 'text-neutral-400'}`}
+                        >
+                          expand_more
+                        </span>
+                      ) : isActive ? (
+                        <span className="material-symbols-outlined shrink-0 text-[14px] text-white/70">chevron_right</span>
+                      ) : null}
+                    </>
+                  )}
+                  {collapsed && item.badge > 0 && !isActive && (
+                    <span className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-0.5 text-[8px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
+                  {collapsed && <MiniTooltip label={item.badge > 0 ? `${item.label} (${item.badge})` : item.label} />}
+                </button>
+
+                {hasChildren && !collapsed && (
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out-expo ${
+                      isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="relative mb-0.5 ml-[19px] mt-1 space-y-0.5 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
+                        {item.children.map((child) => {
+                          const childActive = activeId === child.id;
+                          return (
+                            <button
+                              key={child.id}
+                              type="button"
+                              onClick={() => onSelect?.(child.id)}
+                              className={`flex w-full items-center gap-2 rounded-lg py-2 pl-2.5 pr-2 text-[13px] font-medium transition-all ${
+                                childActive
+                                  ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
+                                  : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                              }`}
+                            >
+                              <span
+                                className="material-symbols-outlined text-[16px] shrink-0"
+                                style={{ fontVariationSettings: `'FILL' ${childActive ? 1 : 0}` }}
+                              >
+                                {child.icon || 'chevron_right'}
+                              </span>
+                              <span className="flex-1 truncate text-left">{child.label}</span>
+                              {childActive && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--portal-accent)]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 )}
-                {collapsed && <MiniTooltip label={item.badge > 0 ? `${item.label} (${item.badge})` : item.label} />}
-              </button>
+              </div>
             );
           })}
         </div>

@@ -37,6 +37,12 @@ router.use(authorize(
 ));
 router.use(authorizePortalAccess('media'));
 router.use(attachOptionalProjectContext);
+router.use((req, res, next) => {
+  if (req.log?.child) {
+    req.log = req.log.child({ module: 'media', portal: 'media' });
+  }
+  next();
+});
 
 router.get('/dashboard', controller.getDashboard);
 router.get('/overview', controller.getOverview);

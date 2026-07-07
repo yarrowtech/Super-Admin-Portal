@@ -114,6 +114,10 @@ const buildProjectOptions = (projects = []) =>
       };
     })
     .filter(Boolean);
+const formatTime = (value) =>
+  value
+    ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'pending';
 
 const MediaDashboard = ({ activeSection = 'dashboard', onSectionChange, selectedProjectId, onProjectChange }) => {
   const { token, user } = useAuth();
@@ -359,6 +363,8 @@ const MediaDashboard = ({ activeSection = 'dashboard', onSectionChange, selected
     [projects]
   );
   const selectedProjectLabel = projectOptions.find((item) => item.value === effectiveProjectId)?.code || 'All Projects';
+  const projectScopeLabel = effectiveProjectId ? selectedProjectLabel : 'All Projects';
+  const lastSyncLabel = formatTime(updatedAt);
   const updateProject = (projectId) => {
     if (selectedProjectId !== undefined) {
       onProjectChange?.(projectId);
@@ -890,6 +896,20 @@ const MediaDashboard = ({ activeSection = 'dashboard', onSectionChange, selected
           showThemeToggle
           searchPlaceholder="Search campaigns, content, channels..."
         >
+          <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] font-semibold">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live sync {lastSyncLabel}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-cyan-700">
+              <span className="material-symbols-outlined text-[14px]">folder_copy</span>
+              Scope {projectScopeLabel}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
+              <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+              {summary.totalAssets} assets
+            </span>
+          </div>
           <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[520px]">
             <div className="flex flex-wrap items-center justify-end gap-2">
               {activeSection === 'dashboard' ? (

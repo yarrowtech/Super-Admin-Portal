@@ -1,5 +1,5 @@
 const { v2: cloudinary } = require('cloudinary');
-const logger = require('../../utils/logger');
+const { mediaLogger: logger } = require('./media.logger');
 const Media = require('../../models/department/Media');
 const Project = require('../../models/common/Project');
 const Campaign = require('../../models/department/Campaign');
@@ -158,7 +158,12 @@ const buildFilter = (query = {}, projectId) => {
   return filter;
 };
 
-const normalizeMediaPayload = (payload = {}) => {
+const normalizeMediaPayload = (payload = {}, existing = null) => {
+  const source = existing && typeof existing.toObject === 'function'
+    ? existing.toObject()
+    : (existing || {});
+  const isUpdate = Boolean(existing);
+
   const assignedEmployees = Array.isArray(payload.assignedEmployees)
     ? payload.assignedEmployees
         .map((row) => ({
@@ -167,56 +172,70 @@ const normalizeMediaPayload = (payload = {}) => {
           role: String(row?.role || '').trim(),
         }))
         .filter((row) => row.userId || row.name || row.role)
-    : [];
+    : isUpdate && Array.isArray(source.assignedEmployees)
+      ? source.assignedEmployees
+      : [];
 
   const tags = Array.isArray(payload.tags)
     ? payload.tags.map((tag) => String(tag || '').trim()).filter(Boolean)
     : typeof payload.tags === 'string'
       ? payload.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
-      : [];
+      : isUpdate && Array.isArray(source.tags)
+        ? source.tags
+        : [];
 
   return {
-    section: payload.section || 'asset',
-    moduleType: payload.moduleType || payload.section || 'asset',
-    title: String(payload.title || '').trim(),
-    description: String(payload.description || '').trim(),
-    status: payload.status || 'Draft',
-    priority: payload.priority || 'Medium',
-    projectId: payload.projectId || undefined,
-    projectName: String(payload.projectName || '').trim(),
-    departmentId: payload.departmentId || undefined,
-    departmentName: String(payload.departmentName || '').trim(),
-    clientId: payload.clientId || undefined,
-    clientName: String(payload.clientName || '').trim(),
-    teamId: payload.teamId || undefined,
-    teamName: String(payload.teamName || '').trim(),
-    campaignId: payload.campaignId || undefined,
-    campaignName: String(payload.campaignName || '').trim(),
+    section: payload.section !== undefined
+      ? String(payload.section || 'asset').trim() || 'asset'
+      : (isUpdate ? source.section : 'asset'),
+    moduleType: payload.moduleType !== undefined
+      ? String(payload.moduleType || payload.section || 'asset').trim() || 'asset'
+      : (isUpdate ? source.moduleType : 'asset'),
+    title: payload.title !== undefined ? String(payload.title || '').trim() : (isUpdate ? source.title : ''),
+    description: payload.description !== undefined ? String(payload.description || '').trim() : (isUpdate ? source.description : ''),
+    status: payload.status !== undefined ? String(payload.status || '').trim() : (isUpdate ? source.status : 'Draft'),
+    priority: payload.priority !== undefined ? String(payload.priority || '').trim() : (isUpdate ? source.priority : 'Medium'),
+    projectId: payload.projectId !== undefined ? payload.projectId || undefined : (isUpdate ? source.projectId : undefined),
+    projectName: payload.projectName !== undefined ? String(payload.projectName || '').trim() : (isUpdate ? source.projectName : ''),
+    departmentId: payload.departmentId !== undefined ? payload.departmentId || undefined : (isUpdate ? source.departmentId : undefined),
+    departmentName: payload.departmentName !== undefined ? String(payload.departmentName || '').trim() : (isUpdate ? source.departmentName : ''),
+    clientId: payload.clientId !== undefined ? payload.clientId || undefined : (isUpdate ? source.clientId : undefined),
+    clientName: payload.clientName !== undefined ? String(payload.clientName || '').trim() : (isUpdate ? source.clientName : ''),
+    teamId: payload.teamId !== undefined ? payload.teamId || undefined : (isUpdate ? source.teamId : undefined),
+    teamName: payload.teamName !== undefined ? String(payload.teamName || '').trim() : (isUpdate ? source.teamName : ''),
+    campaignId: payload.campaignId !== undefined ? payload.campaignId || undefined : (isUpdate ? source.campaignId : undefined),
+    campaignName: payload.campaignName !== undefined ? String(payload.campaignName || '').trim() : (isUpdate ? source.campaignName : ''),
     budgetImpact: {
-      spend: toNumber(payload.budgetImpact?.spend ?? payload.spend),
-      roiAtSnapshot: toNumber(payload.budgetImpact?.roiAtSnapshot ?? payload.roi),
+      spend: toNumber(
+        payload.budgetImpact?.spend ?? payload.spend ?? (isUpdate ? source.budgetImpact?.spend : 0)
+      ),
+      roiAtSnapshot: toNumber(
+        payload.budgetImpact?.roiAtSnapshot ?? payload.roi ?? (isUpdate ? source.budgetImpact?.roiAtSnapshot : 0)
+      ),
     },
-    ownerId: payload.ownerId || undefined,
-    ownerName: String(payload.ownerName || '').trim(),
-    folderPath: String(payload.folderPath || '').trim(),
-    category: String(payload.category || '').trim(),
+    ownerId: payload.ownerId !== undefined ? payload.ownerId || undefined : (isUpdate ? source.ownerId : undefined),
+    ownerName: payload.ownerName !== undefined ? String(payload.ownerName || '').trim() : (isUpdate ? source.ownerName : ''),
+    folderPath: payload.folderPath !== undefined ? String(payload.folderPath || '').trim() : (isUpdate ? source.folderPath : ''),
+    category: payload.category !== undefined ? String(payload.category || '').trim() : (isUpdate ? source.category : ''),
     tags,
-    mimeType: String(payload.mimeType || '').trim(),
-    storageProvider: String(payload.storageProvider || 'local').trim(),
-    storageKey: String(payload.storageKey || '').trim(),
-    storageUrl: String(payload.storageUrl || '').trim(),
-    thumbnailUrl: String(payload.thumbnailUrl || '').trim(),
-    previewUrl: String(payload.previewUrl || '').trim(),
-    fileSizeBytes: toNumber(payload.fileSizeBytes),
-    storageUsageBytes: toNumber(payload.fileSizeBytes),
-    isWatermarked: Boolean(payload.isWatermarked),
-    canDownload: payload.canDownload !== undefined ? Boolean(payload.canDownload) : true,
-    canShare: payload.canShare !== undefined ? Boolean(payload.canShare) : true,
-    expiresAt: payload.expiresAt || undefined,
-    publishAt: payload.publishAt || undefined,
-    submittedAt: payload.submittedAt || undefined,
-    analytics: payload.analytics || {},
-    metadata: payload.metadata || {},
+    mimeType: payload.mimeType !== undefined ? String(payload.mimeType || '').trim() : (isUpdate ? source.mimeType : ''),
+    storageProvider: payload.storageProvider !== undefined ? String(payload.storageProvider || 'local').trim() || 'local' : (isUpdate ? source.storageProvider : 'local'),
+    storageKey: payload.storageKey !== undefined ? String(payload.storageKey || '').trim() : (isUpdate ? source.storageKey : ''),
+    storageUrl: payload.storageUrl !== undefined ? String(payload.storageUrl || '').trim() : (isUpdate ? source.storageUrl : ''),
+    thumbnailUrl: payload.thumbnailUrl !== undefined ? String(payload.thumbnailUrl || '').trim() : (isUpdate ? source.thumbnailUrl : ''),
+    previewUrl: payload.previewUrl !== undefined ? String(payload.previewUrl || '').trim() : (isUpdate ? source.previewUrl : ''),
+    fileSizeBytes: payload.fileSizeBytes !== undefined ? toNumber(payload.fileSizeBytes) : (isUpdate ? source.fileSizeBytes : 0),
+    storageUsageBytes: payload.fileSizeBytes !== undefined
+      ? toNumber(payload.fileSizeBytes)
+      : (isUpdate ? source.storageUsageBytes : 0),
+    isWatermarked: payload.isWatermarked !== undefined ? Boolean(payload.isWatermarked) : (isUpdate ? source.isWatermarked : false),
+    canDownload: payload.canDownload !== undefined ? Boolean(payload.canDownload) : (isUpdate ? source.canDownload : true),
+    canShare: payload.canShare !== undefined ? Boolean(payload.canShare) : (isUpdate ? source.canShare : true),
+    expiresAt: payload.expiresAt !== undefined ? payload.expiresAt || undefined : (isUpdate ? source.expiresAt : undefined),
+    publishAt: payload.publishAt !== undefined ? payload.publishAt || undefined : (isUpdate ? source.publishAt : undefined),
+    submittedAt: payload.submittedAt !== undefined ? payload.submittedAt || undefined : (isUpdate ? source.submittedAt : undefined),
+    analytics: payload.analytics !== undefined ? payload.analytics : (isUpdate ? source.analytics : {}),
+    metadata: payload.metadata !== undefined ? payload.metadata : (isUpdate ? source.metadata : {}),
     assignedEmployees,
   };
 };
@@ -232,8 +251,11 @@ const getOverview = async (projectId) => {
     pendingApprovals,
     designRequests,
     videoRequests,
-    socialItems,
-    contentItems,
+    socialMetrics,
+    contentPublished,
+    contentInReview,
+    approvedItems,
+    contentTotal,
     upcomingDeadlines,
     storageAgg,
     spendAgg,
@@ -247,8 +269,20 @@ const getOverview = async (projectId) => {
     Media.countDocuments({ ...scope, approvalStatus: 'pending' }),
     Media.countDocuments({ ...scope, moduleType: { $in: ['design'] } }),
     Media.countDocuments({ ...scope, moduleType: { $in: ['video'] } }),
-    Media.find({ ...scope, moduleType: 'social' }).select('metadata analytics status').lean(),
-    Media.find({ ...scope, moduleType: 'content' }).select('status approvalStatus').lean(),
+    Media.aggregate([
+      { $match: { ...scope, moduleType: 'social' } },
+      {
+        $group: {
+          _id: null,
+          reach: { $sum: { $ifNull: ['$metadata.reach', '$analytics.reach'] } },
+          engagement: { $sum: { $ifNull: ['$metadata.engagement', '$analytics.engagement'] } },
+        },
+      },
+    ]),
+    Media.countDocuments({ ...scope, moduleType: 'content', status: { $in: ['Published', 'Live', 'Approved'] } }),
+    Media.countDocuments({ ...scope, moduleType: 'content', status: { $in: ['Pending', 'In Review'] } }),
+    Media.countDocuments({ ...scope, moduleType: 'content', approvalStatus: 'approved' }),
+    Media.countDocuments({ ...scope, moduleType: 'content' }),
     Media.countDocuments({ ...scope, dueDate: { $gte: now, $lte: inTwoWeeks } }),
     Media.aggregate([
       { $match: { ...scope } },
@@ -272,26 +306,17 @@ const getOverview = async (projectId) => {
       { $group: { _id: '$moduleType', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]),
-    Media.find(scope).sort({ updatedAt: -1 }).limit(6).lean(),
+    Media.find(scope).select('title section status updatedAt').sort({ updatedAt: -1 }).limit(6).lean(),
   ]);
 
   const totalBytes = storageAgg[0]?.totalBytes || 0;
   const totalSpend = spendAgg[0]?.spend || 0;
   const avgRoi = roiAgg[0]?.roi || 0;
+  const socialReach = socialMetrics[0]?.reach || 0;
+  const socialEngagement = socialMetrics[0]?.engagement || 0;
 
-  const socialReach = socialItems.reduce(
-    (sum, item) => sum + toNumber(item?.metadata?.reach || item?.analytics?.reach || 0),
-    0
-  );
-  const socialEngagement = socialItems.reduce(
-    (sum, item) => sum + toNumber(item?.metadata?.engagement || item?.analytics?.engagement || 0),
-    0
-  );
-  const contentPublished = contentItems.filter((row) => ['Published', 'Live', 'Approved'].includes(row.status)).length;
-  const contentInReview = contentItems.filter((row) => ['Pending', 'In Review'].includes(row.status)).length;
-  const approvedItems = contentItems.filter((row) => row.approvalStatus === 'approved').length;
-  const teamProductivity = (approvedItems + contentPublished) && contentItems.length
-    ? Math.round(((approvedItems + contentPublished) / contentItems.length) * 100)
+  const teamProductivity = (approvedItems + contentPublished) && contentTotal
+    ? Math.round(((approvedItems + contentPublished) / contentTotal) * 100)
     : 0;
 
   return {
@@ -306,7 +331,7 @@ const getOverview = async (projectId) => {
       contentProductionStatus: {
         published: contentPublished,
         inReview: contentInReview,
-        total: contentItems.length,
+        total: contentTotal,
       },
       pendingApprovals,
       designRequests,
@@ -429,7 +454,7 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId) => {
   const existing = await Media.findOne({ _id: id, ...(projectId ? { projectId } : {}) });
   if (!existing) return null;
 
-  const update = normalizeMediaPayload(payload);
+  const update = normalizeMediaPayload(payload, existing);
   const shouldBumpVersion = Boolean(payload.versionNote || payload.changeSummary || payload.bumpVersion);
 
   if (shouldBumpVersion) {
@@ -568,12 +593,16 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, steps = DEFAUL
     throw err;
   }
 
+  const workflowSteps = Array.isArray(steps)
+    ? steps.map((step) => ({ ...step }))
+    : DEFAULT_APPROVAL_STEPS.map((step) => ({ ...step }));
+
   const workflow = await createApprovalRequest({
     module: 'media',
     entityType: 'media',
     entityId: record._id,
     requestedBy,
-    steps,
+    steps: workflowSteps,
   });
 
   record.approvalWorkflowId = workflow._id;
@@ -738,7 +767,7 @@ const getReportingSummary = async (projectId) => {
       .sort({ createdAt: -1 })
       .limit(25)
       .lean(),
-    Media.find(scope).sort({ updatedAt: -1 }).limit(10).lean(),
+    Media.find(scope).select('title section status updatedAt projectId').sort({ updatedAt: -1 }).limit(10).lean(),
   ]);
 
   return {

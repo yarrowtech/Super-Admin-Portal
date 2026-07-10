@@ -1,3 +1,5 @@
+import { MEDIA_PORTAL_ROLES } from '../utils/rbac';
+
 export const getDefaultRoute = (user) => {
   const role = user?.role;
   const outsourcingType = String(user?.metadata?.outsourcingType || '')
@@ -35,9 +37,24 @@ export const getDefaultRoute = (user) => {
     law: '/law/dashboard',
     finance: '/finance/dashboard',
     media: '/media/dashboard',
+    marketing_head: '/media/dashboard',
+    media_manager: '/media/dashboard',
+    content_writer: '/media/dashboard',
+    graphic_designer: '/media/dashboard',
+    video_editor: '/media/dashboard',
+    seo_specialist: '/media/dashboard',
+    social_media_manager: '/media/dashboard',
+    ads_manager: '/media/dashboard',
+    project_manager: '/media/dashboard',
+    department_head: '/media/dashboard',
+    client_viewer: '/media/dashboard',
     sales: '/sales/dashboard',
     research_operator: '/research/dashboard',
   };
+
+  if (MEDIA_PORTAL_ROLES.includes(role)) {
+    return '/media/dashboard';
+  }
 
   return roleRoutes[role] || '/hr/dashboard';
 };

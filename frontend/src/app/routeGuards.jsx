@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { canAccessPortal } from '../utils/rbac';
+import { canAccessPortal, MEDIA_PORTAL_ROLES } from '../utils/rbac';
 
 const normalizeOutsourcingType = (value) =>
   String(value || '')
@@ -65,6 +65,7 @@ export const defaultRolePath = (user) => {
     case 'video_editor':
     case 'seo_specialist':
     case 'social_media_manager':
+    case 'ads_manager':
     case 'project_manager':
     case 'department_head':
     case 'client_viewer':
@@ -147,4 +148,7 @@ export const OutsourcingRoute = ({ children }) => {
   return children;
 };
 
-export const allowRoleWithAdmin = (role) => [role, 'admin', 'super_admin', 'superadmin'];
+export const allowRoleWithAdmin = (role) =>
+  role === 'media'
+    ? [...MEDIA_PORTAL_ROLES, 'admin', 'super_admin', 'superadmin']
+    : [role, 'admin', 'super_admin', 'superadmin'];

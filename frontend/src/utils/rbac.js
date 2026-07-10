@@ -14,6 +14,21 @@ export const PORTALS = {
   OUTSOURCING: 'outsourcing',
 };
 
+export const MEDIA_PORTAL_ROLES = [
+  'media',
+  'marketing_head',
+  'media_manager',
+  'content_writer',
+  'graphic_designer',
+  'video_editor',
+  'seo_specialist',
+  'social_media_manager',
+  'ads_manager',
+  'project_manager',
+  'department_head',
+  'client_viewer',
+];
+
 const baseRoleAccess = {
   admin: [PORTALS.ADMIN, PORTALS.CEO, PORTALS.HR, PORTALS.IT, PORTALS.LAW, PORTALS.MEDIA, PORTALS.FINANCE, PORTALS.MANAGER, PORTALS.EMPLOYEE, PORTALS.OUTSOURCING],
   super_admin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
@@ -76,20 +91,7 @@ export const canAccessPortal = (user, portal) => {
     );
   }
   if (portal === PORTALS.MEDIA) {
-    return [
-      'media',
-      'marketing_head',
-      'media_manager',
-      'content_writer',
-      'graphic_designer',
-      'video_editor',
-      'seo_specialist',
-      'social_media_manager',
-      'ads_manager',
-      'project_manager',
-      'department_head',
-      'client_viewer',
-    ].includes(role);
+    return MEDIA_PORTAL_ROLES.includes(role);
   }
   return false;
 };

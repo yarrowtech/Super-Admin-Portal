@@ -9,6 +9,12 @@ const otherDepartmentController = require('../controllers/department/otherDepart
 const router = express.Router();
 
 router.use(authenticate);
+router.use('/media', (req, res, next) => {
+  if (req.log?.child) {
+    req.log = req.log.child({ module: 'media', portal: 'media', routeSource: 'department' });
+  }
+  next();
+});
 
 router.get('/it/dashboard', itController.getDashboard);
 router.get('/media/dashboard', mediaController.getDashboard);

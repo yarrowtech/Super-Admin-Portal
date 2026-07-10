@@ -372,6 +372,7 @@ const tone = (status = '') => {
 };
 const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const money = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num(value));
+<<<<<<< HEAD
 const average = (values) => {
   const valid = values.map(num).filter((value) => value > 0);
   if (!valid.length) return 0;
@@ -430,6 +431,12 @@ const getChannelInsights = (section, records) => {
   }
   return [];
 };
+=======
+const formatTime = (value) =>
+  value
+    ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'pending';
+>>>>>>> b5b117c70ed79ae35f18ff41183c370639b10051
 const bytes = (value) => {
   const n = num(value);
   if (!n) return '0 B';
@@ -671,6 +678,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     () => projects.filter((project) => project.value),
     [projects]
   );
+  const selectedProjectLabel = projectOptions.find((item) => item.value === effectiveProjectId)?.code || 'All Projects';
+  const lastSyncLabel = formatTime(lastUpdated);
 
   const moduleCount = (section) => {
     const key = MODULE_FOR_SECTION[section];
@@ -2587,6 +2596,20 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           showThemeToggle
         >
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[760px]">
+            <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] font-semibold">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Last sync {lastSyncLabel}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-cyan-700">
+                <span className="material-symbols-outlined text-[14px]">folder_copy</span>
+                Scope {selectedProjectLabel}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
+                <span className="material-symbols-outlined text-[14px]">checklist</span>
+                {summary.recent.length} recent
+              </span>
+            </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!isProjectHub ? (
                 <div className="relative min-w-[220px] flex-1 xl:flex-none">

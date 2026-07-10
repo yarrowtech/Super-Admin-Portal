@@ -460,13 +460,7 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) 
   const existing = await Media.findOne(buildRecordScope(id, projectId, section));
   if (!existing) return null;
 
-<<<<<<< HEAD
-  const update = normalizeMediaPayload(payload);
-  if (payload.section === undefined) update.section = existing.section;
-  if (payload.moduleType === undefined && payload.section === undefined) update.moduleType = existing.moduleType;
-  ['storageUrl', 'storageKey', 'storageProvider', 'thumbnailUrl', 'previewUrl', 'mimeType', 'fileSizeBytes', 'storageUsageBytes'].forEach((key) => {
-    if (payload[key] === undefined) update[key] = existing[key];
-  });
+  const update = normalizeMediaPayload(payload, existing);
   const previousStorageKey = existing.storageKey;
   const previousMimeType = existing.mimeType;
   const replacedCloudinaryAsset =
@@ -475,9 +469,6 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) 
     update.storageProvider === 'cloudinary' &&
     update.storageKey &&
     update.storageKey !== previousStorageKey;
-=======
-  const update = normalizeMediaPayload(payload, existing);
->>>>>>> b5b117c70ed79ae35f18ff41183c370639b10051
   const shouldBumpVersion = Boolean(payload.versionNote || payload.changeSummary || payload.bumpVersion);
 
   if (shouldBumpVersion) {

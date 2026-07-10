@@ -58,6 +58,7 @@ import {
   OutsourcingSupportPage,
   MediaDashboardPage,
   SalesDashboardPage,
+  SalesQueryPage,
   ResearchDashboardPage,
   // Legal Document Management
   LegalDocManagementPage,
@@ -348,6 +349,16 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.MEDIA}>
               <PrivateRoute roles={allow('sales')}>
                 <SalesDashboardPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/query"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('sales')}>
+                <SalesQueryPage />
               </PrivateRoute>
             </PortalRoute>
           }

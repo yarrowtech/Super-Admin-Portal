@@ -1,21 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useSidebar } from '../../context/SidebarContext';
 import { departmentApi } from '../../services/departments';
-import MobilePortalNav from '../common/MobilePortalNav';
 import PortalHeader from '../common/PortalHeader';
-import SectionSidebar from '../common/SectionSidebar';
 import KPICard from '../common/KPICard';
-
-const MEDIA_THEME = {
-  '--portal-accent': '#0f766e',
-  '--portal-accent-soft': '#ccfbf1',
-  '--portal-accent-strong': '#134e4a',
-};
-
-const SALES_NAV = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', description: 'Sales command view' },
-];
+import SalesPortalLayout from './SalesPortalLayout';
 
 const WORKFLOW = [
   { key: 'lead', label: 'Lead captured', icon: 'person_add' },
@@ -99,7 +87,6 @@ const PipelinePanel = ({ pipeline }) => {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-black text-neutral-900 dark:text-neutral-100">Pipeline by stage</h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">Live sales records grouped from MongoDB.</p>
         </div>
         <span className="rounded-full bg-[var(--portal-accent-soft)] px-3 py-1 text-xs font-bold text-[var(--portal-accent)]">
           {pipeline.length} stages
@@ -107,7 +94,7 @@ const PipelinePanel = ({ pipeline }) => {
       </div>
 
       {pipeline.length === 0 ? (
-        <EmptyPanel icon="account_tree" title="No pipeline records yet" text="Sales records will appear here after they are created in the sales module." />
+        <EmptyPanel icon="account_tree" title="No pipeline records yet" />
       ) : (
         <div className="space-y-3">
           {pipeline.map((stage, index) => {
@@ -143,10 +130,9 @@ const RecentLeadsPanel = ({ leads }) => (
   <section className={cardClass}>
     <div className="mb-4">
       <h2 className="text-base font-black text-neutral-900 dark:text-neutral-100">Recent leads</h2>
-      <p className="text-xs text-neutral-500 dark:text-neutral-400">Latest sales records from the backend.</p>
     </div>
     {leads.length === 0 ? (
-      <EmptyPanel icon="person_search" title="No recent leads" text="New sales records will show here as soon as the team starts entering leads." />
+      <EmptyPanel icon="person_search" title="No recent leads" />
     ) : (
       <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
         {leads.slice(0, 8).map((lead, index) => {
@@ -172,7 +158,6 @@ const RecentLeadsPanel = ({ leads }) => (
 
 const MediaSalesPortal = () => {
   const { token, user } = useAuth();
-  const { collapsed } = useSidebar();
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -210,70 +195,36 @@ const MediaSalesPortal = () => {
   }, 0);
   const conversionRate = totalLeads > 0 ? Math.round((wonDeals / totalLeads) * 100) : 0;
 
-  const mobileItems = SALES_NAV.map((item) => ({
-    key: item.id,
-    label: item.label,
-    icon: item.icon,
-    active: item.id === 'dashboard',
-  }));
-
   return (
-    <div
-      className="portal-shell relative min-h-screen w-full overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#eef6f4_45%,#f6f8fb_100%)] text-neutral-900 dark:bg-background-dark dark:text-neutral-100"
-      style={MEDIA_THEME}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,118,110,0.12),transparent_26%),radial-gradient(circle_at_top_right,rgba(212,138,22,0.08),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(15,23,42,0.05),transparent_26%)]" />
-      <MobilePortalNav
-        title="Media Portal"
-        subtitle="Sales operations"
+    <SalesPortalLayout activeId="dashboard">
+      <PortalHeader
+        title="Sales Dashboard"
         icon="point_of_sale"
-        items={mobileItems}
-      />
-      <SectionSidebar
-        title="Media Portal"
-        subtitle="Sales operations"
-        icon="point_of_sale"
-        items={SALES_NAV}
-        activeId="dashboard"
+        user={user}
       />
 
-      <main
-        className={`relative min-h-screen transition-[margin] duration-300 ease-out-expo ${
-          collapsed ? 'md:ml-16' : 'md:ml-[250px]'
-        } pt-16 md:pt-0`}
-      >
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5 lg:px-6">
-          <PortalHeader
-            title="Sales Dashboard"
-            subtitle="Media sales pipeline, leads, conversion, and revenue visibility"
-            icon="point_of_sale"
-            user={user}
-          />
-
-          {error && (
-            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
-              {error}
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KPICard title="Total Leads" value={loading ? '...' : totalLeads} icon="groups" subtitle="MongoDB" compact />
-            <KPICard title="Pipeline Value" value={loading ? '...' : formatMoney(pipelineValue)} icon="payments" subtitle="Sales" compact />
-            <KPICard title="Won Deals" value={loading ? '...' : wonDeals} icon="task_alt" subtitle="Closed" compact />
-            <KPICard title="Conversion" value={loading ? '...' : `${conversionRate}%`} icon="percent" subtitle="Rate" compact />
-          </div>
-
-          <div className="mt-4">
-            <SalesWorkflow pipeline={pipeline} />
-          </div>
-
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-            <PipelinePanel pipeline={pipeline} />
-            <RecentLeadsPanel leads={recentLeads} />
-          </div>
+      {error && (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          {error}
         </div>
-      </main>
-    </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KPICard title="Total Leads" value={loading ? '...' : totalLeads} icon="groups" subtitle="MongoDB" compact />
+        <KPICard title="Pipeline Value" value={loading ? '...' : formatMoney(pipelineValue)} icon="payments" subtitle="Sales" compact />
+        <KPICard title="Won Deals" value={loading ? '...' : wonDeals} icon="task_alt" subtitle="Closed" compact />
+        <KPICard title="Conversion" value={loading ? '...' : `${conversionRate}%`} icon="percent" subtitle="Rate" compact />
+      </div>
+
+      <div className="mt-4">
+        <SalesWorkflow pipeline={pipeline} />
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <PipelinePanel pipeline={pipeline} />
+        <RecentLeadsPanel leads={recentLeads} />
+      </div>
+    </SalesPortalLayout>
   );
 };
 

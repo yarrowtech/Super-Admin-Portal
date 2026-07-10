@@ -13,21 +13,32 @@ const portalAccessController = require('./portalAccess.controller');
 const systemHealthController = require('./systemHealth.controller');
 const companyControlsController = require('./companyControls.controller');
 const { ensureSuperAdminDefaults } = require('../../utils/bootstrapSuperAdminData');
+const {
+  PROJECT_REGISTRY,
+  findProjectByCode,
+  matchesProject,
+  normalizeProjectKey,
+} = require('../../utils/projectAccess');
 
 const normalizeProjectAssignments = (input = []) => {
   if (!Array.isArray(input)) return [];
   return input
     .map((entry) => {
       if (typeof entry === 'string') {
-        const value = entry.trim();
-        return value ? value : null;
+        const canonical = findProjectByCode(entry);
+        return canonical
+          ? { projectCode: canonical.code, projectName: canonical.name }
+          : null;
       }
       if (!entry || typeof entry !== 'object') return null;
 
+      const canonical = findProjectByCode(entry.projectCode || entry.projectName || entry.projectId);
+      if (!canonical) return null;
+
       const cleaned = {};
       if (typeof entry.projectId === 'string' && entry.projectId.trim()) cleaned.projectId = entry.projectId.trim();
-      if (typeof entry.projectCode === 'string' && entry.projectCode.trim()) cleaned.projectCode = entry.projectCode.trim();
-      if (typeof entry.projectName === 'string' && entry.projectName.trim()) cleaned.projectName = entry.projectName.trim();
+      cleaned.projectCode = canonical.code;
+      cleaned.projectName = canonical.name;
       if (typeof entry.role === 'string' && entry.role.trim()) cleaned.role = entry.role.trim();
 
       const permissions = Array.isArray(entry.permissions)
@@ -68,8 +79,6 @@ exports.getDashboard = async (req, res) => {
     const [
       totalUsers,
       activeUsers,
-      totalProjects,
-      activeProjects,
       openTasks,
       enabledFlags,
       totalFlags,
@@ -79,8 +88,6 @@ exports.getDashboard = async (req, res) => {
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isActive: true }),
-      Project.countDocuments(),
-      Project.countDocuments({ status: { $in: ['planning', 'in-progress', 'on-hold'] } }),
       Task.countDocuments({ status: { $in: ['pending', 'in-progress', 'review'] } }),
       FeatureFlag.countDocuments({ enabled: true }),
       FeatureFlag.countDocuments(),
@@ -101,8 +108,8 @@ exports.getDashboard = async (req, res) => {
           inactive: Math.max(totalUsers - activeUsers, 0),
         },
         projects: {
-          total: totalProjects,
-          active: activeProjects,
+          total: PROJECT_REGISTRY.length,
+          active: PROJECT_REGISTRY.length,
         },
         tasks: {
           open: openTasks,
@@ -134,35 +141,36 @@ exports.getDashboard = async (req, res) => {
 
 exports.getProjectAllocations = async (req, res) => {
   try {
-    const [projects, users] = await Promise.all([
+    const [projectDocs, users] = await Promise.all([
       Project.find({}, 'name projectCode status progress deadline projectManager teamMembers updatedAt').sort({ updatedAt: -1 }).lean(),
       User.find({}, 'firstName lastName email role department metadata isActive accountStatus lastLogin createdAt').sort({ createdAt: -1 }).lean(),
     ]);
 
-    const projectRows = projects.map((project) => {
-      const assignments = users.filter((user) =>
-        extractProjectAssignments(user).some((assignment) => {
-          const tokens = typeof assignment === 'string'
-            ? [assignment.trim().toLowerCase()].filter(Boolean)
-            : [
-                assignment.projectId,
-                assignment.projectCode,
-                assignment.projectName,
-              ].filter(Boolean).map((item) => String(item).trim().toLowerCase());
+    const docByProject = new Map();
+    projectDocs.forEach((project) => {
+      const canonical = findProjectByCode(project.projectCode || project.name);
+      if (!canonical) return;
+      const key = normalizeProjectKey(canonical.code);
+      if (!docByProject.has(key)) docByProject.set(key, project);
+    });
 
-          return tokens.some((token) => {
-            if (!token) return false;
-            const projectFields = [
-              String(project._id || '').toLowerCase(),
-              String(project.projectCode || '').toLowerCase(),
-              String(project.name || '').toLowerCase(),
-            ];
-            return projectFields.some((field) => field.includes(token) || token.includes(field));
-          });
-        })
+    const projectRows = PROJECT_REGISTRY.map((project) => {
+      const linkedDoc = docByProject.get(normalizeProjectKey(project.code)) || {};
+      const assignments = users.filter((user) =>
+        extractProjectAssignments(user).some((assignment) => matchesProject(assignment, project))
       );
       return {
-        ...project,
+        ...linkedDoc,
+        _id: linkedDoc._id || project.code,
+        name: project.name,
+        projectCode: project.code,
+        description: project.description,
+        status: linkedDoc.status || 'active',
+        progress: linkedDoc.progress ?? 100,
+        deadline: linkedDoc.deadline || null,
+        launchUrl: project.launchUrl,
+        ssoPath: project.ssoPath,
+        apiOnly: Boolean(project.apiOnly),
         assignedUsers: assignments.length,
       };
     });

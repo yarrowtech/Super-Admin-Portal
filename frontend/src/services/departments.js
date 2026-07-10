@@ -135,5 +135,7 @@ export const departmentApi = {
   toggleMediaChecklistItem: (token, checklistType, itemId, params = {}) =>
     apiClient.patch(buildUrl(`/api/dept/media/checklists/${encodeURIComponent(checklistType)}/items/${itemId}/toggle`, params), {}, token),
   getSalesDashboard: (token) => apiClient.get('/api/dept/sales/dashboard', token),
+  getSalesQueries: (token) => apiClient.get('/api/dept/sales/queries', token),
+  createSalesQuery: (token, formData) => apiClient.upload('/api/dept/sales/queries', formData, token),
   getResearchDashboard: (token) => apiClient.get('/api/dept/research/dashboard', token),
 };

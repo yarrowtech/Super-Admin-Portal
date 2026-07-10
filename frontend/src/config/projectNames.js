@@ -11,7 +11,7 @@ export const CANONICAL_PROJECTS = Object.freeze([
     description: 'EdifyEight project workspace.',
     launchUrl: 'https://www.edifyeight.com',
     ssoPath: '/sso/eec',
-    aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT'],
+    aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT', 'EDIGYEIGHT', 'EDIFYEIGHT'],
   },
   {
     code: 'EHC',
@@ -23,7 +23,26 @@ export const CANONICAL_PROJECTS = Object.freeze([
     code: 'BETTERPASS',
     name: 'Better Pass',
     description: 'Better Pass project workspace.',
-    aliases: ['BETTER PASS', 'BetterPass', 'Better Pass Portal'],
+    aliases: ['THE BETTER PASS', 'BETTER PASS', 'BetterPass', 'Better Pass Portal'],
+  },
+  {
+    code: 'EFNBMMS',
+    name: 'EFNBMMS',
+    description: 'EFNBMMS admin-management data workspace.',
+    aliases: ['EFNBMMS Admin Management', 'EFNBMMS Portal', 'EFNBMMS API'],
+    apiOnly: true,
+  },
+  {
+    code: 'ESPORTSM',
+    name: 'ESPORTSM',
+    description: 'ESPORTSM project workspace.',
+    aliases: ['E Sports M', 'ESPORTS M', 'ESPORTSM Portal'],
+  },
+  {
+    code: 'ERMS',
+    name: 'ERMS',
+    description: 'ERMS project workspace.',
+    aliases: ['RMS', 'ERMS Portal', 'RMS Portal'],
   },
 ]);
 
@@ -100,6 +119,7 @@ export const resolveCanonicalProjects = (projects = []) => {
       name: canonical.name,
       description: canonical.description,
       aliases: canonical.aliases,
+      apiOnly: Boolean(canonical.apiOnly || match?.apiOnly),
       launchUrl: match?.launchUrl || '',
       ssoPath: match?.ssoPath || '/sso-login',
       assigned: Boolean(match?.assigned),

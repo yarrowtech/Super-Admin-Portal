@@ -80,6 +80,7 @@ export const MediaPortalPage    = MediaDashboardPage;
 
 // ── Department portals ────────────────────────────────────────────────────────
 export const SalesDashboardPage    = lazy(() => import('../components/media/MediaSalesPortal'));
+export const SalesQueryPage        = lazy(() => import('../components/media/SalesQueryPage'));
 export const ResearchDashboardPage = lazy(() => import('../components/department/DepartmentPortals').then(m => ({ default: m.ResearchDepartmentPortal })));
 
 // ── Law portal ────────────────────────────────────────────────────────────────

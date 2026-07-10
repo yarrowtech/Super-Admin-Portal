@@ -63,6 +63,7 @@ const buildProjectEnvelope = (project, user) => {
     description: project.description,
     launchUrl: project.launchUrl,
     ssoPath: project.ssoPath,
+    apiOnly: Boolean(project.apiOnly),
     assigned: project.assigned,
     accessGranted: project.accessGranted,
     role: project.role,

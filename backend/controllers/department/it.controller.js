@@ -7,6 +7,7 @@ const Session = require('../../models/auth/Session');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const AuditLog = require('../../models/admin/AuditLog');
 const { ROLES } = require('../../config/roles');
+const { CANONICAL_PROJECT_NAMES, findProjectByCode } = require('../../utils/projectAccess');
 
 const paged = (query = {}) => {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -41,6 +42,14 @@ const canUseItPortal = (req) =>
     ROLES.EMPLOYEE,
     ROLES.CEO,
   ].includes(req.user.role);
+const getCanonicalProjectFromPayload = (payload = {}) =>
+  findProjectByCode(payload.projectCode || payload.name);
+const canonicalProjectQuery = () => ({
+  $or: [
+    { projectCode: { $in: CANONICAL_PROJECT_NAMES.map((name) => findProjectByCode(name)?.code).filter(Boolean) } },
+    { name: { $in: CANONICAL_PROJECT_NAMES } },
+  ],
+});
 
 /**
  * @route   GET /api/dept/it/dashboard
@@ -49,8 +58,8 @@ const canUseItPortal = (req) =>
  */
 exports.getDashboard = async (req, res) => {
   try {
-    const totalProjects = await Project.countDocuments();
-    const activeProjects = await Project.countDocuments({ status: 'in-progress' });
+    const totalProjects = CANONICAL_PROJECT_NAMES.length;
+    const activeProjects = await Project.countDocuments({ ...canonicalProjectQuery(), status: 'in-progress' });
     const totalTickets = await ITTicket.countDocuments();
     const openTickets = await ITTicket.countDocuments({ status: { $in: ['open', 'in-progress'] } });
     const criticalTickets = await ITTicket.countDocuments({ priority: 'critical', status: { $ne: 'closed' } });
@@ -94,14 +103,15 @@ exports.getProjects = async (req, res) => {
       });
     }
     const { page = 1, limit = 10, status, priority, projectManager, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
-    const query = {};
+    const query = canonicalProjectQuery();
 
-    if (status) query.status = status;
-    if (priority) query.priority = priority;
-    if (projectManager) query.projectManager = projectManager;
+    const extraFilters = {};
+    if (status) extraFilters.status = status;
+    if (priority) extraFilters.priority = priority;
+    if (projectManager) extraFilters.projectManager = projectManager;
     if (search) {
       const regex = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      query.$or = [
+      extraFilters.$or = [
         { name: regex },
         { description: regex },
         { projectCode: regex },
@@ -109,8 +119,9 @@ exports.getProjects = async (req, res) => {
         { 'client.company': regex },
       ];
     }
+    const finalQuery = Object.keys(extraFilters).length ? { $and: [query, extraFilters] } : query;
 
-    const projectDocs = await Project.find(query)
+    const projectDocs = await Project.find(finalQuery)
       .populate('projectManager', 'firstName lastName email')
       .populate('teamMembers.employee', 'firstName lastName email')
       .sort({ [sortBy]: String(sortOrder).toLowerCase() === 'asc' ? 1 : -1 })
@@ -134,12 +145,12 @@ exports.getProjects = async (req, res) => {
       };
     });
 
-    const count = await Project.countDocuments(query);
+    const count = await Project.countDocuments(finalQuery);
     const [planning, inProgress, completed, cancelled] = await Promise.all([
-      Project.countDocuments({ ...query, status: 'planning' }),
-      Project.countDocuments({ ...query, status: 'in-progress' }),
-      Project.countDocuments({ ...query, status: 'completed' }),
-      Project.countDocuments({ ...query, status: 'cancelled' }),
+      Project.countDocuments({ $and: [finalQuery, { status: 'planning' }] }),
+      Project.countDocuments({ $and: [finalQuery, { status: 'in-progress' }] }),
+      Project.countDocuments({ $and: [finalQuery, { status: 'completed' }] }),
+      Project.countDocuments({ $and: [finalQuery, { status: 'cancelled' }] }),
     ]);
 
     res.status(200).json({
@@ -175,7 +186,18 @@ exports.createProject = async (req, res) => {
         error: 'Insufficient role for IT project management'
       });
     }
-    const project = await Project.create(req.body);
+    const canonicalProject = getCanonicalProjectFromPayload(req.body);
+    if (!canonicalProject) {
+      return res.status(400).json({
+        success: false,
+        error: `Project must be one of: ${CANONICAL_PROJECT_NAMES.join(', ')}`
+      });
+    }
+    const project = await Project.create({
+      ...req.body,
+      name: canonicalProject.name,
+      projectCode: canonicalProject.code,
+    });
     await project.populate('projectManager', 'firstName lastName email');
 
     res.status(201).json({
@@ -244,9 +266,21 @@ exports.updateProject = async (req, res) => {
         error: 'Insufficient role for IT project management'
       });
     }
+    const payload = { ...(req.body || {}) };
+    if (payload.name !== undefined || payload.projectCode !== undefined) {
+      const canonicalProject = getCanonicalProjectFromPayload(payload);
+      if (!canonicalProject) {
+        return res.status(400).json({
+          success: false,
+          error: `Project must be one of: ${CANONICAL_PROJECT_NAMES.join(', ')}`
+        });
+      }
+      payload.name = canonicalProject.name;
+      payload.projectCode = canonicalProject.code;
+    }
     const project = await Project.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      payload,
       { new: true, runValidators: true }
     )
       .populate('projectManager', 'firstName lastName email')
@@ -287,18 +321,9 @@ exports.deleteProject = async (req, res) => {
         error: 'Insufficient role for IT project management'
       });
     }
-    const project = await Project.findByIdAndDelete(req.params.id);
-
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        error: 'Project not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Project deleted successfully'
+    return res.status(403).json({
+      success: false,
+      error: 'Global projects cannot be deleted'
     });
   } catch (error) {
     logger.error({ err: error }, 'Delete project error');

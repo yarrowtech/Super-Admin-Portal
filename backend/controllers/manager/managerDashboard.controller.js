@@ -19,10 +19,10 @@ const {
   logLeaveAction,
   syncLeaveAttendance,
 } = require('../../services/leaveManagement.service');
-const { CANONICAL_PROJECT_NAMES } = require('../../utils/projectAccess');
+const { CANONICAL_PROJECT_NAMES, findProjectByCode } = require('../../utils/projectAccess');
 const STRICT_PROJECT_NAMES = CANONICAL_PROJECT_NAMES;
-const isStrictProjectName = (value) =>
-  STRICT_PROJECT_NAMES.includes(String(value || '').trim().toUpperCase());
+const getStrictProject = (value) => findProjectByCode(value);
+const isStrictProjectName = (value) => Boolean(getStrictProject(value));
 const hasGlobalManagerAccess = (user) =>
   [ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(user?.role);
 const shouldScopeByDepartment = (user) => Boolean(user?.department) && !hasGlobalManagerAccess(user);
@@ -436,8 +436,10 @@ exports.createProject = async (req, res) => {
       }));
     }
 
+    const canonicalProject = getStrictProject(trimmedName);
     const project = await Project.create({
-      name: trimmedName.toUpperCase(),
+      name: canonicalProject.name,
+      projectCode: canonicalProject.code,
       description: trimmedDescription,
       startDate: new Date(startDate),
       deadline: deadline ? new Date(deadline) : undefined,
@@ -508,7 +510,9 @@ exports.updateProject = async (req, res) => {
           error: `Project name must be one of: ${STRICT_PROJECT_NAMES.join(', ')}`
         });
       }
-      project.name = name.trim().toUpperCase();
+      const canonicalProject = getStrictProject(name);
+      project.name = canonicalProject.name;
+      project.projectCode = canonicalProject.code;
     }
     if (typeof description === 'string' && description.trim()) project.description = description.trim();
     if (typeof priority === 'string' && priority) project.priority = priority;

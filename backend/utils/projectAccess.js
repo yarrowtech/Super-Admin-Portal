@@ -2,6 +2,9 @@ const CANONICAL_PROJECT_NAMES = Object.freeze([
   'EdifyEight',
   'EHC',
   'Better Pass',
+  'EFNBMMS',
+  'ESPORTSM',
+  'ERMS',
 ]);
 
 const PROJECT_REGISTRY = [
@@ -11,7 +14,7 @@ const PROJECT_REGISTRY = [
     description: 'EdifyEight project workspace.',
     launchUrl: process.env.EEC_PORTAL_URL || 'https://www.edifyeight.com',
     ssoPath: '/sso/eec',
-    aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT'],
+    aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT', 'EDIGYEIGHT', 'EDIFYEIGHT'],
   },
   {
     code: 'EHC',
@@ -27,7 +30,32 @@ const PROJECT_REGISTRY = [
     description: 'Better Pass project workspace.',
     launchUrl: process.env.BETTER_PASS_PORTAL_URL || '',
     ssoPath: '/sso-login',
-    aliases: ['BETTER PASS', 'BetterPass', 'Better Pass Portal'],
+    aliases: ['THE BETTER PASS', 'BETTER PASS', 'BetterPass', 'Better Pass Portal'],
+  },
+  {
+    code: 'EFNBMMS',
+    name: 'EFNBMMS',
+    description: 'EFNBMMS admin-management data workspace.',
+    launchUrl: process.env.EFNBMMS_PORTAL_URL || '',
+    ssoPath: '/sso-login',
+    aliases: ['EFNBMMS Admin Management', 'EFNBMMS Portal', 'EFNBMMS API'],
+    apiOnly: true,
+  },
+  {
+    code: 'ESPORTSM',
+    name: 'ESPORTSM',
+    description: 'ESPORTSM project workspace.',
+    launchUrl: process.env.ESPORTSM_PORTAL_URL || '',
+    ssoPath: '/sso-login',
+    aliases: ['E Sports M', 'ESPORTS M', 'ESPORTSM Portal'],
+  },
+  {
+    code: 'ERMS',
+    name: 'ERMS',
+    description: 'ERMS project workspace.',
+    launchUrl: process.env.ERMS_PORTAL_URL || process.env.RMS_PORTAL_URL || '',
+    ssoPath: '/sso-login',
+    aliases: ['RMS', 'ERMS Portal', 'RMS Portal'],
   },
 ];
 
@@ -53,6 +81,10 @@ const normalizeProjectKey = (value) =>
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
+
+const getCanonicalProject = (value) => findProjectByCode(value);
+
+const isCanonicalProjectValue = (value) => Boolean(getCanonicalProject(value));
 
 const normalizeProjectAssignments = (input = []) => {
   if (!Array.isArray(input)) return [];
@@ -179,6 +211,7 @@ const getAccessibleProjects = (user = {}) => {
       launchUrl: project.launchUrl,
       ssoPath: project.ssoPath,
       aliases: project.aliases,
+      apiOnly: Boolean(project.apiOnly),
       assigned: Boolean(assignment),
       accessGranted,
       role: appRole,
@@ -266,6 +299,8 @@ module.exports = {
   CANONICAL_PROJECT_NAMES,
   PROJECT_REGISTRY,
   findProjectByCode,
+  getCanonicalProject,
+  isCanonicalProjectValue,
   normalizeProjectKey,
   normalizeProjectAssignments,
   getUserProjectAssignments,

@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
 import Button from '../common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
+import { QK } from '../../utils/queryKeys';
 
 // ── Shared mini design tokens for admin support page ──────────────────────────
 const tone = {
@@ -38,52 +40,53 @@ const initContract = { jobId: '', paymentType: 'hourly', rate: '', escrowAmount:
 const unwrapEfnbmmsRows = (payload) => payload?.data?.items || payload?.items || [];
 const unwrapEfnbmmsSummary = (payload) => payload?.data?.summary || payload?.summary || {};
 
+// Shared across 6 separately-routed pages (Dashboard/Freelancers/Jobs/Contracts/
+// Reports/Support) — each used to call this hook fresh on every route change,
+// re-fetching all 6 endpoints from scratch every time (same redundant-fetch
+// bug class fixed in Media's MediaWorkspace.jsx). Now backed by React Query,
+// so navigating between these routes reads from cache instead.
 const useOutsourcingAdminData = () => {
   const { token, user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [dashboard, setDashboard] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [contracts, setContracts] = useState([]);
-  const [timeLogs, setTimeLogs] = useState([]);
-  const [freelancers, setFreelancers] = useState([]);
-  const [efnbmmsAdmins, setEfnbmmsAdmins] = useState([]);
-  const [efnbmmsSummary, setEfnbmmsSummary] = useState({});
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState('');
+  const enabled = Boolean(token);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const [d, j, c, t, f, e] = await Promise.all([
-        outsourcingApi.getDashboard(token),
-        outsourcingApi.getJobs(token),
-        outsourcingApi.getContracts(token),
-        outsourcingApi.getTimeLogs(token),
-        outsourcingApi.getUsers(token),
-        outsourcingApi.getEfnbmmsAdminManagement(token, { limit: 50 }).catch((efnbmmsError) => ({
-          success: false,
-          error: efnbmmsError?.message || 'Failed to load EFNBMMS admin-management data',
-          data: { items: [], summary: {} },
-        }))
-      ]);
-      setDashboard(d.data);
-      setJobs(j.data || []);
-      setContracts(c.data || []);
-      setTimeLogs(t.data || []);
-      setFreelancers(f.data || []);
-      setEfnbmmsAdmins(unwrapEfnbmmsRows(e));
-      setEfnbmmsSummary(unwrapEfnbmmsSummary(e));
-      if (e?.success === false) setError(e.error);
-    } catch (err) {
-      setError(err.message || 'Failed to load outsourcing data');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const [dashboardQuery, jobsQuery, contractsQuery, timeLogsQuery, freelancersQuery, efnbmmsQuery] = useQueries({
+    queries: [
+      { queryKey: QK.admin.outsourcing('dashboard'), queryFn: () => outsourcingApi.getDashboard(token), enabled },
+      { queryKey: QK.admin.outsourcing('jobs'), queryFn: () => outsourcingApi.getJobs(token), enabled },
+      { queryKey: QK.admin.outsourcing('contracts'), queryFn: () => outsourcingApi.getContracts(token), enabled },
+      { queryKey: QK.admin.outsourcing('timeLogs'), queryFn: () => outsourcingApi.getTimeLogs(token), enabled },
+      { queryKey: QK.admin.outsourcing('users'), queryFn: () => outsourcingApi.getUsers(token), enabled },
+      {
+        queryKey: QK.admin.outsourcing('efnbmms', { limit: 50 }),
+        queryFn: () =>
+          outsourcingApi.getEfnbmmsAdminManagement(token, { limit: 50 }).catch((efnbmmsError) => ({
+            success: false,
+            error: efnbmmsError?.message || 'Failed to load EFNBMMS admin-management data',
+            data: { items: [], summary: {} },
+          })),
+        enabled,
+      },
+    ],
+  });
 
-  useEffect(() => {
-    if (token) loadData();
-  }, [token, loadData]);
+  const loading = [dashboardQuery, jobsQuery, contractsQuery, timeLogsQuery, freelancersQuery, efnbmmsQuery].some((q) => q.isLoading);
+  const dashboard = dashboardQuery.data?.data ?? null;
+  const jobs = useMemo(() => jobsQuery.data?.data || [], [jobsQuery.data]);
+  const contracts = useMemo(() => contractsQuery.data?.data || [], [contractsQuery.data]);
+  const timeLogs = useMemo(() => timeLogsQuery.data?.data || [], [timeLogsQuery.data]);
+  const freelancers = useMemo(() => freelancersQuery.data?.data || [], [freelancersQuery.data]);
+  const efnbmmsAdmins = useMemo(() => unwrapEfnbmmsRows(efnbmmsQuery.data), [efnbmmsQuery.data]);
+  const efnbmmsSummary = useMemo(() => unwrapEfnbmmsSummary(efnbmmsQuery.data), [efnbmmsQuery.data]);
+
+  const queryError =
+    [dashboardQuery, jobsQuery, contractsQuery, timeLogsQuery, freelancersQuery].find((q) => q.isError)?.error?.message ||
+    (efnbmmsQuery.data?.success === false ? efnbmmsQuery.data.error : '');
+  const error = actionError || queryError;
+  const setError = setActionError;
+
+  const loadData = () => queryClient.invalidateQueries({ queryKey: ['admin', 'outsourcing'] });
 
   return { token, user, loading, error, setError, dashboard, jobs, contracts, timeLogs, freelancers, efnbmmsAdmins, efnbmmsSummary, loadData };
 };

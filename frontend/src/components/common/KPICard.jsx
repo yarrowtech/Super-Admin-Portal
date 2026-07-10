@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { memo } from 'react';
 
-const KPICard = ({
+const KPICard = memo(({
   title = 'KPI Title',
   value = 0,
   icon = 'analytics',
@@ -68,6 +68,6 @@ const KPICard = ({
       </div>
     </div>
   </div>
-);
+));
 
 export default KPICard;

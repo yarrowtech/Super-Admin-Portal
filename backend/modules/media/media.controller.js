@@ -61,7 +61,7 @@ exports.createAsset = async (req, res) => {
 
 exports.getAssetById = async (req, res) => {
   try {
-    const data = await mediaService.getMediaRecordById(req.params.id, req.projectId);
+    const data = await mediaService.getMediaRecordById(req.params.id, req.projectId, 'asset');
     if (!data) return res.status(404).json({ success: false, error: 'Media asset not found' });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -71,7 +71,7 @@ exports.getAssetById = async (req, res) => {
 
 exports.updateAsset = async (req, res) => {
   try {
-    const data = await mediaService.updateMediaRecord(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId);
+    const data = await mediaService.updateMediaRecord(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId, 'asset');
     if (!data) return res.status(404).json({ success: false, error: 'Media asset not found' });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -81,7 +81,7 @@ exports.updateAsset = async (req, res) => {
 
 exports.deleteAsset = async (req, res) => {
   try {
-    const data = await mediaService.deleteMediaRecord(req.params.id, req.projectId, req.user?.id || req.user?._id);
+    const data = await mediaService.deleteMediaRecord(req.params.id, req.projectId, req.user?.id || req.user?._id, 'asset');
     if (!data) return res.status(404).json({ success: false, error: 'Media asset not found' });
     res.status(200).json({ success: true, data });
   } catch (err) {
@@ -107,6 +107,36 @@ exports.createContent = async (req, res) => {
     res.status(201).json({ success: true, data });
   } catch (err) {
     handleError(res, err, 'Failed to create content', 'Media module createContent error');
+  }
+};
+
+exports.getContentById = async (req, res) => {
+  try {
+    const data = await mediaService.getMediaRecordById(req.params.id, req.projectId, 'content');
+    if (!data) return res.status(404).json({ success: false, error: 'Content not found' });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to fetch content', 'Media module getContentById error');
+  }
+};
+
+exports.updateContent = async (req, res) => {
+  try {
+    const data = await mediaService.updateMediaRecord(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId, 'content');
+    if (!data) return res.status(404).json({ success: false, error: 'Content not found' });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to update content', 'Media module updateContent error');
+  }
+};
+
+exports.deleteContent = async (req, res) => {
+  try {
+    const data = await mediaService.deleteMediaRecord(req.params.id, req.projectId, req.user?.id || req.user?._id, 'content');
+    if (!data) return res.status(404).json({ success: false, error: 'Content not found' });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to delete content', 'Media module deleteContent error');
   }
 };
 
@@ -141,7 +171,7 @@ const makeSectionController = (section, label) => ({
   },
   getById: async (req, res) => {
     try {
-      const data = await mediaService.getMediaRecordById(req.params.id, req.projectId);
+      const data = await mediaService.getMediaRecordById(req.params.id, req.projectId, section);
       if (!data) return res.status(404).json({ success: false, error: `${label} not found` });
       res.status(200).json({ success: true, data });
     } catch (err) {
@@ -150,7 +180,7 @@ const makeSectionController = (section, label) => ({
   },
   update: async (req, res) => {
     try {
-      const data = await mediaService.updateMediaRecord(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId);
+      const data = await mediaService.updateMediaRecord(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId, section);
       if (!data) return res.status(404).json({ success: false, error: `${label} not found` });
       res.status(200).json({ success: true, data });
     } catch (err) {
@@ -159,7 +189,7 @@ const makeSectionController = (section, label) => ({
   },
   remove: async (req, res) => {
     try {
-      const data = await mediaService.deleteMediaRecord(req.params.id, req.projectId, req.user?.id || req.user?._id);
+      const data = await mediaService.deleteMediaRecord(req.params.id, req.projectId, req.user?.id || req.user?._id, section);
       if (!data) return res.status(404).json({ success: false, error: `${label} not found` });
       res.status(200).json({ success: true, data });
     } catch (err) {
@@ -172,6 +202,11 @@ exports.brandAssets = makeSectionController('brand', 'brand asset');
 exports.design = makeSectionController('design', 'design item');
 exports.video = makeSectionController('video', 'video item');
 exports.social = makeSectionController('social', 'social post');
+exports.advertisements = makeSectionController('advertisement', 'advertisement');
+exports.seo = makeSectionController('seo', 'SEO item');
+exports.website = makeSectionController('website', 'website item');
+exports.testimonials = makeSectionController('testimonial', 'testimonial');
+exports.caseStudies = makeSectionController('case-study', 'case study');
 
 exports.uploadFile = async (req, res) => {
   try {
@@ -201,6 +236,7 @@ exports.requestApproval = async (req, res) => {
       mediaId: req.params.id,
       requestedBy: req.user?.id || req.user?._id,
       projectId: req.projectId,
+      section: req.mediaSection,
       steps: req.body?.steps,
     });
     res.status(201).json({ success: true, data });

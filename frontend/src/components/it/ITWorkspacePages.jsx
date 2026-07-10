@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PortalHeader from '../common/PortalHeader';
 import Button from '../common/Button';
 import DataTable from '../ui/DataTable';
@@ -8,6 +9,7 @@ import { itApi } from '../../services/it';
 import { outsourcingApi } from '../../services/outsourcing';
 import { resolveCanonicalProjects } from '../../config/projectNames';
 import { useAuth } from '../../context/AuthContext';
+import { QK } from '../../utils/queryKeys';
 import ITDashboard from './ITDashboard';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
@@ -564,6 +566,7 @@ export const ITProductWorkspacePage = () => {
 export const ITTicketsPage = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const page     = Math.max(1, Number(searchParams.get('page')     || 1));
   const limit    = Math.max(5, Number(searchParams.get('limit')    || 10));
@@ -571,10 +574,18 @@ export const ITTicketsPage = () => {
   const status   = searchParams.get('status')   || '';
   const priority = searchParams.get('priority') || '';
 
-  const { loading, error, data } = useAsync(
-    () => itApi.getSupportTickets(token, { page, limit, search, status, priority, sortBy: 'createdAt', sortOrder: 'desc' }),
-    [token, page, limit, search, status, priority],
+  const ticketsParams = useMemo(
+    () => ({ page, limit, search, status, priority, sortBy: 'createdAt', sortOrder: 'desc' }),
+    [page, limit, search, status, priority]
   );
+  const ticketsQuery = useQuery({
+    queryKey: QK.it.tickets(ticketsParams),
+    queryFn: () => itApi.getSupportTickets(token, ticketsParams),
+    enabled: Boolean(token),
+  });
+  const loading = ticketsQuery.isLoading;
+  const error = ticketsQuery.isError ? (ticketsQuery.error?.message || 'Failed to load data') : '';
+  const data = unwrap(ticketsQuery.data);
 
   const rows    = data.items   || data.tickets || [];
   const summary = data.summary || {};
@@ -598,10 +609,7 @@ export const ITTicketsPage = () => {
       await itApi.createSupportTicket(token, form);
       setShowForm(false);
       setForm({ title: '', description: '', priority: 'medium', category: '' });
-      // Force re-fetch by changing a search param
-      const next = new URLSearchParams(searchParams);
-      next.set('_t', Date.now());
-      setSearchParams(next);
+      queryClient.invalidateQueries({ queryKey: ['it', 'tickets'] });
     } catch {
       // error handled silently; form stays open
     } finally {
@@ -759,17 +767,24 @@ export const ITTicketsPage = () => {
 export const ITTicketDetailPage = () => {
   const { token, user } = useAuth();
   const { ticketId } = useParams();
+  const queryClient = useQueryClient();
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
 
-  const { loading, error, data, } = useAsync(
-    async () => ({ ticket: unwrap(await itApi.getSupportTicketById(token, ticketId)) }),
-    [token, ticketId, searchParams.get('_r')],
-  );
-
-  const ticket   = data.ticket || {};
+  const ticketQuery = useQuery({
+    queryKey: QK.it.ticket(ticketId),
+    queryFn: () => itApi.getSupportTicketById(token, ticketId),
+    enabled: Boolean(token && ticketId),
+  });
+  const loading = ticketQuery.isLoading;
+  const error = ticketQuery.isError ? (ticketQuery.error?.message || 'Failed to load data') : '';
+  const ticket = unwrap(ticketQuery.data);
   const comments = Array.isArray(ticket.metadata?.comments) ? ticket.metadata.comments : [];
+
+  const invalidateTicket = () => {
+    queryClient.invalidateQueries({ queryKey: QK.it.ticket(ticketId) });
+    queryClient.invalidateQueries({ queryKey: ['it', 'tickets'] });
+  };
 
   const handleComment = async (e) => {
     e.preventDefault();
@@ -778,9 +793,7 @@ export const ITTicketDetailPage = () => {
     try {
       await itApi.addTicketComment(token, ticketId, { comment });
       setComment('');
-      const next = new URLSearchParams(searchParams);
-      next.set('_r', Date.now());
-      setSearchParams(next);
+      invalidateTicket();
     } catch { /* silent */ } finally { setSubmitting(false); }
   };
 
@@ -788,9 +801,7 @@ export const ITTicketDetailPage = () => {
     try {
       if (action === 'resolve') await itApi.resolveSupportTicket(token, ticketId, {});
       if (action === 'close')   await itApi.closeSupportTicket(token, ticketId);
-      const next = new URLSearchParams(searchParams);
-      next.set('_r', Date.now());
-      setSearchParams(next);
+      invalidateTicket();
     } catch { /* silent */ }
   };
 

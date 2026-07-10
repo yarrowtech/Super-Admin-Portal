@@ -68,7 +68,12 @@ const BudgetTracker = ({ projectId }) => {
   };
 
   if (!projectId) {
-    return <div className={card}><p className="text-sm text-neutral-500 dark:text-neutral-400">Select a project to view its budget.</p></div>;
+    return (
+      <section className={card}>
+        <h2 className="text-xl font-black text-slate-950 dark:text-neutral-100">Budget Control</h2>
+        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Select a project to manage campaign budget and expenses.</p>
+      </section>
+    );
   }
 
   const tiles = [
@@ -84,6 +89,16 @@ const BudgetTracker = ({ projectId }) => {
     <div className="space-y-4">
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">{error}</div> : null}
 
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[22px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">payments</span>
+          <div>
+            <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">Budget Control</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Allocate spend, record expenses, and monitor ROI, ROAS, and cost per lead.</p>
+          </div>
+        </div>
+      </section>
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {tiles.map(([label, value]) => (
           <div key={label} className={card}>
@@ -98,7 +113,7 @@ const BudgetTracker = ({ projectId }) => {
           <p className="mb-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Total project budget</p>
           <div className="flex gap-2">
             <input type="number" min="0" value={totalBudget} onChange={(e) => setTotalBudget(e.target.value)} className={`flex-1 ${input}`} placeholder="0" />
-            <button type="submit" disabled={busy} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">Save</button>
+            <button type="submit" disabled={busy} className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50">Save</button>
           </div>
         </form>
 
@@ -108,7 +123,7 @@ const BudgetTracker = ({ projectId }) => {
           <input value={expenseForm.category} onChange={(e) => setExpenseForm((f) => ({ ...f, category: e.target.value }))} placeholder="Category" className={input} />
           <input type="number" min="0" required value={expenseForm.amount} onChange={(e) => setExpenseForm((f) => ({ ...f, amount: e.target.value }))} placeholder="Amount" className={input} />
           <input value={expenseForm.note} onChange={(e) => setExpenseForm((f) => ({ ...f, note: e.target.value }))} placeholder="Note" className={input} />
-          <button type="submit" disabled={busy} className="col-span-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">Add expense</button>
+          <button type="submit" disabled={busy} className="col-span-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50">Add expense</button>
         </form>
       </div>
 
@@ -132,7 +147,11 @@ const BudgetTracker = ({ projectId }) => {
               </tbody>
             </table>
           </div>
-        ) : <p className="text-sm text-neutral-500 dark:text-neutral-400">No expenses recorded yet.</p>}
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">
+            No expenses recorded
+          </div>
+        )}
       </div>
     </div>
   );

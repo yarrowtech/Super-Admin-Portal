@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
 import StatsCard from '../common/StatsCard';
 import { superAdminApi } from '../../services/superAdmin';
+import { QK } from '../../utils/queryKeys';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -71,168 +73,124 @@ const normalizeEntity = (payload) => {
 
 export default function SuperAdminDashboard() {
   const { token, user } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('overview');
-  const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [overview, setOverview] = useState({});
-  const [metrics, setMetrics] = useState({});
-  const [activeSessionCount, setActiveSessionCount] = useState(0);
-  const [users, setUsers] = useState([]);
   const [usersPage, setUsersPage] = useState(1);
-  const [usersTotalPages, setUsersTotalPages] = useState(1);
-  const [usersTotal, setUsersTotal] = useState(0);
   const [usersSearch, setUsersSearch] = useState('');
-  const [usersLoading, setUsersLoading] = useState(false);
+  const [committedUsersSearch, setCommittedUsersSearch] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
-  const [userDetail, setUserDetail] = useState(null);
   const [userDraft, setUserDraft] = useState(initialUserDraft);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
-  const [sessions, setSessions] = useState([]);
-  const [userSessions, setUserSessions] = useState([]);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionUserId, setSessionUserId] = useState('');
+  const [viewingSessionsUserId, setViewingSessionsUserId] = useState('');
   const [sessionBusy, setSessionBusy] = useState('');
-  const [audit, setAudit] = useState([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [securityEvents, setSecurityEvents] = useState([]);
-  const [replayAttempts, setReplayAttempts] = useState([]);
-  const [failedLogins, setFailedLogins] = useState([]);
-  const [activeSecuritySessions, setActiveSecuritySessions] = useState([]);
-  const [securityLoading, setSecurityLoading] = useState(false);
-  const [health, setHealth] = useState({});
-  const [databaseHealth, setDatabaseHealth] = useState({});
-  const [ssoHealth, setSsoHealth] = useState({});
-  const [permissionsHealth, setPermissionsHealth] = useState({});
-  const [sessionsHealth, setSessionsHealth] = useState({});
-  const [healthLoading, setHealthLoading] = useState(false);
   const selectedUserKey = selectedUserId || selectedUser?._id || selectedUser?.id || '';
+  const enabled = Boolean(token);
 
-  const loadOverview = useCallback(async () => {
-    if (!token) return;
-    try {
-      const [overviewRes, metricsRes, countRes] = await Promise.allSettled([
-        superAdminApi.getOverview(token),
-        superAdminApi.getMetrics(token),
-        superAdminApi.getActiveSessionCount(token),
-      ]);
-      if (overviewRes.status === 'fulfilled') setOverview(normalizeEntity(overviewRes.value));
-      if (metricsRes.status === 'fulfilled') setMetrics(normalizeEntity(metricsRes.value));
-      if (countRes.status === 'fulfilled') {
-        const payload = normalizeEntity(countRes.value);
-        setActiveSessionCount(Number(payload.count ?? payload.activeCount ?? payload.value ?? 0));
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to load overview');
+  // Each tab's data is now its own independent query — this is the fix for
+  // the real bug found here: the old single `loadAll` callback depended on
+  // `usersSearch` transitively, so every keystroke in the Users search box
+  // re-fetched all 16 endpoints across all 6 tabs, not just the Users list.
+  const [overviewQuery, metricsQuery, sessionCountQuery] = useQueries({
+    queries: [
+      { queryKey: QK.admin.superAdmin.overview(), queryFn: () => superAdminApi.getOverview(token), enabled },
+      { queryKey: QK.admin.superAdmin.metrics(), queryFn: () => superAdminApi.getMetrics(token), enabled },
+      { queryKey: QK.admin.superAdmin.sessionCount(), queryFn: () => superAdminApi.getActiveSessionCount(token), enabled },
+    ],
+  });
+  const overview = normalizeEntity(overviewQuery.data);
+  const metrics = normalizeEntity(metricsQuery.data);
+  const activeSessionCount = (() => {
+    const payload = normalizeEntity(sessionCountQuery.data);
+    return Number(payload.count ?? payload.activeCount ?? payload.value ?? 0);
+  })();
+
+  const usersParams = useMemo(
+    () => ({ page: usersPage, limit: 10, search: committedUsersSearch || undefined }),
+    [usersPage, committedUsersSearch]
+  );
+  const usersQuery = useQuery({
+    queryKey: QK.admin.superAdmin.users(usersParams),
+    queryFn: () => superAdminApi.getUsers(token, usersParams),
+    enabled,
+  });
+  const usersPayload = normalizeUserList(usersQuery.data, usersPage);
+  const users = usersPayload.users;
+  const usersTotalPages = usersPayload.totalPages || 1;
+  const usersTotal = usersPayload.total || 0;
+  const usersLoading = usersQuery.isLoading;
+
+  // Auto-select the first user once the list loads, if nothing is selected yet.
+  useMemo(() => {
+    if (!selectedUserKey && users[0]) {
+      const first = users[0];
+      setSelectedUser(first);
+      setSelectedUserId(first._id || first.id || '');
+      setUserDraft(buildUserDraft(first));
     }
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users]);
 
-  const loadUsers = useCallback(async (page = 1, search = '') => {
-    if (!token) return;
-    try {
-      setUsersLoading(true);
-      const payload = normalizeUserList(await superAdminApi.getUsers(token, { page, limit: 10, search: search || undefined }), page);
-      setUsers(payload.users);
-      setUsersPage(payload.page);
-      setUsersTotalPages(payload.totalPages || 1);
-      setUsersTotal(payload.total || 0);
-      if (!selectedUserKey && payload.users[0]) {
-        const first = payload.users[0];
-        setSelectedUser(first);
-        setSelectedUserId(first._id || first.id || '');
-        setUserDraft(buildUserDraft(first));
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to load users');
-    } finally {
-      setUsersLoading(false);
-    }
-  }, [token, selectedUserKey]);
+  const userDetailQuery = useQuery({
+    queryKey: QK.admin.superAdmin.user(selectedUserKey),
+    queryFn: () => superAdminApi.getUser(token, selectedUserKey),
+    enabled: Boolean(token && selectedUserKey),
+  });
+  const userDetail = userDetailQuery.data ? normalizeEntity(userDetailQuery.data) : null;
+  const detailLoading = userDetailQuery.isLoading;
 
-  const loadUserDetail = useCallback(async (userId) => {
-    if (!token || !userId) return;
-    try {
-      setDetailLoading(true);
-      const payload = normalizeEntity(await superAdminApi.getUser(token, userId));
-      setUserDetail(payload);
-      setUserDraft(buildUserDraft(payload));
-      setSelectedUser(payload);
-    } catch (err) {
-      setError(err.message || 'Failed to load user detail');
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [token]);
+  const userSessionsQuery = useQuery({
+    queryKey: QK.admin.superAdmin.userSessions(viewingSessionsUserId),
+    queryFn: () => superAdminApi.getUserSessions(token, viewingSessionsUserId),
+    enabled: Boolean(token && viewingSessionsUserId),
+  });
+  const userSessions = toArray(userSessionsQuery.data, ['sessions', 'items', 'results', 'records']);
 
-  const loadUserSessions = useCallback(async (userId) => {
-    if (!token || !userId) return;
-    try {
-      setSessionsLoading(true);
-      const payload = normalizeEntity(await superAdminApi.getUserSessions(token, userId));
-      setUserSessions(toArray(payload, ['sessions', 'items', 'results', 'records']));
-    } catch (err) {
-      setError(err.message || 'Failed to load user sessions');
-    } finally {
-      setSessionsLoading(false);
-    }
-  }, [token]);
+  const sessionsQuery = useQuery({
+    queryKey: QK.admin.superAdmin.sessions(),
+    queryFn: () => superAdminApi.getSessions(token, { limit: 50 }),
+    enabled,
+  });
+  const sessions = toArray(sessionsQuery.data, ['sessions', 'items', 'results', 'records']);
+  const sessionsLoading = sessionsQuery.isLoading || userSessionsQuery.isLoading;
 
-  const loadSessions = useCallback(async () => {
-    if (!token) return;
-    try {
-      setSessionsLoading(true);
-      const [sessionsRes, countRes] = await Promise.allSettled([superAdminApi.getSessions(token, { limit: 50 }), superAdminApi.getActiveSessionCount(token)]);
-      if (sessionsRes.status === 'fulfilled') setSessions(toArray(sessionsRes.value, ['sessions', 'items', 'results', 'records']));
-      if (countRes.status === 'fulfilled') {
-        const payload = normalizeEntity(countRes.value);
-        setActiveSessionCount(Number(payload.count ?? payload.activeCount ?? payload.value ?? 0));
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to load sessions');
-    } finally {
-      setSessionsLoading(false);
-    }
-  }, [token]);
+  const auditQuery = useQuery({
+    queryKey: QK.admin.superAdmin.audit(),
+    queryFn: () => superAdminApi.getAudit(token, { limit: 50 }),
+    enabled,
+  });
+  const audit = toArray(auditQuery.data, ['audit', 'items', 'records', 'results', 'logs']);
+  const auditLoading = auditQuery.isLoading;
 
-  const loadAudit = useCallback(async () => {
-    if (!token) return;
-    try {
-      setAuditLoading(true);
-      const payload = normalizeEntity(await superAdminApi.getAudit(token, { limit: 50 }));
-      setAudit(toArray(payload, ['audit', 'items', 'records', 'results', 'logs']));
-    } catch (err) {
-      setError(err.message || 'Failed to load audit');
-    } finally {
-      setAuditLoading(false);
-    }
-  }, [token]);
-
-  const loadSecurity = useCallback(async () => {
-    if (!token) return;
-    try {
-      setSecurityLoading(true);
+  const securityQuery = useQuery({
+    queryKey: QK.admin.superAdmin.security(),
+    queryFn: async () => {
       const [eventsRes, replayRes, failedRes, activeRes] = await Promise.allSettled([
         superAdminApi.getSecurityEvents(token, { limit: 50 }),
         superAdminApi.getReplayAttempts(token, { limit: 50 }),
         superAdminApi.getFailedLogins(token, { limit: 50 }),
         superAdminApi.getActiveSessions(token, { limit: 50 }),
       ]);
-      if (eventsRes.status === 'fulfilled') setSecurityEvents(toArray(eventsRes.value, ['events', 'items', 'records', 'results', 'logs']));
-      if (replayRes.status === 'fulfilled') setReplayAttempts(toArray(replayRes.value, ['attempts', 'items', 'records', 'results', 'logs']));
-      if (failedRes.status === 'fulfilled') setFailedLogins(toArray(failedRes.value, ['failedLogins', 'items', 'records', 'results', 'logs']));
-      if (activeRes.status === 'fulfilled') setActiveSecuritySessions(toArray(activeRes.value, ['sessions', 'items', 'records', 'results', 'logs']));
-    } catch (err) {
-      setError(err.message || 'Failed to load security telemetry');
-    } finally {
-      setSecurityLoading(false);
-    }
-  }, [token]);
+      return {
+        events: eventsRes.status === 'fulfilled' ? toArray(eventsRes.value, ['events', 'items', 'records', 'results', 'logs']) : [],
+        replay: replayRes.status === 'fulfilled' ? toArray(replayRes.value, ['attempts', 'items', 'records', 'results', 'logs']) : [],
+        failed: failedRes.status === 'fulfilled' ? toArray(failedRes.value, ['failedLogins', 'items', 'records', 'results', 'logs']) : [],
+        active: activeRes.status === 'fulfilled' ? toArray(activeRes.value, ['sessions', 'items', 'records', 'results', 'logs']) : [],
+      };
+    },
+    enabled,
+  });
+  const securityEvents = securityQuery.data?.events || [];
+  const replayAttempts = securityQuery.data?.replay || [];
+  const failedLogins = securityQuery.data?.failed || [];
+  const activeSecuritySessions = securityQuery.data?.active || [];
+  const securityLoading = securityQuery.isLoading;
 
-  const loadHealth = useCallback(async () => {
-    if (!token) return;
-    try {
-      setHealthLoading(true);
+  const healthQuery = useQuery({
+    queryKey: QK.admin.superAdmin.health(),
+    queryFn: async () => {
       const [healthRes, dbRes, ssoRes, permissionsRes, sessionsRes] = await Promise.allSettled([
         superAdminApi.getHealth(token),
         superAdminApi.getDatabaseHealth(token),
@@ -240,36 +198,49 @@ export default function SuperAdminDashboard() {
         superAdminApi.getPermissionsHealth(token),
         superAdminApi.getSessionsHealth(token),
       ]);
-      if (healthRes.status === 'fulfilled') setHealth(normalizeEntity(healthRes.value));
-      if (dbRes.status === 'fulfilled') setDatabaseHealth(normalizeEntity(dbRes.value));
-      if (ssoRes.status === 'fulfilled') setSsoHealth(normalizeEntity(ssoRes.value));
-      if (permissionsRes.status === 'fulfilled') setPermissionsHealth(normalizeEntity(permissionsRes.value));
-      if (sessionsRes.status === 'fulfilled') setSessionsHealth(normalizeEntity(sessionsRes.value));
-    } catch (err) {
-      setError(err.message || 'Failed to load health checks');
-    } finally {
-      setHealthLoading(false);
-    }
-  }, [token]);
+      return {
+        health: healthRes.status === 'fulfilled' ? normalizeEntity(healthRes.value) : {},
+        database: dbRes.status === 'fulfilled' ? normalizeEntity(dbRes.value) : {},
+        sso: ssoRes.status === 'fulfilled' ? normalizeEntity(ssoRes.value) : {},
+        permissions: permissionsRes.status === 'fulfilled' ? normalizeEntity(permissionsRes.value) : {},
+        sessionsHealth: sessionsRes.status === 'fulfilled' ? normalizeEntity(sessionsRes.value) : {},
+      };
+    },
+    enabled,
+  });
+  const health = useMemo(() => healthQuery.data?.health || {}, [healthQuery.data]);
+  const databaseHealth = useMemo(() => healthQuery.data?.database || {}, [healthQuery.data]);
+  const ssoHealth = useMemo(() => healthQuery.data?.sso || {}, [healthQuery.data]);
+  const permissionsHealth = useMemo(() => healthQuery.data?.permissions || {}, [healthQuery.data]);
+  const sessionsHealth = useMemo(() => healthQuery.data?.sessionsHealth || {}, [healthQuery.data]);
+  const healthLoading = healthQuery.isLoading;
 
-  const loadAll = useCallback(async () => {
+  const [actionError, setActionError] = useState('');
+  const error = actionError || [overviewQuery, metricsQuery, sessionCountQuery, usersQuery, sessionsQuery, auditQuery, securityQuery, healthQuery]
+    .find((q) => q.isError)?.error?.message || '';
+  const setError = setActionError;
+
+  const loadAudit = () => queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.audit() });
+  const loadSecurity = () => queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.security() });
+  const loadHealth = () => queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.health() });
+  const loadUserSessions = (userId) => setViewingSessionsUserId(userId || '');
+  const loadAll = () => {
     setError('');
     setNotice('');
-    await Promise.allSettled([loadOverview(), loadUsers(1, usersSearch), loadSessions(), loadAudit(), loadSecurity(), loadHealth()]);
-  }, [loadAudit, loadHealth, loadOverview, loadSecurity, loadSessions, loadUsers, usersSearch]);
+    queryClient.invalidateQueries({ queryKey: ['admin', 'superAdmin'] });
+  };
 
-  useEffect(() => {
-    if (token) loadAll();
-  }, [token, loadAll]);
-
-  const refreshUserList = async (page = usersPage, search = usersSearch) => loadUsers(page, search);
-  const selectUser = async (userRow) => {
+  const refreshUserList = (page = usersPage, search = usersSearch) => {
+    setUsersPage(page);
+    setCommittedUsersSearch(search);
+  };
+  const selectUser = (userRow) => {
     const userId = userRow?._id || userRow?.id || '';
     if (!userId) return;
     setSelectedUserId(userId);
     setSelectedUser(userRow);
     setSessionUserId(userId);
-    await Promise.allSettled([loadUserDetail(userId), loadUserSessions(userId)]);
+    setViewingSessionsUserId(userId);
   };
   const saveUser = async () => {
     if (!token || !selectedUserKey) return;
@@ -290,10 +261,10 @@ export default function SuperAdminDashboard() {
       const response = await superAdminApi.updateUser(token, selectedUserKey, payload);
       const updated = normalizeEntity(response);
       setNotice('User profile updated.');
-      setUserDetail(updated);
+      queryClient.setQueryData(QK.admin.superAdmin.user(selectedUserKey), response);
       setSelectedUser(updated);
       setUserDraft(buildUserDraft(updated));
-      await refreshUserList(usersPage, usersSearch);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'superAdmin', 'users'] });
     } catch (err) {
       setError(err.message || 'Failed to update user');
     } finally {
@@ -307,7 +278,8 @@ export default function SuperAdminDashboard() {
       setSessionBusy('sync');
       await superAdminApi.syncUser(token, selectedUserKey);
       setNotice('User sync started.');
-      await Promise.allSettled([loadUserDetail(selectedUserKey), refreshUserList(usersPage, usersSearch)]);
+      queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.user(selectedUserKey) });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'superAdmin', 'users'] });
     } catch (err) {
       setError(err.message || 'Failed to sync user');
     } finally {
@@ -322,7 +294,9 @@ export default function SuperAdminDashboard() {
       setSessionBusy(sessionId);
       await superAdminApi.revokeSession(token, { sessionId, userId: sessionRow?.userId || sessionUserId || selectedUserKey || undefined });
       setNotice('Session revoked.');
-      await Promise.allSettled([loadSessions(), sessionUserId ? loadUserSessions(sessionUserId) : Promise.resolve()]);
+      queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.sessions() });
+      queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.sessionCount() });
+      if (sessionUserId) queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.userSessions(sessionUserId) });
     } catch (err) {
       setError(err.message || 'Failed to revoke session');
     } finally {
@@ -340,7 +314,9 @@ export default function SuperAdminDashboard() {
       setSessionBusy('all');
       await superAdminApi.revokeAllSessions(token, { userId });
       setNotice('All sessions revoked for the selected user.');
-      await Promise.allSettled([loadSessions(), loadUserSessions(userId)]);
+      queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.sessions() });
+      queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.sessionCount() });
+      queryClient.invalidateQueries({ queryKey: QK.admin.superAdmin.userSessions(userId) });
     } catch (err) {
       setError(err.message || 'Failed to revoke sessions');
     } finally {

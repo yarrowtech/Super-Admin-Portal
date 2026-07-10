@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
+import { departmentApi } from '../../services/departments';
 import MobilePortalNav from '../common/MobilePortalNav';
 import MediaSidebar from './MediaSidebar';
 import MediaDashboard from './MediaDashboard';
@@ -19,7 +21,31 @@ const MEDIA_THEME = {
 const MediaPortal = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { collapsed } = useSidebar();
+  const { token } = useAuth();
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const resolveSection = (value) => (isValidSection(value) ? String(value).trim() : 'dashboard');
+
+  // Independent of whichever section is active, so the sidebar badge stays
+  // accurate even while the user is deep in Assets, Campaigns, etc.
+  useEffect(() => {
+    let alive = true;
+    if (!token) return undefined;
+    departmentApi
+      .getMediaDashboard(token, {})
+      .then((res) => {
+        if (!alive) return;
+        setPendingApprovals(Number(res?.data?.kpis?.pendingApprovals) || 0);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  const sectionsWithBadges = useMemo(
+    () => MEDIA_SECTIONS.map((section) => (section.id === 'approvals' ? { ...section, badge: pendingApprovals } : section)),
+    [pendingApprovals]
+  );
 
   const [activeSection, setActiveSection] = useState(() => {
     const fromQuery = resolveSection(searchParams.get('section'));
@@ -39,7 +65,7 @@ const MediaPortal = () => {
   const hasProjectQuery = searchParams.has('projectId');
   const isVirtualProjectId = rawProjectId.startsWith('virtual-');
   const selectedProjectId = hasProjectQuery ? (isVirtualProjectId ? '' : rawProjectId) : undefined;
-  const mobileItems = MEDIA_SECTIONS.map((section) => ({
+  const mobileItems = sectionsWithBadges.map((section) => ({
     key: section.id,
     label: section.label,
     icon: section.icon,
@@ -140,7 +166,7 @@ const MediaPortal = () => {
         icon="campaign"
         items={mobileItems}
       />
-      <MediaSidebar activeSection={activeSection} onSelect={handleSectionChange} sections={MEDIA_SECTIONS} />
+      <MediaSidebar activeSection={activeSection} onSelect={handleSectionChange} sections={sectionsWithBadges} />
       <div
         className={`min-h-screen transition-[margin] duration-300 ease-out-expo ${
           collapsed ? 'md:ml-16' : 'md:ml-[250px]'

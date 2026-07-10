@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { itApi } from '../../services/it';
 import { useAuth } from '../../context/AuthContext';
+import { QK } from '../../utils/queryKeys';
 
 // ─── Design System — IT amber theme (mirrors Law portal indigo style) ─────────
 
@@ -80,8 +82,6 @@ const SkeletonRows = ({ rows = 4 }) => (
   </div>
 );
 
-const CACHE_TTL = 60 * 1000;
-
 const fmtDate = (v) => {
   if (!v) return '—';
   const d = new Date(v);
@@ -100,79 +100,65 @@ const MODULES = [
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const RECENT_TICKETS_PARAMS = { page: 1, limit: 8, sortBy: 'createdAt', sortOrder: 'desc' };
+
 const ITDashboard = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
-  const cacheRef = useRef({});
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState({});
-  const [projects, setProjects] = useState([]);
+  const queryClient = useQueryClient();
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const enabled = Boolean(token);
 
-  // Load project list for selector
+  // Project selector list — cached like everything else below; the default
+  // selection (localStorage, falling back to the first project) is applied
+  // once as soon as the list resolves.
+  const projectsQuery = useQuery({
+    queryKey: QK.it.projects({ page: 1, limit: 100 }),
+    queryFn: () => itApi.getProjects(token, { page: 1, limit: 100 }),
+    enabled,
+    select: (res) => res?.data?.projects || res?.projects || [],
+  });
+  const projects = projectsQuery.data || [];
+
   useEffect(() => {
-    if (!token) return;
-    let alive = true;
-    itApi.getProjects(token, { page: 1, limit: 100 }).then((res) => {
-      if (!alive) return;
-      const list = res?.data?.projects || res?.projects || [];
-      setProjects(list);
-      const stored = localStorage.getItem('it_activeProjectId');
-      const def = stored && list.find((p) => p._id === stored) ? stored : list[0]?._id || '';
-      setSelectedProjectId(def);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [token]);
+    if (!projectsQuery.isSuccess || selectedProjectId) return;
+    const stored = localStorage.getItem('it_activeProjectId');
+    const def = stored && projects.find((p) => p._id === stored) ? stored : projects[0]?._id || '';
+    if (def) setSelectedProjectId(def);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectsQuery.isSuccess, projects]);
 
-  const loadData = React.useCallback(() => {
-    if (!token) return;
-    const key = selectedProjectId || 'global';
-    const cached = cacheRef.current[key];
-    if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      setData(cached.payload);
-      setLoading(false);
-      return;
-    }
-    let alive = true;
-    setLoading(true);
-    Promise.all([
-      itApi.getDashboard(token),
-      itApi.getMonitoring(token),
-      itApi.getSystemOverview(token),
-      itApi.getBackupRecovery(token),
-      itApi.getSupportTickets(token, { page: 1, limit: 8, sortBy: 'createdAt', sortOrder: 'desc' }),
-      itApi.getInfrastructureSummary(token),
-    ]).then(([dash, mon, overview, backup, tickets, infra]) => {
-      if (!alive) return;
-      // Unwrap API envelope (backend wraps data in { success, data })
-      const unwrap = (r) => r?.data ?? r ?? {};
-      const payload = {
-        dashboard:  unwrap(dash),
-        monitoring: unwrap(mon),
-        overview:   unwrap(overview),
-        backup:     unwrap(backup),
-        tickets:    unwrap(tickets),
-        infra:      unwrap(infra),
-      };
-      cacheRef.current[key] = { payload, ts: Date.now() };
-      setData(payload);
-    }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [token, selectedProjectId]);
+  // The 6-endpoint dashboard bundle — replaces the old hand-rolled
+  // cacheRef/CACHE_TTL local cache with React Query's real cross-navigation
+  // cache. Note: selectedProjectId only scopes the cache key here (matching
+  // the previous behaviour exactly) — none of these endpoints actually take a
+  // projectId param today, so switching projects doesn't change the fetched
+  // data; preserved as-is rather than "fixed" as part of a caching pass.
+  const [dashboardQuery, monitoringQuery, overviewQuery, backupQuery, ticketsQuery, infraQuery] = useQueries({
+    queries: [
+      { queryKey: [...QK.it.dashboard(), selectedProjectId || 'global'], queryFn: () => itApi.getDashboard(token), enabled },
+      { queryKey: QK.it.monitoring(), queryFn: () => itApi.getMonitoring(token), enabled },
+      { queryKey: QK.it.overview(), queryFn: () => itApi.getSystemOverview(token), enabled },
+      { queryKey: QK.it.backupRecovery(), queryFn: () => itApi.getBackupRecovery(token), enabled },
+      { queryKey: QK.it.tickets(RECENT_TICKETS_PARAMS), queryFn: () => itApi.getSupportTickets(token, RECENT_TICKETS_PARAMS), enabled },
+      { queryKey: QK.it.infrastructure(), queryFn: () => itApi.getInfrastructureSummary(token), enabled },
+    ],
+  });
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const kpis     = data.monitoring?.kpis || {};
-  const overview = data.overview || {};
-  const backup   = data.backup || {};
-  const dash     = data.dashboard || {};
-  const infra    = data.infra || {};
+  const unwrap = (r) => r?.data ?? r ?? {};
+  const loading = [dashboardQuery, monitoringQuery, overviewQuery, backupQuery, ticketsQuery, infraQuery].some((q) => q.isLoading);
+  const dash = unwrap(dashboardQuery.data);
+  const kpis = unwrap(monitoringQuery.data)?.kpis || {};
+  const overview = unwrap(overviewQuery.data);
+  const backup = unwrap(backupQuery.data);
+  const infra = unwrap(infraQuery.data);
+  const ticketsData = unwrap(ticketsQuery.data);
 
   // Recent tickets — backend returns items or tickets depending on version
-  const ticketItems = data.tickets?.items || data.tickets?.tickets || [];
+  const ticketItems = ticketsData?.items || ticketsData?.tickets || [];
 
   // Ticket trend chart data
-  const ticketTrend = data.monitoring?.trends?.ticketTrend || [3, 5, 4, 7, 6, 8, 5];
+  const ticketTrend = unwrap(monitoringQuery.data)?.trends?.ticketTrend || [3, 5, 4, 7, 6, 8, 5];
   const maxTrend = Math.max(...ticketTrend, 1);
 
   // Services for health chart
@@ -184,8 +170,7 @@ const ITDashboard = () => {
   ];
 
   const refresh = () => {
-    cacheRef.current = {};
-    loadData();
+    queryClient.invalidateQueries({ queryKey: ['it'] });
   };
 
   return (

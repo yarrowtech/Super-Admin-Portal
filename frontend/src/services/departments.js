@@ -29,7 +29,10 @@ export const departmentApi = {
   updateMediaCampaignTaskStatus: (token, campaignId, taskId, status) =>
     apiClient.patch(`/api/dept/media/campaigns/${campaignId}/tasks/${taskId}/status`, { status }, token),
   getMediaContent: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/content', params), token),
+  getMediaContentItem: (token, id) => apiClient.get(`/api/dept/media/content/${id}`, token),
   createMediaContent: (token, body) => apiClient.post('/api/dept/media/content', body, token),
+  updateMediaContent: (token, id, body) => apiClient.put(`/api/dept/media/content/${id}`, body, token),
+  deleteMediaContent: (token, id) => apiClient.delete(`/api/dept/media/content/${id}`, token),
   requestMediaContentApproval: (token, id, body = {}) => apiClient.post(`/api/dept/media/content/${id}/approval-request`, body, token),
   getMediaBrandAssets: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/brand-assets', params), token),
   createMediaBrandAsset: (token, body) => apiClient.post('/api/dept/media/brand-assets', body, token),
@@ -55,6 +58,36 @@ export const departmentApi = {
   deleteMediaSocialPost: (token, id) => apiClient.delete(`/api/dept/media/social/${id}`, token),
   requestMediaSocialApproval: (token, id, body = {}) => apiClient.post(`/api/dept/media/social/${id}/approval-request`, body, token),
 
+  getMediaAdvertisements: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/advertisements', params), token),
+  createMediaAdvertisement: (token, body) => apiClient.post('/api/dept/media/advertisements', body, token),
+  updateMediaAdvertisement: (token, id, body) => apiClient.put(`/api/dept/media/advertisements/${id}`, body, token),
+  deleteMediaAdvertisement: (token, id) => apiClient.delete(`/api/dept/media/advertisements/${id}`, token),
+  requestMediaAdvertisementApproval: (token, id, body = {}) => apiClient.post(`/api/dept/media/advertisements/${id}/approval-request`, body, token),
+
+  getMediaSeoItems: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/seo', params), token),
+  createMediaSeoItem: (token, body) => apiClient.post('/api/dept/media/seo', body, token),
+  updateMediaSeoItem: (token, id, body) => apiClient.put(`/api/dept/media/seo/${id}`, body, token),
+  deleteMediaSeoItem: (token, id) => apiClient.delete(`/api/dept/media/seo/${id}`, token),
+  requestMediaSeoApproval: (token, id, body = {}) => apiClient.post(`/api/dept/media/seo/${id}/approval-request`, body, token),
+
+  getMediaWebsiteItems: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/website', params), token),
+  createMediaWebsiteItem: (token, body) => apiClient.post('/api/dept/media/website', body, token),
+  updateMediaWebsiteItem: (token, id, body) => apiClient.put(`/api/dept/media/website/${id}`, body, token),
+  deleteMediaWebsiteItem: (token, id) => apiClient.delete(`/api/dept/media/website/${id}`, token),
+  requestMediaWebsiteApproval: (token, id, body = {}) => apiClient.post(`/api/dept/media/website/${id}/approval-request`, body, token),
+
+  getMediaTestimonials: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/testimonials', params), token),
+  createMediaTestimonial: (token, body) => apiClient.post('/api/dept/media/testimonials', body, token),
+  updateMediaTestimonial: (token, id, body) => apiClient.put(`/api/dept/media/testimonials/${id}`, body, token),
+  deleteMediaTestimonial: (token, id) => apiClient.delete(`/api/dept/media/testimonials/${id}`, token),
+  requestMediaTestimonialApproval: (token, id, body = {}) => apiClient.post(`/api/dept/media/testimonials/${id}/approval-request`, body, token),
+
+  getMediaCaseStudies: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/case-studies', params), token),
+  createMediaCaseStudy: (token, body) => apiClient.post('/api/dept/media/case-studies', body, token),
+  updateMediaCaseStudy: (token, id, body) => apiClient.put(`/api/dept/media/case-studies/${id}`, body, token),
+  deleteMediaCaseStudy: (token, id) => apiClient.delete(`/api/dept/media/case-studies/${id}`, token),
+  requestMediaCaseStudyApproval: (token, id, body = {}) => apiClient.post(`/api/dept/media/case-studies/${id}/approval-request`, body, token),
+
   uploadMediaFile: (token, file, { section, projectId } = {}) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -79,10 +112,23 @@ export const departmentApi = {
   getMediaMarketingFunnel: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/kpi/funnel', params), token),
   getMediaKpiTrend: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/kpi/trend', params), token),
   getMediaCalendar: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/calendar', params), token),
+  createMediaCalendarEvent: (token, body, params = {}) => apiClient.post(buildUrl('/api/dept/media/calendar/events', params), body, token),
+  updateMediaCalendarEvent: (token, eventId, body, params = {}) =>
+    apiClient.put(buildUrl(`/api/dept/media/calendar/events/${eventId}`, params), body, token),
+  deleteMediaCalendarEvent: (token, eventId, params = {}) =>
+    apiClient.delete(buildUrl(`/api/dept/media/calendar/events/${eventId}`, params), token),
   getMediaWeeklyPlans: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/weekly-plans', params), token),
   createMediaWeeklyPlan: (token, body, params = {}) => apiClient.post(buildUrl('/api/dept/media/weekly-plans', params), body, token),
+  deleteMediaWeeklyPlan: (token, planId, params = {}) =>
+    apiClient.delete(buildUrl(`/api/dept/media/weekly-plans/${planId}`, params), token),
+  addMediaWeeklyPlanObjective: (token, planId, text, params = {}) =>
+    apiClient.post(buildUrl(`/api/dept/media/weekly-plans/${planId}/objectives`, params), { text }, token),
   updateMediaWeeklyPlanObjective: (token, planId, objectiveId, status, params = {}) =>
     apiClient.patch(buildUrl(`/api/dept/media/weekly-plans/${planId}/objectives/${objectiveId}`, params), { status }, token),
+  updateMediaWeeklyPlanObjectiveText: (token, planId, objectiveId, text, params = {}) =>
+    apiClient.patch(buildUrl(`/api/dept/media/weekly-plans/${planId}/objectives/${objectiveId}`, params), { text }, token),
+  deleteMediaWeeklyPlanObjective: (token, planId, objectiveId, params = {}) =>
+    apiClient.delete(buildUrl(`/api/dept/media/weekly-plans/${planId}/objectives/${objectiveId}`, params), token),
   getMediaChecklists: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/checklists', params), token),
   addMediaChecklistItem: (token, checklistType, label, params = {}) =>
     apiClient.post(buildUrl(`/api/dept/media/checklists/${encodeURIComponent(checklistType)}/items`, params), { label }, token),

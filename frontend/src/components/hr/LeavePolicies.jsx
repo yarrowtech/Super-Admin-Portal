@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { hrApi } from '../../services/hr';
+import { QK } from '../../utils/queryKeys';
 import Button from '../common/Button';
 
 const LeavePolicies = () => {
   const { token } = useAuth();
-  const [policies, setPolicies] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
@@ -24,21 +25,14 @@ const LeavePolicies = () => {
   const leaveTypes = ['Sick', 'Casual', 'Earned', 'Maternity', 'Paternity', 'Compensatory'];
   const roles = ['employee', 'manager', 'hr', 'admin'];
 
-  useEffect(() => {
-    fetchPolicies();
-  }, [token]);
-
-  const fetchPolicies = async () => {
-    try {
-      setLoading(true);
-      const response = await hrApi.getLeavePolicies(token);
-      setPolicies(response.data || []);
-    } catch (err) {
-      setError(err.message || 'Failed to load leave policies');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const policiesQuery = useQuery({
+    queryKey: QK.hr.leavePolicies(),
+    queryFn: () => hrApi.getLeavePolicies(token),
+    enabled: Boolean(token),
+  });
+  const policies = policiesQuery.data?.data || [];
+  const loading = policiesQuery.isLoading;
+  const refetchPolicies = () => queryClient.invalidateQueries({ queryKey: ['hr', 'leavePolicies'] });
 
   const handleOpenModal = (policy = null) => {
     if (policy) {
@@ -107,7 +101,7 @@ const LeavePolicies = () => {
         await hrApi.createLeavePolicy(policyData, token);
       }
 
-      await fetchPolicies();
+      refetchPolicies();
       handleCloseModal();
     } catch (err) {
       setError(err.message || 'Failed to save policy');
@@ -119,7 +113,7 @@ const LeavePolicies = () => {
 
     try {
       await hrApi.deleteLeavePolicy(id, token);
-      await fetchPolicies();
+      refetchPolicies();
     } catch (err) {
       setError(err.message || 'Failed to delete policy');
     }

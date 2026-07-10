@@ -1,43 +1,42 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
 
-const card = 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900';
-const input = 'w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-neutral-900 outline-none focus:border-[var(--portal-accent)] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100';
-const stageLabel = (stage) => stage.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
-
-// Single-hue sequential ramp (blue, light -> dark) for the ordered funnel/KPI stages —
-// one hue for magnitude, never a rainbow. Dark-mode steps stay lighter so they clear
-// contrast against the dark surface instead of just re-using the light steps.
-const RAMP_LIGHT = ['#86b6ef', '#6da7ec', '#5598e7', '#3987e5', '#2a78d6', '#256abf', '#1c5cab', '#184f95'];
-const RAMP_DARK = ['#cde2fb', '#b7d3f6', '#9ec5f4', '#86b6ef', '#6da7ec', '#5598e7', '#3987e5', '#2a78d6'];
+const card = 'rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900';
+const input = 'h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-[var(--portal-accent)] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100';
+const labelFor = (value = '') => String(value).replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ').replace(/^./, (c) => c.toUpperCase());
+const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+const money = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num(value));
 
 const FunnelBars = ({ stages = [] }) => {
-  const max = Math.max(1, ...stages.map((s) => s.count));
+  const max = Math.max(1, ...stages.map((stage) => num(stage.count)));
+
   return (
-    <div className="space-y-2">
-      {stages.map((stage, index) => {
-        const light = RAMP_LIGHT[index % RAMP_LIGHT.length];
-        const dark = RAMP_DARK[index % RAMP_DARK.length];
+    <div className="space-y-3">
+      {stages.map((stage) => {
+        const width = Math.max(5, (num(stage.count) / max) * 100);
         return (
-          <div key={stage.stage}>
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-semibold text-neutral-700 dark:text-neutral-300">{stageLabel(stage.stage)}</span>
-              <span className="text-neutral-500 dark:text-neutral-400">
-                {stage.count.toLocaleString()}
-                {stage.conversionFromPrevious !== null ? ` · ${stage.conversionFromPrevious.toFixed(1)}% conv.` : ''}
-              </span>
+          <div key={stage.stage} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-slate-950 dark:text-neutral-100">{labelFor(stage.stage)}</p>
+              <div className="text-right">
+                <p className="text-sm font-black text-slate-950 dark:text-neutral-100">{num(stage.count).toLocaleString()}</p>
+                {stage.conversionFromPrevious !== null && stage.conversionFromPrevious !== undefined ? (
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-neutral-400">{num(stage.conversionFromPrevious).toFixed(1)}% conversion</p>
+                ) : null}
+              </div>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
-              <div
-                className="h-full rounded-full bg-(--bar-light) transition-[width] dark:bg-(--bar-dark)"
-                style={{ width: `${Math.max(4, (stage.count / max) * 100)}%`, '--bar-light': light, '--bar-dark': dark }}
-                title={`${stageLabel(stage.stage)}: ${stage.count.toLocaleString()}`}
-              />
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white dark:bg-neutral-800">
+              <div className="h-full rounded-full bg-teal-500" style={{ width: `${width}%` }} />
             </div>
           </div>
         );
       })}
+      {!stages.length ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">
+          No KPI data yet
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -59,6 +58,7 @@ const KpiFunnelChart = ({ projectId }) => {
       ]);
       setFunnel(funnelRes?.data || { stages: [] });
       setKpiTrend(trendRes?.data || { stages: [] });
+      setError('');
     } catch (err) {
       setError(err.message || 'Failed to load KPI/funnel data.');
     }
@@ -83,8 +83,21 @@ const KpiFunnelChart = ({ projectId }) => {
     }
   };
 
+  const stats = useMemo(() => {
+    const revenue = num(kpiTrend.stages?.find((stage) => stage.stage === 'revenue')?.count);
+    const leads = num(kpiTrend.stages?.find((stage) => stage.stage === 'leads')?.count);
+    const bookings = num(kpiTrend.stages?.find((stage) => stage.stage === 'bookings')?.count);
+    const traffic = num(kpiTrend.stages?.find((stage) => stage.stage === 'websiteTraffic')?.count);
+    return { revenue, leads, bookings, traffic };
+  }, [kpiTrend.stages]);
+
   if (!projectId) {
-    return <div className={card}><p className="text-sm text-neutral-500 dark:text-neutral-400">Select a project to view its KPI funnel.</p></div>;
+    return (
+      <section className={card}>
+        <h2 className="text-xl font-black text-slate-950 dark:text-neutral-100">KPI & Funnel</h2>
+        <p className="mt-2 text-sm text-slate-500 dark:text-neutral-400">Select a project to manage KPI snapshots.</p>
+      </section>
+    );
   }
 
   const funnelFields = ['awareness', 'interest', 'websiteVisit', 'registration', 'lead', 'customer', 'retention', 'referral'];
@@ -92,36 +105,64 @@ const KpiFunnelChart = ({ projectId }) => {
 
   return (
     <div className="space-y-4">
-      {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">{error}</div> : null}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className={card}>
-          <p className="mb-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Marketing funnel ({funnel.period})</p>
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">{error}</div> : null}
+
+      <section className={card}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[22px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">insights</span>
+            <div>
+              <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">KPI & Funnel Control</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Track traffic, leads, bookings, revenue, and funnel movement.</p>
+            </div>
+          </div>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+            {funnel.period || kpiTrend.period || 'Current period'}
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            ['Traffic', stats.traffic.toLocaleString(), 'travel_explore'],
+            ['Leads', stats.leads.toLocaleString(), 'person_add'],
+            ['Bookings', stats.bookings.toLocaleString(), 'event_available'],
+            ['Revenue', money(stats.revenue), 'payments'],
+          ].map(([label, value, icon]) => (
+            <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className={card}>
+          <h3 className="mb-3 text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Marketing Funnel</h3>
           <FunnelBars stages={funnel.stages} />
-        </div>
-        <div className={card}>
-          <p className="mb-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">KPI trend ({kpiTrend.period})</p>
+        </section>
+        <section className={card}>
+          <h3 className="mb-3 text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">KPI Trend</h3>
           <FunnelBars stages={kpiTrend.stages} />
-        </div>
+        </section>
       </div>
 
       <form onSubmit={saveSnapshot} className={card}>
-        <p className="mb-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Update this month's numbers</p>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          {[...kpiFields, ...funnelFields.filter((f) => !kpiFields.includes(f))].map((field) => (
-            <label key={field} className="text-xs">
-              <span className="mb-1 block text-neutral-500 dark:text-neutral-400">{stageLabel(field)}</span>
-              <input
-                type="number"
-                min="0"
-                value={form[field] ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}
-                className={input}
-              />
+        <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Update Snapshot</h3>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[...kpiFields, ...funnelFields.filter((field) => !kpiFields.includes(field))].map((field) => (
+            <label key={field} className="space-y-1.5 text-xs">
+              <span className="block font-semibold text-neutral-500 dark:text-neutral-400">{labelFor(field)}</span>
+              <input type="number" min="0" value={form[field] ?? ''} onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))} className={input} />
             </label>
           ))}
         </div>
-        <button type="submit" disabled={busy} className="mt-3 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">
-          Save snapshot
+        <button type="submit" disabled={busy} className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50">
+          <span className="material-symbols-outlined text-[18px]">save</span>
+          Save Snapshot
         </button>
       </form>
     </div>

@@ -6,13 +6,28 @@ const planValidation = [
   body('objectives').optional().isArray().withMessage('objectives must be an array'),
 ];
 
+const planIdValidation = [
+  param('id').isMongoId().withMessage('Invalid weekly plan id'),
+];
+
 const objectiveIdValidation = [
   param('id').isMongoId().withMessage('Invalid weekly plan id'),
   param('objectiveId').isMongoId().withMessage('Invalid objective id'),
 ];
 
 const objectiveStatusValidation = [
-  body('status').trim().isIn(['pending', 'in-progress', 'done']).withMessage('invalid objective status'),
+  body('status').if(body('text').not().exists()).trim().isIn(['pending', 'in-progress', 'done']).withMessage('invalid objective status'),
+  body('text').optional().trim().notEmpty().withMessage('text must not be empty'),
 ];
 
-module.exports = { planValidation, objectiveIdValidation, objectiveStatusValidation };
+const objectiveTextValidation = [
+  body('text').trim().notEmpty().withMessage('text is required'),
+];
+
+module.exports = {
+  planValidation,
+  planIdValidation,
+  objectiveIdValidation,
+  objectiveStatusValidation,
+  objectiveTextValidation,
+};

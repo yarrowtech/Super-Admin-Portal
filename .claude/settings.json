@@ -9,7 +9,18 @@
       "Bash(node -e ' *)",
       "Bash(curl -s -o /dev/null -w \"backend status: %{http_code}\\\\n\" http://localhost:5000/api/dept/media/weekly-plans)",
       "Bash(node phase6Smoke.js)",
-      "Bash(node finalWalkthrough.js)"
+      "Bash(node finalWalkthrough.js)",
+      "Bash(rm -f __mintToken.tmp.js)",
+      "Bash(node server.js)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5000/api/health)",
+      "Bash(curl -s http://localhost:5000/ -o /dev/null -w \"root: %{http_code}\\\\n\")",
+      "Bash(curl -s -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTA1NzhlODVhOWQzZTZlMzY3MDQxNTEiLCJlbWFpbCI6ImFkbWluQHRlc3QuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzgzNjIyNDgyLCJleHAiOjE3ODM2MjMwODIsImp0aSI6IjM0NDBhZmNiLWQ1ZjYtNGVmYi05YTM4LWM5NjVhYTI5NzA5ZSJ9.6FCVK0o7EHP0yZhn0wEJqY4jYHb9-oseDRCghkhfG38' http://localhost:5000/api/dept/media/advertisements?projectId=69ea11291c903278f10ac3de)",
+      "Bash(curl -s -X POST -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTA1NzhlODVhOWQzZTZlMzY3MDQxNTEiLCJlbWFpbCI6ImFkbWluQHRlc3QuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzgzNjIyNDgyLCJleHAiOjE3ODM2MjMwODIsImp0aSI6IjM0NDBhZmNiLWQ1ZjYtNGVmYi05YTM4LWM5NjVhYTI5NzA5ZSJ9.6FCVK0o7EHP0yZhn0wEJqY4jYHb9-oseDRCghkhfG38' -H 'Content-Type: application/json' -d '{\"title\":\"E2E Test Ad\",\"description\":\"verify script\",\"projectId\":\"69ea11291c903278f10ac3de\"}' http://localhost:5000/api/dept/media/advertisements)",
+      "Bash(tasklist)",
+      "Bash(wmic process *)",
+      "Bash(taskkill //F //PID 21224)",
+      "Bash(curl -s -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTA1NzhlODVhOWQzZTZlMzY3MDQxNTEiLCJlbWFpbCI6ImFkbWluQHRlc3QuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzgzNjIyNDgyLCJleHAiOjE3ODM2MjMwODIsImp0aSI6IjM0NDBhZmNiLWQ1ZjYtNGVmYi05YTM4LWM5NjVhYTI5NzA5ZSJ9.6FCVK0o7EHP0yZhn0wEJqY4jYHb9-oseDRCghkhfG38' http://localhost:5000/api/dept/media/advertisements/6a4fec6329c62c22ded8c5c0?projectId=69ea11291c903278f10ac3de)"
     ]
   }
 }

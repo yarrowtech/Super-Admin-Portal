@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { QK } from '../../utils/queryKeys';
 
 const normalizeDate = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const formatDateKey = (date) =>
@@ -45,13 +47,9 @@ const managerStatusStyles = {
 const LeaveManagement = () => {
   const { token } = useAuth();
   const toast = useToast();
-  const [leaveRequests, setLeaveRequests] = useState([]);
-  const [leaveBalances, setLeaveBalances] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalRequests, setTotalRequests] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
@@ -68,48 +66,35 @@ const LeaveManagement = () => {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
-  const fetchLeaveRequests = async () => {
-    if (!token) return;
-    try {
-      setLoading(true);
-      setError('');
-      const response = await hrApi.getLeaveRequests(token, {
-        page,
-        limit: 10,
-        status: statusFilter || undefined,
-      });
-      const payload = response?.data || {};
-      setLeaveRequests(payload.leaves || []);
-      setTotalPages(payload.totalPages || 1);
-      setTotalRequests(payload.total || 0);
-    } catch (err) {
-      setError(err.message || 'Failed to load leave requests');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const leaveParams = useMemo(
+    () => ({ page, limit: 10, status: statusFilter || undefined }),
+    [page, statusFilter]
+  );
 
-  const fetchLeaveBalances = async () => {
-    if (!token) return;
-    try {
-      const response = await hrApi.getLeaveBalances(token);
-      setLeaveBalances(response?.data?.items || []);
-    } catch (err) {
-      setError(err.message || 'Failed to load leave balances');
-    }
-  };
+  const [requestsQuery, balancesQuery] = useQueries({
+    queries: [
+      { queryKey: QK.hr.leave(leaveParams), queryFn: () => hrApi.getLeaveRequests(token, leaveParams), enabled: Boolean(token) },
+      { queryKey: QK.hr.leaveBalances(), queryFn: () => hrApi.getLeaveBalances(token), enabled: Boolean(token) },
+    ],
+  });
 
-  useEffect(() => {
-    fetchLeaveRequests();
-    fetchLeaveBalances();
-  }, [token, page, statusFilter]);
+  const leaveRequests = useMemo(() => requestsQuery.data?.data?.leaves || [], [requestsQuery.data]);
+  const totalPages = requestsQuery.data?.data?.totalPages || 1;
+  const totalRequests = requestsQuery.data?.data?.total || 0;
+  const leaveBalances = useMemo(() => balancesQuery.data?.data?.items || [], [balancesQuery.data]);
+  const loading = requestsQuery.isLoading;
+
+  const invalidateLeave = () => {
+    queryClient.invalidateQueries({ queryKey: ['hr', 'leave'] });
+    queryClient.invalidateQueries({ queryKey: ['hr', 'leaveBalances'] });
+  };
 
   const handleApprove = async (leaveId) => {
     try {
       setActionLoadingId(leaveId);
       await hrApi.approveLeave(leaveId, token);
       toast.success('Leave request approved.');
-      await Promise.all([fetchLeaveRequests(), fetchLeaveBalances()]);
+      invalidateLeave();
     } catch (err) {
       setError(err.message || 'Failed to approve leave request');
       toast.error(err.message || 'Failed to approve leave request');
@@ -124,7 +109,7 @@ const LeaveManagement = () => {
       setActionLoadingId(leaveId);
       await hrApi.rejectLeave(leaveId, { rejectionReason }, token);
       toast.success('Leave request rejected.');
-      await Promise.all([fetchLeaveRequests(), fetchLeaveBalances()]);
+      invalidateLeave();
     } catch (err) {
       setError(err.message || 'Failed to reject leave request');
       toast.error(err.message || 'Failed to reject leave request');
@@ -185,7 +170,7 @@ const LeaveManagement = () => {
       });
       closeLeaveModal();
       toast.success('Leave request submitted.');
-      await Promise.all([fetchLeaveRequests(), fetchLeaveBalances()]);
+      invalidateLeave();
     } catch (err) {
       setLeaveFormError(err.message || 'Failed to submit leave request');
       toast.error(err.message || 'Failed to submit leave request');

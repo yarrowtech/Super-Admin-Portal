@@ -26,16 +26,43 @@ exports.create = async (req, res) => {
 
 exports.updateObjective = async (req, res) => {
   try {
-    const data = await service.updateObjectiveStatus(
-      req.params.id,
-      req.params.objectiveId,
-      req.body?.status,
-      req.projectId,
-      req.user?.id || req.user?._id
-    );
+    const actorId = req.user?.id || req.user?._id;
+    const data = req.body?.text !== undefined
+      ? await service.updateObjectiveText(req.params.id, req.params.objectiveId, req.body.text, req.projectId, actorId)
+      : await service.updateObjectiveStatus(req.params.id, req.params.objectiveId, req.body?.status, req.projectId, actorId);
     if (!data) return res.status(404).json({ success: false, error: 'Weekly plan or objective not found' });
     res.status(200).json({ success: true, data });
   } catch (err) {
     handleError(res, err, 'Failed to update objective', 'WeeklyPlan module updateObjective error');
+  }
+};
+
+exports.addObjective = async (req, res) => {
+  try {
+    const data = await service.addObjective(req.params.id, req.projectId, req.body?.text, req.user?.id || req.user?._id);
+    if (!data) return res.status(404).json({ success: false, error: 'Weekly plan not found' });
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to add objective', 'WeeklyPlan module addObjective error');
+  }
+};
+
+exports.deleteObjective = async (req, res) => {
+  try {
+    const data = await service.deleteObjective(req.params.id, req.params.objectiveId, req.projectId, req.user?.id || req.user?._id);
+    if (!data) return res.status(404).json({ success: false, error: 'Weekly plan or objective not found' });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to delete objective', 'WeeklyPlan module deleteObjective error');
+  }
+};
+
+exports.deletePlan = async (req, res) => {
+  try {
+    const data = await service.deletePlan(req.params.id, req.projectId, req.user?.id || req.user?._id);
+    if (!data) return res.status(404).json({ success: false, error: 'Weekly plan not found' });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to delete weekly plan', 'WeeklyPlan module deletePlan error');
   }
 };

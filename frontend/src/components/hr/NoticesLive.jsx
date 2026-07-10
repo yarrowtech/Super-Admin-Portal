@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { QK } from '../../utils/queryKeys';
 
 const audienceOptions = [
   { value: 'all', label: 'All Portals' },
@@ -55,34 +57,29 @@ const getPayload = (response) => response?.data || response || {};
 const NoticesLive = () => {
   const { token } = useAuth();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
-  const [notices, setNotices] = useState([]);
   const [status, setStatus] = useState('all');
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const loadNotices = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const response = await hrApi.getNotices(token, {
-        page: 1,
-        limit: 100,
-        ...(status === 'all' ? {} : { status }),
-      });
+  const noticesParams = useMemo(
+    () => ({ page: 1, limit: 100, ...(status === 'all' ? {} : { status }) }),
+    [status]
+  );
+
+  const noticesQuery = useQuery({
+    queryKey: QK.hr.notices(noticesParams),
+    queryFn: () => hrApi.getNotices(token, noticesParams),
+    enabled: Boolean(token),
+    select: (response) => {
       const data = getPayload(response);
       const rows = Array.isArray(data.notices) ? data.notices : [];
-      setNotices(rows.map(normalizeNotice));
-    } catch (error) {
-      toast.error(error.message || 'Failed to load notices');
-    } finally {
-      setLoading(false);
-    }
-  }, [status, toast, token]);
-
-  useEffect(() => {
-    loadNotices();
-  }, [loadNotices]);
+      return rows.map(normalizeNotice);
+    },
+  });
+  const notices = useMemo(() => noticesQuery.data || [], [noticesQuery.data]);
+  const loading = noticesQuery.isLoading;
+  const loadNotices = () => queryClient.invalidateQueries({ queryKey: ['hr', 'notices'] });
 
   const counts = useMemo(
     () => ({

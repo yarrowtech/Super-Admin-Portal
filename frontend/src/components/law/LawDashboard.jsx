@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { lawApi } from '../../services/law';
 import { useAuth } from '../../context/AuthContext';
 import { CANONICAL_PROJECT_NAMES } from '../../config/projectNames';
+import { QK } from '../../utils/queryKeys';
 import { LAW_SECTIONS, getLawSection } from './lawModuleConfig';
 import LegalDocManagement from './LegalDocManagement';
 import LSWLegalLibrary from './LSWLegalLibrary';
@@ -103,9 +105,6 @@ const pageComponents = {
   'legal-library': LSWLegalLibrary,
   'contracts': LawContractsPage,
 };
-const AGREEMENTS_CACHE_KEY = 'law_agreements_cache_v1';
-const CACHE_TTL = 5 * 60 * 1000;
-const RECORDS_CACHE_TTL = 60 * 1000;
 const LAW_STRICT_PROJECTS = CANONICAL_PROJECT_NAMES;
 const LAW_PROJECT_FALLBACK_ORDER = CANONICAL_PROJECT_NAMES;
 const OPEN_STATUSES = new Set(['pending', 'in review', 'attention']);
@@ -168,165 +167,121 @@ const LawDashboard = () => {
   const { token, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawSelectedProjectId = searchParams.get('projectId') || '';
   const selectedProjectId = isRealProjectId(rawSelectedProjectId) ? rawSelectedProjectId : '';
   const activeSection = moduleToSection(location.pathname);
   const isCreateMode = location.pathname.endsWith('/create');
   const [searchTerm, setSearchTerm] = useState('');
-  const [apiSummary, setApiSummary] = useState(null);
-  const [records, setRecords] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [agreementsLoading, setAgreementsLoading] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
-  const agreementCache = useRef({});
-  const recordsCache = useRef({});
-
-  const readCache = (projectId) => {
-    const row = agreementCache.current?.[projectId];
-    if (!row) return null;
-    if (Date.now() - row.timestamp > CACHE_TTL) return null;
-    return row;
-  };
-
-  const writeCache = (projectId, data) => {
-    agreementCache.current[projectId] = { data, timestamp: Date.now() };
-    try {
-      localStorage.setItem(AGREEMENTS_CACHE_KEY, JSON.stringify(agreementCache.current));
-    } catch {
-      // ignore storage failures
-    }
-  };
-
-  const fetchAgreementsByProject = async (projectId) => {
-    if (!projectId) return;
-    const cached = readCache(projectId);
-    if (cached) {
-      setAgreementsLoading(false);
-      setRecords(cached.data || []);
-      setLastUpdatedAt(cached.timestamp);
-      return;
-    }
-
-    setAgreementsLoading(true);
-    const res = await lawApi.getProjectModuleData(token, 'agreements', projectId);
-    const data = res?.data?.items || res?.data || [];
-    writeCache(projectId, data);
-    setRecords(data);
-    setLastUpdatedAt(Date.now());
-    setAgreementsLoading(false);
-  };
-
-  const buildRecordsCacheKey = (projectId = selectedProjectId) => `${activeSection}::${projectId || 'all'}`;
+  const enabled = Boolean(token);
 
   const withProjectContext = (path, projectId = selectedProjectId) => (
     isRealProjectId(projectId) ? `${path}?projectId=${encodeURIComponent(projectId)}` : path
   );
 
-  const readRecordsCache = (key) => {
-    const entry = recordsCache.current[key];
-    if (!entry) return null;
-    if (Date.now() - entry.timestamp > RECORDS_CACHE_TTL) return null;
-    return entry;
-  };
+  // Projects list — needed on every section to resolve a fallback project
+  // when none is explicitly selected.
+  const projectsQuery = useQueries({
+    queries: [{ queryKey: QK.law.projects({ limit: 100 }), queryFn: () => lawApi.getProjects(token, { limit: 100 }), enabled }],
+  })[0];
+  const projects = useMemo(() => {
+    const projectItems = projectsQuery.data?.data?.items || [];
+    return LAW_STRICT_PROJECTS.map((name) => projectItems.find(
+      (p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase()
+    )).filter(Boolean);
+  }, [projectsQuery.data]);
 
-  const writeRecordsCache = (key, data) => {
-    recordsCache.current[key] = { data, timestamp: Date.now() };
-  };
+  const fallbackProject = useMemo(
+    () => LAW_PROJECT_FALLBACK_ORDER.map((name) =>
+      projects.find((p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase())
+    ).find(Boolean),
+    [projects]
+  );
+  const effectiveProjectId = selectedProjectId || (activeSection === 'dashboard' ? '' : fallbackProject?._id || fallbackProject?.id || '');
+  const hasRealProjectId = isRealProjectId(effectiveProjectId);
 
-  const loadLawData = async () => {
-    if (!token) return;
-    setError('');
-    try {
-      const projectsRes = await lawApi.getProjects(token, { limit: 100 });
-      const projectItems = projectsRes?.data?.items || [];
-      const strictProjects = LAW_STRICT_PROJECTS.map((name) => {
-        const matched = projectItems.find(
-          (p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase()
-        );
-        return matched || null;
-      }).filter(Boolean);
-      setProjects(strictProjects);
+  // Auto-promote the resolved fallback project into the URL/localStorage the
+  // first time a project-scoped section is visited with none selected yet —
+  // purely local, no extra network call.
+  useEffect(() => {
+    if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
+      setSearchParams({ projectId: effectiveProjectId });
+      try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, effectiveProjectId, selectedProjectId]);
 
-      const fallbackProject = LAW_PROJECT_FALLBACK_ORDER.map((name) =>
-        strictProjects.find((p) => String(p?.name || '').trim().toLowerCase() === name.toLowerCase())
-      ).find(Boolean);
-      const effectiveProjectId = selectedProjectId || (activeSection === 'dashboard' ? '' : fallbackProject?._id || fallbackProject?.id || '');
-      const hasRealProjectId = isRealProjectId(effectiveProjectId);
-      if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
-        setSearchParams({ projectId: effectiveProjectId });
-        try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch {}
-      }
-
-      const recordsCacheKey = buildRecordsCacheKey(effectiveProjectId);
-      const cached = readRecordsCache(recordsCacheKey);
-      if (cached && activeSection !== 'agreements') {
-        setRecords(cached.data || []);
-        setLastUpdatedAt(cached.timestamp);
-      }
-
-      const moduleKey = MODULE_DATA_KEYS[activeSection];
-      const recordsPromise = activeSection === 'dashboard'
+  const moduleKey = MODULE_DATA_KEYS[activeSection];
+  // Records — the single source for whatever section is active, superseding
+  // both hand-rolled caches (agreementCache/recordsCache) that used to live
+  // here: the 'agreements' section's own fetch used the exact same endpoint
+  // (getProjectModuleData(token, 'agreements', projectId)) as this generic
+  // path already did, just through a second, redundant cache.
+  const recordsQuery = useQueries({
+    queries: [{
+      queryKey: activeSection === 'dashboard'
+        ? QK.law.records('dashboard', { projectId: hasRealProjectId ? effectiveProjectId : undefined })
+        : hasRealProjectId && moduleKey
+          ? QK.law.moduleData(moduleKey, effectiveProjectId)
+          : QK.law.records(activeSection, { projectId: effectiveProjectId }),
+      queryFn: () => activeSection === 'dashboard'
         ? lawApi.getRecords(token, hasRealProjectId ? { projectId: effectiveProjectId } : {})
         : hasRealProjectId && moduleKey
           ? lawApi.getProjectModuleData(token, moduleKey, effectiveProjectId)
-          : lawApi.getRecords(token, { section: activeSection, projectId: effectiveProjectId });
+          : lawApi.getRecords(token, { section: activeSection, projectId: effectiveProjectId }),
+      enabled,
+    }],
+  })[0];
+  const records = useMemo(() => recordsQuery.data?.data?.items || recordsQuery.data?.data || [], [recordsQuery.data]);
+  const lastUpdatedAt = recordsQuery.dataUpdatedAt || null;
+  const agreementsLoading = recordsQuery.isLoading;
 
-      const contractsPromise = activeSection === 'dashboard' || !effectiveProjectId
-        ? Promise.resolve({ data: { contracts: [] } })
-        : hasRealProjectId ? lawApi.getContracts(token, { projectId: effectiveProjectId }) : Promise.resolve({ data: { contracts: [] } });
-      const compliancePromise = activeSection === 'dashboard' || !effectiveProjectId
-        ? Promise.resolve({ data: { compliance: [] } })
-        : hasRealProjectId ? lawApi.getCompliance(token, { projectId: effectiveProjectId }) : Promise.resolve({ data: { compliance: [] } });
+  const dashboardEnabled = enabled && activeSection === 'dashboard';
+  const dashboardQuery = useQueries({
+    queries: [{
+      queryKey: QK.law.dashboard(hasRealProjectId ? { projectId: effectiveProjectId } : {}),
+      queryFn: () => lawApi.getDashboard(token, hasRealProjectId ? { projectId: effectiveProjectId } : {}),
+      enabled: dashboardEnabled,
+    }],
+  })[0];
 
-      const [dashboardRes, recordsRes, contractsRes, complianceRes] = await Promise.allSettled([
-        lawApi.getDashboard(token, hasRealProjectId ? { projectId: effectiveProjectId } : {}),
-        recordsPromise,
-        contractsPromise,
-        compliancePromise,
-      ]);
+  const contractsEnabled = enabled && activeSection === 'dashboard' && hasRealProjectId;
+  const contractsQuery = useQueries({
+    queries: [{ queryKey: QK.law.contracts(effectiveProjectId), queryFn: () => lawApi.getContracts(token, { projectId: effectiveProjectId }), enabled: contractsEnabled }],
+  })[0];
 
-      setApiSummary({
-        message: dashboardRes.status === 'fulfilled' ? dashboardRes.value?.data?.message || '' : '',
-        permissions: dashboardRes.status === 'fulfilled' ? dashboardRes.value?.data?.permissions || [] : [],
-        totals: dashboardRes.status === 'fulfilled' ? dashboardRes.value?.data?.totals || {} : {},
-        bySection: dashboardRes.status === 'fulfilled' ? dashboardRes.value?.data?.bySection || [] : [],
-        byStatus: dashboardRes.status === 'fulfilled' ? dashboardRes.value?.data?.byStatus || [] : [],
-        recentRecords: dashboardRes.status === 'fulfilled' ? dashboardRes.value?.data?.recentRecords || [] : [],
-        contracts: contractsRes.status === 'fulfilled' ? contractsRes.value?.data?.contracts?.length || 0 : 0,
-        compliance: complianceRes.status === 'fulfilled' ? complianceRes.value?.data?.compliance?.length || 0 : 0,
-      });
+  const complianceEnabled = enabled && activeSection === 'dashboard' && hasRealProjectId;
+  const complianceQuery = useQueries({
+    queries: [{ queryKey: QK.law.compliance(effectiveProjectId), queryFn: () => lawApi.getCompliance(token, { projectId: effectiveProjectId }), enabled: complianceEnabled }],
+  })[0];
 
-      if (recordsRes.status === 'fulfilled') {
-        const items = recordsRes.value?.data?.items || recordsRes.value?.data || [];
-        setRecords(items);
-        writeRecordsCache(recordsCacheKey, items);
-        setLastUpdatedAt(Date.now());
-      }
-      // Only surface errors for record fetch failures; dashboard summary gracefully shows zeros when unavailable
-      if (recordsRes.status === 'rejected') {
-        setError(recordsRes.reason?.message || 'Could not load Law records.');
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to load Law module data.');
-    }
+  const apiSummary = useMemo(() => (
+    activeSection === 'dashboard' && (dashboardQuery.isSuccess || dashboardQuery.isError)
+      ? {
+          message: dashboardQuery.data?.data?.message || '',
+          permissions: dashboardQuery.data?.data?.permissions || [],
+          totals: dashboardQuery.data?.data?.totals || {},
+          bySection: dashboardQuery.data?.data?.bySection || [],
+          byStatus: dashboardQuery.data?.data?.byStatus || [],
+          recentRecords: dashboardQuery.data?.data?.recentRecords || [],
+          contracts: contractsQuery.data?.data?.contracts?.length || 0,
+          compliance: complianceQuery.data?.data?.compliance?.length || 0,
+        }
+      : null
+  ), [activeSection, dashboardQuery.isSuccess, dashboardQuery.isError, dashboardQuery.data, contractsQuery.data, complianceQuery.data]);
+
+  // Only records-fetch failures surface as an error; the dashboard summary
+  // gracefully shows zeros when unavailable, matching the original behaviour.
+  const error = actionError || (recordsQuery.isError ? (recordsQuery.error?.message || 'Could not load Law records.') : '');
+  const setError = setActionError;
+
+  const loadLawData = () => {
+    setError('');
+    queryClient.invalidateQueries({ queryKey: ['law'] });
   };
-
-  useEffect(() => {
-    try {
-      const cached = localStorage.getItem(AGREEMENTS_CACHE_KEY);
-      if (cached) agreementCache.current = JSON.parse(cached);
-    } catch {
-      agreementCache.current = {};
-    }
-  }, []);
-
-  useEffect(() => {
-    loadLawData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, activeSection, selectedProjectId]);
 
   useEffect(() => {
     if (!rawSelectedProjectId || isRealProjectId(rawSelectedProjectId)) return;
@@ -343,11 +298,6 @@ const LawDashboard = () => {
   useEffect(() => {
     if (!token || activeSection !== 'agreements' || !selectedProjectId || String(selectedProjectId).startsWith('virtual-')) return;
     try { localStorage.setItem('activeProjectId', String(selectedProjectId)); } catch {}
-    fetchAgreementsByProject(selectedProjectId).catch((err) => {
-      setAgreementsLoading(false);
-      setError(err.message || 'Failed to load agreements.');
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, activeSection, selectedProjectId]);
 
   const ActivePage = pageComponents[activeSection];
@@ -675,12 +625,12 @@ const LawDashboard = () => {
       }
 
       if (recordId) {
-        const res = await lawApi.updateRecord(token, recordId, requestPayload);
-        setRecords((prev) => prev.map((record) => (record._id === recordId ? res.data : record)));
+        await lawApi.updateRecord(token, recordId, requestPayload);
       } else {
-        const res = await lawApi.createRecord(token, requestPayload);
-        setRecords((prev) => [res.data, ...prev]);
+        await lawApi.createRecord(token, requestPayload);
       }
+      queryClient.invalidateQueries({ queryKey: ['law', 'records'] });
+      queryClient.invalidateQueries({ queryKey: ['law', 'moduleData'] });
     } catch (err) {
       setError(err.message || 'Unable to save Law record.');
     } finally {
@@ -694,7 +644,8 @@ const LawDashboard = () => {
     setError('');
     try {
       await lawApi.deleteRecord(token, recordId);
-      setRecords((prev) => prev.filter((record) => record._id !== recordId));
+      queryClient.invalidateQueries({ queryKey: ['law', 'records'] });
+      queryClient.invalidateQueries({ queryKey: ['law', 'moduleData'] });
     } catch (err) {
       setError(err.message || 'Unable to delete Law record.');
     } finally {

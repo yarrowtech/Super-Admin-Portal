@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { QK } from '../../utils/queryKeys';
 
 const categories = [
   { value: 'all', label: 'All Categories' },
@@ -81,45 +83,45 @@ const labelFor = (collection, value) => collection.find((item) => item.value ===
 const ComplaintSolutionsLive = () => {
   const { token, user } = useAuth();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState({ category: 'all', status: 'all', priority: 'all' });
   const [search, setSearch] = useState('');
-  const [complaints, setComplaints] = useState([]);
-  const [meta, setMeta] = useState({ total: 0, totalPages: 1, currentPage: 1 });
-  const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState('');
   const [resolveTarget, setResolveTarget] = useState(null);
   const [solution, setSolution] = useState('');
 
-  const loadComplaints = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const params = {
-        page: 1,
-        limit: 50,
-        ...(filters.category === 'all' ? {} : { category: filters.category }),
-        ...(filters.status === 'all' ? {} : { status: filters.status }),
-        ...(filters.priority === 'all' ? {} : { priority: filters.priority }),
-      };
-      const response = await hrApi.getComplaints(token, params);
+  const complaintsParams = useMemo(
+    () => ({
+      page: 1,
+      limit: 50,
+      ...(filters.category === 'all' ? {} : { category: filters.category }),
+      ...(filters.status === 'all' ? {} : { status: filters.status }),
+      ...(filters.priority === 'all' ? {} : { priority: filters.priority }),
+    }),
+    [filters]
+  );
+
+  const complaintsQuery = useQuery({
+    queryKey: QK.hr.complaints(complaintsParams),
+    queryFn: () => hrApi.getComplaints(token, complaintsParams),
+    enabled: Boolean(token),
+    select: (response) => {
       const data = getPayload(response);
       const rows = Array.isArray(data.complaints) ? data.complaints : [];
-      setComplaints(rows.map(normalizeComplaint));
-      setMeta({
-        total: data.total || rows.length,
-        totalPages: data.totalPages || 1,
-        currentPage: data.currentPage || 1,
-      });
-    } catch (error) {
-      toast.error(error.message || 'Failed to load complaints');
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, toast, token]);
-
-  useEffect(() => {
-    loadComplaints();
-  }, [loadComplaints]);
+      return {
+        complaints: rows.map(normalizeComplaint),
+        meta: {
+          total: data.total || rows.length,
+          totalPages: data.totalPages || 1,
+          currentPage: data.currentPage || 1,
+        },
+      };
+    },
+  });
+  const complaints = useMemo(() => complaintsQuery.data?.complaints || [], [complaintsQuery.data]);
+  const meta = complaintsQuery.data?.meta || { total: 0, totalPages: 1, currentPage: 1 };
+  const loading = complaintsQuery.isLoading;
+  const loadComplaints = () => queryClient.invalidateQueries({ queryKey: ['hr', 'complaints'] });
 
   const visibleComplaints = useMemo(() => {
     const needle = search.trim().toLowerCase();

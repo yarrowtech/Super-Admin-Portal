@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
+import { QK } from '../../utils/queryKeys';
 import { findCanonicalProject } from '../../config/projectNames';
 import PortalHeader from '../common/PortalHeader';
 import AdminProjectsPage from '../admin/AdminProjectsPage';
@@ -85,7 +87,7 @@ const META = {
   audit: ['Audit Trail', 'Immutable activity and compliance logging', 'history'],
 };
 
-const EDITABLE_SECTIONS = new Set(['assets', 'content', 'brand', 'design', 'video', 'social']);
+const EDITABLE_SECTIONS = new Set(['assets', 'content', 'brand', 'design', 'video', 'social', 'advertisements', 'seo', 'website', 'testimonials', 'case-studies']);
 const SECTION_ACTIONS = {
   assets: {
     label: 'Asset',
@@ -99,8 +101,8 @@ const SECTION_ACTIONS = {
     label: 'Content',
     create: 'Create content',
     createFn: 'createMediaContent',
-    updateFn: 'updateMediaAsset',
-    deleteFn: 'deleteMediaAsset',
+    updateFn: 'updateMediaContent',
+    deleteFn: 'deleteMediaContent',
     requestApprovalFn: 'requestMediaContentApproval',
   },
   brand: {
@@ -135,8 +137,225 @@ const SECTION_ACTIONS = {
     deleteFn: 'deleteMediaSocialPost',
     requestApprovalFn: 'requestMediaSocialApproval',
   },
+  advertisements: {
+    label: 'Advertisement',
+    create: 'Create advertisement',
+    createFn: 'createMediaAdvertisement',
+    updateFn: 'updateMediaAdvertisement',
+    deleteFn: 'deleteMediaAdvertisement',
+    requestApprovalFn: 'requestMediaAdvertisementApproval',
+  },
+  seo: {
+    label: 'SEO Item',
+    create: 'Create SEO item',
+    createFn: 'createMediaSeoItem',
+    updateFn: 'updateMediaSeoItem',
+    deleteFn: 'deleteMediaSeoItem',
+    requestApprovalFn: 'requestMediaSeoApproval',
+  },
+  website: {
+    label: 'Website Item',
+    create: 'Create website item',
+    createFn: 'createMediaWebsiteItem',
+    updateFn: 'updateMediaWebsiteItem',
+    deleteFn: 'deleteMediaWebsiteItem',
+    requestApprovalFn: 'requestMediaWebsiteApproval',
+  },
+  testimonials: {
+    label: 'Testimonial',
+    create: 'Create testimonial',
+    createFn: 'createMediaTestimonial',
+    updateFn: 'updateMediaTestimonial',
+    deleteFn: 'deleteMediaTestimonial',
+    requestApprovalFn: 'requestMediaTestimonialApproval',
+  },
+  'case-studies': {
+    label: 'Case Study',
+    create: 'Create case study',
+    createFn: 'createMediaCaseStudy',
+    updateFn: 'updateMediaCaseStudy',
+    deleteFn: 'deleteMediaCaseStudy',
+    requestApprovalFn: 'requestMediaCaseStudyApproval',
+  },
 };
+
+const DOMAIN_FIELDS = {
+  assets: [
+    { key: 'assetType', label: 'Asset Type', placeholder: 'Logo, banner, brochure, source file...' },
+    { key: 'usageRights', label: 'Usage Rights', placeholder: 'Internal, web, paid ads, client approved...' },
+  ],
+  brand: [
+    { key: 'brandArea', label: 'Brand Area', placeholder: 'Logo, typography, palette, guideline...' },
+    { key: 'complianceNotes', label: 'Compliance Notes' },
+  ],
+  content: [
+    { key: 'contentType', label: 'Content Type', placeholder: 'Blog, landing page, email, press release...' },
+    { key: 'channel', label: 'Channel', placeholder: 'Website, newsletter, LinkedIn...' },
+    { key: 'publishTarget', label: 'Publish Target' },
+  ],
+  design: [
+    { key: 'format', label: 'Format', placeholder: 'Static, carousel, print, presentation...' },
+    { key: 'dimensions', label: 'Dimensions', placeholder: '1080x1080, A4, 16:9...' },
+    { key: 'revisionRound', label: 'Revision Round', type: 'number' },
+  ],
+  video: [
+    { key: 'videoType', label: 'Video Type', placeholder: 'Reel, explainer, testimonial, ad...' },
+    { key: 'durationSeconds', label: 'Duration (seconds)', type: 'number' },
+    { key: 'aspectRatio', label: 'Aspect Ratio', placeholder: '9:16, 16:9, 1:1...' },
+  ],
+  social: [
+    { key: 'platform', label: 'Platform', placeholder: 'Instagram, LinkedIn, YouTube...' },
+    { key: 'caption', label: 'Caption' },
+    { key: 'reach', label: 'Reach', type: 'number' },
+    { key: 'engagement', label: 'Engagement', type: 'number' },
+  ],
+  advertisements: [
+    { key: 'platform', label: 'Platform', placeholder: 'Google Ads, Meta, LinkedIn...' },
+    { key: 'impressions', label: 'Impressions', type: 'number' },
+    { key: 'clicks', label: 'Clicks', type: 'number' },
+    { key: 'cpc', label: 'CPC', type: 'number' },
+    { key: 'cpm', label: 'CPM', type: 'number' },
+    { key: 'ctr', label: 'CTR (%)', type: 'number' },
+    { key: 'spend', label: 'Spend', type: 'number', top: true },
+    { key: 'roi', label: 'ROI (%)', type: 'number', top: true },
+  ],
+  seo: [
+    { key: 'keyword', label: 'Keyword' },
+    { key: 'targetUrl', label: 'Target URL' },
+    { key: 'ranking', label: 'Ranking', type: 'number' },
+    { key: 'searchVolume', label: 'Search Volume', type: 'number' },
+    { key: 'backlinks', label: 'Backlinks', type: 'number' },
+  ],
+  website: [
+    { key: 'pageUrl', label: 'Page URL' },
+    { key: 'pageType', label: 'Page Type', placeholder: 'Landing, Blog, Product...' },
+  ],
+  testimonials: [
+    { key: 'clientName', label: 'Client Name' },
+    { key: 'rating', label: 'Rating (1-5)', type: 'number' },
+    { key: 'source', label: 'Source', placeholder: 'Google, LinkedIn, Direct...' },
+  ],
+  'case-studies': [
+    { key: 'clientName', label: 'Client Name' },
+    { key: 'industry', label: 'Industry' },
+    { key: 'resultsSummary', label: 'Results Summary' },
+  ],
+};
+
 const STATUS_OPTIONS = ['all', 'draft', 'pending', 'in review', 'approved', 'live', 'active', 'published', 'needs revision', 'rejected'];
+const CAMPAIGN_STAGES = [
+  'draft',
+  'objective-defined',
+  'platform-selected',
+  'budget-allocated',
+  'team-assigned',
+  'content-in-progress',
+  'in-approval',
+  'scheduled',
+  'live',
+  'tracking',
+  'closed',
+];
+const CAMPAIGN_STAGE_LABELS = {
+  draft: 'Draft',
+  'objective-defined': 'Objective Defined',
+  'platform-selected': 'Platform Selected',
+  'budget-allocated': 'Budget Allocated',
+  'team-assigned': 'Team Assigned',
+  'content-in-progress': 'Content In Progress',
+  'in-approval': 'In Approval',
+  scheduled: 'Scheduled',
+  live: 'Live',
+  tracking: 'Tracking',
+  closed: 'Closed',
+};
+const CREATIVE_SECTION_IDS = new Set(['assets', 'brand', 'content', 'design', 'video', 'social']);
+const CREATIVE_DETAILS = {
+  assets: ['Asset Library', 'Manage logos, campaign files, source assets, and approved deliverables.', 'assetType', 'Asset types'],
+  brand: ['Brand Control', 'Keep guidelines, templates, identity assets, and compliance notes in one place.', 'brandArea', 'Brand areas'],
+  content: ['Content Pipeline', 'Create, revise, approve, and publish copy across every channel.', 'contentType', 'Content types'],
+  design: ['Design Queue', 'Track design requests, revisions, owners, and delivery files.', 'format', 'Formats'],
+  video: ['Video Production', 'Manage scripts, edits, cuts, review files, and publishing status.', 'videoType', 'Video types'],
+  social: ['Social Desk', 'Plan posts, attach creatives, and capture platform performance.', 'platform', 'Platforms'],
+};
+const CREATIVE_WORKFLOWS = {
+  assets: [
+    ['Intake', 'Upload source file, assign owner, tag usage.'],
+    ['Organize', 'Attach category, rights, and project context.'],
+    ['Approve', 'Request approval before final use.'],
+    ['Publish', 'Use approved files in campaigns and reports.'],
+  ],
+  brand: [
+    ['Guideline', 'Define brand area, notes, and source asset.'],
+    ['Compliance', 'Check logo, type, colors, and usage rules.'],
+    ['Approve', 'Lock approved versions for reuse.'],
+    ['Distribute', 'Share final templates and reference files.'],
+  ],
+  content: [
+    ['Brief', 'Capture type, channel, target, and owner.'],
+    ['Draft', 'Write, attach files, and update status.'],
+    ['Review', 'Move through approval and revisions.'],
+    ['Publish', 'Mark scheduled, live, or published.'],
+  ],
+  design: [
+    ['Request', 'Capture format, size, owner, and brief.'],
+    ['Production', 'Attach work files and revision notes.'],
+    ['Review', 'Track approval and requested changes.'],
+    ['Delivery', 'Store final creative for campaign use.'],
+  ],
+  video: [
+    ['Script', 'Define type, duration, ratio, and owner.'],
+    ['Edit', 'Attach cuts, thumbnails, and review files.'],
+    ['Approve', 'Route edits through approval.'],
+    ['Publish', 'Mark scheduled, live, or archived.'],
+  ],
+  social: [
+    ['Plan', 'Set platform, caption, owner, and asset.'],
+    ['Schedule', 'Track status and publish timing.'],
+    ['Review', 'Approve creative and caption together.'],
+    ['Measure', 'Update reach and engagement.'],
+  ],
+};
+const CHANNEL_SECTION_IDS = new Set(['advertisements', 'seo', 'website', 'testimonials', 'case-studies']);
+const CHANNEL_DETAILS = {
+  advertisements: ['Paid Ads Control', 'Manage paid media creatives, spend, platform performance, approvals, and ROI snapshots.', 'platform', 'Platforms'],
+  seo: ['SEO Growth Desk', 'Track keyword ownership, ranking movement, backlinks, page targets, and optimization status.', 'keyword', 'Keywords'],
+  website: ['Website Publishing Desk', 'Control page updates, launch readiness, owners, approvals, and publishing evidence.', 'pageType', 'Page types'],
+  testimonials: ['Proof & Testimonial Desk', 'Collect, approve, and reuse client proof across campaigns, sales pages, and social channels.', 'source', 'Sources'],
+  'case-studies': ['Case Study Pipeline', 'Build client impact stories from intake through proof, approval, publishing, and reuse.', 'industry', 'Industries'],
+};
+const CHANNEL_WORKFLOWS = {
+  advertisements: [
+    ['Plan', 'Define platform, target, budget, and creative owner.'],
+    ['Launch', 'Attach ad creative and move approved work live.'],
+    ['Optimize', 'Update spend, CPC, CPM, CTR, and ROI snapshots.'],
+    ['Report', 'Keep performance evidence tied to project and campaign.'],
+  ],
+  seo: [
+    ['Research', 'Capture keyword, target page, volume, and intent.'],
+    ['Optimize', 'Assign page owner, content work, and technical fixes.'],
+    ['Measure', 'Update rank, backlinks, and search volume.'],
+    ['Improve', 'Keep next actions visible until ranking target is reached.'],
+  ],
+  website: [
+    ['Request', 'Capture page type, URL, owner, and project context.'],
+    ['Build', 'Track copy, design, dev, and media requirements.'],
+    ['Approve', 'Route page changes through review before publish.'],
+    ['Publish', 'Mark live, attach proof, and keep launch records auditable.'],
+  ],
+  testimonials: [
+    ['Collect', 'Capture client, rating, quote source, and permission.'],
+    ['Verify', 'Check proof, consent, and reusable marketing claims.'],
+    ['Approve', 'Move testimonial through review before publishing.'],
+    ['Reuse', 'Attach to campaigns, website pages, ads, and sales content.'],
+  ],
+  'case-studies': [
+    ['Qualify', 'Select client, industry, problem, and measurable outcome.'],
+    ['Write', 'Build story, result summary, assets, and supporting proof.'],
+    ['Approve', 'Route internal and client approval before publishing.'],
+    ['Distribute', 'Use approved story across website, campaigns, and sales.'],
+  ],
+};
 
 const EXPORT_OPTIONS = ['PDF', 'Excel', 'CSV', 'PPT'];
 const COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#ec4899'];
@@ -153,6 +372,64 @@ const tone = (status = '') => {
 };
 const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const money = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num(value));
+const average = (values) => {
+  const valid = values.map(num).filter((value) => value > 0);
+  if (!valid.length) return 0;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+};
+const getChannelInsights = (section, records) => {
+  if (section === 'advertisements') {
+    const spend = records.reduce((sum, item) => sum + num(item?.budgetImpact?.spend || item?.metadata?.spend), 0);
+    const clicks = records.reduce((sum, item) => sum + num(item?.metadata?.clicks), 0);
+    return [
+      ['Total Spend', money(spend), 'payments'],
+      ['Clicks', clicks.toLocaleString(), 'ads_click'],
+      ['Avg CTR', `${average(records.map((item) => item?.metadata?.ctr)).toFixed(1)}%`, 'percent'],
+      ['Avg ROI', `${average(records.map((item) => item?.budgetImpact?.roiAtSnapshot || item?.metadata?.roi)).toFixed(1)}%`, 'trending_up'],
+    ];
+  }
+  if (section === 'seo') {
+    const topTen = records.filter((item) => num(item?.metadata?.ranking) > 0 && num(item?.metadata?.ranking) <= 10).length;
+    const backlinks = records.reduce((sum, item) => sum + num(item?.metadata?.backlinks), 0);
+    return [
+      ['Tracked Keywords', records.length.toLocaleString(), 'search'],
+      ['Top 10 Ranks', topTen.toLocaleString(), 'military_tech'],
+      ['Backlinks', backlinks.toLocaleString(), 'link'],
+      ['Avg Position', average(records.map((item) => item?.metadata?.ranking)).toFixed(1), 'leaderboard'],
+    ];
+  }
+  if (section === 'website') {
+    const liveCount = records.filter((item) => ['live', 'published', 'approved'].some((status) => getRecordStatus(item).includes(status))).length;
+    const urls = new Set(records.map((item) => String(item?.metadata?.pageUrl || '').trim()).filter(Boolean)).size;
+    return [
+      ['Pages', records.length.toLocaleString(), 'web'],
+      ['URLs', urls.toLocaleString(), 'link'],
+      ['Live/Approved', liveCount.toLocaleString(), 'published_with_changes'],
+      ['Page Types', new Set(records.map((item) => String(item?.metadata?.pageType || '').trim()).filter(Boolean)).size.toLocaleString(), 'category'],
+    ];
+  }
+  if (section === 'testimonials') {
+    const avgRating = average(records.map((item) => item?.metadata?.rating));
+    const clients = new Set(records.map((item) => String(item?.metadata?.clientName || '').trim()).filter(Boolean)).size;
+    return [
+      ['Testimonials', records.length.toLocaleString(), 'reviews'],
+      ['Clients', clients.toLocaleString(), 'business_center'],
+      ['Avg Rating', avgRating ? `${avgRating.toFixed(1)}/5` : '0/5', 'star'],
+      ['Approved', records.filter((item) => getRecordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
+    ];
+  }
+  if (section === 'case-studies') {
+    const clients = new Set(records.map((item) => String(item?.metadata?.clientName || '').trim()).filter(Boolean)).size;
+    const industries = new Set(records.map((item) => String(item?.metadata?.industry || '').trim()).filter(Boolean)).size;
+    return [
+      ['Stories', records.length.toLocaleString(), 'description'],
+      ['Clients', clients.toLocaleString(), 'business_center'],
+      ['Industries', industries.toLocaleString(), 'domain'],
+      ['Approved', records.filter((item) => getRecordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
+    ];
+  }
+  return [];
+};
 const bytes = (value) => {
   const n = num(value);
   if (!n) return '0 B';
@@ -163,9 +440,11 @@ const bytes = (value) => {
 const arr = (value) => (Array.isArray(value) ? value : []);
 const pick = (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '-';
 const toInputValue = (value) => (value === undefined || value === null ? '' : String(value));
+const recordStatus = (record) => String(record?.status || record?.state || record?.approvalStatus || '').trim().toLowerCase();
 
 const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onProjectChange }) => {
   const { token, user } = useAuth();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboard, setDashboard] = useState(null);
@@ -178,17 +457,36 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [designItems, setDesignItems] = useState([]);
   const [videoItems, setVideoItems] = useState([]);
   const [socialPosts, setSocialPosts] = useState([]);
+  const [advertisements, setAdvertisements] = useState([]);
+  const [seoItems, setSeoItems] = useState([]);
+  const [websiteItems, setWebsiteItems] = useState([]);
+  const [testimonials, setTestimonials] = useState([]);
+  const [caseStudies, setCaseStudies] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [reporting, setReporting] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeProjectId, setActiveProjectId] = useState('');
-  const [reloadTick, setReloadTick] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [actionBusy, setActionBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
-  const [campaignFormOpen, setCampaignFormOpen] = useState(false);
-  const [campaignForm, setCampaignForm] = useState({ name: '', objective: '', platform: '', budgetAllocated: '' });
+  const [campaignEditor, setCampaignEditor] = useState({ open: false, mode: 'create', record: null });
+  const [campaignDraft, setCampaignDraft] = useState({
+    name: '',
+    objective: '',
+    description: '',
+    platform: '',
+    status: 'draft',
+    budgetAllocated: '',
+    startDate: '',
+    endDate: '',
+    projectName: '',
+    teamMembersText: '',
+    targetReach: '',
+    targetLeads: '',
+    targetConversions: '',
+    targetRevenue: '',
+  });
   const [editor, setEditor] = useState({ open: false, mode: 'create', section: 'assets', record: null });
   const [draft, setDraft] = useState({
     title: '',
@@ -198,20 +496,19 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     category: '',
     projectName: '',
     ownerName: '',
+    domainFields: {},
   });
   const effectiveProjectId = selectedProjectId !== undefined ? selectedProjectId : activeProjectId;
   const buildProjectOptions = (projectItems = []) =>
     projectItems
       .map((project) => {
-        const canonicalProject = findCanonicalProject(project);
-        if (!canonicalProject) return null;
-
         const value = String(project?._id || project?.id || '').trim();
-        const code = canonicalProject.code;
-        const name = canonicalProject.name;
-        const description = canonicalProject.description;
-
         if (!value) return null;
+
+        const canonicalProject = findCanonicalProject(project);
+        const code = canonicalProject?.code || project?.projectCode || project?.code || '';
+        const name = canonicalProject?.name || project?.name || project?.projectCode || 'Untitled project';
+        const description = canonicalProject?.description || project?.description || 'Project workspace';
 
         return {
           code,
@@ -248,72 +545,102 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     } catch {}
   }, [effectiveProjectId]);
 
+  // Client-side cache layer: every list below is a TanStack Query, keyed by
+  // project + params via QK.media.*. Revisiting a section (or a project you
+  // already loaded this session) reads from cache instead of refetching, and
+  // the cache itself is persisted to localStorage (see localStorageCache.js)
+  // so a page reload shows instant stale-while-revalidate data too.
+  const projectParams = useMemo(() => {
+    const storedProjectId = String(effectiveProjectId || '');
+    const hasRealProjectId = Boolean(storedProjectId && !storedProjectId.startsWith('virtual-'));
+    return hasRealProjectId ? { projectId: storedProjectId } : {};
+  }, [effectiveProjectId]);
+  const listParams = useMemo(() => ({ ...projectParams, limit: 12 }), [projectParams]);
+  const enabled = Boolean(token);
+
+  const [
+    projectsQuery, dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery,
+    approvalsQuery, reportingQuery, campaignTasksQuery, designQuery, videoQuery, socialQuery,
+    advertisementsQuery, seoQuery, websiteQuery, testimonialsQuery, caseStudiesQuery,
+  ] = useQueries({
+    queries: [
+      { queryKey: QK.media.projects({ limit: 200 }), queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }), enabled },
+      { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled },
+      { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled },
+      { queryKey: QK.media.campaigns(listParams), queryFn: () => departmentApi.getMediaCampaigns(token, listParams), enabled },
+      { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled },
+      { queryKey: QK.media.brandAssets(listParams), queryFn: () => departmentApi.getMediaBrandAssets(token, listParams), enabled },
+      { queryKey: QK.media.approvals(listParams), queryFn: () => departmentApi.getMediaApprovals(token, listParams), enabled },
+      { queryKey: QK.media.reporting(projectParams), queryFn: () => departmentApi.getMediaReportingSummary(token, projectParams), enabled },
+      { queryKey: QK.media.campaignTasks(projectParams), queryFn: () => departmentApi.getMediaCampaignTasks(token, projectParams), enabled },
+      { queryKey: QK.media.design(listParams), queryFn: () => departmentApi.getMediaDesignItems(token, listParams), enabled },
+      { queryKey: QK.media.video(listParams), queryFn: () => departmentApi.getMediaVideoItems(token, listParams), enabled },
+      { queryKey: QK.media.social(listParams), queryFn: () => departmentApi.getMediaSocialPosts(token, listParams), enabled },
+      { queryKey: QK.media.advertisements(listParams), queryFn: () => departmentApi.getMediaAdvertisements(token, listParams), enabled },
+      { queryKey: QK.media.seo(listParams), queryFn: () => departmentApi.getMediaSeoItems(token, listParams), enabled },
+      { queryKey: QK.media.website(listParams), queryFn: () => departmentApi.getMediaWebsiteItems(token, listParams), enabled },
+      { queryKey: QK.media.testimonials(listParams), queryFn: () => departmentApi.getMediaTestimonials(token, listParams), enabled },
+      { queryKey: QK.media.caseStudies(listParams), queryFn: () => departmentApi.getMediaCaseStudies(token, listParams), enabled },
+    ],
+  });
+
+  // Sync each cached query into the same local state the rest of this component
+  // (and every optimistic create/update/delete handler below) already reads and
+  // writes — the write path is untouched, only where the initial data comes from.
   useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      if (!token) return;
-      setLoading(true);
+    const projectItems = arr(projectsQuery.data?.data?.items || projectsQuery.data?.data?.data?.items);
+    setProjects(buildProjectOptions(projectItems));
+  }, [projectsQuery.data]);
+  useEffect(() => { setDashboard(dashboardQuery.data?.data || null); }, [dashboardQuery.data]);
+  useEffect(() => { setAssets(arr(assetsQuery.data?.data?.items)); }, [assetsQuery.data]);
+  useEffect(() => { setCampaigns(arr(campaignsQuery.data?.data?.items)); }, [campaignsQuery.data]);
+  useEffect(() => { setContent(arr(contentQuery.data?.data?.items)); }, [contentQuery.data]);
+  useEffect(() => { setBrandAssets(arr(brandAssetsQuery.data?.data?.items)); }, [brandAssetsQuery.data]);
+  useEffect(() => { setApprovals(arr(approvalsQuery.data?.data?.items)); }, [approvalsQuery.data]);
+  useEffect(() => { setReporting(reportingQuery.data?.data || null); }, [reportingQuery.data]);
+  useEffect(() => { setCampaignTasks(arr(campaignTasksQuery.data?.data?.items)); }, [campaignTasksQuery.data]);
+  useEffect(() => { setDesignItems(arr(designQuery.data?.data?.items)); }, [designQuery.data]);
+  useEffect(() => { setVideoItems(arr(videoQuery.data?.data?.items)); }, [videoQuery.data]);
+  useEffect(() => { setSocialPosts(arr(socialQuery.data?.data?.items)); }, [socialQuery.data]);
+  useEffect(() => { setAdvertisements(arr(advertisementsQuery.data?.data?.items)); }, [advertisementsQuery.data]);
+  useEffect(() => { setSeoItems(arr(seoQuery.data?.data?.items)); }, [seoQuery.data]);
+  useEffect(() => { setWebsiteItems(arr(websiteQuery.data?.data?.items)); }, [websiteQuery.data]);
+  useEffect(() => { setTestimonials(arr(testimonialsQuery.data?.data?.items)); }, [testimonialsQuery.data]);
+  useEffect(() => { setCaseStudies(arr(caseStudiesQuery.data?.data?.items)); }, [caseStudiesQuery.data]);
+
+  const anyLoading = [
+    projectsQuery, dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery,
+    approvalsQuery, reportingQuery, campaignTasksQuery, designQuery, videoQuery, socialQuery,
+    advertisementsQuery, seoQuery, websiteQuery, testimonialsQuery, caseStudiesQuery,
+  ].some((q) => q.isLoading);
+
+  useEffect(() => {
+    setLoading(anyLoading);
+    if (!anyLoading) setLastUpdated(Date.now());
+  }, [anyLoading]);
+
+  // Mirrors the previous behaviour: a failure on the critical `projects` fetch
+  // surfaces as the page-level error; individual section fetches fail silently
+  // (arr()/`|| null` fall back to empty state), same as the old Promise.allSettled.
+  useEffect(() => {
+    if (projectsQuery.isError) {
+      setError(projectsQuery.error?.message || 'Failed to load Media Portal.');
+    } else if (projectsQuery.isSuccess) {
       setError('');
-      try {
-        const storedProjectId = selectedProjectId !== undefined ? String(selectedProjectId || '') : String(activeProjectId || '');
-        const hasRealProjectId = Boolean(storedProjectId && !storedProjectId.startsWith('virtual-'));
-        const projectsRes = await departmentApi.getMediaProjects(token, { limit: 200 });
-        const projectItems = arr(projectsRes?.data?.items || projectsRes?.data?.data?.items);
-        const projectList = buildProjectOptions(projectItems);
-        const fallbackProject = projectList.find((project) => project.value) || null;
-        const shouldAutoSelectProject =
-          activeSection !== 'dashboard' &&
-          activeSection !== 'project-hub' &&
-          !hasRealProjectId &&
-          Boolean(fallbackProject);
-        const resolvedProjectId = hasRealProjectId
-          ? storedProjectId
-          : shouldAutoSelectProject
-            ? fallbackProject.value
-            : '';
-        const projectParams = resolvedProjectId ? { projectId: resolvedProjectId } : {};
-        const results = await Promise.allSettled([
-          departmentApi.getMediaDashboard(token, projectParams),
-          departmentApi.getMediaAssets(token, { ...projectParams, limit: 12 }),
-          departmentApi.getMediaCampaigns(token, { ...projectParams, limit: 12 }),
-          departmentApi.getMediaContent(token, { ...projectParams, limit: 12 }),
-          departmentApi.getMediaBrandAssets(token, { ...projectParams, limit: 12 }),
-          departmentApi.getMediaApprovals(token, { ...projectParams, limit: 12 }),
-          departmentApi.getMediaReportingSummary(token, projectParams),
-          departmentApi.getMediaCampaignTasks(token, projectParams),
-          departmentApi.getMediaDesignItems(token, { ...projectParams, limit: 12 }),
-          departmentApi.getMediaVideoItems(token, { ...projectParams, limit: 12 }),
-          departmentApi.getMediaSocialPosts(token, { ...projectParams, limit: 12 }),
-        ]);
-        if (!alive) return;
-        const [dash, ass, camp, cont, brand, appr, report, campTasks, design, video, social] = results;
-        setDashboard(dash.status === 'fulfilled' ? dash.value?.data || null : null);
-        setProjects(projectList);
-        setAssets(ass.status === 'fulfilled' ? arr(ass.value?.data?.items) : []);
-        setCampaigns(camp.status === 'fulfilled' ? arr(camp.value?.data?.items) : []);
-        setContent(cont.status === 'fulfilled' ? arr(cont.value?.data?.items) : []);
-        setBrandAssets(brand.status === 'fulfilled' ? arr(brand.value?.data?.items) : []);
-        setApprovals(appr.status === 'fulfilled' ? arr(appr.value?.data?.items) : []);
-        setReporting(report.status === 'fulfilled' ? report.value?.data || null : null);
-        setCampaignTasks(campTasks.status === 'fulfilled' ? arr(campTasks.value?.data?.items) : []);
-        setDesignItems(design.status === 'fulfilled' ? arr(design.value?.data?.items) : []);
-        setVideoItems(video.status === 'fulfilled' ? arr(video.value?.data?.items) : []);
-        setSocialPosts(social.status === 'fulfilled' ? arr(social.value?.data?.items) : []);
-        setLastUpdated(Date.now());
-        if (shouldAutoSelectProject && resolvedProjectId) {
-          onProjectChange?.(resolvedProjectId);
-        }
-      } catch (e) {
-        if (alive) setError(e.message || 'Failed to load Media Portal.');
-      } finally {
-        if (alive) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      alive = false;
-    };
-  }, [token, activeSection, selectedProjectId, activeProjectId, onProjectChange, reloadTick]);
+    }
+  }, [projectsQuery.isError, projectsQuery.isSuccess, projectsQuery.error]);
+
+  // Auto-pick a project the first time the user lands on a project-scoped section
+  // with none selected — purely local (reads already-fetched `projects`), so it
+  // doesn't reintroduce a network round-trip on every section switch.
+  useEffect(() => {
+    if (activeSection === 'dashboard' || activeSection === 'project-hub') return;
+    const storedProjectId = String(effectiveProjectId || '');
+    const hasRealProjectId = Boolean(storedProjectId && !storedProjectId.startsWith('virtual-'));
+    if (hasRealProjectId) return;
+    const fallbackProject = projects.find((project) => project.value);
+    if (fallbackProject) onProjectChange?.(fallbackProject.value);
+  }, [activeSection, projects, effectiveProjectId, onProjectChange]);
 
   const summary = useMemo(() => {
     const kpis = dashboard?.kpis || {};
@@ -360,6 +687,19 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
   const getSectionAction = (section) => SECTION_ACTIONS[section] || null;
 
+  const extractDomainFields = (record = {}, section) => {
+    const defs = DOMAIN_FIELDS[section] || [];
+    const result = {};
+    defs.forEach((f) => {
+      if (f.top) {
+        result[f.key] = toInputValue(f.key === 'spend' ? record?.budgetImpact?.spend : record?.budgetImpact?.roiAtSnapshot);
+      } else {
+        result[f.key] = toInputValue(record?.metadata?.[f.key]);
+      }
+    });
+    return result;
+  };
+
   const buildDraftFromRecord = (record = {}, section = activeSection) => ({
     title: toInputValue(record.title || record.name || record.contentName || record.assetName),
     description: toInputValue(record.description || record.objective || record.summary || ''),
@@ -377,6 +717,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     fileSizeBytes: record.fileSizeBytes || 0,
     file: null,
     section,
+    domainFields: extractDomainFields(record, section),
   });
 
   const openEditor = (mode, section, record = null) => {
@@ -390,11 +731,11 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     setDraft(buildDraftFromRecord({}, activeSection));
   };
 
-  const refreshData = () => setReloadTick((value) => value + 1);
+  const refreshData = () => queryClient.invalidateQueries({ queryKey: QK.media.root() });
 
   const resolveRecordId = (record) => String(record?._id || record?.id || '').trim();
 
-  const getRecordStatus = (record) => String(record?.status || record?.state || record?.approvalStatus || '').trim().toLowerCase();
+  const getRecordStatus = (record) => recordStatus(record);
 
   const matchesSearch = (record) => {
     const term = searchTerm.trim().toLowerCase();
@@ -442,6 +783,11 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       case 'design': return setDesignItems;
       case 'video': return setVideoItems;
       case 'social': return setSocialPosts;
+      case 'advertisements': return setAdvertisements;
+      case 'seo': return setSeoItems;
+      case 'website': return setWebsiteItems;
+      case 'testimonials': return setTestimonials;
+      case 'case-studies': return setCaseStudies;
       default: return null;
     }
   };
@@ -502,6 +848,17 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         };
       }
 
+      const domainDefs = DOMAIN_FIELDS[section] || [];
+      const domainMetadata = {};
+      const domainTopFields = {};
+      domainDefs.forEach((f) => {
+        const raw = draft.domainFields?.[f.key];
+        const value = f.type === 'number' ? (raw === '' || raw === undefined ? undefined : Number(raw)) : (raw || undefined);
+        if (value === undefined) return;
+        if (f.top) domainTopFields[f.key] = value;
+        else domainMetadata[f.key] = value;
+      });
+
       const payload = {
         title: draft.title.trim(),
         description: draft.description.trim(),
@@ -515,6 +872,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         moduleType,
         projectId: effectiveProjectId || undefined,
         ...fileFields,
+        ...domainTopFields,
+        metadata: domainMetadata,
       };
 
       let saved;
@@ -580,7 +939,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       const nextStatus = decision === 'approve' ? 'Approved' : 'Needs Revision';
       const patch = { approvalStatus: decision === 'approve' ? 'approved' : 'rejected', status: nextStatus };
       const matchesWorkflow = (item) => item?.approvalWorkflowId === workflowId || item?.workflowId === workflowId;
-      [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts, setApprovals].forEach((setter) => {
+      [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts, setAdvertisements, setSeoItems, setWebsiteItems, setTestimonials, setCaseStudies, setApprovals].forEach((setter) => {
         setter((prev) => prev.map((item) => (matchesWorkflow(item) ? { ...item, ...patch } : item)));
       });
     } catch (err) {
@@ -590,27 +949,109 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     }
   };
 
-  const createCampaignRecord = async (event) => {
+  const toDateInput = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+  };
+
+  const buildCampaignDraft = (record = {}) => ({
+    name: toInputValue(record.name),
+    objective: toInputValue(record.objective),
+    description: toInputValue(record.description),
+    platform: arr(record.platform).join(', '),
+    status: toInputValue(record.status || 'draft'),
+    budgetAllocated: toInputValue(record.budgetAllocated || ''),
+    startDate: toDateInput(record.startDate),
+    endDate: toDateInput(record.endDate),
+    projectName: toInputValue(record.projectName || ''),
+    teamMembersText: arr(record.teamMembers)
+      .map((member) => [member.name, member.role].filter(Boolean).join(' - '))
+      .join('\n'),
+    targetReach: toInputValue(record.kpiTargets?.reach || ''),
+    targetLeads: toInputValue(record.kpiTargets?.leads || ''),
+    targetConversions: toInputValue(record.kpiTargets?.conversions || ''),
+    targetRevenue: toInputValue(record.kpiTargets?.revenue || ''),
+  });
+
+  const openCampaignEditor = (mode = 'create', record = null) => {
+    setActionMessage('');
+    setCampaignEditor({ open: true, mode, record });
+    setCampaignDraft(buildCampaignDraft(record || {}));
+  };
+
+  const closeCampaignEditor = () => {
+    setCampaignEditor({ open: false, mode: 'create', record: null });
+    setCampaignDraft(buildCampaignDraft({}));
+  };
+
+  const parseCampaignTeamMembers = (value = '') =>
+    String(value || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [name, ...roleParts] = line.split(/\s+-\s+|,/);
+        return {
+          name: String(name || '').trim(),
+          role: roleParts.join(' ').trim(),
+        };
+      })
+      .filter((member) => member.name || member.role);
+
+  const buildCampaignPayload = () => {
+    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
+    return {
+      projectId: effectiveProjectId || undefined,
+      projectName: campaignDraft.projectName.trim() || selectedProject?.name || undefined,
+      name: campaignDraft.name.trim(),
+      objective: campaignDraft.objective.trim(),
+      description: campaignDraft.description.trim(),
+      platform: campaignDraft.platform.split(',').map((item) => item.trim()).filter(Boolean),
+      status: campaignDraft.status || 'draft',
+      budgetAllocated: Number(campaignDraft.budgetAllocated) || 0,
+      startDate: campaignDraft.startDate || undefined,
+      endDate: campaignDraft.endDate || undefined,
+      teamMembers: parseCampaignTeamMembers(campaignDraft.teamMembersText),
+      kpiTargets: {
+        reach: Number(campaignDraft.targetReach) || 0,
+        leads: Number(campaignDraft.targetLeads) || 0,
+        conversions: Number(campaignDraft.targetConversions) || 0,
+        revenue: Number(campaignDraft.targetRevenue) || 0,
+      },
+    };
+  };
+
+  const persistCampaignRecord = async (event) => {
     event.preventDefault();
     if (!effectiveProjectId) {
       setError('Select a project before creating a campaign.');
       return;
     }
+    if (!campaignDraft.name.trim()) {
+      setError('Campaign name is required.');
+      return;
+    }
     setActionBusy(true);
     try {
-      const res = await departmentApi.createMediaCampaign(token, {
-        projectId: effectiveProjectId,
-        name: campaignForm.name.trim(),
-        objective: campaignForm.objective.trim(),
-        platform: campaignForm.platform.split(',').map((item) => item.trim()).filter(Boolean),
-        budgetAllocated: Number(campaignForm.budgetAllocated) || 0,
-      });
-      if (res?.data) setCampaigns((prev) => [res.data, ...prev]);
-      setActionMessage('Campaign created.');
-      setCampaignForm({ name: '', objective: '', platform: '', budgetAllocated: '' });
-      setCampaignFormOpen(false);
+      const payload = buildCampaignPayload();
+      let saved;
+      if (campaignEditor.mode === 'edit') {
+        const id = campaignEditor.record?._id || campaignEditor.record?.id;
+        const res = await departmentApi.updateMediaCampaign(token, id, payload);
+        saved = res?.data;
+        if (saved) setCampaigns((prev) => prev.map((item) => (String(item._id) === String(id) ? saved : item)));
+        setActionMessage('Campaign updated.');
+      } else {
+        const res = await departmentApi.createMediaCampaign(token, payload);
+        saved = res?.data;
+        if (saved) setCampaigns((prev) => [saved, ...prev]);
+        setActionMessage('Campaign created.');
+      }
+      closeCampaignEditor();
     } catch (err) {
-      setError(err.message || 'Failed to create campaign.');
+      setError(err.message || 'Failed to save campaign.');
     } finally {
       setActionBusy(false);
     }
@@ -622,6 +1063,11 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       const res = await departmentApi.advanceMediaCampaignStage(token, campaignId, nextStage);
       if (res?.data) {
         setCampaigns((prev) => prev.map((item) => (String(item._id) === String(campaignId) ? res.data : item)));
+      }
+      if (nextStage === 'content-in-progress') {
+        const projectParams = effectiveProjectId ? { projectId: effectiveProjectId } : {};
+        const tasksRes = await departmentApi.getMediaCampaignTasks(token, projectParams);
+        setCampaignTasks(arr(tasksRes?.data?.items));
       }
       setActionMessage(`Campaign moved to ${nextStage.replace(/-/g, ' ')}.`);
     } catch (err) {
@@ -639,6 +1085,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       await departmentApi.deleteMediaCampaign(token, campaignId);
       setActionMessage('Campaign deleted.');
       setCampaigns((prev) => prev.filter((item) => String(item._id) !== String(campaignId)));
+      setCampaignTasks((prev) => prev.filter((task) => String(task.campaignId) !== String(campaignId)));
     } catch (err) {
       setError(err.message || 'Failed to delete campaign.');
     } finally {
@@ -648,49 +1095,147 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
   const renderCampaigns = () => {
     const rows = filterRecords(campaigns);
+    const totalBudget = rows.reduce((sum, campaign) => sum + num(campaign.budgetAllocated), 0);
+    const liveCount = rows.filter((campaign) => ['live', 'tracking'].includes(campaign.status)).length;
+    const planningCount = rows.filter((campaign) => ['draft', 'objective-defined', 'platform-selected', 'budget-allocated', 'team-assigned'].includes(campaign.status)).length;
+    const reviewCount = rows.filter((campaign) => ['content-in-progress', 'in-approval', 'scheduled'].includes(campaign.status)).length;
+    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
+
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">{rows.length} campaign{rows.length === 1 ? '' : 's'}</p>
-          <button
-            type="button"
-            onClick={() => setCampaignFormOpen((value) => !value)}
-            className="rounded-full border border-blue-200 bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-          >
-            {campaignFormOpen ? 'Cancel' : 'New Campaign'}
-          </button>
-        </div>
-
-        {campaignFormOpen ? (
-          <form onSubmit={createCampaignRecord} className={`${card} grid grid-cols-1 gap-3 md:grid-cols-4`}>
-            <input required value={campaignForm.name} onChange={(e) => setCampaignForm((f) => ({ ...f, name: e.target.value }))} placeholder="Campaign name" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 md:col-span-2" />
-            <input value={campaignForm.platform} onChange={(e) => setCampaignForm((f) => ({ ...f, platform: e.target.value }))} placeholder="Platforms (comma separated)" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 md:col-span-2" />
-            <textarea value={campaignForm.objective} onChange={(e) => setCampaignForm((f) => ({ ...f, objective: e.target.value }))} placeholder="Objective" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 md:col-span-3" rows={2} />
-            <input type="number" min="0" value={campaignForm.budgetAllocated} onChange={(e) => setCampaignForm((f) => ({ ...f, budgetAllocated: e.target.value }))} placeholder="Budget" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500" />
-            <button type="submit" disabled={actionBusy} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 md:col-span-4">
-              Create campaign
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[22px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                  ads_click
+                </span>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">Campaign Command Center</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Plan, launch, track, and close media campaigns with budget, KPI, team, and lifecycle control.</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  Showing {rows.length} of {campaigns.length}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => openCampaignEditor('create')}
+              disabled={actionBusy || !effectiveProjectId}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              New Campaign
             </button>
-          </form>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {[
+              ['Campaigns', rows.length, 'campaign'],
+              ['Planning', planningCount, 'edit_calendar'],
+              ['Production/Review', reviewCount, 'rate_review'],
+              ['Live/Tracking', liveCount, 'monitoring'],
+              ['Budget', money(totalBudget), 'payments'],
+            ].map(([label, value, icon]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
+                </div>
+                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {!effectiveProjectId ? (
+          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Select a project before creating a campaign.
+          </section>
         ) : null}
+
+        {rows.length ? (
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-neutral-800">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-neutral-950 dark:text-neutral-400">
+                <tr>
+                  <th className="px-4 py-3">Campaign</th>
+                  <th className="px-4 py-3">Stage</th>
+                  <th className="px-4 py-3">Budget</th>
+                  <th className="px-4 py-3">Timeline</th>
+                  <th className="px-4 py-3">Team</th>
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-neutral-800">
+                {rows.map((campaign) => {
+                  const statusIndex = Math.max(CAMPAIGN_STAGES.indexOf(campaign.status), 0);
+                  const progress = Math.round(((statusIndex + 1) / CAMPAIGN_STAGES.length) * 100);
+                  return (
+                    <tr key={campaign._id} className="align-top">
+                      <td className="px-4 py-4">
+                        <div className="max-w-md">
+                          <p className="font-black text-slate-950 dark:text-neutral-100">{campaign.name}</p>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-neutral-400">{campaign.objective || campaign.description || '-'}</p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {arr(campaign.platform).length ? arr(campaign.platform).map((platform) => (
+                              <span key={platform} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{platform}</span>
+                            )) : <span className="text-xs text-slate-400">No platforms</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(campaign.status)}`}>
+                          {CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}
+                        </span>
+                        <div className="mt-2 h-2 w-36 rounded-full bg-slate-100 dark:bg-neutral-800">
+                          <div className="h-full rounded-full bg-teal-500" style={{ width: `${progress}%` }} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 font-semibold text-slate-700 dark:text-neutral-300">{money(campaign.budgetAllocated)}</td>
+                      <td className="px-4 py-4 text-xs text-slate-500 dark:text-neutral-400">
+                        <p>{campaign.startDate ? new Date(campaign.startDate).toLocaleDateString() : 'No start'}</p>
+                        <p>{campaign.endDate ? new Date(campaign.endDate).toLocaleDateString() : 'No end'}</p>
+                      </td>
+                      <td className="px-4 py-4 text-xs text-slate-500 dark:text-neutral-400">
+                        {arr(campaign.teamMembers).length ? `${campaign.teamMembers.length} member${campaign.teamMembers.length === 1 ? '' : 's'}` : 'Unassigned'}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" disabled={actionBusy} onClick={() => openCampaignEditor('edit', campaign)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300">
+                            Edit
+                          </button>
+                          <button type="button" disabled={actionBusy} onClick={() => deleteCampaignRecord(campaign._id)} className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : empty('No campaigns found', 'Create a campaign to start the objective, platform, budget, team, and content pipeline.')}
 
         {rows.length ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {rows.map((campaign) => (
-              <article key={campaign._id} className={card}>
+              <article key={`${campaign._id}-lifecycle`} className={card}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-lg font-bold text-neutral-950 dark:text-neutral-100">{campaign.name}</p>
-                    <p className="text-sm text-neutral-500 dark:text-neutral-400">{campaign.objective || 'No objective set'}</p>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">{CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}</p>
                   </div>
-                  <button type="button" onClick={() => deleteCampaignRecord(campaign._id)} className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">
-                    Delete
-                  </button>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                  {(campaign.platform || []).map((p) => (
-                    <span key={p} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 dark:border-neutral-700 dark:bg-neutral-800">{p}</span>
-                  ))}
-                  <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 dark:border-neutral-700 dark:bg-neutral-800">Budget: {money(campaign.budgetAllocated)}</span>
+                  <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                    {money(campaign.budgetAllocated)}
+                  </span>
                 </div>
                 <div className="mt-4">
                   <CampaignLifecycleStepper
@@ -702,7 +1247,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
               </article>
             ))}
           </div>
-        ) : empty('No campaigns found', 'Create a campaign to start the objective, platform, budget, team, and content pipeline.')}
+        ) : null}
       </div>
     );
   };
@@ -721,16 +1266,109 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     }
   };
 
-  const renderCampaignTasks = () => (
-    <div className="space-y-4">
-      <p className="text-sm text-neutral-500 dark:text-neutral-400">
-        Tasks are generated automatically once a campaign moves into content production. {campaignTasks.length} task{campaignTasks.length === 1 ? '' : 's'} across all campaigns.
-      </p>
-      {campaignTasks.length ? (
-        <CampaignTaskBoard tasks={campaignTasks} busy={actionBusy} onMove={moveCampaignTask} />
-      ) : empty('No campaign tasks yet', 'Advance a campaign to "Content in progress" to auto-generate its Design/Write/Reel/Review/Approval/Publish tasks.')}
-    </div>
-  );
+  const renderCampaignTasks = () => {
+    const rows = filterRecords(campaignTasks);
+    const counts = {
+      pending: rows.filter((task) => task.status === 'pending').length,
+      working: rows.filter((task) => task.status === 'in-progress').length,
+      review: rows.filter((task) => task.status === 'review').length,
+      completed: rows.filter((task) => task.status === 'completed').length,
+    };
+    const productionCampaigns = campaigns.filter((campaign) => ['content-in-progress', 'in-approval', 'scheduled', 'live', 'tracking'].includes(campaign.status));
+    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
+
+    return (
+      <div className="space-y-4">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[22px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                  checklist
+                </span>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">Campaign Task Board</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Track production work from assignment to review and completion.</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  {productionCampaigns.length} production campaign{productionCampaigns.length === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSectionChange?.('campaigns')}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700"
+            >
+              <span className="material-symbols-outlined text-[18px]">ads_click</span>
+              Open Campaigns
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ['Pending', counts.pending, 'pending_actions'],
+              ['Working', counts.working, 'engineering'],
+              ['Review', counts.review, 'rate_review'],
+              ['Completed', counts.completed, 'task_alt'],
+            ].map(([label, value, icon]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
+                </div>
+                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {rows.length ? (
+          <CampaignTaskBoard tasks={rows} busy={actionBusy} onMove={moveCampaignTask} />
+        ) : (
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr]">
+              <div className="border-b border-slate-200 bg-slate-50 p-6 dark:border-neutral-800 dark:bg-neutral-950/50 lg:border-b-0 lg:border-r">
+                <span className="material-symbols-outlined rounded-2xl border border-teal-200 bg-teal-50 p-3 text-3xl text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                  account_tree
+                </span>
+                <h3 className="mt-4 text-xl font-black text-slate-950 dark:text-neutral-100">No campaign tasks are active</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-neutral-400">
+                  Move a campaign into content production when the campaign plan is ready. Tasks will appear here as a board.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onSectionChange?.('campaigns')}
+                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700"
+                >
+                  <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
+                  Go to Campaigns
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
+                {[
+                  ['1', 'Create campaign', 'Set objective, budget, platforms, dates, and team.'],
+                  ['2', 'Advance lifecycle', 'Move the campaign to content production from Campaigns.'],
+                  ['3', 'Work the board', 'Design, write, review, approval, and publish tasks show here.'],
+                ].map(([step, title, detail]) => (
+                  <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-black text-white">{step}</span>
+                    <p className="mt-4 text-sm font-black text-slate-950 dark:text-neutral-100">{title}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-neutral-400">{detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  };
 
   const renderMetric = (label, value, icon, detail) => (
     <article className="rounded-[1.5rem] border border-slate-200 bg-white p-4 transition-colors hover:border-teal-300 hover:bg-teal-50/40 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-teal-800 dark:hover:bg-teal-500/10">
@@ -1027,12 +1665,220 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         </table>
       </div>
     ) : (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {empty(
-          items.length ? 'No records match your filters' : emptyTitle,
-          items.length ? 'Clear the search or status filter to restore the section rows.' : emptyMessage
-        )}
-        {empty('Workflow note', 'Every media record must link to project, department, client, team, campaign, and assigned employees.')}
+      <div className="space-y-4">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <p className="text-lg font-black text-slate-950 dark:text-neutral-100">
+            {items.length ? 'No records match your filters' : emptyTitle}
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-neutral-400">
+            {items.length ? 'Clear the search or status filter to restore the section rows.' : emptyMessage}
+          </p>
+        </div>
+        {options.emptyAccessory || null}
+      </div>
+    );
+  };
+
+  const renderCreativeSection = (section, records, columns, emptyTitle, emptyMessage) => {
+    const rows = filterRecords(records);
+    const config = getSectionAction(section);
+    const details = CREATIVE_SECTION_IDS.has(section)
+      ? CREATIVE_DETAILS[section]
+      : CHANNEL_DETAILS[section] || (META[section] || [config?.label || 'Records', 'Manage records for this section.']);
+    const workflow = CREATIVE_WORKFLOWS[section] || CHANNEL_WORKFLOWS[section] || [];
+    const channelInsights = CHANNEL_SECTION_IDS.has(section) ? getChannelInsights(section, records) : [];
+    const approvedCount = records.filter((item) => ['approved', 'live', 'published'].some((status) => getRecordStatus(item).includes(status))).length;
+    const inReviewCount = records.filter((item) => ['pending', 'review'].some((status) => getRecordStatus(item).includes(status))).length;
+    const attachedCount = records.filter((item) => item?.storageUrl || item?.thumbnailUrl).length;
+    const metadataKey = details?.[2];
+    const metadataLabel = details?.[3] || 'Types';
+    const metadataCount = metadataKey
+      ? new Set(records.map((item) => String(item?.metadata?.[metadataKey] || item?.category || '').trim()).filter(Boolean)).size
+      : 0;
+    const ownerCount = new Set(records.map((item) => String(item?.ownerName || '').trim()).filter(Boolean)).size;
+    const recentCount = records.filter((item) => {
+      const updatedAt = item?.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+      return updatedAt && Date.now() - updatedAt <= 1000 * 60 * 60 * 24 * 7;
+    }).length;
+    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
+    const recentRecords = [...records]
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+      .slice(0, 3);
+
+    return (
+      <div className="space-y-4">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[20px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                  {META[section]?.[2] || 'perm_media'}
+                </span>
+                <div>
+                  <h2 className="text-xl font-black text-slate-950 dark:text-neutral-100">{details[0]}</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">{details[1]}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  Showing {rows.length} of {records.length}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  {recentCount} updated this week
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => openEditor('create', section)}
+              disabled={actionBusy || !effectiveProjectId}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              {config?.create || 'Create record'}
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+            {[
+              ['Total', records.length, 'inventory_2'],
+              ['In Review', inReviewCount, 'pending_actions'],
+              ['Approved/Live', approvedCount, 'verified'],
+              ['Files', attachedCount, 'attach_file'],
+              [metadataLabel, metadataCount, 'category'],
+              ['Owners', ownerCount, 'groups'],
+            ].map(([label, value, icon]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
+                </div>
+                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {!effectiveProjectId ? (
+          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Select a project before creating a new {String(config?.label || 'record').toLowerCase()}.
+          </section>
+        ) : null}
+
+        {channelInsights.length ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Channel Control</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Operational numbers for planning, optimization, approvals, and reporting.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openEditor('create', section)}
+                disabled={actionBusy || !effectiveProjectId}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 text-sm font-semibold text-teal-700 transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300"
+              >
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                New {config?.label || 'Record'}
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+              {channelInsights.map(([label, value, icon]) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                    <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Production Workflow</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">A consistent path from intake to publish.</p>
+            </div>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+              {workflow.length} steps
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+            {workflow.map(([title, detail], index) => (
+              <div key={title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-black text-white">{index + 1}</span>
+                <p className="mt-4 text-sm font-black text-slate-950 dark:text-neutral-100">{title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-neutral-400">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {recentRecords.length ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Recent Work</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Latest records updated in this workspace.</p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+              {recentRecords.map((record) => (
+                <article key={resolveRecordId(record) || record.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-slate-950 dark:text-neutral-100">{record.title}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500 dark:text-neutral-400">{record.ownerName || record.projectName || config?.label || 'Creative record'}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone(record.status)}`}>
+                      {record.status || 'Draft'}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-neutral-400">
+                    <span>{record.updatedAt ? new Date(record.updatedAt).toLocaleDateString() : 'No date'}</span>
+                    <button
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={() => openEditor('edit', section, record)}
+                      className="rounded-full border border-teal-200 bg-white px-3 py-1 font-semibold text-teal-700 transition hover:bg-teal-50 disabled:opacity-50 dark:border-teal-900/60 dark:bg-neutral-900 dark:text-teal-300 dark:hover:bg-teal-500/10"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {renderTable(records, columns, emptyTitle, emptyMessage, {
+          rowActions: (item) => renderRowActions(section, item),
+          emptyAccessory: (
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-950 dark:text-neutral-100">Start this workspace</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Create the first record with owner, project, status, metadata, and file attachment.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openEditor('create', section)}
+                  disabled={actionBusy || !effectiveProjectId}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                  {config?.create || 'Create record'}
+                </button>
+              </div>
+            </section>
+          ),
+        })}
       </div>
     );
   };
@@ -1053,6 +1899,183 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           {empty(meta[0], meta[1])}
           {empty('Workflow', 'Draft -> project link -> approval -> publish -> report -> archive. Keep version history and audit trail attached to every update.')}
         </div>
+      </div>
+    );
+  };
+
+  const renderGovernanceHeader = (section, stats = []) => {
+    const meta = META[section] || META.approvals;
+    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
+
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[20px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                {meta[2]}
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-slate-950 dark:text-neutral-100">{meta[0]}</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">{meta[1]}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                Updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : 'now'}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={refreshData}
+            disabled={actionBusy}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          >
+            <span className="material-symbols-outlined text-[18px]">refresh</span>
+            Refresh
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {stats.map(([label, value, icon]) => (
+            <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  };
+
+  const renderApprovalsGovernance = () => {
+    const pending = approvals.filter((item) => getRecordStatus(item).includes('pending')).length;
+    const approved = approvals.filter((item) => getRecordStatus(item).includes('approved')).length;
+    const rejected = approvals.filter((item) => getRecordStatus(item).includes('rejected') || getRecordStatus(item).includes('revision')).length;
+
+    return (
+      <div className="space-y-4">
+        {renderGovernanceHeader('approvals', [
+          ['Total', approvals.length, 'fact_check'],
+          ['Pending', pending, 'pending_actions'],
+          ['Approved', approved, 'verified'],
+          ['Needs Revision', rejected, 'report'],
+        ])}
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Approval Queue</h3>
+            </div>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+              {pending} waiting
+            </span>
+          </div>
+          {renderTable(approvals, [
+            { key: 'title', label: 'Request', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || item.moduleType || 'Approval request'}</p></div> },
+            { key: 'projectName', label: 'Project' },
+            { key: 'moduleType', label: 'Module' },
+            { key: 'ownerName', label: 'Owner' },
+            { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status || item.approvalStatus)}`}>{item.status || item.approvalStatus}</span> },
+            { key: 'createdAt', label: 'Submitted', render: (item) => (item.submittedAt || item.createdAt ? new Date(item.submittedAt || item.createdAt).toLocaleDateString() : '-') },
+          ], 'No pending approvals', 'Approval flows will appear here once media records are submitted for review.', {
+            rowActions: (item) => renderRowActions('approvals', item),
+          })}
+        </section>
+      </div>
+    );
+  };
+
+  const renderReportingGovernance = () => {
+    const recentItems = arr(reporting?.recentItems);
+    const auditRows = arr(reporting?.auditRows);
+    const reportModules = arr(reporting?.byType || reporting?.moduleRows);
+
+    return (
+      <div className="space-y-4">
+        {renderGovernanceHeader('reporting', [
+          ['Recent Items', recentItems.length, 'article'],
+          ['Audit Rows', auditRows.length, 'history'],
+          ['Published', summary.published, 'publish'],
+          ['In Review', summary.inReview, 'pending'],
+        ])}
+        <MarketingReportPanel projectId={effectiveProjectId} />
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Recent Records</h3>
+            <div className="mt-4 space-y-2">
+              {recentItems.length ? recentItems.slice(0, 6).map((item) => (
+                <div key={resolveRecordId(item) || item.title} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-950 dark:text-neutral-100">{item.title || item.action || 'Media record'}</p>
+                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-neutral-400">{item.projectName || item.moduleType || item.targetType || '-'}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone(item.status)}`}>{item.status || item.moduleType || 'Record'}</span>
+                </div>
+              )) : (
+                <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">No recent report records.</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Module Breakdown</h3>
+            <div className="mt-4 space-y-3">
+              {(reportModules.length ? reportModules : summary.moduleRows).slice(0, 8).map((row) => {
+                const label = row.name || row._id || 'Module';
+                const value = num(row.value ?? row.count);
+                const total = Math.max(1, (reportModules.length ? reportModules : summary.moduleRows).reduce((sum, item) => sum + num(item.value ?? item.count), 0));
+                return (
+                  <div key={label}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-semibold text-slate-700 dark:text-neutral-300">{label}</span>
+                      <span className="text-slate-500 dark:text-neutral-500">{value}</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-slate-100 dark:bg-neutral-800">
+                      <div className="h-2 rounded-full bg-teal-600" style={{ width: `${Math.min(100, (value / total) * 100)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+              {!reportModules.length && !summary.moduleRows.length ? (
+                <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">No module reporting data.</p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  };
+
+  const renderAuditGovernance = () => {
+    const rows = summary.reportRows;
+    const createCount = rows.filter((item) => String(item.action || '').toLowerCase().includes('created')).length;
+    const updateCount = rows.filter((item) => String(item.action || '').toLowerCase().includes('updated')).length;
+    const deleteCount = rows.filter((item) => String(item.action || '').toLowerCase().includes('deleted')).length;
+
+    return (
+      <div className="space-y-4">
+        {renderGovernanceHeader('audit', [
+          ['Entries', rows.length, 'history'],
+          ['Created', createCount, 'add_circle'],
+          ['Updated', updateCount, 'edit'],
+          ['Deleted', deleteCount, 'delete'],
+        ])}
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="mb-4">
+            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Activity Log</h3>
+          </div>
+          {renderTable(rows, [
+            { key: 'action', label: 'Action', render: (item) => <span className="font-semibold text-slate-900 dark:text-neutral-100">{String(item.action || '-').replaceAll('_', ' ')}</span> },
+            { key: 'module', label: 'Module' },
+            { key: 'targetType', label: 'Target' },
+            { key: 'createdAt', label: 'Timestamp', render: (item) => (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-') },
+          ], 'No audit trail entries found', 'Create, update, delete, approval, publish, and file actions will appear here.')}
+        </section>
       </div>
     );
   };
@@ -1127,15 +2150,15 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const renderSection = () => {
     if (activeSection === 'dashboard') return renderDashboard();
     if (activeSection === 'project-hub') return renderProjectHub();
-    if (activeSection === 'assets') return renderTable(assets, [
+    if (activeSection === 'assets') return renderCreativeSection('assets', assets, [
       { key: 'title', label: 'Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || item.moduleType || 'Asset'}</p></div> },
+      { key: 'assetType', label: 'Type', render: (item) => item?.metadata?.assetType || item.category || '-' },
       { key: 'projectName', label: 'Project' },
+      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'version', label: 'Version', render: (item) => item?.version?.current || 'v1.0' },
       { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No assets uploaded yet', 'Upload images, logos, banners, PDFs, videos, or creative files to populate the DAM view.', {
-      rowActions: (item) => renderRowActions('assets', item),
-    });
+    ], 'No assets uploaded yet', 'Upload images, logos, banners, PDFs, videos, or creative files to populate the DAM view.');
     if (activeSection === 'campaigns') return renderCampaigns();
     if (activeSection === 'tasks') return renderCampaignTasks();
     if (activeSection === 'budget') return <BudgetTracker projectId={effectiveProjectId} />;
@@ -1143,237 +2166,404 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     if (activeSection === 'calendar') return <MarketingCalendar projectId={effectiveProjectId} />;
     if (activeSection === 'weekly-planning') return <WeeklyPlanner projectId={effectiveProjectId} />;
     if (activeSection === 'checklists') return <ProjectChecklists projectId={effectiveProjectId} />;
-    if (activeSection === 'content') return renderTable(content, [
+    if (activeSection === 'content') return renderCreativeSection('content', content, [
       { key: 'title', label: 'Content', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Editorial item'}</p></div> },
+      { key: 'contentType', label: 'Type', render: (item) => item?.metadata?.contentType || item.category || '-' },
+      { key: 'channel', label: 'Channel', render: (item) => item?.metadata?.channel || '-' },
       { key: 'projectName', label: 'Project' },
+      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No content pieces found', 'Use the content studio to manage blogs, articles, landing pages, newsletters, and press releases.', {
-      rowActions: (item) => renderRowActions('content', item),
-    });
-    if (activeSection === 'brand') return renderTable(brandAssets, [
+    ], 'No content pieces found', 'Use the content studio to manage blogs, articles, landing pages, newsletters, and press releases.');
+    if (activeSection === 'brand') return renderCreativeSection('brand', brandAssets, [
       { key: 'title', label: 'Brand Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Brand guide'}</p></div> },
+      { key: 'brandArea', label: 'Area', render: (item) => item?.metadata?.brandArea || item.category || '-' },
       { key: 'projectName', label: 'Project' },
+      { key: 'ownerName', label: 'Owner' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No brand assets found', 'Store brand guidelines, logo variations, typography rules, palette references, and templates.', {
-      rowActions: (item) => renderRowActions('brand', item),
-    });
-    if (activeSection === 'design') return renderTable(designItems, [
+    ], 'No brand assets found', 'Store brand guidelines, logo variations, typography rules, palette references, and templates.');
+    if (activeSection === 'design') return renderCreativeSection('design', designItems, [
       { key: 'title', label: 'Design Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Design request'}</p></div> },
+      { key: 'format', label: 'Format', render: (item) => item?.metadata?.format || item.category || '-' },
+      { key: 'dimensions', label: 'Size', render: (item) => item?.metadata?.dimensions || '-' },
       { key: 'projectName', label: 'Project' },
+      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No design requests found', 'Track banners, creatives, and layouts from intake through revision to final delivery.', {
-      rowActions: (item) => renderRowActions('design', item),
-    });
-    if (activeSection === 'video') return renderTable(videoItems, [
+    ], 'No design requests found', 'Track banners, creatives, and layouts from intake through revision to final delivery.');
+    if (activeSection === 'video') return renderCreativeSection('video', videoItems, [
       { key: 'title', label: 'Video Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Video production'}</p></div> },
+      { key: 'videoType', label: 'Type', render: (item) => item?.metadata?.videoType || item.category || '-' },
+      { key: 'durationSeconds', label: 'Duration', render: (item) => item?.metadata?.durationSeconds ? `${item.metadata.durationSeconds}s` : '-' },
       { key: 'projectName', label: 'Project' },
+      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No video items found', 'Track scripts, footage, edits, reviews, and publishing for every video production.', {
-      rowActions: (item) => renderRowActions('video', item),
-    });
-    if (activeSection === 'social') return renderTable(socialPosts, [
+    ], 'No video items found', 'Track scripts, footage, edits, reviews, and publishing for every video production.');
+    if (activeSection === 'social') return renderCreativeSection('social', socialPosts, [
       { key: 'title', label: 'Social Post', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Social post'}</p></div> },
+      { key: 'platform', label: 'Platform', render: (item) => item?.metadata?.platform || item.category || '-' },
       { key: 'projectName', label: 'Project' },
+      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'reach', label: 'Reach', render: (item) => num(item?.metadata?.reach || item?.analytics?.reach).toLocaleString() },
       { key: 'engagement', label: 'Engagement', render: (item) => num(item?.metadata?.engagement || item?.analytics?.engagement).toLocaleString() },
       { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No social posts found', 'Plan and track scheduled posts, captions, and performance across every platform.', {
-      rowActions: (item) => renderRowActions('social', item),
-    });
-    if (activeSection === 'approvals') return renderTable(approvals, [
-      { key: 'title', label: 'Request', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Approval request'}</p></div> },
+    ], 'No social posts found', 'Plan and track scheduled posts, captions, and performance across every platform.');
+    if (activeSection === 'advertisements') return renderCreativeSection('advertisements', advertisements, [
+      { key: 'title', label: 'Advertisement', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item?.metadata?.platform || item.category || 'Ad creative'}</p></div> },
+      { key: 'platform', label: 'Platform', render: (item) => item?.metadata?.platform || '-' },
       { key: 'projectName', label: 'Project' },
+      { key: 'spend', label: 'Spend', render: (item) => money(item?.budgetImpact?.spend) },
+      { key: 'roi', label: 'ROI', render: (item) => `${num(item?.budgetImpact?.roiAtSnapshot)}%` },
+      { key: 'ctr', label: 'CTR', render: (item) => (item?.metadata?.ctr ? `${item.metadata.ctr}%` : '-') },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
-    ], 'No pending approvals', 'Approval flows will appear here once records are submitted from asset, content, campaign, and design modules.', {
-      rowActions: (item) => renderRowActions('approvals', item),
-    });
-    if (activeSection === 'reporting') return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          {renderMetric('Reports', arr(reporting?.recentItems).length, 'assessment')}
-          {renderMetric('Assets', assets.length, 'perm_media')}
-          {renderMetric('Published', summary.published, 'publish')}
-          {renderMetric('In Review', summary.inReview, 'pending')}
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {empty('Export centre', 'Generate PDF, Excel, CSV, and PPT exports for marketing, campaign, social, content, and ROI reporting.')}
-          {empty('Report cadence', 'Weekly, monthly, and growth reports should draw from the same project-linked records to keep executive reporting consistent.')}
-        </div>
-        {arr(reporting?.auditRows).length ? renderTable(reporting.auditRows, [
-          { key: 'action', label: 'Action' },
-          { key: 'targetType', label: 'Target' },
-          { key: 'createdAt', label: 'Timestamp', render: (item) => (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-') },
-        ], 'No report data', 'Reporting data is unavailable.') : null}
-        <MarketingReportPanel projectId={effectiveProjectId} />
-      </div>
-    );
-    if (activeSection === 'audit') return renderTable(summary.reportRows, [
-      { key: 'action', label: 'Action' },
-      { key: 'module', label: 'Module' },
-      { key: 'targetType', label: 'Target' },
-      { key: 'createdAt', label: 'Timestamp', render: (item) => (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-') },
-    ], 'No audit trail entries found', 'Every create, edit, delete, approve, reject, publish, download, and share action should be captured here.');
+      { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No advertisements found', 'Create paid media records with platform, budget, spend, CTR, ROI, approvals, and final creative evidence.');
+    if (activeSection === 'seo') return renderCreativeSection('seo', seoItems, [
+      { key: 'title', label: 'SEO Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item?.metadata?.keyword || item.category || 'Keyword / page'}</p></div> },
+      { key: 'keyword', label: 'Keyword', render: (item) => item?.metadata?.keyword || '-' },
+      { key: 'projectName', label: 'Project' },
+      { key: 'targetUrl', label: 'Target URL', render: (item) => item?.metadata?.targetUrl || '-' },
+      { key: 'ranking', label: 'Ranking', render: (item) => item?.metadata?.ranking ?? '-' },
+      { key: 'backlinks', label: 'Backlinks', render: (item) => item?.metadata?.backlinks ?? '-' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No SEO records found', 'Create SEO records with keyword, target URL, ranking, search volume, backlinks, owner, and approval status.');
+    if (activeSection === 'website') return renderCreativeSection('website', websiteItems, [
+      { key: 'title', label: 'Website Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item?.metadata?.pageUrl || item.category || 'Page / update'}</p></div> },
+      { key: 'projectName', label: 'Project' },
+      { key: 'pageUrl', label: 'Page URL', render: (item) => item?.metadata?.pageUrl || '-' },
+      { key: 'pageType', label: 'Page Type', render: (item) => item?.metadata?.pageType || '-' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No website items found', 'Create website records for page changes, publish readiness, approvals, launch evidence, and final URLs.');
+    if (activeSection === 'testimonials') return renderCreativeSection('testimonials', testimonials, [
+      { key: 'title', label: 'Testimonial', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Client proof'}</p></div> },
+      { key: 'clientName', label: 'Client', render: (item) => item?.metadata?.clientName || '-' },
+      { key: 'rating', label: 'Rating', render: (item) => (item?.metadata?.rating ? `${item.metadata.rating}/5` : '-') },
+      { key: 'source', label: 'Source', render: (item) => item?.metadata?.source || '-' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No testimonials found', 'Create testimonial records with client, rating, source, permission, approval state, and reusable proof assets.');
+    if (activeSection === 'case-studies') return renderCreativeSection('case-studies', caseStudies, [
+      { key: 'title', label: 'Case Study', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Impact story'}</p></div> },
+      { key: 'clientName', label: 'Client', render: (item) => item?.metadata?.clientName || '-' },
+      { key: 'industry', label: 'Industry', render: (item) => item?.metadata?.industry || '-' },
+      { key: 'resultsSummary', label: 'Results', render: (item) => item?.metadata?.resultsSummary || '-' },
+      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'approvalStatus', label: 'Approval' },
+      { key: 'file', label: 'File', render: renderFileCell },
+    ], 'No case studies found', 'Create case study records with client, industry, results, approval state, publish status, and reusable assets.');
+    if (activeSection === 'approvals') return renderApprovalsGovernance();
+    if (activeSection === 'reporting') return renderReportingGovernance();
+    if (activeSection === 'audit') return renderAuditGovernance();
     return renderGeneric(activeSection);
   };
 
-  const renderEditorModal = () => {
-    if (!editor.open || !activeSectionAction) return null;
-    const title = editor.mode === 'edit' ? `Edit ${activeSectionAction.label}` : activeSectionAction.create;
+  const renderCampaignEditorModal = () => {
+    if (!campaignEditor.open) return null;
+    const isEdit = campaignEditor.mode === 'edit';
 
     return (
       <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/70 px-4 py-8 backdrop-blur-sm">
-        <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/10 bg-slate-950 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+        <form onSubmit={persistCampaignRecord} className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-white/10 bg-slate-950 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-300">{title}</p>
-              <h3 className="mt-2 text-2xl font-black text-white">{draft.title || `${activeSectionAction.label} record`}</h3>
-              <p className="mt-2 text-sm text-neutral-400">
-                Keep the record aligned to the real project, owner, and approval workflow.
-              </p>
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-300">{isEdit ? 'Edit Campaign' : 'New Campaign'}</p>
+              <h3 className="mt-2 text-2xl font-black text-white">{campaignDraft.name || 'Campaign record'}</h3>
+              <p className="mt-2 text-sm text-neutral-400">Define the campaign plan, team, budget, lifecycle stage, and KPI targets.</p>
             </div>
-            <button
-              type="button"
-              onClick={closeEditor}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-white/10"
-            >
+            <button type="button" onClick={closeCampaignEditor} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-white/10">
               Close
             </button>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Title</span>
-              <input
-                value={draft.title}
-                onChange={(e) => setDraft((prev) => ({ ...prev, title: e.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                placeholder="Enter title"
-              />
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Campaign Name</span>
+              <input required value={campaignDraft.name} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, name: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="Launch campaign name" />
             </label>
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Project</span>
-              <input
-                value={draft.projectName}
-                onChange={(e) => setDraft((prev) => ({ ...prev, projectName: e.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                placeholder="Project name"
-              />
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Description</span>
-              <textarea
-                rows={4}
-                value={draft.description}
-                onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400"
-                placeholder="Describe the record"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Status</span>
-              <input
-                value={draft.status}
-                onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                placeholder="Draft, Pending, Live..."
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Priority</span>
               <select
-                value={draft.priority}
-                onChange={(e) => setDraft((prev) => ({ ...prev, priority: e.target.value }))}
+                value={effectiveProjectId || ''}
+                onChange={(e) => {
+                  const projectId = e.target.value;
+                  const project = projectOptions.find((item) => item.value === projectId);
+                  updateProject(projectId);
+                  setCampaignDraft((prev) => ({ ...prev, projectName: project?.name || prev.projectName }));
+                }}
                 className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
               >
-                {['Low', 'Medium', 'High', 'Critical'].map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                <option className="text-slate-950" value="">Select project</option>
+                {projectOptions.map((project) => (
+                  <option className="text-slate-950" key={project.value} value={project.value}>{project.name}</option>
                 ))}
               </select>
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Owner</span>
-              <input
-                value={draft.ownerName}
-                onChange={(e) => setDraft((prev) => ({ ...prev, ownerName: e.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                placeholder="Owner name"
-              />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Stage</span>
+              <select value={campaignDraft.status} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, status: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400">
+                {CAMPAIGN_STAGES.map((stage) => (
+                  <option className="text-slate-950" key={stage} value={stage}>{CAMPAIGN_STAGE_LABELS[stage] || stage}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Objective</span>
+              <textarea rows={3} value={campaignDraft.objective} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, objective: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400" placeholder="Primary outcome and audience" />
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Description</span>
+              <textarea rows={4} value={campaignDraft.description} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, description: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400" placeholder="Execution notes, offers, segments, creative direction" />
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Category</span>
-              <input
-                value={draft.category}
-                onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                placeholder="Category or type"
-              />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Platforms</span>
+              <input value={campaignDraft.platform} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, platform: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="Meta, Google, LinkedIn" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Budget</span>
+              <input type="number" min="0" value={campaignDraft.budgetAllocated} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, budgetAllocated: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="0" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Start Date</span>
+              <input type="date" value={campaignDraft.startDate} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, startDate: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">End Date</span>
+              <input type="date" value={campaignDraft.endDate} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, endDate: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" />
             </label>
             <label className="space-y-2 md:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Tags</span>
-              <input
-                value={draft.tags}
-                onChange={(e) => setDraft((prev) => ({ ...prev, tags: e.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                placeholder="Comma separated tags"
-              />
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">File</span>
-              <input
-                type="file"
-                onChange={(e) => setDraft((prev) => ({ ...prev, file: e.target.files?.[0] || null }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 outline-none file:mr-3 file:rounded-full file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyan-50 focus:border-cyan-400"
-              />
-              {draft.file ? (
-                <p className="text-xs text-cyan-300">Selected: {draft.file.name} ({bytes(draft.file.size)}) - will upload to Cloudinary on save.</p>
-              ) : draft.storageUrl ? (
-                <p className="text-xs text-neutral-400">
-                  Current file:{' '}
-                  <a href={draft.storageUrl} target="_blank" rel="noreferrer" className="font-semibold text-cyan-300 hover:underline">
-                    view{draft.fileSizeBytes ? ` (${bytes(draft.fileSizeBytes)})` : ''}
-                  </a>{' '}
-                  - choose a new file to replace it.
-                </p>
-              ) : (
-                <p className="text-xs text-neutral-500">No file attached yet. Images, video, PDFs, and docs are stored on Cloudinary.</p>
-              )}
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Team Members</span>
+              <textarea rows={4} value={campaignDraft.teamMembersText} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, teamMembersText: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400" placeholder={'One per line: Name - Role'} />
             </label>
           </div>
 
-          {editor.section === 'content' && editor.mode === 'edit' && arr(editor.record?.approvalSteps).length ? (
-            <div className="mt-6 rounded-2xl bg-white p-4">
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-neutral-500">Approval history</p>
-              <ApprovalHistoryTimeline steps={editor.record.approvalSteps} />
-            </div>
-          ) : null}
+          <div className="mt-6 grid grid-cols-1 gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 md:col-span-4">KPI targets</p>
+            {[
+              ['targetReach', 'Reach'],
+              ['targetLeads', 'Leads'],
+              ['targetConversions', 'Conversions'],
+              ['targetRevenue', 'Revenue'],
+            ].map(([key, label]) => (
+              <label key={key} className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">{label}</span>
+                <input type="number" min="0" value={campaignDraft[key]} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, [key]: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="0" />
+              </label>
+            ))}
+          </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-neutral-400">
-              {editor.mode === 'edit' ? 'Updating an existing media record.' : 'Creating a new media record.'}
-            </p>
+            <p className="text-sm text-neutral-400">{isEdit ? 'Update the campaign record.' : 'Create the campaign record.'}</p>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={closeEditor}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-white/10"
-              >
+              <button type="button" onClick={closeCampaignEditor} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-white/10">
+                Cancel
+              </button>
+              <button type="submit" disabled={actionBusy || !campaignDraft.name.trim() || !effectiveProjectId} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-50 transition hover:border-cyan-300/40 hover:bg-cyan-400/20 disabled:opacity-50">
+                {actionBusy ? 'Saving...' : isEdit ? 'Save changes' : 'Create campaign'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
+  const renderEditorModal = () => {
+    if (!editor.open || !activeSectionAction) return null;
+    const title = editor.mode === 'edit' ? `Edit ${activeSectionAction.label}` : activeSectionAction.create;
+    const sectionInfo = CHANNEL_DETAILS[editor.section] || CREATIVE_DETAILS[editor.section] || META[editor.section] || [activeSectionAction.label, 'Manage this media record.', 'category'];
+    const domainFields = DOMAIN_FIELDS[editor.section] || [];
+    const sectionIcon = META[editor.section]?.[2] || MODULE_FOR_SECTION[editor.section] || 'edit_note';
+    const fieldClass = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
+    const textareaClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
+    const labelClass = 'text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-neutral-500';
+    const updateDomainField = (key, value) => {
+      setDraft((prev) => ({
+        ...prev,
+        domainFields: { ...prev.domainFields, [key]: value },
+      }));
+    };
+
+    return (
+      <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/55 px-3 py-4 backdrop-blur-sm sm:px-6">
+        <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_30px_120px_rgba(15,23,42,0.35)] dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="material-symbols-outlined rounded-xl bg-teal-50 p-2 text-[20px] text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                  {sectionIcon}
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-teal-700 dark:text-teal-300">{title}</p>
+                  <h3 className="mt-1 truncate text-2xl font-black text-slate-950 dark:text-neutral-100">
+                    {draft.title || `${activeSectionAction.label} record`}
+                  </h3>
+                </div>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-neutral-400">
+                {sectionInfo[1] || 'Keep this record aligned to project, owner, approval status, and final evidence.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeEditor}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              aria-label="Close"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          </div>
+
+          <div className="min-h-0 overflow-y-auto">
+            <div className="p-5">
+              <div className="space-y-5">
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-slate-950 dark:text-neutral-100">Basic Information</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className={labelClass}>Title</span>
+                      <input value={draft.title} onChange={(e) => setDraft((prev) => ({ ...prev, title: e.target.value }))} className={fieldClass} placeholder="Enter title" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className={labelClass}>Project</span>
+                      <select
+                        value={effectiveProjectId || ''}
+                        onChange={(e) => {
+                          const projectId = e.target.value;
+                          const project = projectOptions.find((item) => item.value === projectId);
+                          updateProject(projectId);
+                          setDraft((prev) => ({ ...prev, projectName: project?.name || prev.projectName }));
+                        }}
+                        className={fieldClass}
+                      >
+                        <option className="text-slate-950" value="">Select project</option>
+                        {projectOptions.map((project) => (
+                          <option className="text-slate-950" key={project.value} value={project.value}>{project.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2 md:col-span-2">
+                      <span className={labelClass}>Description</span>
+                      <textarea rows={4} value={draft.description} onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))} className={textareaClass} placeholder="Brief, placement, target audience, notes, or approval context" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className={labelClass}>Status</span>
+                      <select value={draft.status} onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))} className={fieldClass}>
+                        {['Draft', 'Pending', 'In Review', 'Approved', 'Scheduled', 'Live', 'Published', 'Needs Revision', 'Rejected', 'Archived'].map((option) => (
+                          <option className="text-slate-950" key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2">
+                      <span className={labelClass}>Priority</span>
+                      <select value={draft.priority} onChange={(e) => setDraft((prev) => ({ ...prev, priority: e.target.value }))} className={fieldClass}>
+                        {['Low', 'Medium', 'High', 'Critical'].map((option) => (
+                          <option className="text-slate-950" key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2">
+                      <span className={labelClass}>Owner</span>
+                      <input value={draft.ownerName} onChange={(e) => setDraft((prev) => ({ ...prev, ownerName: e.target.value }))} className={fieldClass} placeholder="Owner name" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className={labelClass}>Category</span>
+                      <input value={draft.category} onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))} className={fieldClass} placeholder="Category or type" />
+                    </label>
+                    <label className="space-y-2 md:col-span-2">
+                      <span className={labelClass}>Tags</span>
+                      <input value={draft.tags} onChange={(e) => setDraft((prev) => ({ ...prev, tags: e.target.value }))} className={fieldClass} placeholder="Comma separated tags" />
+                    </label>
+                  </div>
+                </section>
+
+                {domainFields.length ? (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                    <div className="mb-4">
+                      <p className="text-sm font-black text-slate-950 dark:text-neutral-100">{SECTION_ACTIONS[editor.section]?.label} Details</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      {domainFields.map((field) => (
+                        <label key={field.key} className={field.top ? 'space-y-2' : 'space-y-2'}>
+                          <span className={labelClass}>{field.label}</span>
+                          <input
+                            type={field.type === 'number' ? 'number' : 'text'}
+                            value={draft.domainFields?.[field.key] ?? ''}
+                            onChange={(e) => updateDomainField(field.key, e.target.value)}
+                            className={fieldClass}
+                            placeholder={field.placeholder || field.label}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                  <div className="mb-4">
+                    <p className="text-sm font-black text-slate-950 dark:text-neutral-100">File & Evidence</p>
+                  </div>
+                  <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-teal-400 hover:bg-teal-50/50 dark:border-neutral-700 dark:bg-neutral-950/70 dark:hover:border-teal-700 dark:hover:bg-teal-500/10">
+                    <span className={labelClass}>Upload File</span>
+                    <input
+                      type="file"
+                      onChange={(e) => setDraft((prev) => ({ ...prev, file: e.target.files?.[0] || null }))}
+                      className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-teal-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-teal-700 dark:text-neutral-300"
+                    />
+                    {draft.file ? (
+                      <p className="mt-3 text-sm font-semibold text-teal-700 dark:text-teal-300">Selected: {draft.file.name} ({bytes(draft.file.size)})</p>
+                    ) : draft.storageUrl ? (
+                      <p className="mt-3 text-sm text-slate-500 dark:text-neutral-400">
+                        Current file:{' '}
+                        <a href={draft.storageUrl} target="_blank" rel="noreferrer" className="font-semibold text-teal-700 hover:underline dark:text-teal-300">
+                          view{draft.fileSizeBytes ? ` (${bytes(draft.fileSizeBytes)})` : ''}
+                        </a>
+                      </p>
+                    ) : (
+                      <p className="mt-3 text-sm text-slate-500 dark:text-neutral-400">No file attached yet. Images, videos, PDFs, and docs are stored on Cloudinary.</p>
+                    )}
+                  </label>
+                </section>
+
+                {editor.section === 'content' && editor.mode === 'edit' && arr(editor.record?.approvalSteps).length ? (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-neutral-500">Approval history</p>
+                    <ApprovalHistoryTimeline steps={editor.record.approvalSteps} />
+                  </section>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={closeEditor} className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800">
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={actionBusy || !draft.title.trim()}
+                disabled={actionBusy || !draft.title.trim() || !effectiveProjectId}
                 onClick={() => persistRecord(editor.mode, editor.section, resolveRecordId(editor.record))}
-                className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-50 transition hover:border-cyan-300/40 hover:bg-cyan-400/20 disabled:opacity-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 text-sm font-bold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {actionBusy ? 'Saving...' : editor.mode === 'edit' ? 'Save changes' : 'Create record'}
+                <span className="material-symbols-outlined text-[18px]">{editor.mode === 'edit' ? 'save' : 'add_circle'}</span>
+                {actionBusy ? 'Saving...' : editor.mode === 'edit' ? 'Save changes' : `Create ${activeSectionAction.label}`}
               </button>
             </div>
           </div>
@@ -1423,7 +2613,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                   ))}
                 </select>
               ) : null}
-              {activeSectionAction ? (
+              {activeSectionAction && !CREATIVE_SECTION_IDS.has(activeSection) ? (
                 <button
                   type="button"
                   onClick={() => openEditor('create', activeSection)}
@@ -1445,13 +2635,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                   Refresh
                 </button>
               ) : null}
-              <select
-                value={activeSection}
-                onChange={(e) => onSectionChange?.(e.target.value)}
-                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-950 outline-none focus:border-[var(--portal-accent)]"
-              >
-                {MEDIA_SECTIONS.map((section) => <option key={section.id} value={section.id}>{section.label}</option>)}
-              </select>
             </div>
             {activeSection !== 'project-hub' ? (
               <div className="rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm">
@@ -1503,12 +2686,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           </div>
         </PortalHeader>
 
-        {!isProjectHub ? (
-          <section className="mb-4 rounded-3xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">
-            {user?.role ? `Signed in as ${user.role}.` : 'Media portal ready.'} Every media record should be linked to project, department, client, team, campaign, and assigned employees.
-          </section>
-        ) : null}
-
         {actionMessage ? (
           <section className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
             {actionMessage}
@@ -1516,6 +2693,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         ) : null}
 
         {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div> : renderSection()}
+        {renderCampaignEditorModal()}
         {renderEditorModal()}
       </div>
     </main>

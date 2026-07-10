@@ -69,6 +69,18 @@ const mediaRecordValidation = [
   body('category').optional().trim().isLength({ max: 120 }),
   body('tags').optional().isArray().withMessage('tags must be an array'),
   body('assignedEmployees').optional().isArray().withMessage('assignedEmployees must be an array'),
+  body('metadata').optional().isObject().withMessage('metadata must be an object'),
+  body('analytics').optional().isObject().withMessage('analytics must be an object'),
+  body('budgetImpact').optional().isObject().withMessage('budgetImpact must be an object'),
+  body('spend').optional().isFloat({ min: 0 }).withMessage('spend must be >= 0'),
+  body('roi').optional().isFloat().withMessage('roi must be numeric'),
+  body('storageUrl').optional().trim().isLength({ max: 2000 }).withMessage('storageUrl too long'),
+  body('thumbnailUrl').optional().trim().isLength({ max: 2000 }).withMessage('thumbnailUrl too long'),
+  body('previewUrl').optional().trim().isLength({ max: 2000 }).withMessage('previewUrl too long'),
+  body('storageKey').optional().trim().isLength({ max: 500 }).withMessage('storageKey too long'),
+  body('storageProvider').optional().trim().isIn(['cloudinary']).withMessage('media files must use Cloudinary storage'),
+  body('mimeType').optional().trim().isLength({ max: 120 }).withMessage('mimeType too long'),
+  body('fileSizeBytes').optional().isInt({ min: 0 }).withMessage('fileSizeBytes must be >= 0'),
 ];
 
 const moduleProjectValidation = [

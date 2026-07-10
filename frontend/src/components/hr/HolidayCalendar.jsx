@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { hrApi } from '../../services/hr';
+import { QK } from '../../utils/queryKeys';
 import Button from '../common/Button';
 
 const HolidayCalendar = () => {
   const { token } = useAuth();
-  const [holidays, setHolidays] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState(null);
@@ -32,9 +33,32 @@ const HolidayCalendar = () => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  useEffect(() => {
-    fetchHolidays();
-  }, [token]);
+  const holidaysQuery = useQuery({
+    queryKey: QK.hr.holidays(),
+    queryFn: () => hrApi.getHolidays(token),
+    enabled: Boolean(token),
+  });
+  const holidays = holidaysQuery.data?.data || [];
+  const loading = holidaysQuery.isLoading;
+  const refetchHolidays = () => queryClient.invalidateQueries({ queryKey: ['hr', 'holidays'] });
+
+  const navigateMonth = (direction) => {
+    if (direction === 'prev') {
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+      } else {
+        setCurrentMonth(currentMonth - 1);
+      }
+    } else {
+      if (currentMonth === 11) {
+        setCurrentMonth(0);
+        setCurrentYear(currentYear + 1);
+      } else {
+        setCurrentMonth(currentMonth + 1);
+      }
+    }
+  };
 
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -57,17 +81,6 @@ const HolidayCalendar = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [viewMode]);
 
-  const fetchHolidays = async () => {
-    try {
-      setLoading(true);
-      const response = await hrApi.getHolidays(token);
-      setHolidays(response.data || []);
-    } catch (err) {
-      setError(err.message || 'Failed to load holidays');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleOpenModal = (holiday = null, selectedDate = null) => {
     if (holiday) {
@@ -119,7 +132,7 @@ const HolidayCalendar = () => {
         await hrApi.createHoliday(formData, token);
       }
 
-      await fetchHolidays();
+      refetchHolidays();
       handleCloseModal();
     } catch (err) {
       setError(err.message || 'Failed to save holiday');
@@ -131,27 +144,9 @@ const HolidayCalendar = () => {
 
     try {
       await hrApi.deleteHoliday(id, token);
-      await fetchHolidays();
+      refetchHolidays();
     } catch (err) {
       setError(err.message || 'Failed to delete holiday');
-    }
-  };
-
-  const navigateMonth = (direction) => {
-    if (direction === 'prev') {
-      if (currentMonth === 0) {
-        setCurrentMonth(11);
-        setCurrentYear(currentYear - 1);
-      } else {
-        setCurrentMonth(currentMonth - 1);
-      }
-    } else {
-      if (currentMonth === 11) {
-        setCurrentMonth(0);
-        setCurrentYear(currentYear + 1);
-      } else {
-        setCurrentMonth(currentMonth + 1);
-      }
     }
   };
 

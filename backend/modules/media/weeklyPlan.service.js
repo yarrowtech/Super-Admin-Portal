@@ -64,4 +64,91 @@ const updateObjectiveStatus = async (planId, objectiveId, status, projectId, act
   return withProgress(plan.toObject());
 };
 
-module.exports = { listPlans, createPlan, updateObjectiveStatus };
+const updateObjectiveText = async (planId, objectiveId, text, projectId, actorId) => {
+  const plan = await WeeklyPlan.findOne({ _id: planId, projectId });
+  if (!plan) return null;
+
+  const objective = plan.objectives.id(objectiveId);
+  if (!objective) return null;
+
+  objective.text = text;
+  await plan.save();
+
+  await writeAuditTrail({
+    userId: actorId,
+    module: 'media',
+    action: 'weekly_plan_objective_updated',
+    targetType: 'WeeklyPlan',
+    targetId: plan._id,
+    metadata: { projectId, objectiveId, text },
+  });
+
+  return withProgress(plan.toObject());
+};
+
+const addObjective = async (planId, projectId, text, actorId) => {
+  const plan = await WeeklyPlan.findOne({ _id: planId, projectId });
+  if (!plan) return null;
+
+  plan.objectives.push({ text, status: 'pending' });
+  await plan.save();
+
+  await writeAuditTrail({
+    userId: actorId,
+    module: 'media',
+    action: 'weekly_plan_objective_added',
+    targetType: 'WeeklyPlan',
+    targetId: plan._id,
+    metadata: { projectId, text },
+  });
+
+  return withProgress(plan.toObject());
+};
+
+const deleteObjective = async (planId, objectiveId, projectId, actorId) => {
+  const plan = await WeeklyPlan.findOne({ _id: planId, projectId });
+  if (!plan) return null;
+
+  const objective = plan.objectives.id(objectiveId);
+  if (!objective) return null;
+
+  objective.deleteOne();
+  await plan.save();
+
+  await writeAuditTrail({
+    userId: actorId,
+    module: 'media',
+    action: 'weekly_plan_objective_deleted',
+    targetType: 'WeeklyPlan',
+    targetId: plan._id,
+    metadata: { projectId, objectiveId },
+  });
+
+  return withProgress(plan.toObject());
+};
+
+const deletePlan = async (planId, projectId, actorId) => {
+  const plan = await WeeklyPlan.findOneAndDelete({ _id: planId, projectId });
+  if (!plan) return null;
+
+  await writeAuditTrail({
+    userId: actorId,
+    module: 'media',
+    action: 'weekly_plan_deleted',
+    targetType: 'WeeklyPlan',
+    targetId: plan._id,
+    metadata: { projectId },
+  });
+
+  return { _id: plan._id };
+};
+
+module.exports = {
+  listPlans,
+  createPlan,
+  updateObjectiveStatus,
+  updateObjectiveText,
+  addObjective,
+  deleteObjective,
+  deletePlan,
+};

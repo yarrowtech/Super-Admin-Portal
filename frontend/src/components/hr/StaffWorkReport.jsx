@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
+import { QK } from '../../utils/queryKeys';
 import { createLogger } from '../../utils/logger';
 
 const staffWorkReportLogger = createLogger({ module: 'staff-work-report' });
@@ -115,35 +117,21 @@ const StaffWorkReport = ({
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
   const [selectedProjectFilter, setSelectedProjectFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalReports, setTotalReports] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportFeedback, setExportFeedback] = useState(null);
 
-  const fetchReports = async () => {
-    if (!token) return;
-    setLoading(true);
-    setError('');
-    try {
-      const response = await hrApi.getWorkReports(token, { page, limit: 10, uniqueTask: true });
-      const payload = response?.data || {};
-      setReports(payload.reports || []);
-      setTotalPages(payload.totalPages || 1);
-      setTotalReports(payload.total || 0);
-    } catch (err) {
-      setError(err.message || 'Failed to load work reports');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchReports();
-  }, [token, page]);
+  const workReportsParams = useMemo(() => ({ page, limit: 10, uniqueTask: true }), [page]);
+  const reportsQuery = useQuery({
+    queryKey: QK.hr.workReports(workReportsParams),
+    queryFn: () => hrApi.getWorkReports(token, workReportsParams),
+    enabled: Boolean(token),
+  });
+  const reports = useMemo(() => reportsQuery.data?.data?.reports || [], [reportsQuery.data]);
+  const totalPages = reportsQuery.data?.data?.totalPages || 1;
+  const totalReports = reportsQuery.data?.data?.total || 0;
+  const loading = reportsQuery.isLoading;
+  const error = reportsQuery.isError ? (reportsQuery.error?.message || 'Failed to load work reports') : '';
 
   const employeeFilterOptions = useMemo(() => {
     const optionsMap = new Map();

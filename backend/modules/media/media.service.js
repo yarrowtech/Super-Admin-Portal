@@ -115,7 +115,7 @@ const buildAllowedProjectFilter = () => {
     .map((token) => String(token || '').trim())
     .filter(Boolean);
 
-  const tokenMatches = projectTokens.map((token) => new RegExp(escapeRegex(token), 'i'));
+  const tokenMatches = projectTokens.map((token) => new RegExp(`^${escapeRegex(token)}$`, 'i'));
 
   return {
     $or: [
@@ -363,12 +363,12 @@ const listProjects = async (query = {}) => {
   const filter = {};
   if (query.status) filter.status = query.status;
   if (query.search) {
-    const q = new RegExp(query.search, 'i');
+    const q = new RegExp(escapeRegex(query.search), 'i');
     clauses.push({ $or: [{ name: q }, { description: q }, { projectCode: q }] });
   }
   if (Object.keys(filter).length > 0) clauses.push(filter);
 
-  const projectFilter = clauses.length > 1 ? { $and: clauses } : clauses[0];
+  const projectFilter = clauses.length > 1 ? { $and: clauses } : (clauses[0] || {});
 
   const [items, total] = await Promise.all([
     Project.find(projectFilter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
@@ -422,14 +422,33 @@ const createMediaRecord = async (payload = {}, actorId, projectId, defaults = {}
   return doc;
 };
 
-const getMediaRecordById = (id, projectId) =>
-  Media.findOne({ _id: id, ...(projectId ? { projectId } : {}) }).lean();
+const buildRecordScope = (id, projectId, section) => ({
+  _id: id,
+  ...(projectId ? { projectId } : {}),
+  ...(section ? { section } : {}),
+});
 
-const updateMediaRecord = async (id, payload = {}, actorId, projectId) => {
-  const existing = await Media.findOne({ _id: id, ...(projectId ? { projectId } : {}) });
+const getMediaRecordById = (id, projectId, section) =>
+  Media.findOne(buildRecordScope(id, projectId, section)).lean();
+
+const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) => {
+  const existing = await Media.findOne(buildRecordScope(id, projectId, section));
   if (!existing) return null;
 
   const update = normalizeMediaPayload(payload);
+  if (payload.section === undefined) update.section = existing.section;
+  if (payload.moduleType === undefined && payload.section === undefined) update.moduleType = existing.moduleType;
+  ['storageUrl', 'storageKey', 'storageProvider', 'thumbnailUrl', 'previewUrl', 'mimeType', 'fileSizeBytes', 'storageUsageBytes'].forEach((key) => {
+    if (payload[key] === undefined) update[key] = existing[key];
+  });
+  const previousStorageKey = existing.storageKey;
+  const previousMimeType = existing.mimeType;
+  const replacedCloudinaryAsset =
+    existing.storageProvider === 'cloudinary' &&
+    previousStorageKey &&
+    update.storageProvider === 'cloudinary' &&
+    update.storageKey &&
+    update.storageKey !== previousStorageKey;
   const shouldBumpVersion = Boolean(payload.versionNote || payload.changeSummary || payload.bumpVersion);
 
   if (shouldBumpVersion) {
@@ -453,6 +472,14 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId) => {
   Object.assign(existing, update, { updatedBy: actorId });
   await existing.save();
 
+  if (replacedCloudinaryAsset) {
+    try {
+      await deleteCloudinaryAsset(previousStorageKey, previousMimeType);
+    } catch (err) {
+      logger.warn({ err, storageKey: previousStorageKey }, 'Failed to delete replaced Cloudinary file for media record');
+    }
+  }
+
   await writeAuditTrail({
     userId: actorId,
     module: 'media',
@@ -465,13 +492,13 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId) => {
   return existing;
 };
 
-const deleteMediaRecord = async (id, projectId, actorId) => {
-  const doc = await Media.findOneAndDelete({ _id: id, ...(projectId ? { projectId } : {}) });
+const deleteMediaRecord = async (id, projectId, actorId, section) => {
+  const doc = await Media.findOneAndDelete(buildRecordScope(id, projectId, section));
   if (!doc) return null;
 
   if (doc.storageProvider === 'cloudinary' && doc.storageKey) {
     try {
-      await cloudinary.uploader.destroy(doc.storageKey, { resource_type: resolveResourceType(doc.mimeType) });
+      await deleteCloudinaryAsset(doc.storageKey, doc.mimeType);
     } catch (err) {
       logger.warn({ err, storageKey: doc.storageKey }, 'Failed to delete Cloudinary file for deleted media record');
     }
@@ -560,8 +587,8 @@ const listApprovals = async (query = {}, projectId) => {
   };
 };
 
-const requestApproval = async ({ mediaId, requestedBy, projectId, steps = DEFAULT_APPROVAL_STEPS }) => {
-  const record = await Media.findOne({ _id: mediaId, ...(projectId ? { projectId } : {}) });
+const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps = DEFAULT_APPROVAL_STEPS }) => {
+  const record = await Media.findOne({ _id: mediaId, ...(projectId ? { projectId } : {}), ...(section ? { section } : {}) });
   if (!record) {
     const err = new Error('Media record not found');
     err.statusCode = 404;
@@ -675,6 +702,15 @@ const resolveResourceType = (mimetype = '') => {
   return 'raw';
 };
 
+const isCloudinaryConfigured = () => Boolean(
+  process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET
+);
+
+const deleteCloudinaryAsset = async (storageKey, mimeType) => {
+  if (!storageKey || !isCloudinaryConfigured()) return;
+  await cloudinary.uploader.destroy(storageKey, { resource_type: resolveResourceType(mimeType) });
+};
+
 const uploadMediaFile = async ({ file, section, projectId }) => {
   if (!file) {
     const err = new Error('No file provided');
@@ -684,20 +720,11 @@ const uploadMediaFile = async ({ file, section, projectId }) => {
 
   const resourceType = resolveResourceType(file.mimetype);
   const folder = `media/${section || 'asset'}/${projectId || 'general'}`;
-  const cloudinaryConfigured = Boolean(
-    process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET
-  );
 
-  if (!cloudinaryConfigured) {
-    return {
-      url: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-      storageKey: '',
-      storageProvider: 'inline',
-      thumbnailUrl: '',
-      mimeType: file.mimetype,
-      fileSizeBytes: file.size,
-      originalName: file.originalname,
-    };
+  if (!isCloudinaryConfigured()) {
+    const err = new Error('Cloudinary is not configured for media uploads');
+    err.statusCode = 503;
+    throw err;
   }
 
   const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;

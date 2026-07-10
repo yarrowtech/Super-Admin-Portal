@@ -12,6 +12,9 @@ router.use(requireProjectContext);
 
 router.get('/', controller.list);
 router.post('/', canManageMedia, v.planValidation, validate, controller.create);
+router.delete('/:id', canManageMedia, v.planIdValidation, validate, controller.deletePlan);
+router.post('/:id/objectives', canManageMedia, v.planIdValidation, v.objectiveTextValidation, validate, controller.addObjective);
 router.patch('/:id/objectives/:objectiveId', canManageMedia, v.objectiveIdValidation, v.objectiveStatusValidation, validate, controller.updateObjective);
+router.delete('/:id/objectives/:objectiveId', canManageMedia, v.objectiveIdValidation, validate, controller.deleteObjective);
 
 module.exports = router;

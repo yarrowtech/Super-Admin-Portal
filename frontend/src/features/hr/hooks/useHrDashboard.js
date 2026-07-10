@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../../context/AuthContext';
 import { hrApi } from '../../../services/hr';
+import { QK } from '../../../utils/queryKeys';
 import { createLogger } from '../../../utils/logger';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -50,136 +52,108 @@ const isProjectContextError = (err) => {
   return message.includes('projectid required') || message.includes('project id required');
 };
 
+const WORK_UPDATES_PARAMS = { page: 1, limit: 3, uniqueTask: true };
+
 export const useHrDashboard = () => {
   const { token, user } = useAuth();
-  const [dashboardData, setDashboardData] = useState(null);
-  const [pendingLeaves, setPendingLeaves] = useState([]);
-  const [leaveListMode, setLeaveListMode] = useState('pending');
-  const [workUpdates, setWorkUpdates] = useState([]);
-  const [workUpdatesLoading, setWorkUpdatesLoading] = useState(false);
-  const [workUpdatesError, setWorkUpdatesError] = useState('');
-  const [workUpdatesTotal, setWorkUpdatesTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [analyticsOverview, setAnalyticsOverview] = useState(null);
-  const [predictiveApiAlerts, setPredictiveApiAlerts] = useState([]);
-  const [automationOverview, setAutomationOverview] = useState(null);
+  const queryClient = useQueryClient();
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [actionError, setActionError] = useState('');
   const [attendanceStatus, setAttendanceStatus] = useState(() => loadStoredAttendance());
   const [attendanceAction, setAttendanceAction] = useState({ loading: false, error: '', message: '' });
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
-  const fetchPendingLeaves = useCallback(async () => {
-    if (!token) return;
+  const enabled = Boolean(token);
 
-    try {
-      const pendingResponse = await hrApi.getLeaveRequests(token, { status: 'pending', limit: 3, page: 1 });
-      const pendingList = pendingResponse?.data?.leaves || [];
+  const [dashboardQuery, attendanceQuery, analyticsQuery, predictiveQuery, automationQuery, pendingLeavesQuery, workUpdatesQuery] =
+    useQueries({
+      queries: [
+        { queryKey: QK.hr.dashboard(), queryFn: () => hrApi.getDashboard(token), enabled },
+        {
+          queryKey: QK.hr.attendance({ status: true }),
+          queryFn: () => hrApi.getAttendanceStatus(token),
+          enabled,
+          retry: false,
+        },
+        { queryKey: QK.hr.analytics(), queryFn: () => hrApi.getAnalyticsOverview(token), enabled, retry: false },
+        { queryKey: QK.hr.predictive(), queryFn: () => hrApi.getPredictiveAlerts(token), enabled, retry: false },
+        { queryKey: QK.hr.automation(), queryFn: () => hrApi.getAutomationOverview(token), enabled, retry: false },
+        {
+          queryKey: QK.hr.leave({ pendingDashboard: true }),
+          queryFn: async () => {
+            const pendingResponse = await hrApi.getLeaveRequests(token, { status: 'pending', limit: 3, page: 1 });
+            const pendingList = pendingResponse?.data?.leaves || [];
+            if (pendingList.length > 0) return { mode: 'pending', leaves: pendingList };
+            const recentResponse = await hrApi.getLeaveRequests(token, { limit: 3, page: 1 });
+            return { mode: 'recent', leaves: recentResponse?.data?.leaves || [] };
+          },
+          enabled,
+        },
+        {
+          queryKey: QK.hr.workReports(WORK_UPDATES_PARAMS),
+          queryFn: () => hrApi.getWorkReports(token, WORK_UPDATES_PARAMS),
+          enabled,
+        },
+      ],
+    });
 
-      if (pendingList.length > 0) {
-        setPendingLeaves(pendingList);
-        setLeaveListMode('pending');
+  // Dashboard data can legitimately fail with a project-context error (no
+  // project selected yet) — that's tolerated everywhere else in this hook via
+  // isProjectContextError, so surface it the same way here instead of as a
+  // hard page-level error.
+  const dashboardData = dashboardQuery.data?.data || null;
+  const error =
+    actionError ||
+    (dashboardQuery.isError && !isProjectContextError(dashboardQuery.error)
+      ? dashboardQuery.error?.message || 'Failed to load dashboard data'
+      : '');
+  const loading = dashboardQuery.isLoading;
+
+  const analyticsOverview = analyticsQuery.data?.data || null;
+  const predictiveApiAlerts = useMemo(() => predictiveQuery.data?.data?.alerts || [], [predictiveQuery.data]);
+  const automationOverview = automationQuery.data?.data || null;
+  const pendingLeaves = pendingLeavesQuery.data?.leaves || [];
+  const leaveListMode = pendingLeavesQuery.data?.mode || 'pending';
+  const workUpdates = workUpdatesQuery.data?.data?.reports || [];
+  const workUpdatesTotal = workUpdatesQuery.data?.data?.total || 0;
+  const workUpdatesLoading = workUpdatesQuery.isLoading;
+  const workUpdatesError =
+    workUpdatesQuery.isError && !isProjectContextError(workUpdatesQuery.error)
+      ? workUpdatesQuery.error?.message || 'Failed to load work updates'
+      : '';
+
+  // Attendance is a hybrid: the query above is the cached/cacheable read, but
+  // check-in/check-out and the offline fallback (below) mutate local state
+  // directly, so keep syncing the query result into that same local state
+  // rather than reading the query directly everywhere.
+  useEffect(() => {
+    if (attendanceQuery.data !== undefined) {
+      const normalized = normalizeAttendance(attendanceQuery.data?.data || attendanceQuery.data);
+      if (normalized) {
+        setAttendanceStatus(normalized);
+        persistAttendance(normalized);
         return;
       }
-
-      const recentResponse = await hrApi.getLeaveRequests(token, { limit: 3, page: 1 });
-      setPendingLeaves(recentResponse?.data?.leaves || []);
-      setLeaveListMode('recent');
-    } catch (err) {
-      if (!isProjectContextError(err)) {
-        hrDashboardLogger.warn({ err }, 'Failed to load HR leave requests');
-      }
-      setPendingLeaves([]);
-      setLeaveListMode('recent');
     }
-  }, [token]);
-
-  const fetchWorkUpdates = useCallback(async () => {
-    if (!token) return;
-
-    setWorkUpdatesLoading(true);
-    setWorkUpdatesError('');
-    try {
-      const response = await hrApi.getWorkReports(token, { page: 1, limit: 3, uniqueTask: true });
-      const payload = response?.data || {};
-      setWorkUpdates(payload.reports || []);
-      setWorkUpdatesTotal(payload.total || 0);
-    } catch (err) {
-      if (!isProjectContextError(err)) {
-        setWorkUpdatesError(err.message || 'Failed to load work updates');
-      } else {
-        setWorkUpdates([]);
-        setWorkUpdatesTotal(0);
-      }
-    } finally {
-      setWorkUpdatesLoading(false);
+    if (attendanceQuery.isError) {
+      const stored = loadStoredAttendance();
+      if (stored) setAttendanceStatus(stored);
     }
-  }, [token]);
+  }, [attendanceQuery.data, attendanceQuery.isError]);
 
-  const refreshDashboard = useCallback(async () => {
-    if (!token) return;
+  const refreshDashboard = useCallback(() => {
+    setActionError('');
+    queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['hr', 'attendance'] });
+    queryClient.invalidateQueries({ queryKey: ['hr', 'analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['hr', 'predictive'] });
+    queryClient.invalidateQueries({ queryKey: ['hr', 'automation'] });
+    queryClient.invalidateQueries({ queryKey: ['hr', 'leave'] });
+    queryClient.invalidateQueries({ queryKey: ['hr', 'workReports'] });
+  }, [queryClient]);
 
-    try {
-      setLoading(true);
-      setError('');
-
-      const [dashboardRes, attendanceRes, analyticsRes, predictiveRes, automationRes] = await Promise.allSettled([
-        hrApi.getDashboard(token),
-        hrApi.getAttendanceStatus(token).catch(() => null),
-        hrApi.getAnalyticsOverview(token).catch(() => null),
-        hrApi.getPredictiveAlerts(token).catch(() => null),
-        hrApi.getAutomationOverview(token).catch(() => null),
-      ]);
-
-      if (dashboardRes.status === 'fulfilled') {
-        setDashboardData(dashboardRes.value?.data || null);
-      } else if (!isProjectContextError(dashboardRes.reason)) {
-        throw dashboardRes.reason;
-      }
-
-      if (attendanceRes.status === 'fulfilled') {
-        const normalizedAttendance = normalizeAttendance(attendanceRes.value?.data || attendanceRes.value);
-        if (normalizedAttendance) {
-          setAttendanceStatus(normalizedAttendance);
-          persistAttendance(normalizedAttendance);
-        } else {
-          const storedAttendance = loadStoredAttendance();
-          if (storedAttendance) {
-            setAttendanceStatus(storedAttendance);
-          }
-        }
-      } else {
-        const storedAttendance = loadStoredAttendance();
-        if (storedAttendance) {
-          setAttendanceStatus(storedAttendance);
-        }
-      }
-
-      if (analyticsRes.status === 'fulfilled') {
-        setAnalyticsOverview(analyticsRes.value?.data || null);
-      }
-
-      if (predictiveRes.status === 'fulfilled') {
-        setPredictiveApiAlerts(predictiveRes.value?.data?.alerts || []);
-      }
-
-      if (automationRes.status === 'fulfilled') {
-        setAutomationOverview(automationRes.value?.data || null);
-      }
-
-      await Promise.allSettled([fetchPendingLeaves(), fetchWorkUpdates()]);
-    } catch (err) {
-      setError(err.message || 'Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchPendingLeaves, fetchWorkUpdates, token]);
-
-  useEffect(() => {
-    if (token) {
-      refreshDashboard();
-    }
-  }, [refreshDashboard, token]);
+  const invalidatePendingLeaves = () => queryClient.invalidateQueries({ queryKey: ['hr', 'leave'] });
+  const invalidateWorkUpdates = () => queryClient.invalidateQueries({ queryKey: ['hr', 'workReports'] });
 
   useEffect(() => {
     if (!token) return undefined;
@@ -190,14 +164,15 @@ export const useHrDashboard = () => {
     });
 
     socket.emit('hr:subscribe');
-    socket.on('hr:work-update', fetchWorkUpdates);
+    socket.on('hr:work-update', invalidateWorkUpdates);
 
     return () => {
-      socket.off('hr:work-update', fetchWorkUpdates);
+      socket.off('hr:work-update', invalidateWorkUpdates);
       socket.emit('hr:unsubscribe');
       socket.disconnect();
     };
-  }, [fetchWorkUpdates, token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -251,32 +226,34 @@ export const useHrDashboard = () => {
     async (leaveId) => {
       try {
         setActionLoadingId(leaveId);
-        setError('');
+        setActionError('');
         await hrApi.approveLeave(leaveId, token);
-        await fetchPendingLeaves();
+        invalidatePendingLeaves();
       } catch (err) {
-        setError(err.message || 'Failed to approve leave');
+        setActionError(err.message || 'Failed to approve leave');
       } finally {
         setActionLoadingId(null);
       }
     },
-    [fetchPendingLeaves, token]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token]
   );
 
   const handleReject = useCallback(
     async (leaveId) => {
       try {
         setActionLoadingId(leaveId);
-        setError('');
+        setActionError('');
         await hrApi.rejectLeave(leaveId, {}, token);
-        await fetchPendingLeaves();
+        invalidatePendingLeaves();
       } catch (err) {
-        setError(err.message || 'Failed to reject leave');
+        setActionError(err.message || 'Failed to reject leave');
       } finally {
         setActionLoadingId(null);
       }
     },
-    [fetchPendingLeaves, token]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token]
   );
 
   const handleCheckIn = useCallback(async () => {

@@ -7,9 +7,9 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 // sections, mirroring the Admin portal's sidebar pattern. Dashboard/Projects stay
 // standalone since they're always-visible landing sections, not workspace tools.
 const GROUPS = [
-  { id: 'campaigns', label: 'Campaigns & Planning', icon: 'ads_click', sectionIds: ['campaigns', 'tasks', 'budget', 'funnel', 'calendar', 'weekly-planning', 'checklists'] },
-  { id: 'creative', label: 'Content & Creative', icon: 'perm_media', sectionIds: ['assets', 'brand', 'content', 'design', 'video', 'social'] },
-  { id: 'channels', label: 'Channels & Growth', icon: 'public', sectionIds: ['advertisements', 'seo', 'website', 'testimonials', 'case-studies'] },
+  { id: 'campaigns', label: 'Campaigns', icon: 'ads_click', sectionIds: ['campaigns', 'tasks', 'budget', 'funnel', 'calendar', 'weekly-planning', 'checklists'] },
+  { id: 'creative', label: 'Creative', icon: 'perm_media', sectionIds: ['assets', 'brand', 'content', 'design', 'video', 'social'] },
+  { id: 'channels', label: 'Channels', icon: 'public', sectionIds: ['advertisements', 'seo', 'website', 'testimonials', 'case-studies'] },
   { id: 'governance', label: 'Governance', icon: 'fact_check', sectionIds: ['approvals', 'reporting', 'audit'] },
 ];
 const STANDALONE_IDS = new Set(['dashboard', 'project-hub']);

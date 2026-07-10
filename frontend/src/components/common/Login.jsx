@@ -36,6 +36,21 @@ const defaultRolePath = (role, userMeta = {}, department = '') => {
       return '/it/dashboard';
     case 'finance':
       return '/finance/dashboard';
+    case 'media':
+    case 'marketing_head':
+    case 'media_manager':
+    case 'content_writer':
+    case 'graphic_designer':
+    case 'video_editor':
+    case 'seo_specialist':
+    case 'social_media_manager':
+    case 'ads_manager':
+    case 'project_manager':
+    case 'department_head':
+    case 'client_viewer':
+      return '/media/dashboard';
+    case 'sales':
+      return '/media/sales/dashboard';
     case 'employee':
       return Array.isArray(assignedProjects) && assignedProjects.length > 0 ? '/employee/projects' : '/employee/dashboard';
     case 'hr':

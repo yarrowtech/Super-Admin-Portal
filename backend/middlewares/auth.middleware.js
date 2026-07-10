@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/auth/User');
+const Session = require('../models/auth/Session');
 const PortalAccess = require('../models/superAdmin/PortalAccess');
 const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
@@ -118,8 +119,32 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    if (!decoded.jti) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid session. Please login again.',
+        code: 'SESSION_INVALID'
+      });
+    }
+
+    const session = await Session.findOne({
+      user: user._id,
+      jti: decoded.jti,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() }
+    }).select('_id jti');
+
+    if (!session) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session expired or logged out. Please login again.',
+        code: 'SESSION_INVALID'
+      });
+    }
+
     // 5. Attach user to request
     req.authTokenJti = decoded.jti || null;
+    req.authSessionId = session._id;
     req.user = {
       id: user._id,
       _id: user._id, // keep _id for handlers that expect it

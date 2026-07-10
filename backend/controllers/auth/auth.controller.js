@@ -1051,12 +1051,24 @@ exports.changePassword = async (req, res) => {
 exports.logout = async (req, res) => {
   try {
     const refreshToken = req.body?.refreshToken || parseCookie(req, 'refreshToken');
+    const sessionFilter = {
+      user: req.user.id,
+      revokedAt: null,
+      $or: []
+    };
+
     if (refreshToken) {
-      await Session.updateMany(
-        { user: req.user.id, refreshTokenHash: hashToken(refreshToken), revokedAt: null },
-        { revokedAt: new Date() }
-      );
+      sessionFilter.$or.push({ refreshTokenHash: hashToken(refreshToken) });
     }
+
+    if (req.authTokenJti) {
+      sessionFilter.$or.push({ jti: req.authTokenJti });
+    }
+
+    if (sessionFilter.$or.length > 0) {
+      await Session.updateMany(sessionFilter, { revokedAt: new Date() });
+    }
+
     res.clearCookie?.('refreshToken', { path: '/api/auth' });
     await writeAuthActivity(req, 'auth.logout', { _id: req.user.id });
     res.status(200).json({
@@ -1099,6 +1111,24 @@ exports.verifyToken = async (req, res) => {
         valid: false,
         error: 'Invalid token or user inactive',
         code: 'TOKEN_INVALID'
+      });
+    }
+
+    const session = decoded.jti
+      ? await Session.findOne({
+          user: user._id,
+          jti: decoded.jti,
+          revokedAt: null,
+          expiresAt: { $gt: new Date() }
+        }).select('_id')
+      : null;
+
+    if (!session) {
+      return res.status(401).json({
+        success: false,
+        valid: false,
+        error: 'Session expired or logged out',
+        code: 'SESSION_INVALID'
       });
     }
 

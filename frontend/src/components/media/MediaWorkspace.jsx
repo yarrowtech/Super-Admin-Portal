@@ -372,7 +372,6 @@ const tone = (status = '') => {
 };
 const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const money = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num(value));
-<<<<<<< HEAD
 const average = (values) => {
   const valid = values.map(num).filter((value) => value > 0);
   if (!valid.length) return 0;
@@ -400,7 +399,7 @@ const getChannelInsights = (section, records) => {
     ];
   }
   if (section === 'website') {
-    const liveCount = records.filter((item) => ['live', 'published', 'approved'].some((status) => getRecordStatus(item).includes(status))).length;
+    const liveCount = records.filter((item) => ['live', 'published', 'approved'].some((status) => recordStatus(item).includes(status))).length;
     const urls = new Set(records.map((item) => String(item?.metadata?.pageUrl || '').trim()).filter(Boolean)).size;
     return [
       ['Pages', records.length.toLocaleString(), 'web'],
@@ -416,7 +415,7 @@ const getChannelInsights = (section, records) => {
       ['Testimonials', records.length.toLocaleString(), 'reviews'],
       ['Clients', clients.toLocaleString(), 'business_center'],
       ['Avg Rating', avgRating ? `${avgRating.toFixed(1)}/5` : '0/5', 'star'],
-      ['Approved', records.filter((item) => getRecordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
+      ['Approved', records.filter((item) => recordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
     ];
   }
   if (section === 'case-studies') {
@@ -426,17 +425,15 @@ const getChannelInsights = (section, records) => {
       ['Stories', records.length.toLocaleString(), 'description'],
       ['Clients', clients.toLocaleString(), 'business_center'],
       ['Industries', industries.toLocaleString(), 'domain'],
-      ['Approved', records.filter((item) => getRecordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
+      ['Approved', records.filter((item) => recordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
     ];
   }
   return [];
 };
-=======
 const formatTime = (value) =>
   value
     ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : 'pending';
->>>>>>> b5b117c70ed79ae35f18ff41183c370639b10051
 const bytes = (value) => {
   const n = num(value);
   if (!n) return '0 B';

@@ -71,7 +71,7 @@ export const defaultRolePath = (user) => {
     case 'client_viewer':
       return '/media/dashboard';
     case 'sales':
-      return '/sales/dashboard';
+      return '/media/sales/dashboard';
     case 'research_operator':
       return '/research/dashboard';
     case 'employee':

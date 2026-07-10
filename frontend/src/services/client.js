@@ -1,10 +1,12 @@
 import { createLogger } from '../utils/logger';
+import { clearAuthSession, readAuthSession, writeAuthSession } from '../lib/authSession';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const httpLogger = createLogger({ module: 'http-client' });
 const CACHE_PREFIX = 'sap_http_cache_v1:';
 const DEFAULT_TTL_MS = 30 * 1000;
 const inflight = new Map();
+let refreshPromise = null;
 
 const now = () => Date.now();
 
@@ -132,6 +134,93 @@ const parseResponse = async (res, requestId) => {
   return data;
 };
 
+const persistResponseToken = (res) => {
+  const nextToken = res.headers.get('X-New-Token');
+  if (!nextToken) return;
+  const session = readAuthSession();
+  writeAuthSession({
+    token: nextToken,
+    refreshToken: session.refreshToken,
+    authMode: session.authMode,
+  });
+};
+
+const refreshAccessToken = async () => {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const session = readAuthSession();
+    if (!session.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const requestId = createRequestId();
+    const res = await fetch(`${API_BASE_URL}/api/auth/refresh-token`, {
+      method: 'POST',
+      headers: getDefaultHeaders(null, requestId),
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+      credentials: 'include',
+    });
+
+    const parsed = await parseResponse(res, requestId);
+    const nextToken = parsed?.data?.token;
+    if (!nextToken) {
+      throw new Error('Invalid refresh response');
+    }
+
+    writeAuthSession({
+      token: nextToken,
+      refreshToken: session.refreshToken,
+      authMode: session.authMode,
+    });
+    return nextToken;
+  })();
+
+  try {
+    return await refreshPromise;
+  } catch (error) {
+    clearAuthSession();
+    clearApiCache();
+    throw error;
+  } finally {
+    refreshPromise = null;
+  }
+};
+
+const shouldRefresh = (error, path) => {
+  if (!error || error.status !== 401) return false;
+  if (path === '/api/auth/refresh-token' || path.includes('/api/auth/login')) return false;
+  return ['TOKEN_EXPIRED', 'SESSION_INVALID', 'INVALID_TOKEN', 'TOKEN_INVALID'].includes(error.code);
+};
+
+const request = async ({ method, path, body, token, cache = false, cacheKey, ttlMs }) => {
+  const execute = async (requestToken) => {
+    const requestId = createRequestId();
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: getDefaultHeaders(requestToken, requestId),
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'include',
+    });
+    const parsed = await parseResponse(res, requestId);
+    persistResponseToken(res);
+    if (cache && cacheKey) {
+      writeCache(cacheKey, parsed, ttlMs);
+    }
+    return parsed;
+  };
+
+  try {
+    return await execute(token);
+  } catch (error) {
+    if (!shouldRefresh(error, path)) {
+      throw error;
+    }
+    const nextToken = await refreshAccessToken();
+    return execute(nextToken);
+  }
+};
+
 export const apiClient = {
   async get(path, token, options = {}) {
     const {
@@ -139,7 +228,6 @@ export const apiClient = {
       ttlMs,
       forceRefresh = false
     } = options || {};
-    const requestId = createRequestId();
     const cacheKey = buildCacheKey('GET', path, token);
     const effectiveTtl = ttlMs ?? getTtlForPath(path);
 
@@ -152,18 +240,14 @@ export const apiClient = {
       return inflight.get(cacheKey);
     }
 
-    const requestPromise = (async () => {
-      const res = await fetch(`${API_BASE_URL}${path}`, {
-        method: 'GET',
-        headers: getDefaultHeaders(token, requestId),
-        credentials: 'include',
-      });
-      const parsed = await parseResponse(res, requestId);
-      if (cache) {
-        writeCache(cacheKey, parsed, effectiveTtl);
-      }
-      return parsed;
-    })();
+    const requestPromise = request({
+      method: 'GET',
+      path,
+      token,
+      cache,
+      cacheKey,
+      ttlMs: effectiveTtl,
+    });
 
     if (cache) inflight.set(cacheKey, requestPromise);
     try {
@@ -173,49 +257,22 @@ export const apiClient = {
     }
   },
   async post(path, body, token) {
-    const requestId = createRequestId();
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: getDefaultHeaders(token, requestId),
-      body: JSON.stringify(body),
-      credentials: 'include',
-    });
-    const parsed = await parseResponse(res, requestId);
+    const parsed = await request({ method: 'POST', path, body, token });
     clearApiCache();
     return parsed;
   },
   async put(path, body, token) {
-    const requestId = createRequestId();
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'PUT',
-      headers: getDefaultHeaders(token, requestId),
-      body: JSON.stringify(body),
-      credentials: 'include',
-    });
-    const parsed = await parseResponse(res, requestId);
+    const parsed = await request({ method: 'PUT', path, body, token });
     clearApiCache();
     return parsed;
   },
   async patch(path, body, token) {
-    const requestId = createRequestId();
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'PATCH',
-      headers: getDefaultHeaders(token, requestId),
-      body: JSON.stringify(body),
-      credentials: 'include',
-    });
-    const parsed = await parseResponse(res, requestId);
+    const parsed = await request({ method: 'PATCH', path, body, token });
     clearApiCache();
     return parsed;
   },
   async delete(path, token) {
-    const requestId = createRequestId();
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'DELETE',
-      headers: getDefaultHeaders(token, requestId),
-      credentials: 'include',
-    });
-    const parsed = await parseResponse(res, requestId);
+    const parsed = await request({ method: 'DELETE', path, token });
     clearApiCache();
     return parsed;
   },

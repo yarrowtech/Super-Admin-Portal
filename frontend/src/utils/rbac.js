@@ -27,6 +27,7 @@ export const MEDIA_PORTAL_ROLES = [
   'project_manager',
   'department_head',
   'client_viewer',
+  'sales',
 ];
 
 const baseRoleAccess = {
@@ -50,7 +51,7 @@ const baseRoleAccess = {
   department_head: [PORTALS.MEDIA],
   client_viewer: [PORTALS.MEDIA],
   finance: [PORTALS.FINANCE],
-  sales: [PORTALS.SALES],
+  sales: [PORTALS.MEDIA, PORTALS.SALES],
   research_operator: [PORTALS.RESEARCH],
   manager: [PORTALS.MANAGER],
   employee: [PORTALS.EMPLOYEE],

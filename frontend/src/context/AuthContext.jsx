@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../services/client';
 import { createLogger } from '../utils/logger';
-import { clearAuthSession, readAuthSession, writeAuthSession } from '../lib/authSession';
+import { clearAuthSession, readAuthSession, subscribeAuthSession, writeAuthSession } from '../lib/authSession';
 
 const authLogger = createLogger({ module: 'auth' });
 
@@ -35,6 +35,18 @@ export const AuthProvider = ({ children }) => {
     };
     bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return subscribeAuthSession(() => {
+      const session = readAuthSession();
+      setToken(session.token);
+      setRefreshToken(session.refreshToken);
+      setAuthMode(session.authMode || 'default');
+      if (!session.token) {
+        setUser(null);
+      }
+    });
   }, []);
 
   const clearAuth = () => {
@@ -84,9 +96,10 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     const currentToken = token;
+    const currentRefreshToken = refreshToken;
     try {
       if (currentToken) {
-        await apiClient.post('/api/auth/logout', {}, currentToken);
+        await apiClient.post('/api/auth/logout', { refreshToken: currentRefreshToken }, currentToken);
       }
     } catch {
       authLogger.warn('Server logout failed; continuing local sign-out');

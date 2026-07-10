@@ -369,7 +369,16 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
   );
   const selectedProjectLabel = projectOptions.find((item) => item.value === effectiveProjectId)?.code || 'All Projects';
   const projectScopeLabel = effectiveProjectId ? selectedProjectLabel : 'All Projects';
-  const lastSyncLabel = formatTime(updatedAt);
+  const lastSyncAt =
+    dashboard?.updatedAt ||
+    dashboard?.generatedAt ||
+    reporting?.updatedAt ||
+    reporting?.generatedAt ||
+    summary.recentItems?.[0]?.updatedAt ||
+    summary.recentItems?.[0]?.modifiedAt ||
+    summary.recentItems?.[0]?.createdAt ||
+    new Date().toISOString();
+  const lastSyncLabel = formatTime(lastSyncAt);
   const updateProject = (projectId) => {
     if (selectedProjectId !== undefined) {
       onProjectChange?.(projectId);

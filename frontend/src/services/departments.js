@@ -135,7 +135,13 @@ export const departmentApi = {
   toggleMediaChecklistItem: (token, checklistType, itemId, params = {}) =>
     apiClient.patch(buildUrl(`/api/dept/media/checklists/${encodeURIComponent(checklistType)}/items/${itemId}/toggle`, params), {}, token),
   getSalesDashboard: (token) => apiClient.get('/api/dept/sales/dashboard', token),
-  getSalesQueries: (token) => apiClient.get('/api/dept/sales/queries', token),
+  getSalesQueries: (token, params = {}) => apiClient.get(buildUrl('/api/dept/sales/queries', params), token, { cache: false }),
   createSalesQuery: (token, formData) => apiClient.upload('/api/dept/sales/queries', formData, token),
+  updateSalesQuery: (token, id, body) => apiClient.put(`/api/dept/sales/queries/${id}`, body, token),
+  deleteSalesQuery: (token, id) => apiClient.delete(`/api/dept/sales/queries/${id}`, token),
+  getSalesQuestions: (token, params = {}) => apiClient.get(buildUrl('/api/dept/sales/questions', params), token),
+  createSalesQuestion: (token, body) => apiClient.post('/api/dept/sales/questions', body, token),
+  updateSalesQuestion: (token, id, body) => apiClient.put(`/api/dept/sales/questions/${id}`, body, token),
+  deleteSalesQuestion: (token, id) => apiClient.delete(`/api/dept/sales/questions/${id}`, token),
   getResearchDashboard: (token) => apiClient.get('/api/dept/research/dashboard', token),
 };

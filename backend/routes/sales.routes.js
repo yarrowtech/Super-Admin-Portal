@@ -12,6 +12,13 @@ router.use(authorizePortalAccess('sales'));
 router.get('/dashboard', salesController.getDashboard);
 router.get('/queries', salesController.listQueries);
 router.post('/queries', uploadMany('images', 8), salesController.createQuery);
+router.put('/queries/:id', salesController.updateQuery);
+router.delete('/queries/:id', salesController.deleteQuery);
+
+router.get('/questions', salesController.listQuestions);
+router.post('/questions', salesController.createQuestion);
+router.put('/questions/:id', salesController.updateQuestion);
+router.delete('/questions/:id', salesController.deleteQuestion);
 
 module.exports = router;
 

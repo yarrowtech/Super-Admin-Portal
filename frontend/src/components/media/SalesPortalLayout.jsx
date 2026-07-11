@@ -13,6 +13,7 @@ export const MEDIA_THEME = {
 export const SALES_NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', description: 'Sales command view' },
   { id: 'query', label: 'Query', icon: 'quiz', description: 'Field buyer questionnaire' },
+  { id: 'submission', label: 'Submission', icon: 'fact_check', description: 'Your submitted queries' },
 ];
 
 const SalesPortalLayout = ({ activeId, children }) => {

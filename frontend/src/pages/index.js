@@ -81,6 +81,7 @@ export const MediaPortalPage    = MediaDashboardPage;
 // ── Department portals ────────────────────────────────────────────────────────
 export const SalesDashboardPage    = lazy(() => import('../components/media/MediaSalesPortal'));
 export const SalesQueryPage        = lazy(() => import('../components/media/SalesQueryPage'));
+export const SalesSubmissionPage   = lazy(() => import('../components/media/SalesSubmissionsPage'));
 export const ResearchDashboardPage = lazy(() => import('../components/department/DepartmentPortals').then(m => ({ default: m.ResearchDepartmentPortal })));
 
 // ── Law portal ────────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ export const LSWLegalLibraryPage     = lazy(() => import('../components/law/LSWL
 export const AdminLegalRegistryPage  = lazy(() => import('../components/admin/AdminLegalRegistry'));
 export const AdminLegalLibraryPage   = lazy(() => import('../components/law/LSWLegalLibrary'));
 export const LawContractsPage        = lazy(() => import('../components/law/LawContractsPage'));
+export const AdminSalesSubmissionsPage = lazy(() => import('../components/admin/AdminSalesSubmissions'));
 
 // ── IT portal ────────────────────────────────────────────────────────────────
 export const ITDashboard    = lazy(() => import('../components/it/ITDashboard'));

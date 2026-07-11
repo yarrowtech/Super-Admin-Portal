@@ -59,12 +59,14 @@ import {
   MediaDashboardPage,
   SalesDashboardPage,
   SalesQueryPage,
+  SalesSubmissionPage,
   ResearchDashboardPage,
   // Legal Document Management
   LegalDocManagementPage,
   LSWLegalLibraryPage,
   AdminLegalRegistryPage,
   AdminLegalLibraryPage,
+  AdminSalesSubmissionsPage,
   LawContractsPage,
   ITDashboard,
   ITOverviewPage,
@@ -359,6 +361,16 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.MEDIA}>
               <PrivateRoute roles={allow('sales')}>
                 <SalesQueryPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/submission"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('sales')}>
+                <SalesSubmissionPage />
               </PrivateRoute>
             </PortalRoute>
           }
@@ -863,6 +875,18 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.ADMIN}>
               <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminLegalLibraryPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+
+        {/* ── Sales Query Submissions — Admin ── */}
+        <Route
+          path="/admin/sales-submissions"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminSalesSubmissionsPage)}
               </PrivateRoute>
             </PortalRoute>
           }

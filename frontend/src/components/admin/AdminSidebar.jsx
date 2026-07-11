@@ -86,6 +86,12 @@ const navItems = [
     description: 'Approved legal documents'
   },
   {
+    label: 'Sales Submissions',
+    icon: 'fact_check',
+    path: '/admin/sales-submissions',
+    description: 'All vendor & buyer questionnaire responses'
+  },
+  {
     label: 'Support Center',
     icon: 'support_agent',
     path: '/admin/support-center',

@@ -27,14 +27,24 @@ const salesQuerySchema = new mongoose.Schema(
       code: { type: String, trim: true },
       name: { type: String, trim: true },
     },
+    projects: {
+      type: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true },
+      }],
+      default: [],
+    },
     buyerCategory: { type: String, trim: true },
     buyerName: { type: String, trim: true },
     businessName: { type: String, trim: true },
     phone: { type: String, trim: true },
+    phones: { type: [String], default: [] },
+    gstNumber: { type: String, trim: true },
     email: { type: String, trim: true },
     location: { type: String, trim: true },
     businessType: { type: String, trim: true },
     productCategory: { type: String, trim: true },
+    productCategories: { type: [String], default: [] },
     images: { type: [imageSchema], default: [] },
     qualityRating: { type: Number, min: 0, max: 5, default: 0 },
     moq: { type: String, trim: true },
@@ -42,6 +52,7 @@ const salesQuerySchema = new mongoose.Schema(
     leadTime: { type: String, trim: true },
     paymentTerms: { type: String, trim: true },
     brandSection: { type: String, trim: true },
+    brandNames: { type: [String], default: [] },
     onlineCollaboration: { type: String, trim: true },
     answers: { type: [answerSchema], default: [] },
     notes: { type: String, trim: true },
@@ -49,5 +60,7 @@ const salesQuerySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+salesQuerySchema.index({ submittedBy: 1 });
 
 module.exports = mongoose.models.SalesQuery || mongoose.model('SalesQuery', salesQuerySchema);

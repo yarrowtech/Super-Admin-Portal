@@ -67,4 +67,19 @@ export const adminApi = {
     const qs = q.toString();
     return apiClient.get(`/api/dept/admin/modules/departments${qs ? `?${qs}` : ''}`, token);
   },
+
+  getReportsOverview: async (token, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.status) q.append('status', params.status);
+    if (params.reportType) q.append('reportType', params.reportType);
+    if (params.department) q.append('department', params.department);
+    if (params.from) q.append('from', params.from);
+    if (params.to) q.append('to', params.to);
+    const qs = q.toString();
+    return apiClient.get(`/api/dept/admin/modules/reports${qs ? `?${qs}` : ''}`, token, { cache: false });
+  },
+
+  createCustomReport: async (token, body) => {
+    return apiClient.post('/api/dept/admin/modules/reports', body, token);
+  },
 };

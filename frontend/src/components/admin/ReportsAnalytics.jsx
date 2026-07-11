@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { adminApi } from '../../services/admin';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const Card = ({ children, className = '' }) => (
@@ -29,7 +31,7 @@ const PageHdr = ({ title, subtitle, icon, action }) => (
   </header>
 );
 
-const StatCard = ({ icon, label, value, sub, color = 'bg-indigo-600', trend }) => (
+const StatCard = ({ icon, label, value, sub, color = 'bg-indigo-600' }) => (
   <Card>
     <Inner className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -37,17 +39,7 @@ const StatCard = ({ icon, label, value, sub, color = 'bg-indigo-600', trend }) =
         <span className={`material-symbols-outlined rounded-xl p-2 text-[18px] text-white ${color}`}>{icon}</span>
       </div>
       <p className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">{value}</p>
-      {(sub || trend) && (
-        <div className="flex items-center gap-1.5">
-          {trend && (
-            <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${trend.startsWith('+') ? 'text-emerald-600' : 'text-rose-500'}`}>
-              <span className="material-symbols-outlined text-[13px]">{trend.startsWith('+') ? 'trending_up' : 'trending_down'}</span>
-              {trend}
-            </span>
-          )}
-          {sub && <span className="text-xs text-neutral-400">{sub}</span>}
-        </div>
-      )}
+      {sub && <span className="text-xs text-neutral-400">{sub}</span>}
     </Inner>
   </Card>
 );
@@ -56,57 +48,293 @@ const statusStyle = {
   Completed:  'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700',
   Processing: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-700',
   Failed:     'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-700',
-  Queued:     'bg-neutral-100 text-neutral-600 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700',
 };
 
 const StatusPill = ({ status }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${statusStyle[status] || statusStyle.Queued}`}>
+  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${statusStyle[status] || statusStyle.Processing}`}>
     {status}
   </span>
 );
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
-const PREDEFINED = [
-  { icon: 'monitoring',  title: 'User Activity',       description: 'Logins, signups, and feature usage.',       color: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400', accent: 'border-indigo-200 dark:border-indigo-800' },
-  { icon: 'article',     title: 'Content Statistics',  description: 'Views, shares, and engagement rates.',      color: 'bg-violet-100 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400', accent: 'border-violet-200 dark:border-violet-800' },
-  { icon: 'payments',    title: 'Financial Summaries', description: 'Revenue, expenses, and profit margins.',     color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400', accent: 'border-emerald-200 dark:border-emerald-800' },
-  { icon: 'dns',         title: 'System Performance',  description: 'Uptime, response times, and errors.',       color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400', accent: 'border-amber-200 dark:border-amber-800' },
-];
+const formatDate = (d) =>
+  d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-const CUSTOM_REPORTS = [
-  { id: 1, name: 'Q4 Financial Summary',      date: '2024-01-15', status: 'Completed',  size: '2.4 MB', type: 'Financial' },
-  { id: 2, name: 'Monthly User Signup',        date: '2024-02-01', status: 'Completed',  size: '1.1 MB', type: 'Activity' },
-  { id: 3, name: 'Content Performance Q1',     date: '2024-03-05', status: 'Processing', size: '—',      type: 'Content'  },
-  { id: 4, name: 'System Uptime Report Mar',   date: '2024-03-10', status: 'Queued',     size: '—',      type: 'System'   },
-  { id: 5, name: 'Annual Revenue Forecast',    date: '2024-03-12', status: 'Completed',  size: '5.7 MB', type: 'Financial'},
-];
-
-// SVG chart points for each period
-const CHART_PATHS = {
-  Week:  'M0 110C20 110 20 60 40 60C60 60 60 90 80 90C100 90 100 40 120 40C140 40 140 70 160 70C180 70 180 30 200 30C220 30 220 80 240 80',
-  Month: 'M0 83C18 83 18 127 36 127C54 127 54 107 72 107C90 107 90 55 108 55C126 55 126 115 144 115C162 115 162 47 180 47C198 47 198 87 216 87C234 87 234 103 252 103C270 103 270 27 288 27C306 27 306 1 324 1C342 1 342 147 360 147C378 147 378 67 396 67C414 67 414 19 432 19C450 19 450 123 472 123',
-  Year:  'M0 100C30 100 30 40 60 40C90 40 90 120 120 120C150 120 150 20 180 20C210 20 210 90 240 90C270 90 270 60 300 60C330 60 330 130 360 130C390 130 390 10 420 10C450 10 450 80 472 80',
+const csvEscape = (value) => {
+  const str = value === null || value === undefined ? '' : String(value);
+  if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
 };
 
+const buildReportsCsv = (rows) => {
+  const headers = ['Name', 'Report Type', 'Department', 'Status', 'Generated On', 'Created At'];
+  const lines = rows.map((r) =>
+    [r.name, r.reportType, r.department, r.status, r.generatedOn, formatDate(r.createdAt)].map(csvEscape).join(',')
+  );
+  return [headers.map(csvEscape).join(','), ...lines].join('\r\n');
+};
+
+const downloadCsv = (csv, filename) => {
+  const BOM = '﻿';
+  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+const DEFAULT_FILTERS = {
+  reportType: 'All',
+  department: 'All Departments',
+  dateFrom: '',
+  dateTo: '',
+  status: 'All',
+};
+
+const DEFAULT_GENERATE_FORM = { name: '', reportType: '', department: 'All Departments', status: 'Processing' };
+
+// Buckets report activity into a simple, real trend derived from actual generated-report dates.
+const buildTrend = (reports, period) => {
+  const parsed = reports
+    .map((r) => new Date(r.generatedOn || r.createdAt))
+    .filter((d) => !Number.isNaN(d.getTime()));
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (period === 'Week') {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() - (6 - i));
+      return d;
+    });
+    return {
+      labels: days.map((d) => d.toLocaleDateString('en-IN', { weekday: 'short' })),
+      counts: days.map((d) => parsed.filter((p) => p.toDateString() === d.toDateString()).length),
+    };
+  }
+
+  if (period === 'Year') {
+    const months = Array.from({ length: 12 }, (_, i) => new Date(today.getFullYear(), today.getMonth() - (11 - i), 1));
+    return {
+      labels: months.map((d) => d.toLocaleDateString('en-IN', { month: 'short' })),
+      counts: months.map((d) => parsed.filter((p) => p.getFullYear() === d.getFullYear() && p.getMonth() === d.getMonth()).length),
+    };
+  }
+
+  // Month: last 4 weekly buckets
+  const weeks = Array.from({ length: 4 }, (_, i) => {
+    const end = new Date(today);
+    end.setDate(end.getDate() - (3 - i) * 7);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    return { start, end };
+  });
+  return {
+    labels: weeks.map(({ start, end }) => `${start.getDate()}-${end.getDate()}`),
+    counts: weeks.map(({ start, end }) => parsed.filter((p) => p >= start && p <= end).length),
+  };
+};
+
+const GenerateReportModal = ({ form, setForm, departmentOptions, reportTypeOptions, saving, error, onClose, onSave }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-neutral-900">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
+        <h2 className="text-sm font-black text-neutral-900 dark:text-neutral-100">Generate Report</h2>
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+          <span className="material-symbols-outlined text-neutral-400">close</span>
+        </button>
+      </div>
+
+      <div className="space-y-3 px-5 py-4">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-neutral-500 dark:text-neutral-400">Report Name *</label>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+            placeholder="e.g. Q2 Financial Summary"
+            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-neutral-500 dark:text-neutral-400">Report Type</label>
+          <select
+            value={form.reportType}
+            onChange={(e) => setForm((prev) => ({ ...prev, reportType: e.target.value }))}
+            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+          >
+            {reportTypeOptions.map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-neutral-500 dark:text-neutral-400">Department</label>
+          <select
+            value={form.department}
+            onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))}
+            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+          >
+            {departmentOptions.map((d) => <option key={d}>{d}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-neutral-500 dark:text-neutral-400">Initial Status</label>
+          <select
+            value={form.status}
+            onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+          >
+            {['Processing', 'Completed', 'Failed'].map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-end gap-2 border-t border-neutral-200 px-5 py-3 dark:border-neutral-800">
+        <button type="button" onClick={onClose} className="rounded-lg border border-neutral-200 px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300">
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onSave}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? 'Generating...' : 'Generate'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const ReportsAnalytics = () => {
-  const [reportType, setReportType]   = useState('User Activity');
-  const [department, setDepartment]   = useState('All Departments');
-  const [dateFrom, setDateFrom]       = useState('2024-01-01');
-  const [dateTo, setDateTo]           = useState('2024-03-31');
-  const [period, setPeriod]           = useState('Month');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const { token } = useAuth();
 
-  const filteredReports = useMemo(() => {
-    if (statusFilter === 'All') return CUSTOM_REPORTS;
-    return CUSTOM_REPORTS.filter((r) => r.status === statusFilter);
-  }, [statusFilter]);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
 
-  const chartPath = CHART_PATHS[period];
-  const chartWidth = period === 'Week' ? 240 : 472;
+  const [predefinedReports, setPredefinedReports] = useState([]);
+  const [customReports, setCustomReports] = useState([]);
+  const [stats, setStats] = useState({ totalCount: 0, completedCount: 0, processingCount: 0, generatedToday: 0 });
+  const [departments, setDepartments] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [period, setPeriod] = useState('Month');
+
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateForm, setGenerateForm] = useState(DEFAULT_GENERATE_FORM);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState('');
+
+  const fetchReports = useCallback(async (nextFilters) => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
+    try {
+      const response = await adminApi.getReportsOverview(token, {
+        status: nextFilters.status,
+        reportType: nextFilters.reportType,
+        department: nextFilters.department,
+        from: nextFilters.dateFrom,
+        to: nextFilters.dateTo,
+      });
+      const payload = response?.data?.data || response?.data || {};
+      setPredefinedReports(Array.isArray(payload.predefinedReports) ? payload.predefinedReports : []);
+      setCustomReports(Array.isArray(payload.customReports) ? payload.customReports : []);
+      setStats(payload.stats || { totalCount: 0, completedCount: 0, processingCount: 0, generatedToday: 0 });
+    } catch (err) {
+      setError(err?.message || 'Failed to load reports.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    adminApi.getDepartmentsOverview(token)
+      .then((response) => {
+        const payload = response?.data?.data || response?.data || [];
+        setDepartments(Array.isArray(payload) ? payload.map((d) => d.name).filter(Boolean) : []);
+      })
+      .catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    fetchReports(appliedFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const departmentOptions = useMemo(() => ['All Departments', ...departments], [departments]);
+  const reportTypeOptions = useMemo(
+    () => ['All', ...predefinedReports.map((r) => r.title)],
+    [predefinedReports]
+  );
+
+  const handleApplyFilters = () => {
+    setAppliedFilters(filters);
+    fetchReports(filters);
+  };
+
+  const handleStatusChange = (status) => {
+    const next = { ...filters, status };
+    setFilters(next);
+    setAppliedFilters(next);
+    fetchReports(next);
+  };
+
+  const handleExportAll = () => {
+    if (customReports.length === 0) return;
+    downloadCsv(buildReportsCsv(customReports), `reports-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const handleDownloadOne = (r) => {
+    const safeName = (r.name || 'report').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    downloadCsv(buildReportsCsv([r]), `${safeName}.csv`);
+  };
+
+  const openGenerateModal = (prefillType) => {
+    setGenerateForm({ ...DEFAULT_GENERATE_FORM, reportType: prefillType || predefinedReports[0]?.title || 'User Activity' });
+    setGenerateError('');
+    setGenerateOpen(true);
+  };
+
+  const handleGenerate = async () => {
+    if (!generateForm.name.trim()) {
+      setGenerateError('Report name is required');
+      return;
+    }
+    setGenerating(true);
+    setGenerateError('');
+    try {
+      await adminApi.createCustomReport(token, generateForm);
+      setGenerateOpen(false);
+      fetchReports(appliedFilters);
+    } catch (err) {
+      setGenerateError(err?.message || 'Failed to generate report.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const trend = useMemo(() => buildTrend(customReports, period), [customReports, period]);
+  const maxCount = Math.max(1, ...trend.counts);
+  const completionRate = stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0;
 
   return (
     <main className="flex-1 overflow-y-auto bg-neutral-50 p-4 dark:bg-neutral-950 md:p-6">
-      <div className="mx-auto w-full max-w-[1400px]">
+      <div className="mx-auto w-full max-w-350">
 
         <PageHdr
           icon="bar_chart_4_bars"
@@ -114,11 +342,18 @@ const ReportsAnalytics = () => {
           subtitle="Generate, schedule, and download reports across all departments."
           action={
             <>
-              <button className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50 transition dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+              <button
+                onClick={handleExportAll}
+                disabled={customReports.length === 0}
+                className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50 transition disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+              >
                 <span className="material-symbols-outlined text-[16px]">download</span>
                 Export
               </button>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition">
+              <button
+                onClick={() => openGenerateModal()}
+                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition"
+              >
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 Generate Report
               </button>
@@ -126,12 +361,18 @@ const ReportsAnalytics = () => {
           }
         />
 
+        {error && (
+          <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+            {error}
+          </div>
+        )}
+
         {/* KPI Row */}
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard icon="description"     label="Total Reports"     value="128"    trend="+14"    sub="vs last month"  color="bg-indigo-600" />
-          <StatCard icon="schedule_send"   label="Generated Today"   value="9"      trend="+3"     sub="vs yesterday"   color="bg-violet-600" />
-          <StatCard icon="storage"         label="Storage Used"      value="3.2 GB" sub="of 10 GB limit"               color="bg-amber-500" />
-          <StatCard icon="avg_pace"        label="Avg. Gen. Time"    value="1.4 s"  trend="-0.2s"  sub="faster"         color="bg-emerald-600" />
+          <StatCard icon="description"   label="Total Reports"    value={stats.totalCount}      sub="Matching current filters" color="bg-indigo-600" />
+          <StatCard icon="schedule_send" label="Generated Today"  value={stats.generatedToday}  sub="Since midnight"           color="bg-violet-600" />
+          <StatCard icon="check_circle"  label="Completed"        value={stats.completedCount}  sub={`${completionRate}% completion rate`} color="bg-emerald-600" />
+          <StatCard icon="hourglass_top" label="Processing"       value={stats.processingCount} sub="Currently generating"     color="bg-amber-500" />
         </div>
 
         {/* Filter Bar */}
@@ -142,14 +383,11 @@ const ReportsAnalytics = () => {
               <div className="lg:col-span-1">
                 <label className="mb-1 block text-xs font-semibold text-neutral-500">Report Type</label>
                 <select
-                  value={reportType}
-                  onChange={(e) => setReportType(e.target.value)}
+                  value={filters.reportType}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, reportType: e.target.value }))}
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                 >
-                  <option>User Activity</option>
-                  <option>Content Statistics</option>
-                  <option>Financial Summary</option>
-                  <option>System Performance</option>
+                  {reportTypeOptions.map((t) => <option key={t}>{t}</option>)}
                 </select>
               </div>
 
@@ -157,8 +395,8 @@ const ReportsAnalytics = () => {
                 <label className="mb-1 block text-xs font-semibold text-neutral-500">From</label>
                 <input
                   type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  value={filters.dateFrom}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                 />
               </div>
@@ -167,8 +405,8 @@ const ReportsAnalytics = () => {
                 <label className="mb-1 block text-xs font-semibold text-neutral-500">To</label>
                 <input
                   type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  value={filters.dateTo}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                 />
               </div>
@@ -176,20 +414,19 @@ const ReportsAnalytics = () => {
               <div>
                 <label className="mb-1 block text-xs font-semibold text-neutral-500">Department</label>
                 <select
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
+                  value={filters.department}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, department: e.target.value }))}
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                 >
-                  <option>All Departments</option>
-                  <option>Engineering</option>
-                  <option>Marketing</option>
-                  <option>Sales</option>
-                  <option>Finance</option>
+                  {departmentOptions.map((d) => <option key={d}>{d}</option>)}
                 </select>
               </div>
 
               <div className="flex items-end">
-                <button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition">
+                <button
+                  onClick={handleApplyFilters}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition"
+                >
                   <span className="material-symbols-outlined text-[16px]">filter_alt</span>
                   Apply Filters
                 </button>
@@ -202,23 +439,25 @@ const ReportsAnalytics = () => {
         <div className="mb-6">
           <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Predefined Reports</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {PREDEFINED.map((r) => (
-              <div
+            {predefinedReports.map((r) => (
+              <button
                 key={r.title}
-                className={`group flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md cursor-pointer dark:bg-neutral-950 ${r.accent}`}
+                type="button"
+                onClick={() => openGenerateModal(r.title)}
+                className="group flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5 text-left shadow-sm transition hover:shadow-md hover:border-indigo-200 dark:border-neutral-800 dark:bg-neutral-950"
               >
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${r.color}`}>
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400">
                   <span className="material-symbols-outlined text-[22px]">{r.icon}</span>
                 </div>
                 <div className="flex-1">
                   <h3 className="mb-1 font-bold text-neutral-900 dark:text-neutral-100">{r.title}</h3>
                   <p className="text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">{r.description}</p>
                 </div>
-                <button className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 opacity-0 transition group-hover:opacity-100 dark:text-indigo-400">
-                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                  View Report
-                </button>
-              </div>
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 opacity-0 transition group-hover:opacity-100 dark:text-indigo-400">
+                  <span className="material-symbols-outlined text-[14px]">add</span>
+                  Generate this report
+                </span>
+              </button>
             ))}
           </div>
         </div>
@@ -231,13 +470,10 @@ const ReportsAnalytics = () => {
             <Inner>
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Content Engagement Rate</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Reports Generated</p>
                   <div className="mt-1 flex items-baseline gap-2">
-                    <p className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white">72.3%</p>
-                    <span className="inline-flex items-center gap-0.5 text-sm font-semibold text-emerald-600">
-                      <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                      +3.1% this month
-                    </span>
+                    <p className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white">{stats.totalCount}</p>
+                    <span className="text-sm font-semibold text-neutral-400">in current filter range</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 rounded-xl border border-neutral-200 bg-neutral-50 p-1 dark:border-neutral-700 dark:bg-neutral-900">
@@ -260,37 +496,29 @@ const ReportsAnalytics = () => {
               {/* Inline metric row */}
               <div className="mb-4 grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Total Views',   value: '284K', trend: '+8.2%' },
-                  { label: 'Avg. Session',  value: '4m 31s', trend: '+0.4%' },
-                  { label: 'Bounce Rate',   value: '31.4%', trend: '-1.1%' },
+                  { label: 'Completed',  value: stats.completedCount },
+                  { label: 'Processing', value: stats.processingCount },
+                  { label: 'Completion Rate', value: `${completionRate}%` },
                 ].map((m) => (
                   <div key={m.label} className="rounded-xl border border-neutral-100 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
                     <p className="text-xs text-neutral-500">{m.label}</p>
                     <p className="mt-0.5 font-bold text-neutral-900 dark:text-white">{m.value}</p>
-                    <p className={`text-xs font-medium ${m.trend.startsWith('+') ? 'text-emerald-600' : 'text-rose-500'}`}>{m.trend}</p>
                   </div>
                 ))}
               </div>
 
-              {/* SVG Chart */}
-              <div className="h-[180px] w-full overflow-hidden rounded-xl bg-neutral-50 dark:bg-neutral-900">
-                <svg
-                  viewBox={`0 0 ${chartWidth} 150`}
-                  preserveAspectRatio="none"
-                  width="100%"
-                  height="100%"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <defs>
-                    <linearGradient id="chartGrad" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" />
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path d={`${chartPath}V149H0V${chartPath.split(' ')[1]}`} fill="url(#chartGrad)" />
-                  <path d={chartPath} stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+              {/* Bar chart driven by real report-generation dates */}
+              <div className="flex h-45 w-full items-end gap-2 overflow-hidden rounded-xl bg-neutral-50 px-3 pb-3 pt-4 dark:bg-neutral-900">
+                {trend.counts.map((count, i) => (
+                  <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                    <span className="text-[10px] font-semibold text-neutral-400">{count > 0 ? count : ''}</span>
+                    <div
+                      className="w-full rounded-t-md bg-indigo-500/80 transition-all dark:bg-indigo-500"
+                      style={{ height: `${Math.max(4, (count / maxCount) * 100)}%` }}
+                    />
+                    <span className="text-[10px] text-neutral-400">{trend.labels[i]}</span>
+                  </div>
+                ))}
               </div>
             </Inner>
           </Card>
@@ -301,39 +529,48 @@ const ReportsAnalytics = () => {
               <div className="mb-4 flex items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Recent Reports</p>
                 <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  value={filters.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
                   className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
                 >
-                  {['All', 'Completed', 'Processing', 'Queued'].map((s) => (
+                  {['All', 'Completed', 'Processing', 'Failed'].map((s) => (
                     <option key={s}>{s}</option>
                   ))}
                 </select>
               </div>
 
-              {filteredReports.length === 0 ? (
+              {loading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-xl bg-neutral-100 dark:bg-neutral-800" />
+                  ))}
+                </div>
+              ) : customReports.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-center">
                   <span className="material-symbols-outlined text-3xl text-neutral-300 dark:text-neutral-700">description</span>
                   <p className="text-sm text-neutral-400">No reports match this filter.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredReports.map((r) => (
-                    <div key={r.id} className="group flex items-center gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3 transition hover:border-neutral-200 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                  {customReports.map((r) => (
+                    <div key={r._id} className="group flex items-center gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3 transition hover:border-neutral-200 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/20">
                         <span className="material-symbols-outlined text-[17px] text-indigo-600 dark:text-indigo-400">description</span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{r.name}</p>
                         <div className="mt-0.5 flex items-center gap-2">
-                          <span className="text-[11px] text-neutral-400">{r.date}</span>
-                          {r.size !== '—' && <span className="text-[11px] text-neutral-400">· {r.size}</span>}
+                          <span className="text-[11px] text-neutral-400">{r.generatedOn || formatDate(r.createdAt)}</span>
+                          <span className="text-[11px] text-neutral-400">· {r.department}</span>
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1.5">
                         <StatusPill status={r.status} />
                         {r.status === 'Completed' ? (
-                          <button className="text-[11px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                          <button
+                            onClick={() => handleDownloadOne(r)}
+                            className="text-[11px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                          >
                             Download
                           </button>
                         ) : (
@@ -344,15 +581,24 @@ const ReportsAnalytics = () => {
                   ))}
                 </div>
               )}
-
-              <button className="mt-4 w-full rounded-xl border border-neutral-200 py-2 text-xs font-semibold text-neutral-500 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800">
-                View All Reports
-              </button>
             </Inner>
           </Card>
 
         </div>
       </div>
+
+      {generateOpen && (
+        <GenerateReportModal
+          form={generateForm}
+          setForm={setGenerateForm}
+          departmentOptions={departmentOptions}
+          reportTypeOptions={predefinedReports.length ? predefinedReports.map((r) => r.title) : ['User Activity']}
+          saving={generating}
+          error={generateError}
+          onClose={() => setGenerateOpen(false)}
+          onSave={handleGenerate}
+        />
+      )}
     </main>
   );
 };

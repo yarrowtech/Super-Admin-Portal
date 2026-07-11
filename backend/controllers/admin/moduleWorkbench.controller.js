@@ -114,11 +114,36 @@ exports.updateSecuritySetting = async (req, res) => {
 exports.getReportsOverview = async (req, res) => {
   try {
     await ensureDefaults();
-    const status = req.query.status;
+    const { status, reportType, department, from, to } = req.query;
     const query = {};
     if (status && status !== 'All') query.status = status;
-    const customReports = await AdminCustomReport.find(query).sort({ createdAt: -1 }).limit(50);
-    return res.status(200).json({ success: true, data: { predefinedReports: PREDEFINED_REPORTS, customReports } });
+    if (reportType && reportType !== 'All') query.reportType = reportType;
+    if (department && department !== 'All Departments') query.department = department;
+    if (from || to) {
+      query.generatedOn = {};
+      if (from) query.generatedOn.$gte = String(from);
+      if (to) query.generatedOn.$lte = String(to);
+    }
+
+    const [customReports, totalCount, completedCount, processingCount] = await Promise.all([
+      AdminCustomReport.find(query).sort({ createdAt: -1 }).limit(50),
+      AdminCustomReport.countDocuments(query),
+      AdminCustomReport.countDocuments({ ...query, status: 'Completed' }),
+      AdminCustomReport.countDocuments({ ...query, status: 'Processing' }),
+    ]);
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const generatedToday = await AdminCustomReport.countDocuments({ ...query, createdAt: { $gte: startOfToday } });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        predefinedReports: PREDEFINED_REPORTS,
+        customReports,
+        stats: { totalCount, completedCount, processingCount, generatedToday },
+      },
+    });
   } catch (error) {
     logger.error({ err: error }, 'Failed to load reports overview');
     return res.status(500).json({ success: false, error: 'Failed to load reports overview' });

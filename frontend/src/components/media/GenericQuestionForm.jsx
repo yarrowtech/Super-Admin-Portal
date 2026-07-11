@@ -1,25 +1,42 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { departmentApi } from '../../services/departments';
+import { fallbackSalesAssessmentQuestions } from './salesAssessmentQuestions';
 
-const MCQ_QUESTIONS = [
-  { key: 'existingSystem', question: 'Do they currently use any similar software or system?', options: ['Yes', 'No', 'Not sure'] },
-  { key: 'businessSize', question: 'Approximate business size (staff count)', options: ['1-5', '6-20', '21-50', '50+'] },
-  { key: 'transactionVolume', question: 'Monthly transaction / order volume', options: ['Low (under 100)', 'Medium (100-500)', 'High (500+)'] },
-  { key: 'budget', question: 'Estimated monthly budget for this service', options: ['Under ₹10,000', '₹10,000 - ₹50,000', '₹50,000 - ₹1,00,000', 'Above ₹1,00,000'] },
-  { key: 'urgency', question: 'How urgent is their requirement?', options: ['Immediate', 'Within 1 month', 'Within 3 months', 'Just exploring'] },
-  { key: 'demoInterest', question: 'Interested in a live product demo?', options: ['Yes', 'No', 'Maybe later'] },
-  { key: 'decisionMaker', question: 'Was the decision maker met during this visit?', options: ['Yes, fully', 'Yes, partially', 'No'] },
-  { key: 'interestLevel', question: 'Overall interest level after this visit', options: ['Very interested', 'Somewhat interested', 'Not interested'] },
-];
-
-const GenericQuestionForm = ({ token, project, category, onChangeCategory, onSubmitted }) => {
+const GenericQuestionForm = ({ token, project, projects = [], category, formType = 'generic', onSubmitted }) => {
   const [form, setForm] = useState({ buyerName: '', businessName: '', phone: '', email: '', location: '', notes: '' });
+  const [questions, setQuestions] = useState([]);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
-  const allAnswered = answeredCount === MCQ_QUESTIONS.length;
+  useEffect(() => {
+    let alive = true;
+    if (!token) return undefined;
+    setQuestionsLoading(true);
+    departmentApi
+      .getSalesQuestions(token, { projectCode: project.code })
+      .then((response) => {
+        const payload = response?.data?.data || response?.data || {};
+        const rows = Array.isArray(payload.questions) ? payload.questions : [];
+        if (alive) setQuestions(rows.length ? rows : fallbackSalesAssessmentQuestions());
+      })
+      .catch(() => {
+        if (alive) setQuestions(fallbackSalesAssessmentQuestions());
+      })
+      .finally(() => {
+        if (alive) setQuestionsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token, project.code]);
+
+  const answeredCount = useMemo(
+    () => Object.values(answers).filter((value) => String(value || '').trim()).length,
+    [answers]
+  );
+  const allAnswered = questions.length > 0 && answeredCount === questions.length;
   const canSubmit = allAnswered && form.buyerName.trim() && !submitting;
 
   const handleSubmit = async () => {
@@ -29,6 +46,7 @@ const GenericQuestionForm = ({ token, project, category, onChangeCategory, onSub
     try {
       const fd = new FormData();
       fd.append('project', JSON.stringify({ code: project.code, name: project.name }));
+      fd.append('projects', JSON.stringify(projects.length ? projects.map(({ code, name }) => ({ code, name })) : [{ code: project.code, name: project.name }]));
       fd.append('buyerCategory', category.label);
       fd.append('buyerName', form.buyerName.trim());
       fd.append('businessName', form.businessName.trim());
@@ -36,7 +54,7 @@ const GenericQuestionForm = ({ token, project, category, onChangeCategory, onSub
       fd.append('email', form.email.trim());
       fd.append('location', form.location.trim());
       fd.append('notes', form.notes.trim());
-      fd.append('answers', JSON.stringify(MCQ_QUESTIONS.map((q) => ({ question: q.question, answer: answers[q.key] }))));
+      fd.append('answers', JSON.stringify(questions.map((q) => ({ question: q.question, answer: answers[q._id] }))));
 
       await departmentApi.createSalesQuery(token, fd);
       onSubmitted();
@@ -49,13 +67,10 @@ const GenericQuestionForm = ({ token, project, category, onChangeCategory, onSub
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4">
         <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
           {project.name} &middot; {category.label}
         </p>
-        <button type="button" onClick={onChangeCategory} className="text-xs font-bold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">
-          Change category
-        </button>
       </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2">
@@ -97,32 +112,48 @@ const GenericQuestionForm = ({ token, project, category, onChangeCategory, onSub
       </div>
 
       <div className="space-y-4">
-        {MCQ_QUESTIONS.map((q, index) => (
-          <div key={q.key} className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-            <p className="mb-2 text-xs font-bold text-neutral-800 dark:text-neutral-100">
-              {index + 1}. {q.question}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {q.options.map((option) => {
-                const active = answers[q.key] === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setAnswers((prev) => ({ ...prev, [q.key]: option }))}
-                    className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition ${
-                      active
-                        ? 'border-[var(--portal-accent)] bg-[var(--portal-accent)] text-white'
-                        : 'border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-[var(--portal-accent)] dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300'
-                    }`}
-                  >
-                    {option}
-                  </button>
-                );
-              })}
+        {questionsLoading ? (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">Loading assessment questions...</p>
+        ) : questions.length === 0 ? (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">No assessment questions configured yet.</p>
+        ) : (
+          questions.map((q, index) => (
+            <div key={q._id} className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+              <p className="mb-2 text-xs font-bold text-neutral-800 dark:text-neutral-100">
+                {index + 1}. {q.question}
+              </p>
+              {q.options?.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {q.options.map((option) => {
+                    const active = answers[q._id] === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setAnswers((prev) => ({ ...prev, [q._id]: option }))}
+                        className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition ${
+                          active
+                            ? 'border-[var(--portal-accent)] bg-[var(--portal-accent)] text-white'
+                            : 'border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-[var(--portal-accent)] dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300'
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <textarea
+                  rows={3}
+                  value={answers[q._id] || ''}
+                  onChange={(e) => setAnswers((prev) => ({ ...prev, [q._id]: e.target.value }))}
+                  placeholder="Enter remarks"
+                  className="w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs outline-none focus:border-[var(--portal-accent)] dark:border-neutral-800 dark:bg-neutral-950"
+                />
+              )}
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       <textarea
@@ -141,7 +172,7 @@ const GenericQuestionForm = ({ token, project, category, onChangeCategory, onSub
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
-          {answeredCount}/{MCQ_QUESTIONS.length} questions answered
+          {answeredCount}/{questions.length} questions answered
         </p>
         <button
           type="button"

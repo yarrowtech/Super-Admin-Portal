@@ -26,6 +26,7 @@ router.get('/deployments', itController.getDeploymentOpsSummary);
 router.get('/events', itController.getEventIntegrations);
 router.get('/monitoring', itController.getSystemMonitoring);
 router.get('/assets', itController.getAssetManagement);
+router.get('/assets/:id', itController.getAssetById);
 router.get('/network-infra', itController.getNetworkInfrastructure);
 router.get('/threat-logs', itController.getThreatLogs);
 router.get('/devops-cicd', itController.getDevopsCicd);

@@ -63,7 +63,7 @@ const mediaSchema = new mongoose.Schema(
     status: { type: String, enum: MEDIA_STATUSES, default: 'Draft', index: true },
     priority: { type: String, enum: MEDIA_PRIORITIES, default: 'Medium', index: true },
 
-    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
     projectName: { type: String, trim: true, default: '' },
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', index: true },
     departmentName: { type: String, trim: true, default: '' },

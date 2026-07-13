@@ -163,6 +163,19 @@ exports.myDocuments = async (req, res) => {
   }
 };
 
+// Every document tagged to a project, regardless of who created it — unlike
+// myDocuments (creator-scoped), this is what a project-scoped workspace view
+// should read from so teammates see each other's documents for the project.
+exports.forProject = async (req, res) => {
+  try {
+    ensureObjectId(req.query.projectId, 'projectId');
+    return await listDocuments(req, res, {}, 'updated-desc', false);
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.forProject failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.message });
+  }
+};
+
 exports.getPending = async (req, res) => {
   try {
     return await listDocuments(req, res, { status: 'Pending' }, 'submitted-desc', false);

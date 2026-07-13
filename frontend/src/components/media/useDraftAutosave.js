@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
+// Drafts live in sessionStorage (not localStorage) on purpose: they should survive an
+// accidental refresh mid-fill, but disappear once the tab/window closes or the user
+// navigates away and back, so a fresh visit always starts blank (like a Google Form).
+
 export const loadDraft = (key) => {
   if (!key) return null;
   try {
-    const raw = localStorage.getItem(key);
+    const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return parsed?.value ? parsed : null;
@@ -15,9 +19,21 @@ export const loadDraft = (key) => {
 export const clearDraft = (key) => {
   if (!key) return;
   try {
-    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
   } catch {
     // ignore storage errors (private browsing, quota, etc.)
+  }
+};
+
+export const clearDraftsByPrefix = (prefix) => {
+  if (!prefix) return;
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith(prefix)) sessionStorage.removeItem(key);
+    }
+  } catch {
+    // ignore storage errors
   }
 };
 
@@ -43,7 +59,7 @@ export const useDraftAutosave = (key, value, enabled = true) => {
     timerRef.current = setTimeout(() => {
       try {
         const now = Date.now();
-        localStorage.setItem(key, JSON.stringify({ value: JSON.parse(serialized), savedAt: now }));
+        sessionStorage.setItem(key, JSON.stringify({ value: JSON.parse(serialized), savedAt: now }));
         setSavedAt(now);
       } catch {
         // ignore storage errors

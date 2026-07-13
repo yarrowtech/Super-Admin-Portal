@@ -19,11 +19,12 @@ const tabOptions = [
   { id: 'clients', label: 'Clients' }
 ];
 
+// 'audit', 'approvals' and 'transactions' each render their own dedicated
+// section below (keyed off activeTab directly) — do not alias them to another
+// contentTab here, or that other tab's section renders a second time alongside
+// the dedicated one.
 const TAB_ALIAS = {
   overview: 'invoices',
-  transactions: 'payments',
-  audit: 'reports',
-  approvals: 'budgets',
   settings: 'compliance',
 };
 
@@ -53,6 +54,7 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
   const [itrSummary, setItrSummary] = useState({ totalIncome: 0, totalExpenses: 0, taxableIncome: 0, estimatedTax: 0 });
   const [auditLogs, setAuditLogs] = useState([]);
   const [approvalItems, setApprovalItems] = useState([]);
+  const [transactions, setTransactions] = useState([]);
 
   const [invoiceForm, setInvoiceForm] = useState({
     clientName: '',
@@ -178,7 +180,8 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
         financeApi.getVendors(token),
         financeApi.getClients(token),
         financeApi.getAuditLogs(token, { page: 1, limit: 25 }),
-        financeApi.getApprovals(token, { page: 1, limit: 25 })
+        financeApi.getApprovals(token, { page: 1, limit: 25 }),
+        financeApi.getTransactions(token, { page: 1, limit: 25 })
       ];
 
       const results = await Promise.allSettled(requests);
@@ -203,7 +206,8 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
         vendorsRes,
         clientsRes,
         auditLogsRes,
-        approvalsRes
+        approvalsRes,
+        transactionsRes
       ] = results;
 
       const setIfOk = (result, setter, fallback = []) => {
@@ -254,6 +258,9 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
       }
       if (approvalsRes.status === 'fulfilled') {
         setApprovalItems(approvalsRes.value?.data?.items || []);
+      }
+      if (transactionsRes.status === 'fulfilled') {
+        setTransactions(transactionsRes.value?.data?.items || []);
       }
 
       setLoading(false);
@@ -2031,6 +2038,38 @@ const FinanceDashboard = ({ activeTab: externalActiveTab, onTabChange }) => {
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'transactions' && (
+          <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-800/60">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Transactions</h2>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">{transactions.length} rows</p>
+            </div>
+            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+              Merged ledger of invoices, expenses, and vendor payments, most recent first.
+            </p>
+            <div className="mt-4 space-y-3">
+              {transactions.map((row) => (
+                <div key={row.id} className="flex items-center justify-between rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.reference || row.category}</p>
+                    <p className="text-xs text-neutral-500">{row.type} • {row.party} • {row.department}</p>
+                    <p className="text-xs text-neutral-500">{new Date(row.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${row.type === 'expense' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {row.type === 'expense' ? '-' : '+'}{formatCurrency(row.amount)}
+                    </p>
+                    <p className="text-xs text-neutral-500">{row.status}</p>
+                  </div>
+                </div>
+              ))}
+              {transactions.length === 0 && (
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">No transactions recorded yet.</p>
+              )}
             </div>
           </section>
         )}

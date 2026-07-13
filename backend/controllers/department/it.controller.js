@@ -2,6 +2,7 @@ const logger = require('../../utils/logger');
 // backend/controllers/dept/it.controller.js
 const Project = require('../../models/common/Project');
 const ITTicket = require('../../models/it/ITTicket');
+const ITAsset = require('../../models/it/ITAsset');
 const User = require('../../models/auth/User');
 const Session = require('../../models/auth/Session');
 const ActivityLog = require('../../models/auth/ActivityLog');
@@ -1114,21 +1115,54 @@ exports.getSystemMonitoring = async (req, res) => {
 exports.getAssetManagement = async (req, res) => {
   try {
     const { page, limit, skip } = paged(req.query);
-    const mock = Array.from({ length: 80 }).map((_, index) => ({
-      id: `asset-${index + 1}`,
-      type: index % 2 === 0 ? 'Hardware' : 'Software',
-      name: index % 2 === 0 ? `Workstation-${index + 1}` : `License-${index + 1}`,
-      assignedTo: index % 3 === 0 ? 'IT Team' : 'Employee',
-      status: index % 7 === 0 ? 'warning' : 'active',
-    }));
-    const items = mock.slice(skip, skip + limit);
+    const { search, status, type, projectId } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (type) filter.type = type;
+    if (projectId) filter.projectId = projectId;
+    if (search) {
+      const regex = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ name: regex }, { assetTag: regex }];
+    }
+
+    const [items, total, statusCounts] = await Promise.all([
+      ITAsset.find(filter)
+        .populate('assignedTo', 'firstName lastName email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ITAsset.countDocuments(filter),
+      ITAsset.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+    ]);
+
+    const summary = statusCounts.reduce(
+      (acc, row) => ({ ...acc, [row._id || 'unknown']: row.count }),
+      { total: await ITAsset.countDocuments() }
+    );
+
     res.status(200).json({
       success: true,
-      data: { items, pagination: { page, limit, total: mock.length, totalPages: Math.ceil(mock.length / limit) } },
+      data: { items, summary, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } },
     });
   } catch (error) {
     logger.error({ err: error }, 'IT asset management error');
     sendFailure(res, error, 'Failed to fetch IT asset management');
+  }
+};
+
+exports.getAssetById = async (req, res) => {
+  try {
+    const asset = await ITAsset.findById(req.params.id)
+      .populate('assignedTo', 'firstName lastName email')
+      .lean();
+    if (!asset) {
+      return res.status(404).json({ success: false, error: 'Asset not found' });
+    }
+    res.status(200).json({ success: true, data: asset });
+  } catch (error) {
+    logger.error({ err: error }, 'IT asset detail error');
+    sendFailure(res, error, 'Failed to fetch asset');
   }
 };
 

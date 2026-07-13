@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
 import { CANONICAL_PROJECTS } from '../../config/projectNames';
@@ -8,6 +8,7 @@ import VendorQuestionnaireForm from './VendorQuestionnaireForm';
 import GenericQuestionForm from './GenericQuestionForm';
 import { SubmissionDetailModal } from './salesSubmissionShared';
 import { formatDate, projectDisplay } from './salesSubmissionUtils';
+import { loadDraft, clearDraft, clearDraftsByPrefix, useDraftAutosave } from './useDraftAutosave';
 
 const cardClass = 'rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900';
 
@@ -55,12 +56,26 @@ const LastSubmissionCard = ({ submission, loading, onView }) => (
 
 const SalesQueryPage = () => {
   const { token, user } = useAuth();
-  const [projects, setProjects] = useState([]);
-  const [category, setCategory] = useState(null);
+  const stageKey = `salesQueryStage:${user?._id || 'anon'}`;
+  const stageDraft = useMemo(() => loadDraft(stageKey), [stageKey]);
+
+  const [projects, setProjects] = useState(() => stageDraft?.value?.projects || []);
+  const [category, setCategory] = useState(() => stageDraft?.value?.category || null);
   const [submitted, setSubmitted] = useState(false);
   const [queries, setQueries] = useState([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
   const [viewItem, setViewItem] = useState(null);
+
+  useDraftAutosave(stageKey, { projects, category }, !submitted);
+
+  // Drafts should only survive an in-page refresh, not a return visit — wipe them
+  // when the user navigates away from the Sales Query page entirely.
+  useEffect(() => {
+    return () => {
+      clearDraftsByPrefix('salesQueryDraft:');
+      clearDraftsByPrefix('salesQueryStage:');
+    };
+  }, []);
 
   const loadQueries = () => {
     if (!token) return;
@@ -81,6 +96,7 @@ const SalesQueryPage = () => {
   }, [token]);
 
   const resetWizard = () => {
+    clearDraft(stageKey);
     setProjects([]);
     setCategory(null);
     setSubmitted(false);
@@ -188,6 +204,7 @@ const SalesQueryPage = () => {
                     category={category}
                     userId={user?._id}
                     onSubmitted={() => {
+                      clearDraft(stageKey);
                       setSubmitted(true);
                       loadQueries();
                     }}
@@ -201,6 +218,7 @@ const SalesQueryPage = () => {
                     formType="generic"
                     userId={user?._id}
                     onSubmitted={() => {
+                      clearDraft(stageKey);
                       setSubmitted(true);
                       loadQueries();
                     }}

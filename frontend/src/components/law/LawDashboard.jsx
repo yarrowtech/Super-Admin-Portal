@@ -127,6 +127,7 @@ const MODULE_DATA_KEYS = {
   'disputes-fraud': 'disputes',
   'ip-copyright': 'ip',
   'third-party': 'third-party',
+  'work-hire': 'work-hire',
 };
 const isPastDue = (record) => {
   if (!record?.dueDate) return false;

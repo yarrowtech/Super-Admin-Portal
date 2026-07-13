@@ -16,6 +16,12 @@ export const getMyDocuments = (token, params = {}) => {
   return apiClient.get(`${P}/my/documents${q ? `?${q}` : ''}`, token, { cache: false, forceRefresh: true });
 };
 
+/** Get every document tagged to a project, regardless of author (requires projectId) */
+export const getProjectDocuments = (token, params = {}) => {
+  const q = new URLSearchParams(params).toString();
+  return apiClient.get(`${P}/project/documents${q ? `?${q}` : ''}`, token, { cache: false, forceRefresh: true });
+};
+
 /** Get a single document by ID */
 export const getLegalDocumentById = (token, id) =>
   apiClient.get(`${P}/${id}`, token);

@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { PROJECT_NAME_PLACEHOLDER } from '../../config/projectNames';
 import {
   createLegalDocument,
   getMyDocuments,
+  getProjectDocuments,
   getLegalDocumentById,
   autoSaveDocument,
   saveDraft,
@@ -96,11 +96,11 @@ const resolveProjectName = (projectId) => {
   }
 };
 
-const DocFormModal = ({ doc, scope, onClose, onCreated }) => {
+const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
   const [title, setTitle] = useState(doc?.title || '');
   const [type, setType] = useState(doc?.type || 'Other');
   const [priority, setPriority] = useState(doc?.priority || 'Medium');
-  const [projectName, setProjectName] = useState(doc?.projectName || scope.projectName || '');
+  const [selectedProjectId, setSelectedProjectId] = useState(doc?.projectId || scope.projectId || '');
   const [templateKey, setTemplateKey] = useState('blank');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -111,14 +111,15 @@ const DocFormModal = ({ doc, scope, onClose, onCreated }) => {
     setLoading(true);
     setError('');
     try {
+      const chosenProject = projects.find((item) => String(item._id || item.id) === String(selectedProjectId));
       const payload = {
         title,
         type,
         priority,
         content: LEGAL_TEMPLATES[templateKey]?.content || '',
-        projectName: scope.isProjectScope ? scope.projectName : '',
+        projectName: chosenProject ? (chosenProject.name || chosenProject.projectName || chosenProject.projectCode || '') : '',
       };
-      if (scope.isProjectScope) payload.projectId = scope.projectId;
+      if (selectedProjectId) payload.projectId = selectedProjectId;
       const res = await createLegalDocument(token, payload);
       onCreated(res.data?.data || res.data);
     } catch (err) {
@@ -172,10 +173,19 @@ const DocFormModal = ({ doc, scope, onClose, onCreated }) => {
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Project (optional)</label>
-            <input value={scope.isProjectScope ? scope.projectName : projectName} onChange={(e) => setProjectName(e.target.value)}
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
               disabled={scope.isProjectScope}
-              placeholder={`e.g. ${PROJECT_NAME_PLACEHOLDER}`}
-              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-rose-500 disabled:bg-neutral-100 disabled:text-neutral-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:disabled:bg-neutral-800/60" />
+              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-rose-500 disabled:bg-neutral-100 disabled:text-neutral-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:disabled:bg-neutral-800/60"
+            >
+              <option value="">In-house Company Legal (no project)</option>
+              {projects.map((project) => {
+                const id = project._id || project.id;
+                const name = project.name || project.projectName || project.projectCode || id;
+                return <option key={id} value={id}>{name}</option>;
+              })}
+            </select>
           </div>
         </div>
         <div className="mt-5 flex gap-2 justify-end">
@@ -246,13 +256,26 @@ const VersionPreviewModal = ({ version, onClose }) => (
 const LegalDocManagement = () => {
   const { token, user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const editorRef = useRef(null);
   const selectedProjectId = useMemo(() => {
     const raw = new URLSearchParams(location.search).get('projectId') || '';
     return isRealProjectId(raw) ? raw : '';
   }, [location.search]);
   const [projects, setProjects] = useState([]);
-  const [projectFilter, setProjectFilter] = useState(selectedProjectId || 'all');
+  const [projectFilter, setProjectFilter] = useState(selectedProjectId || 'company');
+
+  // The dropdown is the single control for "which project am I looking at" —
+  // picking a real project locks the URL to it (so it survives reload/sidebar
+  // nav), picking In-house company legal clears that lock.
+  const handleProjectFilterChange = (value) => {
+    if (isRealProjectId(value)) {
+      navigate(`${location.pathname}?projectId=${value}`);
+      return;
+    }
+    setProjectFilter(value);
+    if (selectedProjectId) navigate(location.pathname);
+  };
   const scope = useMemo(() => {
     const isProjectScope = Boolean(selectedProjectId);
     const project = projects.find((item) => String(item._id || item.id) === String(selectedProjectId));
@@ -305,7 +328,7 @@ const LegalDocManagement = () => {
   }, [token]);
 
   useEffect(() => {
-    setProjectFilter(selectedProjectId || 'all');
+    setProjectFilter(selectedProjectId || 'company');
   }, [selectedProjectId]);
 
   // ── Fetch documents ─────────────────────────────────────────────────────────
@@ -320,19 +343,24 @@ const LegalDocManagement = () => {
       if (filterPriority) params.priority = filterPriority;
       if (searchTerm) params.search = searchTerm;
       if (sortBy) params.sort = sortBy;
-      if (selectedProjectId) params.projectId = selectedProjectId;
-      else if (isRealProjectId(projectFilter)) params.projectId = projectFilter;
-      else if (projectFilter === 'company') params.scope = 'company';
-      else if (projectFilter === 'project') params.scope = 'project';
-      const res = await getMyDocuments(token, params);
+
+      // A single project is in view (locked via URL, or picked from the filter
+      // dropdown) — show every document tagged to it, not just ones this user
+      // authored, so teammates' documents for the project are visible too.
+      const targetProjectId = selectedProjectId || (isRealProjectId(projectFilter) ? projectFilter : '');
+      let res;
+      if (targetProjectId) {
+        params.projectId = targetProjectId;
+        res = await getProjectDocuments(token, params);
+      } else {
+        params.scope = 'company';
+        res = await getMyDocuments(token, params);
+      }
       const items = res.data?.data?.items || [];
       setDocs(items.filter((doc) => {
         const docProjectId = String(doc.projectId || '');
-        if (selectedProjectId) return docProjectId === selectedProjectId;
-        if (isRealProjectId(projectFilter)) return docProjectId === projectFilter;
-        if (projectFilter === 'company') return !docProjectId;
-        if (projectFilter === 'project') return Boolean(docProjectId);
-        return true;
+        if (targetProjectId) return docProjectId === targetProjectId;
+        return !docProjectId;
       }));
     } catch (err) {
       setError(err.message || 'Failed to load documents');
@@ -505,42 +533,39 @@ const LegalDocManagement = () => {
           </div>
         </div>
 
-        {/* Scope / Sort bar (only when not locked to a project) */}
-        {!selectedProjectId && (
-          <div className="flex flex-wrap items-center gap-3 border-t border-neutral-100 px-5 py-3 dark:border-neutral-800">
-            <select
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-            >
-              <option value="all">All legal documents</option>
-              <option value="company">In-house company legal</option>
-              <option value="project">All project legal</option>
-              {projects.map((project) => {
-                const id = project._id || project.id;
-                const name = project.name || project.projectName || project.projectCode || id;
-                return <option key={id} value={id}>{name}</option>;
-              })}
-            </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-            >
-              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <div className="flex items-center gap-2 ml-auto text-xs text-neutral-400">
-              <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
-                <span className="material-symbols-outlined text-[13px]">business</span>
-                In-house: {stats.company}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
-                <span className="material-symbols-outlined text-[13px]">folder</span>
-                Project: {stats.projectLinked}
-              </span>
-            </div>
+        {/* Scope / Sort bar — always visible so you can switch projects or
+            jump back to the aggregate view even when the URL is locked to one. */}
+        <div className="flex flex-wrap items-center gap-3 border-t border-neutral-100 px-5 py-3 dark:border-neutral-800">
+          <select
+            value={selectedProjectId || projectFilter}
+            onChange={(e) => handleProjectFilterChange(e.target.value)}
+            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+          >
+            <option value="company">In-house company legal</option>
+            {projects.map((project) => {
+              const id = project._id || project.id;
+              const name = project.name || project.projectName || project.projectCode || id;
+              return <option key={id} value={id}>{name}</option>;
+            })}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+          >
+            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <div className="flex items-center gap-2 ml-auto text-xs text-neutral-400">
+            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
+              <span className="material-symbols-outlined text-[13px]">business</span>
+              In-house: {stats.company}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
+              <span className="material-symbols-outlined text-[13px]">folder</span>
+              Project: {stats.projectLinked}
+            </span>
           </div>
-        )}
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -775,7 +800,7 @@ const LegalDocManagement = () => {
 
         {/* ── MODALS ── */}
         {showNewDocModal && (
-          <DocFormModal scope={scope} onClose={() => setShowNewDocModal(false)} onCreated={handleDocCreated} />
+          <DocFormModal scope={scope} projects={projects} onClose={() => setShowNewDocModal(false)} onCreated={handleDocCreated} />
         )}
         {showVersionHistory && activeDoc && (
           <LegalDocVersionHistory

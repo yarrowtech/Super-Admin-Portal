@@ -475,6 +475,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [actionBusy, setActionBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
   const [campaignEditor, setCampaignEditor] = useState({ open: false, mode: 'create', record: null });
+  const [campaignDetailId, setCampaignDetailId] = useState(null);
   const [campaignDraft, setCampaignDraft] = useState({
     name: '',
     objective: '',
@@ -598,6 +599,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   useEffect(() => { setDashboard(dashboardQuery.data?.data || null); }, [dashboardQuery.data]);
   useEffect(() => { setAssets(arr(assetsQuery.data?.data?.items)); }, [assetsQuery.data]);
   useEffect(() => { setCampaigns(arr(campaignsQuery.data?.data?.items)); }, [campaignsQuery.data]);
+  useEffect(() => { if (activeSection !== 'campaigns') setCampaignDetailId(null); }, [activeSection]);
   useEffect(() => { setContent(arr(contentQuery.data?.data?.items)); }, [contentQuery.data]);
   useEffect(() => { setBrandAssets(arr(brandAssetsQuery.data?.data?.items)); }, [brandAssetsQuery.data]);
   useEffect(() => { setApprovals(arr(approvalsQuery.data?.data?.items)); }, [approvalsQuery.data]);
@@ -1092,11 +1094,174 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       setActionMessage('Campaign deleted.');
       setCampaigns((prev) => prev.filter((item) => String(item._id) !== String(campaignId)));
       setCampaignTasks((prev) => prev.filter((task) => String(task.campaignId) !== String(campaignId)));
+      setCampaignDetailId((prev) => (String(prev) === String(campaignId) ? null : prev));
     } catch (err) {
       setError(err.message || 'Failed to delete campaign.');
     } finally {
       setActionBusy(false);
     }
+  };
+
+  const renderCampaignDetail = (campaign) => {
+    const statusIndex = Math.max(CAMPAIGN_STAGES.indexOf(campaign.status), 0);
+    const progress = Math.round(((statusIndex + 1) / CAMPAIGN_STAGES.length) * 100);
+    const tasksForCampaign = campaignTasks.filter((task) => String(task.campaignId) === String(campaign._id));
+    const tasksDone = tasksForCampaign.filter((task) => task.status === 'completed').length;
+    const kpiTargets = campaign.kpiTargets || {};
+    const teamMembers = arr(campaign.teamMembers);
+    const history = arr(campaign.lifecycleHistory).slice().reverse();
+
+    const now = Date.now();
+    const start = campaign.startDate ? new Date(campaign.startDate).getTime() : null;
+    const end = campaign.endDate ? new Date(campaign.endDate).getTime() : null;
+    let timelinePercent = null;
+    let timelineLabel = 'No dates set';
+    if (start && end && end > start) {
+      timelinePercent = Math.min(100, Math.max(0, Math.round(((now - start) / (end - start)) * 100)));
+      const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+      timelineLabel = now > end ? 'Timeline ended' : now < start ? 'Not started yet' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`;
+    } else if (start) {
+      timelineLabel = now < start ? 'Not started yet' : 'In progress (no end date)';
+    }
+
+    return (
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => setCampaignDetailId(null)}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 transition hover:text-teal-900 dark:text-teal-300 dark:hover:text-teal-100"
+        >
+          <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+          Back to campaigns
+        </button>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">{campaign.name}</h2>
+                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(campaign.status)}`}>
+                  {CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}
+                </span>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-neutral-400">{campaign.objective || campaign.description || 'No objective set yet.'}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {arr(campaign.platform).length ? arr(campaign.platform).map((platform) => (
+                  <span key={platform} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{platform}</span>
+                )) : <span className="text-xs text-slate-400">No platforms set</span>}
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button type="button" disabled={actionBusy} onClick={() => openCampaignEditor('edit', campaign)} className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300">
+                Edit
+              </button>
+              <button type="button" disabled={actionBusy} onClick={() => deleteCampaignRecord(campaign._id)} className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">
+                Delete
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ['Budget Allocated', money(campaign.budgetAllocated), 'payments'],
+              ['Team Members', teamMembers.length || 'Unassigned', 'group'],
+              ['Tasks', `${tasksDone}/${tasksForCampaign.length}`, 'checklist'],
+              ['Lifecycle Progress', `${progress}%`, 'timeline'],
+            ].map(([label, value, icon]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
+                </div>
+                <p className="mt-2 text-xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5">
+            <CampaignLifecycleStepper
+              status={campaign.status}
+              busy={actionBusy}
+              onAdvance={(nextStage) => advanceCampaignStage(campaign._id, nextStage)}
+            />
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <section className={card}>
+            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Timeline</h3>
+            <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
+              {campaign.startDate ? new Date(campaign.startDate).toLocaleDateString() : 'No start date'}
+              {' → '}
+              {campaign.endDate ? new Date(campaign.endDate).toLocaleDateString() : 'No end date'}
+            </p>
+            {timelinePercent !== null ? (
+              <div className="mt-2 h-2 w-full rounded-full bg-slate-100 dark:bg-neutral-800">
+                <div className="h-full rounded-full bg-teal-500" style={{ width: `${timelinePercent}%` }} />
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-neutral-400">{timelineLabel}</p>
+
+            <h3 className="mt-5 text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Description</h3>
+            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600 dark:text-neutral-300">{campaign.description || 'No description added.'}</p>
+          </section>
+
+          <section className={card}>
+            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">KPI Targets</h3>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {[
+                ['Reach', kpiTargets.reach],
+                ['Leads', kpiTargets.leads],
+                ['Conversions', kpiTargets.conversions],
+                ['Revenue', kpiTargets.revenue != null ? money(kpiTargets.revenue) : null],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
+                  <p className="mt-1 text-lg font-black text-slate-950 dark:text-neutral-100">{value || value === 0 ? value : '—'}</p>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="mt-5 text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Team</h3>
+            {teamMembers.length ? (
+              <div className="mt-2 space-y-2">
+                {teamMembers.map((member, index) => (
+                  <div key={`${member.name}-${index}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950/50">
+                    <span className="font-semibold text-slate-800 dark:text-neutral-200">{member.name || 'Unnamed'}</span>
+                    <span className="text-xs text-slate-500 dark:text-neutral-400">{member.role || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-slate-400">No team members assigned yet.</p>
+            )}
+          </section>
+        </div>
+
+        <section className={card}>
+          <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Campaign Tasks</h3>
+          <div className="mt-4">
+            <CampaignTaskBoard tasks={tasksForCampaign} busy={actionBusy} onMove={moveCampaignTask} />
+          </div>
+        </section>
+
+        <section className={card}>
+          <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Lifecycle History</h3>
+          {history.length ? (
+            <div className="mt-3 space-y-2">
+              {history.map((entry, index) => (
+                <div key={`${entry.stage}-${index}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950/50">
+                  <span className="font-semibold text-slate-800 dark:text-neutral-200">{CAMPAIGN_STAGE_LABELS[entry.stage] || entry.stage}</span>
+                  <span className="text-xs text-slate-500 dark:text-neutral-400">{entry.enteredAt ? new Date(entry.enteredAt).toLocaleString() : ''}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-400">No lifecycle changes recorded yet.</p>
+          )}
+        </section>
+      </div>
+    );
   };
 
   const renderCampaigns = () => {
@@ -1106,6 +1271,9 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const planningCount = rows.filter((campaign) => ['draft', 'objective-defined', 'platform-selected', 'budget-allocated', 'team-assigned'].includes(campaign.status)).length;
     const reviewCount = rows.filter((campaign) => ['content-in-progress', 'in-approval', 'scheduled'].includes(campaign.status)).length;
     const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
+
+    const detailCampaign = campaignDetailId ? campaigns.find((item) => String(item._id) === String(campaignDetailId)) : null;
+    if (detailCampaign) return renderCampaignDetail(detailCampaign);
 
     return (
       <div className="space-y-4">
@@ -1187,7 +1355,9 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                     <tr key={campaign._id} className="align-top">
                       <td className="px-4 py-4">
                         <div className="max-w-md">
-                          <p className="font-black text-slate-950 dark:text-neutral-100">{campaign.name}</p>
+                          <button type="button" onClick={() => setCampaignDetailId(campaign._id)} className="text-left font-black text-slate-950 hover:text-teal-700 hover:underline dark:text-neutral-100 dark:hover:text-teal-300">
+                            {campaign.name}
+                          </button>
                           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-neutral-400">{campaign.objective || campaign.description || '-'}</p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {arr(campaign.platform).length ? arr(campaign.platform).map((platform) => (
@@ -1214,6 +1384,9 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
+                          <button type="button" disabled={actionBusy} onClick={() => setCampaignDetailId(campaign._id)} className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-100 disabled:opacity-50 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                            View
+                          </button>
                           <button type="button" disabled={actionBusy} onClick={() => openCampaignEditor('edit', campaign)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300">
                             Edit
                           </button>

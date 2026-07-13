@@ -9,6 +9,7 @@ router.use(authenticate);
 
 router.post('/create', authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.create);
 router.get('/my/documents', authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.myDocuments);
+router.get('/project/documents', authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.forProject);
 
 router.get('/queue/pending', authorize(ROLES.CEO, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.getPending);
 

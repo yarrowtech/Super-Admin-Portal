@@ -1,7 +1,5 @@
 import { apiClient } from './client';
-import { clearCachedByPrefix, getCached, setCached } from '../utils/clientCache';
 
-const CACHE_NS = 'outsourcing:';
 const ttl = {
   fast: 30_000,
   medium: 60_000,
@@ -13,21 +11,8 @@ const getOutsourcingPortalBaseUrl = () => {
   return String(raw).replace(/\/$/, '');
 };
 
-const getTokenScope = (token) => (token ? token.slice(0, 24) : 'anon');
-
-const readCache = async (token, key, fetcher, ttlMs = ttl.medium) => {
-  const scopedKey = `${CACHE_NS}${key}:${getTokenScope(token)}`;
-  const cached = getCached(scopedKey);
-  if (cached) return cached;
-  const fresh = await fetcher();
-  setCached(scopedKey, fresh, ttlMs);
-  return fresh;
-};
-
-const invalidateOutsourcingCache = () => clearCachedByPrefix(CACHE_NS);
-
 export const outsourcingApi = {
-  getDashboard: async (token) => readCache(token, 'dashboard', () => apiClient.get('/api/outsourcing/dashboard', token), ttl.medium),
+  getDashboard: async (token) => apiClient.get('/api/outsourcing/dashboard', token, { ttlMs: ttl.medium }),
   getEfnbmmsAdminManagement: async (token, params = {}) => {
     const query = new URLSearchParams();
     Object.entries(params || {}).forEach(([key, value]) => {
@@ -35,35 +20,18 @@ export const outsourcingApi = {
       query.append(key, String(value));
     });
     const qs = query.toString();
-    return readCache(
-      token,
-      `efnbmmsAdminManagement:${qs || 'all'}`,
-      () => apiClient.get(`/api/outsourcing/efnbmms/admin-management${qs ? `?${qs}` : ''}`, token, { cache: false }),
-      ttl.fast
-    );
+    return apiClient.get(`/api/outsourcing/efnbmms/admin-management${qs ? `?${qs}` : ''}`, token, { ttlMs: ttl.fast });
   },
   getEfnbmmsAdminManagementSummary: async (token) =>
-    readCache(
-      token,
-      'efnbmmsAdminManagementSummary',
-      () => apiClient.get('/api/outsourcing/efnbmms/admin-management/summary', token, { cache: false }),
-      ttl.fast
-    ),
+    apiClient.get('/api/outsourcing/efnbmms/admin-management/summary', token, { ttlMs: ttl.fast }),
   getEfnbmmsAdminManagementDetail: async (token, adminId) =>
-    apiClient.get(`/api/outsourcing/efnbmms/admin-management/${encodeURIComponent(adminId)}`, token, { cache: false }),
-  getMyProjects: async (token) => readCache(token, 'myProjects', () => apiClient.get('/api/my-projects', token), ttl.fast),
-  getProjectPermissions: async (token) => readCache(token, 'projectPermissions', () => apiClient.get('/api/project-permissions', token), ttl.fast),
-  getProjectRoles: async (token) => readCache(token, 'projectRoles', () => apiClient.get('/api/project-roles', token), ttl.fast),
-  generateProjectAccessToken: async (token, projectCode, payload = {}) => {
-    const res = await apiClient.post(`/api/project-access/${encodeURIComponent(projectCode)}`, payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  generateSsoToken: async (token, payload = {}) => {
-    const res = await apiClient.post('/api/sso/generate-token', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
+    apiClient.get(`/api/outsourcing/efnbmms/admin-management/${encodeURIComponent(adminId)}`, token, { ttlMs: ttl.fast }),
+  getMyProjects: async (token) => apiClient.get('/api/my-projects', token, { ttlMs: ttl.fast }),
+  getProjectPermissions: async (token) => apiClient.get('/api/project-permissions', token, { ttlMs: ttl.fast }),
+  getProjectRoles: async (token) => apiClient.get('/api/project-roles', token, { ttlMs: ttl.fast }),
+  generateProjectAccessToken: async (token, projectCode, payload = {}) =>
+    apiClient.post(`/api/project-access/${encodeURIComponent(projectCode)}`, payload, token),
+  generateSsoToken: async (token, payload = {}) => apiClient.post('/api/sso/generate-token', payload, token),
   generateEecSsoToken: async (token, payload = {}) => {
     const requestId = `eec_${Date.now().toString(36)}`;
     const response = await fetch(`${getOutsourcingPortalBaseUrl()}/api/sso/token`, {
@@ -88,42 +56,24 @@ export const outsourcingApi = {
     return data;
   },
   verifySsoToken: async (payload = {}) => apiClient.post('/api/sso/verify-token', payload),
-  getNotifications: async (token) => readCache(token, 'notifications', () => apiClient.get('/api/outsourcing/notifications', token), ttl.fast),
-  getPayments: async (token) => readCache(token, 'payments', () => apiClient.get('/api/outsourcing/payments', token), ttl.medium),
-  getActivityFeed: async (token) => readCache(token, 'activity', () => apiClient.get('/api/outsourcing/activity-feed', token), ttl.fast),
-  getMyWorkflow: async (token) => readCache(token, 'workflow', () => apiClient.get('/api/outsourcing/workflow/me', token), ttl.fast),
-  getJobs: async (token) => readCache(token, 'jobs', () => apiClient.get('/api/outsourcing/jobs', token), ttl.fast),
-  acceptJob: async (token, id) => {
-    const res = await apiClient.put(`/api/outsourcing/jobs/${id}/accept`, {}, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  rejectJob: async (token, id, rejectionReason) => {
-    const res = await apiClient.put(`/api/outsourcing/jobs/${id}/reject`, { rejectionReason }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  updateJobStatus: async (token, id, status) => {
-    const res = await apiClient.put(`/api/outsourcing/jobs/${id}/status`, { status }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  getContracts: async (token) => readCache(token, 'contracts', () => apiClient.get('/api/outsourcing/contracts', token), ttl.medium),
-  getContractHistory: async (token, contractId) => readCache(token, `contract-history:${contractId || 'all'}`, () => apiClient.get(`/api/outsourcing/contracts/${contractId}/history`, token), ttl.fast),
-  updateContractTerms: async (token, contractId, payload) => {
-    const res = await apiClient.put(`/api/outsourcing/contracts/${contractId}/terms`, payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  getTimeLogs: async (token) => readCache(token, 'timeLogs', () => apiClient.get('/api/outsourcing/time-logs', token), ttl.fast),
-  getUsers: async (token) => readCache(token, 'users', () => apiClient.get('/api/outsourcing/users', token), ttl.slow),
-  getMyProfile: async (token) => readCache(token, 'profile', () => apiClient.get('/api/outsourcing/profile', token), ttl.medium),
-  getMyWorkspace: async (token) => readCache(token, 'workspace', () => apiClient.get('/api/outsourcing/workspace/me', token), ttl.fast),
-  updateMyProfile: async (token, payload) => {
-    const res = await apiClient.put('/api/outsourcing/profile', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
+  getNotifications: async (token) => apiClient.get('/api/outsourcing/notifications', token, { ttlMs: ttl.fast }),
+  getPayments: async (token) => apiClient.get('/api/outsourcing/payments', token, { ttlMs: ttl.medium }),
+  getActivityFeed: async (token) => apiClient.get('/api/outsourcing/activity-feed', token, { ttlMs: ttl.fast }),
+  getMyWorkflow: async (token) => apiClient.get('/api/outsourcing/workflow/me', token, { ttlMs: ttl.fast }),
+  getJobs: async (token) => apiClient.get('/api/outsourcing/jobs', token, { ttlMs: ttl.fast }),
+  acceptJob: async (token, id) => apiClient.put(`/api/outsourcing/jobs/${id}/accept`, {}, token),
+  rejectJob: async (token, id, rejectionReason) => apiClient.put(`/api/outsourcing/jobs/${id}/reject`, { rejectionReason }, token),
+  updateJobStatus: async (token, id, status) => apiClient.put(`/api/outsourcing/jobs/${id}/status`, { status }, token),
+  getContracts: async (token) => apiClient.get('/api/outsourcing/contracts', token, { ttlMs: ttl.medium }),
+  getContractHistory: async (token, contractId) =>
+    apiClient.get(`/api/outsourcing/contracts/${contractId}/history`, token, { ttlMs: ttl.fast }),
+  updateContractTerms: async (token, contractId, payload) =>
+    apiClient.put(`/api/outsourcing/contracts/${contractId}/terms`, payload, token),
+  getTimeLogs: async (token) => apiClient.get('/api/outsourcing/time-logs', token, { ttlMs: ttl.fast }),
+  getUsers: async (token) => apiClient.get('/api/outsourcing/users', token, { ttlMs: ttl.slow }),
+  getMyProfile: async (token) => apiClient.get('/api/outsourcing/profile', token, { ttlMs: ttl.medium }),
+  getMyWorkspace: async (token) => apiClient.get('/api/outsourcing/workspace/me', token, { ttlMs: ttl.fast }),
+  updateMyProfile: async (token, payload) => apiClient.put('/api/outsourcing/profile', payload, token),
   uploadProfileDocument: async (token, file, docType) => {
     const form = new FormData();
     form.append('file', file);
@@ -137,111 +87,35 @@ export const outsourcingApi = {
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json?.error || 'Upload failed');
-    invalidateOutsourcingCache();
+    apiClient.clearCache();
     return json;
   },
-  createUser: async (token, payload) => {
-    const res = await apiClient.post('/api/outsourcing/users', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  createJob: async (token, payload) => {
-    const res = await apiClient.post('/api/outsourcing/jobs', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  assignJob: async (token, id, freelancerId) => {
-    const res = await apiClient.put(`/api/outsourcing/jobs/${id}/assign`, { freelancerId }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  createContract: async (token, payload) => {
-    const res = await apiClient.post('/api/outsourcing/contracts', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  validateContractByLaw: async (token, contractId, approved = true) => {
-    const res = await apiClient.put(`/api/outsourcing/contracts/${contractId}/law-validate`, { approved }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  createMilestone: async (token, payload) => {
-    const res = await apiClient.post('/api/outsourcing/milestones', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  submitMilestone: async (token, milestoneId) => {
-    const res = await apiClient.put(`/api/outsourcing/milestones/${milestoneId}/submit`, {}, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  approveMilestone: async (token, milestoneId, approved = true) => {
-    const res = await apiClient.put(`/api/outsourcing/milestones/${milestoneId}/approve`, { approved }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  createMilestonePayment: async (token, milestoneId) => {
-    const res = await apiClient.post('/api/outsourcing/payments/milestone', { milestoneId }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  releaseMilestonePayment: async (token, paymentId) => {
-    const res = await apiClient.put(`/api/outsourcing/payments/milestone/${paymentId}/release`, {}, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  completeFreelancerLifecycle: async (token, freelancerEntityId) => {
-    const res = await apiClient.put(`/api/outsourcing/freelancers/${freelancerEntityId}/complete`, {}, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  logTime: async (token, payload) => {
-    const res = await apiClient.post('/api/outsourcing/time-logs', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  updateTimeLog: async (token, id, payload) => {
-    const res = await apiClient.put(`/api/outsourcing/time-logs/${id}`, payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  verifyTimeLog: async (token, id, status) => {
-    const res = await apiClient.put(`/api/outsourcing/time-logs/${id}/verify`, { status }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  requestTimeLogRevision: async (token, id, note) => {
-    const res = await apiClient.put(`/api/outsourcing/time-logs/${id}/revision`, { note }, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  getMySessions: async (token) => readCache(token, 'sessions', () => apiClient.get('/api/outsourcing/sessions/me', token), ttl.fast),
-  checkIn: async (token, payload = {}) => {
-    const res = await apiClient.post('/api/outsourcing/sessions/check-in', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  checkOut: async (token, payload = {}) => {
-    const res = await apiClient.post('/api/outsourcing/sessions/check-out', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  pauseSession: async (token, payload = {}) => {
-    const res = await apiClient.post('/api/outsourcing/sessions/pause', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  resumeSession: async (token, payload = {}) => {
-    const res = await apiClient.post('/api/outsourcing/sessions/resume', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  stopSession: async (token, payload = {}) => {
-    const res = await apiClient.post('/api/outsourcing/sessions/stop', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  getMyAnalytics: async (token) => readCache(token, 'analytics', () => apiClient.get('/api/outsourcing/analytics/me', token), ttl.fast),
+  createUser: async (token, payload) => apiClient.post('/api/outsourcing/users', payload, token),
+  createJob: async (token, payload) => apiClient.post('/api/outsourcing/jobs', payload, token),
+  assignJob: async (token, id, freelancerId) => apiClient.put(`/api/outsourcing/jobs/${id}/assign`, { freelancerId }, token),
+  createContract: async (token, payload) => apiClient.post('/api/outsourcing/contracts', payload, token),
+  validateContractByLaw: async (token, contractId, approved = true) =>
+    apiClient.put(`/api/outsourcing/contracts/${contractId}/law-validate`, { approved }, token),
+  createMilestone: async (token, payload) => apiClient.post('/api/outsourcing/milestones', payload, token),
+  submitMilestone: async (token, milestoneId) => apiClient.put(`/api/outsourcing/milestones/${milestoneId}/submit`, {}, token),
+  approveMilestone: async (token, milestoneId, approved = true) =>
+    apiClient.put(`/api/outsourcing/milestones/${milestoneId}/approve`, { approved }, token),
+  createMilestonePayment: async (token, milestoneId) => apiClient.post('/api/outsourcing/payments/milestone', { milestoneId }, token),
+  releaseMilestonePayment: async (token, paymentId) =>
+    apiClient.put(`/api/outsourcing/payments/milestone/${paymentId}/release`, {}, token),
+  completeFreelancerLifecycle: async (token, freelancerEntityId) =>
+    apiClient.put(`/api/outsourcing/freelancers/${freelancerEntityId}/complete`, {}, token),
+  logTime: async (token, payload) => apiClient.post('/api/outsourcing/time-logs', payload, token),
+  updateTimeLog: async (token, id, payload) => apiClient.put(`/api/outsourcing/time-logs/${id}`, payload, token),
+  verifyTimeLog: async (token, id, status) => apiClient.put(`/api/outsourcing/time-logs/${id}/verify`, { status }, token),
+  requestTimeLogRevision: async (token, id, note) => apiClient.put(`/api/outsourcing/time-logs/${id}/revision`, { note }, token),
+  getMySessions: async (token) => apiClient.get('/api/outsourcing/sessions/me', token, { ttlMs: ttl.fast }),
+  checkIn: async (token, payload = {}) => apiClient.post('/api/outsourcing/sessions/check-in', payload, token),
+  checkOut: async (token, payload = {}) => apiClient.post('/api/outsourcing/sessions/check-out', payload, token),
+  pauseSession: async (token, payload = {}) => apiClient.post('/api/outsourcing/sessions/pause', payload, token),
+  resumeSession: async (token, payload = {}) => apiClient.post('/api/outsourcing/sessions/resume', payload, token),
+  stopSession: async (token, payload = {}) => apiClient.post('/api/outsourcing/sessions/stop', payload, token),
+  getMyAnalytics: async (token) => apiClient.get('/api/outsourcing/analytics/me', token, { ttlMs: ttl.fast }),
   uploadFile: async (token, file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -257,25 +131,13 @@ export const outsourcingApi = {
     if (!res.ok || data?.success === false) {
       throw new Error(data?.error || 'Upload failed');
     }
-    invalidateOutsourcingCache();
+    apiClient.clearCache();
     return data;
   },
-  createSupportTicket: async (token, payload) => {
-    const res = await apiClient.post('/api/outsourcing/support/tickets', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  getMyTickets: async (token) => readCache(token, 'myTickets', () => apiClient.get('/api/outsourcing/support/tickets', token), ttl.fast),
+  createSupportTicket: async (token, payload) => apiClient.post('/api/outsourcing/support/tickets', payload, token),
+  getMyTickets: async (token) => apiClient.get('/api/outsourcing/support/tickets', token, { ttlMs: ttl.fast }),
   getAllTickets: async (token, params = '') => apiClient.get(`/api/outsourcing/support/tickets/all${params ? `?${params}` : ''}`, token),
-  updateTicket: async (token, id, payload) => {
-    const res = await apiClient.put(`/api/outsourcing/support/tickets/${id}`, payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  updatePreferences: async (token, payload) => {
-    const res = await apiClient.put('/api/outsourcing/preferences', payload, token);
-    invalidateOutsourcingCache();
-    return res;
-  },
-  clearClientCache: invalidateOutsourcingCache
+  updateTicket: async (token, id, payload) => apiClient.put(`/api/outsourcing/support/tickets/${id}`, payload, token),
+  updatePreferences: async (token, payload) => apiClient.put('/api/outsourcing/preferences', payload, token),
+  clearClientCache: () => apiClient.clearCache()
 };

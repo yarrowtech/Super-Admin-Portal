@@ -160,6 +160,7 @@ const mapModuleToLawSection = (moduleKey = "") => {
   if (key === "disputes") return "disputes-fraud";
   if (key === "ip" || key === "ip-copyright") return "ip-copyright";
   if (key === "third-party") return "third-party";
+  if (key === "work-hire") return "work-hire";
   return null;
 };
 

@@ -7,6 +7,7 @@ const authLogger = createLogger({ module: 'auth' });
 
 const AuthContext = createContext(null);
 const CACHE_PREFIX = 'sap_cache_v1:';
+const SESSION_CLEAR_PREFIXES = [CACHE_PREFIX, 'salesQueryDraft:', 'salesQueryStage:'];
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -59,7 +60,7 @@ export const AuthProvider = ({ children }) => {
     try {
       for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
         const key = sessionStorage.key(i);
-        if (key && key.startsWith(CACHE_PREFIX)) {
+        if (key && SESSION_CLEAR_PREFIXES.some((prefix) => key.startsWith(prefix))) {
           sessionStorage.removeItem(key);
         }
       }

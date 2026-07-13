@@ -72,7 +72,7 @@ const ensureProjectDefaultQuestions = async (projectCode, projectName) => {
 const EDITABLE_QUERY_FIELDS = [
   'project', 'projects', 'buyerCategory', 'buyerName', 'businessName', 'phone', 'phones', 'gstNumber', 'email', 'location',
   'businessType', 'productCategory', 'productCategories', 'qualityRating', 'moq', 'priceRange',
-  'leadTime', 'paymentTerms', 'brandSection', 'brandNames', 'onlineCollaboration', 'notes', 'answers', 'images',
+  'leadTime', 'paymentTerms', 'brandSection', 'brandSections', 'brandNames', 'onlineCollaboration', 'notes', 'answers', 'images',
 ];
 
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
@@ -217,6 +217,15 @@ exports.createQuery = async (req, res) => {
     const productCategories = Array.isArray(productCategoriesRaw) ? productCategoriesRaw.filter(Boolean) : [];
     const brandNamesRaw = typeof body.brandNames === 'string' ? JSON.parse(body.brandNames) : body.brandNames;
     const brandNames = Array.isArray(brandNamesRaw) ? brandNamesRaw.filter(Boolean) : [];
+    let brandSectionRaw = body.brandSection;
+    if (typeof brandSectionRaw === 'string') {
+      try {
+        brandSectionRaw = JSON.parse(brandSectionRaw);
+      } catch {
+        // plain string from older clients, keep as-is
+      }
+    }
+    const brandSections = Array.isArray(brandSectionRaw) ? brandSectionRaw.filter(Boolean) : (brandSectionRaw ? [brandSectionRaw] : []);
 
     if (!primaryProject?.name || !body.buyerCategory || !(body.businessName || body.buyerName)) {
       return res.status(400).json({
@@ -249,7 +258,8 @@ exports.createQuery = async (req, res) => {
       priceRange: body.priceRange,
       leadTime: body.leadTime,
       paymentTerms: body.paymentTerms,
-      brandSection: body.brandSection,
+      brandSection: brandSections.join(', '),
+      brandSections,
       brandNames,
       onlineCollaboration: body.onlineCollaboration,
       answers: Array.isArray(answers) ? answers : [],
@@ -277,6 +287,7 @@ exports.updateQuery = async (req, res) => {
     if (updates.phones && !Array.isArray(updates.phones)) delete updates.phones;
     if (updates.productCategories && !Array.isArray(updates.productCategories)) delete updates.productCategories;
     if (updates.brandNames && !Array.isArray(updates.brandNames)) delete updates.brandNames;
+    if (updates.brandSections && !Array.isArray(updates.brandSections)) delete updates.brandSections;
     if (updates.projects && !Array.isArray(updates.projects)) delete updates.projects;
     if (updates.images && !Array.isArray(updates.images)) delete updates.images;
     if (updates.images) {

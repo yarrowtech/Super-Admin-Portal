@@ -66,14 +66,18 @@ const emptyVendorForm = {
   businessName: '', buyerName: '', gstNumber: '', email: '', location: '',
   productCategories: [],
   moq: '', priceRange: '', leadTime: '', paymentTerms: '',
-  brandSection: '', onlineCollaboration: '', notes: '',
+  brandSection: [], onlineCollaboration: '', notes: '',
 };
 
 const VendorQuestionnaireForm = ({ token, project, projects = [], category, userId, onSubmitted }) => {
   const draftKey = `salesQueryDraft:vendor:${userId || 'anon'}:${project.code}:${category.id}`;
   const draft = useMemo(() => loadDraft(draftKey), [draftKey]);
 
-  const [form, setForm] = useState(() => ({ ...emptyVendorForm, ...(draft?.value?.form || {}) }));
+  const [form, setForm] = useState(() => {
+    const merged = { ...emptyVendorForm, ...(draft?.value?.form || {}) };
+    if (!Array.isArray(merged.brandSection)) merged.brandSection = merged.brandSection ? [merged.brandSection] : [];
+    return merged;
+  });
   const [openProductCategories, setOpenProductCategories] = useState([]);
   const [phones, setPhones] = useState(() => draft?.value?.phones?.length ? draft.value.phones : ['']);
   const [brandNames, setBrandNames] = useState(() => draft?.value?.brandNames?.length ? draft.value.brandNames : ['']);
@@ -112,6 +116,13 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
   }, [token, project.code]);
 
   const setField = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
+
+  const toggleBrandSection = (brand) => setForm((prev) => ({
+    ...prev,
+    brandSection: prev.brandSection.includes(brand)
+      ? prev.brandSection.filter((b) => b !== brand)
+      : [...prev.brandSection, brand],
+  }));
 
   const toggleProductGroup = (label) => setOpenProductCategories((prev) =>
     prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
@@ -202,7 +213,7 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
       fd.append('priceRange', form.priceRange.trim());
       fd.append('leadTime', form.leadTime.trim());
       fd.append('paymentTerms', form.paymentTerms);
-      fd.append('brandSection', form.brandSection);
+      fd.append('brandSection', JSON.stringify(form.brandSection));
       fd.append('onlineCollaboration', form.onlineCollaboration);
       fd.append('notes', form.notes.trim());
       fd.append('answers', JSON.stringify(questions.map((q) => ({ question: q.question, answer: answers[q._id] }))));
@@ -451,7 +462,7 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
               <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Brand Section</label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {BRAND_SECTIONS.map((brand) => (
-                  <OptionPill key={brand} active={form.brandSection === brand} color={SECTIONS[3].color} onClick={() => setField('brandSection', brand)}>
+                  <OptionPill key={brand} active={form.brandSection.includes(brand)} color={SECTIONS[3].color} onClick={() => toggleBrandSection(brand)}>
                     {brand}
                   </OptionPill>
                 ))}

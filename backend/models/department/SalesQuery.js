@@ -52,6 +52,7 @@ const salesQuerySchema = new mongoose.Schema(
     leadTime: { type: String, trim: true },
     paymentTerms: { type: String, trim: true },
     brandSection: { type: String, trim: true },
+    brandSections: { type: [String], default: [] },
     brandNames: { type: [String], default: [] },
     onlineCollaboration: { type: String, trim: true },
     answers: { type: [answerSchema], default: [] },

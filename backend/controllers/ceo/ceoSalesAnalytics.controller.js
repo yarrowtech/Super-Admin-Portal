@@ -4,6 +4,26 @@ const SalesQuery = require('../../models/department/SalesQuery');
 
 const dayBucketExpr = (field) => ({ $dateToString: { format: '%Y-%m-%d', date: field } });
 
+// "Location" in the CEO analytics is the City + State pair, not the free-text
+// registered address — a full street address is too granular to group/filter on.
+const cityStateExpr = {
+  $trim: {
+    input: {
+      $concat: [
+        { $ifNull: ['$city', ''] },
+        {
+          $cond: [
+            { $and: [{ $ne: [{ $ifNull: ['$city', ''] }, ''] }, { $ne: [{ $ifNull: ['$state', ''] }, ''] }] },
+            ', ',
+            '',
+          ],
+        },
+        { $ifNull: ['$state', ''] },
+      ],
+    },
+  },
+};
+
 const submitterDisplayName = (u) => {
   if (!u) return 'Unassigned';
   const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
@@ -13,7 +33,7 @@ const submitterDisplayName = (u) => {
 /**
  * @route   GET /api/dept/ceo/sales-query-analytics
  * @desc    Sales Query submissions analytics for the CEO dashboard, filterable
- *          by product, buyer category, location and team member.
+ *          by product, buyer category, city/state and team member.
  * @access  Private (CEO, Admin)
  */
 exports.getSalesQueryAnalytics = async (req, res) => {
@@ -29,7 +49,7 @@ exports.getSalesQueryAnalytics = async (req, res) => {
       match.$or = [{ 'project.code': projectCode }, { 'projects.code': projectCode }];
     }
     if (buyerCategory) match.buyerCategory = buyerCategory;
-    if (location) match.location = location;
+    if (location) match.$expr = { $eq: [cityStateExpr, location] };
     if (teamMember && mongoose.isValidObjectId(teamMember)) {
       match.submittedBy = new mongoose.Types.ObjectId(teamMember);
     }
@@ -81,7 +101,8 @@ exports.getSalesQueryAnalytics = async (req, res) => {
       ]),
       SalesQuery.aggregate([
         { $match: match },
-        { $group: { _id: { $ifNull: ['$location', 'Unknown'] }, count: { $sum: 1 } } },
+        { $addFields: { cityState: cityStateExpr } },
+        { $group: { _id: { $cond: [{ $eq: ['$cityState', ''] }, 'Unknown', '$cityState'] }, count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 10 },
       ]),
@@ -122,7 +143,13 @@ exports.getSalesQueryAnalytics = async (req, res) => {
         { $match: { '_id.code': { $ne: null } } },
       ]),
       SalesQuery.distinct('buyerCategory', { buyerCategory: { $nin: [null, ''] } }),
-      SalesQuery.distinct('location', { location: { $nin: [null, ''] } }),
+      SalesQuery.aggregate([
+        { $match: { $or: [{ city: { $nin: [null, ''] } }, { state: { $nin: [null, ''] } }] } },
+        { $addFields: { cityState: cityStateExpr } },
+        { $match: { cityState: { $ne: '' } } },
+        { $group: { _id: '$cityState' } },
+        { $sort: { _id: 1 } },
+      ]),
       SalesQuery.aggregate([
         { $match: { submittedBy: { $ne: null } } },
         { $group: { _id: '$submittedBy' } },
@@ -160,7 +187,7 @@ exports.getSalesQueryAnalytics = async (req, res) => {
           .map((row) => ({ code: row._id.code, name: row._id.name }))
           .filter((p) => p.code),
         buyerCategories: filterBuyerCategories.filter(Boolean).sort(),
-        locations: filterLocations.filter(Boolean).sort(),
+        locations: filterLocations.map((row) => row._id).filter(Boolean).sort(),
         teamMembers: filterTeamMembers
           .filter((row) => row.user)
           .map((row) => ({ userId: String(row._id), name: submitterDisplayName(row.user) }))

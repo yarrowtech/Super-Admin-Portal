@@ -42,6 +42,8 @@ const salesQuerySchema = new mongoose.Schema(
     gstNumber: { type: String, trim: true },
     email: { type: String, trim: true },
     location: { type: String, trim: true },
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
     businessType: { type: String, trim: true },
     productCategory: { type: String, trim: true },
     productCategories: { type: [String], default: [] },

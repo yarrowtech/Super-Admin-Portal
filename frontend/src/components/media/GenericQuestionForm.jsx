@@ -3,7 +3,7 @@ import { departmentApi } from '../../services/departments';
 import { fallbackSalesAssessmentQuestions } from './salesAssessmentQuestions';
 import { loadDraft, clearDraft, useDraftAutosave, relativeSavedLabel } from './useDraftAutosave';
 
-const emptyGenericForm = { buyerName: '', businessName: '', phone: '', email: '', location: '', notes: '' };
+const emptyGenericForm = { buyerName: '', businessName: '', phone: '', email: '', location: '', city: '', state: '', notes: '' };
 
 const GenericQuestionForm = ({ token, project, projects = [], category, formType = 'generic', userId, onSubmitted }) => {
   const draftKey = `salesQueryDraft:generic:${userId || 'anon'}:${project.code}:${category.id}`;
@@ -62,6 +62,8 @@ const GenericQuestionForm = ({ token, project, projects = [], category, formType
       fd.append('phone', form.phone.trim());
       fd.append('email', form.email.trim());
       fd.append('location', form.location.trim());
+      fd.append('city', form.city.trim());
+      fd.append('state', form.state.trim());
       fd.append('notes', form.notes.trim());
       fd.append('answers', JSON.stringify(questions.map((q) => ({ question: q.question, answer: answers[q._id] }))));
 
@@ -134,6 +136,20 @@ const GenericQuestionForm = ({ token, project, projects = [], category, formType
           value={form.location}
           onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
           className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm sm:col-span-2 dark:border-neutral-800 dark:bg-neutral-950"
+        />
+        <input
+          type="text"
+          placeholder="City"
+          value={form.city}
+          onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
+          className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+        />
+        <input
+          type="text"
+          placeholder="State"
+          value={form.state}
+          onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
+          className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
         />
       </div>
 

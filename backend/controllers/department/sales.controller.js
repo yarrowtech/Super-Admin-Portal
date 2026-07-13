@@ -70,7 +70,7 @@ const ensureProjectDefaultQuestions = async (projectCode, projectName) => {
 };
 
 const EDITABLE_QUERY_FIELDS = [
-  'project', 'projects', 'buyerCategory', 'buyerName', 'businessName', 'phone', 'phones', 'gstNumber', 'email', 'location',
+  'project', 'projects', 'buyerCategory', 'buyerName', 'businessName', 'phone', 'phones', 'gstNumber', 'email', 'location', 'city', 'state',
   'businessType', 'productCategory', 'productCategories', 'qualityRating', 'moq', 'priceRange',
   'leadTime', 'paymentTerms', 'brandSection', 'brandSections', 'brandNames', 'onlineCollaboration', 'notes', 'answers', 'images',
 ];
@@ -249,6 +249,8 @@ exports.createQuery = async (req, res) => {
       gstNumber: body.gstNumber,
       email: body.email,
       location: body.location,
+      city: body.city,
+      state: body.state,
       businessType: body.businessType,
       productCategory: body.productCategory || productCategories.join(', '),
       productCategories,

@@ -108,6 +108,8 @@ const SubmissionModal = ({ item, onClose }) => {
             <DetailRow label="GST Number" value={item.gstNumber} />
             <DetailRow label="Email" value={item.email} />
             <DetailRow label="Location" value={item.location} />
+            <DetailRow label="City" value={item.city} />
+            <DetailRow label="State" value={item.state} />
             <DetailRow label="Product Category" value={productCategoryDisplay(item)} />
             <DetailRow label="Quality Rating" value={item.qualityRating ? `${item.qualityRating}/5` : ''} />
             <DetailRow label="MOQ" value={item.moq} />

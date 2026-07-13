@@ -55,6 +55,8 @@ export const SubmissionDetailModal = ({ submission, onClose }) => {
             <DetailRow label="Phone" value={phoneDisplay(submission)} />
             <DetailRow label="Email" value={submission.email} />
             <DetailRow label="Location" value={submission.location} />
+            <DetailRow label="City" value={submission.city} />
+            <DetailRow label="State" value={submission.state} />
             {vendorForm && (
               <>
                 <DetailRow label="GST Number" value={submission.gstNumber} />

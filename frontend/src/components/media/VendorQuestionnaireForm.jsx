@@ -63,7 +63,7 @@ const SectionCard = ({ section, children }) => (
 );
 
 const emptyVendorForm = {
-  businessName: '', buyerName: '', gstNumber: '', email: '', location: '',
+  businessName: '', buyerName: '', gstNumber: '', email: '', location: '', city: '', state: '',
   productCategories: [],
   moq: '', priceRange: '', leadTime: '', paymentTerms: '',
   brandSection: [], onlineCollaboration: '', notes: '',
@@ -176,9 +176,11 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
     if (filledPhones.length === 0) errors.phones = 'At least one phone number is required.';
     else if (filledPhones.some((p) => p.length !== 10)) errors.phones = 'Each phone number must be exactly 10 digits.';
     if (!form.location.trim()) errors.location = 'Registered address is required.';
+    if (!form.city.trim()) errors.city = 'City is required.';
+    if (!form.state.trim()) errors.state = 'State is required.';
     if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) errors.email = 'Enter a valid email address.';
     return errors;
-  }, [form.businessName, form.buyerName, form.location, form.email, phones]);
+  }, [form.businessName, form.buyerName, form.location, form.city, form.state, form.email, phones]);
 
   const missingFields = useMemo(() => {
     const missing = Object.values(fieldErrors);
@@ -207,6 +209,8 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
       fd.append('gstNumber', form.gstNumber.trim());
       fd.append('email', form.email.trim());
       fd.append('location', form.location.trim());
+      fd.append('city', form.city.trim());
+      fd.append('state', form.state.trim());
       fd.append('brandNames', JSON.stringify(brandNames.map((b) => b.trim()).filter(Boolean)));
       fd.append('productCategories', JSON.stringify(form.productCategories));
       fd.append('moq', form.moq.trim());
@@ -307,6 +311,18 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
               <input type="text" className={`${INP} ${submitAttempted && fieldErrors.location ? INP_ERROR : ''}`} placeholder="Full registered address" value={form.location} onChange={(e) => setField('location', e.target.value)} />
             </Field>
             {submitAttempted && <FieldError message={fieldErrors.location} />}
+            </div>
+            <div>
+            <Field label="City *" icon="location_city">
+              <input type="text" className={`${INP} ${submitAttempted && fieldErrors.city ? INP_ERROR : ''}`} placeholder="City" value={form.city} onChange={(e) => setField('city', e.target.value)} />
+            </Field>
+            {submitAttempted && <FieldError message={fieldErrors.city} />}
+            </div>
+            <div>
+            <Field label="State *" icon="map">
+              <input type="text" className={`${INP} ${submitAttempted && fieldErrors.state ? INP_ERROR : ''}`} placeholder="State" value={form.state} onChange={(e) => setField('state', e.target.value)} />
+            </Field>
+            {submitAttempted && <FieldError message={fieldErrors.state} />}
             </div>
             <Field label="GST Number" icon="badge">
               <input type="text" className={`${INP} uppercase`} placeholder="e.g. 22AAAAA0000A1Z5" value={form.gstNumber} onChange={(e) => setField('gstNumber', e.target.value.toUpperCase())} />

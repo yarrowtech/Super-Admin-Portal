@@ -5,6 +5,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const helmet = require("helmet");
+const compression = require("compression");
 const mongoose = require("mongoose");
 const mongoSanitize = require("express-mongo-sanitize");
 const rateLimit = require("express-rate-limit");
@@ -52,6 +53,7 @@ connectDB().then(async () => {
 
 app.set("trust proxy", 1);
 app.use(helmet());
+app.use(compression());
 app.use(express.json({ limit: constants.REQUEST_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: constants.REQUEST_BODY_LIMIT }));
 app.use(mongoSanitize());

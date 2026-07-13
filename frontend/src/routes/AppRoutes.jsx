@@ -92,9 +92,9 @@ import {
   EmployeeSupportPage,
   AdminSupportCenterPage,
   AdminSettingsPage,
+  OutsourcingProjectsPage,
+  OutsourcingEfnbmmsAdminManagementPage,
 } from '../pages';
-import OutsourcingProjectsPage from '../components/outsourcing/OutsourcingProjectsPage';
-import OutsourcingEfnbmmsAdminManagementPage from '../components/outsourcing/OutsourcingEfnbmmsAdminManagementPage';
 import {
   AdminLayout,
   CEOPortalLayout,

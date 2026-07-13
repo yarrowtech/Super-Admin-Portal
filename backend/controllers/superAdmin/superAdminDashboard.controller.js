@@ -13,6 +13,9 @@ const portalAccessController = require('./portalAccess.controller');
 const systemHealthController = require('./systemHealth.controller');
 const companyControlsController = require('./companyControls.controller');
 const { ensureSuperAdminDefaults } = require('../../utils/bootstrapSuperAdminData');
+const { getCache, setCache } = require('../../services/cache.service');
+
+const PROJECT_ALLOCATIONS_CACHE_KEY = 'superadmin:project-allocations';
 const {
   PROJECT_REGISTRY,
   findProjectByCode,
@@ -141,6 +144,11 @@ exports.getDashboard = async (req, res) => {
 
 exports.getProjectAllocations = async (req, res) => {
   try {
+    const cached = await getCache(PROJECT_ALLOCATIONS_CACHE_KEY);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
+
     const [projectDocs, users] = await Promise.all([
       Project.find({}, 'name projectCode status progress deadline projectManager teamMembers updatedAt').sort({ updatedAt: -1 }).lean(),
       User.find({}, 'firstName lastName email role department metadata isActive accountStatus lastLogin createdAt').sort({ createdAt: -1 }).lean(),
@@ -192,19 +200,19 @@ exports.getProjectAllocations = async (req, res) => {
       };
     });
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        projects: projectRows,
-        users: userRows,
-        summary: {
-          totalProjects: projectRows.length,
-          totalUsers: userRows.length,
-          allocatedUsers: userRows.filter((user) => user.assignedProjectCount > 0).length,
-          unallocatedUsers: userRows.filter((user) => user.assignedProjectCount === 0).length,
-        },
+    const data = {
+      projects: projectRows,
+      users: userRows,
+      summary: {
+        totalProjects: projectRows.length,
+        totalUsers: userRows.length,
+        allocatedUsers: userRows.filter((user) => user.assignedProjectCount > 0).length,
+        unallocatedUsers: userRows.filter((user) => user.assignedProjectCount === 0).length,
       },
-    });
+    };
+    await setCache(PROJECT_ALLOCATIONS_CACHE_KEY, data, 60);
+
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     logger.error({ err: error }, 'Failed to fetch project allocations');
     return res.status(500).json({

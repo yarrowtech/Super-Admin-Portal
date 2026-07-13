@@ -220,8 +220,9 @@ const GenericQuestionForm = ({ token, project, projects = [], category, formType
           type="button"
           disabled={!canSubmit}
           onClick={handleSubmit}
-          className="rounded-lg bg-[var(--portal-accent)] px-5 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex items-center gap-2 rounded-lg bg-[var(--portal-accent)] px-5 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
         >
+          {submitting && <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
           {submitting ? 'Submitting...' : 'Submit questionnaire'}
         </button>
       </div>

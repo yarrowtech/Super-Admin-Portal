@@ -52,9 +52,22 @@ const getMemory = (key) => {
 
 const setMemory = (key, value, ttlSeconds) => {
   memoryStore.set(key, {
-    value,
+    // Store a snapshot rather than the live reference, so a caller mutating the
+    // object after caching it can never corrupt the cached copy (matches the
+    // Redis path, which only ever stores a serialized string).
+    value: JSON.parse(JSON.stringify(value)),
     expiresAt: Date.now() + ttlSeconds * 1000,
   });
+};
+
+const deleteMemory = (key) => {
+  memoryStore.delete(key);
+};
+
+const deleteMemoryPrefix = (prefix) => {
+  for (const key of memoryStore.keys()) {
+    if (key.startsWith(prefix)) memoryStore.delete(key);
+  }
 };
 
 const getCache = async (key) => {
@@ -75,7 +88,28 @@ const setCache = async (key, value, ttlSeconds = DEFAULT_TTL_SECONDS) => {
   setMemory(key, value, ttlSeconds);
 };
 
+const deleteCache = async (key) => {
+  await initRedis();
+  if (redisReady && redisClient) {
+    await redisClient.del(key);
+    return;
+  }
+  deleteMemory(key);
+};
+
+const deleteCachePrefix = async (prefix) => {
+  await initRedis();
+  if (redisReady && redisClient) {
+    const keys = await redisClient.keys(`${prefix}*`);
+    if (keys.length) await redisClient.del(keys);
+    return;
+  }
+  deleteMemoryPrefix(prefix);
+};
+
 module.exports = {
   getCache,
   setCache,
+  deleteCache,
+  deleteCachePrefix,
 };

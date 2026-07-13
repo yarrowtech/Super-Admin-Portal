@@ -224,8 +224,9 @@ const EditSubmissionModal = ({ submission, saving, onClose, onSave }) => {
             type="button"
             disabled={saving}
             onClick={() => onSave({ ...form, phones: phones.map((p) => p.trim()).filter(Boolean), productCategories, brandNames: brandNames.map((b) => b.trim()).filter(Boolean), answers })}
-            className="rounded-lg bg-[var(--portal-accent)] px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-[var(--portal-accent)] px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
+            {saving && <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
             {saving ? 'Saving...' : 'Save changes'}
           </button>
         </div>
@@ -300,7 +301,24 @@ const SalesSubmissionsPage = () => {
         </div>
 
         {loading ? (
-          <p className="py-8 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading your submissions...</p>
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex animate-pulse items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3.5 w-1/3 rounded bg-neutral-200 dark:bg-neutral-800" />
+                  <div className="h-3 w-2/3 rounded bg-neutral-200 dark:bg-neutral-800" />
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <div className="h-8 w-16 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                  <div className="h-8 w-16 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : submissions.length === 0 ? (
           <div className="flex min-h-[160px] flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-4 text-center dark:border-neutral-800 dark:bg-neutral-900/60">
             <span className="material-symbols-outlined mb-2 text-3xl text-neutral-400">fact_check</span>
@@ -311,8 +329,12 @@ const SalesSubmissionsPage = () => {
           </div>
         ) : (
           <div className="space-y-2">
-            {submissions.map((submission) => (
-              <div key={submission._id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950">
+            {submissions.map((submission, i) => (
+              <div
+                key={submission._id}
+                className="app-page-enter flex items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950"
+                style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">
                     {submission.businessName || submission.buyerName || 'Unnamed buyer'}

@@ -557,7 +557,8 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
 
       <div className="mt-5 flex justify-end">
         <button type="button" disabled={submitting} onClick={handleSubmit}
-          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+          {submitting && <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
           {submitting ? 'Submitting...' : 'Submit questionnaire'}
         </button>
       </div>

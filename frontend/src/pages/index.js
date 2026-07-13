@@ -73,6 +73,7 @@ export const OutsourcingSettingsPage     = lazy(() => import('../components/outs
 export const OutsourcingSupportPage      = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingSupportPage })));
 
 export const OutsourcingProjectsPage = lazy(() => import('../components/outsourcing/OutsourcingProjectsPage'));
+export const OutsourcingEfnbmmsAdminManagementPage = lazy(() => import('../components/outsourcing/OutsourcingEfnbmmsAdminManagementPage'));
 
 // ── Media portal ─────────────────────────────────────────────────────────────
 export const MediaDashboardPage = lazy(() => import('../components/media/MediaPortal'));

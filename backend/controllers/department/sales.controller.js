@@ -3,6 +3,15 @@ const logger = require('../../utils/logger');
 const SalesQuery = require('../../models/department/SalesQuery');
 const SalesQuestion = require('../../models/department/SalesQuestion');
 const { ROLES } = require('../../config/roles');
+const { getCache, setCache, deleteCache, deleteCachePrefix } = require('../../services/cache.service');
+
+const SALES_DASHBOARD_CACHE_KEY = 'sales:dashboard';
+const CEO_ANALYTICS_CACHE_PREFIX = 'ceo:sales-analytics:';
+
+const invalidateSalesQueryCaches = () => Promise.all([
+  deleteCache(SALES_DASHBOARD_CACHE_KEY),
+  deleteCachePrefix(CEO_ANALYTICS_CACHE_PREFIX),
+]);
 
 const isAdmin = (req) => req.user?.role === ROLES.ADMIN;
 const isSales = (req) => req.user?.role === ROLES.SALES;
@@ -116,6 +125,11 @@ const uploadQueryImages = (files = []) => Promise.all(
 
 exports.getDashboard = async (req, res) => {
   try {
+    const cached = await getCache(SALES_DASHBOARD_CACHE_KEY);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
+
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const [totalLeads, newThisWeek, leadsByCategory, leadsByProject, recentLeads] = await Promise.all([
@@ -142,16 +156,10 @@ exports.getDashboard = async (req, res) => {
       SalesQuery.find().sort({ createdAt: -1 }).limit(10),
     ]);
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        totalLeads,
-        newThisWeek,
-        leadsByCategory,
-        leadsByProject,
-        recentLeads,
-      },
-    });
+    const data = { totalLeads, newThisWeek, leadsByCategory, leadsByProject, recentLeads };
+    await setCache(SALES_DASHBOARD_CACHE_KEY, data, 45);
+
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     logger.error({ err: error }, 'Failed to fetch sales dashboard');
     return res.status(500).json({
@@ -269,6 +277,8 @@ exports.createQuery = async (req, res) => {
       submittedBy: req.user?._id,
     });
 
+    await invalidateSalesQueryCaches();
+
     return res.status(201).json({ success: true, data: { query } });
   } catch (error) {
     logger.error({ err: error }, 'Failed to create sales query');
@@ -318,6 +328,8 @@ exports.updateQuery = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Submission not found or not accessible' });
     }
 
+    await invalidateSalesQueryCaches();
+
     return res.status(200).json({ success: true, data: { query } });
   } catch (error) {
     logger.error({ err: error }, 'Failed to update sales query');
@@ -338,6 +350,8 @@ exports.deleteQuery = async (req, res) => {
     if (!query) {
       return res.status(404).json({ success: false, error: 'Submission not found' });
     }
+
+    await invalidateSalesQueryCaches();
 
     return res.status(200).json({ success: true, data: { id: req.params.id } });
   } catch (error) {

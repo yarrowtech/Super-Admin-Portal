@@ -1,6 +1,7 @@
 const logger = require('../../utils/logger');
 const mongoose = require('mongoose');
 const SalesQuery = require('../../models/department/SalesQuery');
+const { getCache, setCache } = require('../../services/cache.service');
 
 const dayBucketExpr = (field) => ({ $dateToString: { format: '%Y-%m-%d', date: field } });
 
@@ -39,6 +40,12 @@ const submitterDisplayName = (u) => {
 exports.getSalesQueryAnalytics = async (req, res) => {
   try {
     const { projectCode, buyerCategory, location, teamMember, from, to } = req.query;
+
+    const cacheKey = `ceo:sales-analytics:${projectCode || ''}|${buyerCategory || ''}|${location || ''}|${teamMember || ''}|${from || ''}|${to || ''}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
 
     const now = new Date();
     const rangeEnd = to ? new Date(to) : now;
@@ -202,6 +209,8 @@ exports.getSalesQueryAnalytics = async (req, res) => {
         to: rangeEnd.toISOString(),
       },
     };
+
+    await setCache(cacheKey, payload, 30);
 
     res.status(200).json({ success: true, data: payload });
   } catch (error) {

@@ -65,5 +65,10 @@ const salesQuerySchema = new mongoose.Schema(
 );
 
 salesQuerySchema.index({ submittedBy: 1 });
+salesQuerySchema.index({ createdAt: -1 });
+salesQuerySchema.index({ buyerCategory: 1 });
+salesQuerySchema.index({ 'project.code': 1 });
+salesQuerySchema.index({ 'projects.code': 1 });
+salesQuerySchema.index({ submittedBy: 1, createdAt: -1 });
 
 module.exports = mongoose.models.SalesQuery || mongoose.model('SalesQuery', salesQuerySchema);

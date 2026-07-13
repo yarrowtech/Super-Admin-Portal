@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { departmentApi } from '../../services/departments';
 import { fallbackSalesAssessmentQuestions } from './salesAssessmentQuestions';
 import { PRODUCT_CATEGORY_GROUPS, formatProductCategorySelection } from './productCategoryOptions';
+import { loadDraft, clearDraft, useDraftAutosave, relativeSavedLabel } from './useDraftAutosave';
 
 const SECTIONS = [
   { id: 'general', label: 'General Information', icon: 'apartment', color: '#6366f1' },
@@ -15,6 +16,12 @@ const PAYMENT_TERMS = ['ADVANCE', 'PDC', 'CREDIT 45 - 60 DAYS'];
 const BRAND_SECTIONS = ['CITI MART', 'RAPHAAA', 'NP', 'MIX'];
 
 const INP = 'block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-[var(--portal-accent)]/40 dark:border-neutral-800 dark:bg-neutral-950';
+const INP_ERROR = 'border-rose-400 focus:ring-2 focus:ring-rose-300/50 dark:border-rose-500';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const FieldError = ({ message }) => (!message ? null : (
+  <p className="text-[11px] font-semibold text-rose-500">{message}</p>
+));
 
 const Field = ({ label, icon, children }) => (
   <div className="space-y-1.5">
@@ -55,23 +62,32 @@ const SectionCard = ({ section, children }) => (
   </div>
 );
 
-const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSubmitted }) => {
-  const [form, setForm] = useState({
-    businessName: '', buyerName: '', gstNumber: '', email: '', location: '',
-    productCategories: [], qualityRating: 0,
-    moq: '', priceRange: '', leadTime: '', paymentTerms: '',
-    brandSection: '', onlineCollaboration: '', notes: '',
-  });
+const emptyVendorForm = {
+  businessName: '', buyerName: '', gstNumber: '', email: '', location: '',
+  productCategories: [],
+  moq: '', priceRange: '', leadTime: '', paymentTerms: '',
+  brandSection: '', onlineCollaboration: '', notes: '',
+};
+
+const VendorQuestionnaireForm = ({ token, project, projects = [], category, userId, onSubmitted }) => {
+  const draftKey = `salesQueryDraft:vendor:${userId || 'anon'}:${project.code}:${category.id}`;
+  const draft = useMemo(() => loadDraft(draftKey), [draftKey]);
+
+  const [form, setForm] = useState(() => ({ ...emptyVendorForm, ...(draft?.value?.form || {}) }));
   const [openProductCategories, setOpenProductCategories] = useState([]);
-  const [phones, setPhones] = useState(['']);
-  const [brandNames, setBrandNames] = useState(['']);
+  const [phones, setPhones] = useState(() => draft?.value?.phones?.length ? draft.value.phones : ['']);
+  const [brandNames, setBrandNames] = useState(() => draft?.value?.brandNames?.length ? draft.value.brandNames : ['']);
   const [images, setImages] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState(() => draft?.value?.answers || {});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [draftDismissed, setDraftDismissed] = useState(false);
+
+  const savedAt = useDraftAutosave(draftKey, { form, phones, brandNames, answers }, !submitting);
 
   useEffect(() => {
     let alive = true;
@@ -122,9 +138,12 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    setImages((prev) => [...prev, ...files]);
-    setPreviews((prev) => [...prev, ...files.map((f) => ({ name: f.name, size: f.size, url: URL.createObjectURL(f), type: f.type }))]);
-    setSubmitError('');
+    const jpegFiles = files.filter((f) => f.type === 'image/jpeg');
+    const rejected = files.length - jpegFiles.length;
+    setImages((prev) => [...prev, ...jpegFiles]);
+    setPreviews((prev) => [...prev, ...jpegFiles.map((f) => ({ name: f.name, size: f.size, url: URL.createObjectURL(f), type: f.type }))]);
+    setSubmitError(rejected > 0 ? `${rejected} file(s) skipped — only JPG/JPEG photos are allowed.` : '');
+    e.target.value = '';
   };
 
   const removeFile = (idx) => {
@@ -138,18 +157,30 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
   );
   const allAnswered = questions.length > 0 && answeredCount === questions.length;
 
+  const fieldErrors = useMemo(() => {
+    const errors = {};
+    if (!form.businessName.trim()) errors.businessName = 'Business / Company name is required.';
+    if (!form.buyerName.trim()) errors.buyerName = 'Contact person is required.';
+    const filledPhones = phones.map((p) => p.trim()).filter(Boolean);
+    if (filledPhones.length === 0) errors.phones = 'At least one phone number is required.';
+    else if (filledPhones.some((p) => p.length !== 10)) errors.phones = 'Each phone number must be exactly 10 digits.';
+    if (!form.location.trim()) errors.location = 'Registered address is required.';
+    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) errors.email = 'Enter a valid email address.';
+    return errors;
+  }, [form.businessName, form.buyerName, form.location, form.email, phones]);
+
   const missingFields = useMemo(() => {
-    const missing = [];
-    if (!form.businessName.trim()) missing.push('Business / Company Name');
-    if (images.length === 0) missing.push('at least one product image');
-    if (!form.moq.trim()) missing.push('MOQ');
-    if (!allAnswered) missing.push('all assessment questions');
+    const missing = Object.values(fieldErrors);
+    if (images.length === 0) missing.push('At least one product image is required.');
+    if (!form.moq.trim()) missing.push('MOQ is required.');
+    if (!allAnswered) missing.push('All assessment questions must be answered.');
     return missing;
-  }, [form.businessName, images.length, form.moq, allAnswered]);
+  }, [fieldErrors, images.length, form.moq, allAnswered]);
 
   const handleSubmit = async () => {
+    setSubmitAttempted(true);
     if (missingFields.length > 0) {
-      setSubmitError(`Please complete: ${missingFields.join(', ')}.`);
+      setSubmitError(`Please complete: ${missingFields.join(' ')}`);
       return;
     }
     setSubmitting(true);
@@ -167,7 +198,6 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
       fd.append('location', form.location.trim());
       fd.append('brandNames', JSON.stringify(brandNames.map((b) => b.trim()).filter(Boolean)));
       fd.append('productCategories', JSON.stringify(form.productCategories));
-      fd.append('qualityRating', String(form.qualityRating));
       fd.append('moq', form.moq.trim());
       fd.append('priceRange', form.priceRange.trim());
       fd.append('leadTime', form.leadTime.trim());
@@ -179,6 +209,7 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
       images.forEach((img) => fd.append('images', img));
 
       await departmentApi.createSalesQuery(token, fd);
+      clearDraft(draftKey);
       onSubmitted();
     } catch (err) {
       setSubmitError(err?.message || 'Failed to submit questionnaire.');
@@ -187,32 +218,56 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
     }
   };
 
+  const discardDraft = () => {
+    clearDraft(draftKey);
+    setForm(emptyVendorForm);
+    setPhones(['']);
+    setBrandNames(['']);
+    setAnswers({});
+    setDraftDismissed(true);
+  };
+
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
           {project.name} &middot; {category.label}
         </p>
+        {!draftDismissed && savedAt && (
+          <div className="flex items-center gap-2 text-[11px] text-neutral-400 dark:text-neutral-500">
+            <span className="material-symbols-outlined text-[14px]">cloud_done</span>
+            {relativeSavedLabel(savedAt)}
+            <button type="button" onClick={discardDraft} className="font-bold text-rose-500 hover:underline">
+              Discard draft
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-5">
         <SectionCard section={SECTIONS[0]}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
             <Field label="Business / Company Name *" icon="apartment">
-              <input type="text" className={INP} placeholder="Company name" value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
+              <input type="text" className={`${INP} ${submitAttempted && fieldErrors.businessName ? INP_ERROR : ''}`} placeholder="Company name" value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
             </Field>
-            <Field label="Contact Person" icon="person">
-              <input type="text" className={INP} placeholder="Full name" value={form.buyerName} onChange={(e) => setField('buyerName', e.target.value)} />
+            {submitAttempted && <FieldError message={fieldErrors.businessName} />}
+            </div>
+            <div>
+            <Field label="Contact Person *" icon="person">
+              <input type="text" className={`${INP} ${submitAttempted && fieldErrors.buyerName ? INP_ERROR : ''}`} placeholder="Full name" value={form.buyerName} onChange={(e) => setField('buyerName', e.target.value)} />
             </Field>
+            {submitAttempted && <FieldError message={fieldErrors.buyerName} />}
+            </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Phone Number(s)</label>
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Phone Number(s) *</label>
               <div className="space-y-2">
                 {phones.map((p, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <div className="relative flex-1">
                       <span className="material-symbols-outlined pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-neutral-400">call</span>
-                      <input type="tel" className={`${INP} pl-9`} placeholder="10-digit mobile" maxLength={10}
+                      <input type="tel" className={`${INP} pl-9 ${submitAttempted && fieldErrors.phones ? INP_ERROR : ''}`} placeholder="10-digit mobile" maxLength={10}
                         value={p} onChange={(e) => setPhone(i, e.target.value)} />
                     </div>
                     {phones.length > 1 && (
@@ -227,14 +282,21 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
                   + Add another number
                 </button>
               </div>
+              {submitAttempted && <FieldError message={fieldErrors.phones} />}
             </div>
 
+            <div>
             <Field label="Email (optional)" icon="mail">
-              <input type="email" className={INP} placeholder="vendor@company.com" value={form.email} onChange={(e) => setField('email', e.target.value)} />
+              <input type="email" className={`${INP} ${submitAttempted && fieldErrors.email ? INP_ERROR : ''}`} placeholder="vendor@company.com" value={form.email} onChange={(e) => setField('email', e.target.value)} />
             </Field>
-            <Field label="Registered Address" icon="location_on">
-              <input type="text" className={INP} placeholder="Full registered address" value={form.location} onChange={(e) => setField('location', e.target.value)} />
+            {submitAttempted && <FieldError message={fieldErrors.email} />}
+            </div>
+            <div>
+            <Field label="Registered Address *" icon="location_on">
+              <input type="text" className={`${INP} ${submitAttempted && fieldErrors.location ? INP_ERROR : ''}`} placeholder="Full registered address" value={form.location} onChange={(e) => setField('location', e.target.value)} />
             </Field>
+            {submitAttempted && <FieldError message={fieldErrors.location} />}
+            </div>
             <Field label="GST Number" icon="badge">
               <input type="text" className={`${INP} uppercase`} placeholder="e.g. 22AAAAA0000A1Z5" value={form.gstNumber} onChange={(e) => setField('gstNumber', e.target.value.toUpperCase())} />
             </Field>
@@ -325,23 +387,16 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
                 <p className="text-xs font-bold text-neutral-600 dark:text-neutral-300">
                   <span className="text-sky-500">Click to upload</span> or drag & drop
                 </p>
-                <p className="text-[11px] text-neutral-400">PNG, JPG, PDF — up to 10MB each</p>
+                <p className="text-[11px] text-neutral-400">JPG / JPEG photos only — up to 10MB each</p>
               </label>
-              <input id="vendor-file-upload" type="file" multiple accept="image/*,.pdf" className="hidden" onChange={handleFileChange} />
+              <input id="vendor-file-upload" type="file" multiple accept="image/jpeg" className="hidden" onChange={handleFileChange} />
 
               {previews.length > 0 && (
                 <>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {previews.map((p, i) => (
                       <div key={i} className="group relative overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800">
-                        {p.type.startsWith('image/') ? (
-                          <img src={p.url} alt={p.name} className="h-20 w-full object-cover" />
-                        ) : (
-                          <div className="flex h-20 w-full flex-col items-center justify-center bg-indigo-50">
-                            <span className="material-symbols-outlined text-indigo-400">description</span>
-                            <span className="mt-1 text-[10px] font-bold text-indigo-500">PDF</span>
-                          </div>
-                        )}
+                        <img src={p.url} alt={p.name} className="h-20 w-full object-cover" />
                         <div className="border-t border-neutral-100 bg-white px-2 py-1.5 dark:border-neutral-800 dark:bg-neutral-950">
                           <p className="truncate text-[10px] text-neutral-500">{p.name}</p>
                           <p className="text-[10px] text-neutral-400">{(p.size / 1024).toFixed(0)} KB</p>
@@ -356,21 +411,6 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, onSu
                   <p className="text-xs font-bold text-emerald-600">✓ {previews.length} file(s) ready</p>
                 </>
               )}
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Quality Rating</label>
-              <div className="flex items-center gap-1.5">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button key={star} type="button" onClick={() => setField('qualityRating', star)} className="focus:outline-none">
-                    <span className={`material-symbols-outlined text-[28px] transition ${star <= form.qualityRating ? 'text-amber-400' : 'text-neutral-200'}`}
-                      style={star <= form.qualityRating ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                      star
-                    </span>
-                  </button>
-                ))}
-                {form.qualityRating > 0 && <span className="ml-1 text-sm font-black text-amber-500">{form.qualityRating}/5</span>}
-              </div>
             </div>
           </div>
         </SectionCard>

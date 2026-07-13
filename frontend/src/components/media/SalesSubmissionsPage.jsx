@@ -43,7 +43,7 @@ const EditSubmissionModal = ({ submission, saving, onClose, onSave }) => {
     leadTime: submission.leadTime || '',
     paymentTerms: submission.paymentTerms || '',
     brandSection: submission.brandSection || '',
-    onlineCollaboration: submission.onlineCollaboration || '',
+    onlineCollaboration: submission.onlineCollaboration || '',    
     notes: submission.notes || '',
   }));
   const [phones, setPhones] = useState(() =>

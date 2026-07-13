@@ -9,6 +9,16 @@ export const ceoApi = {
   getDepartmentAnalytics: (token) => apiClient.get('/api/dept/ceo/departments-analytics', token),
   getProjectAnalytics: (token) => apiClient.get('/api/dept/ceo/projects-analytics', token),
   getNotificationAnalytics: (token) => apiClient.get('/api/dept/ceo/notifications-analytics', token),
+  getSalesQueryAnalytics: (token, params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        searchParams.set(key, String(value));
+      }
+    });
+    const query = searchParams.toString();
+    return apiClient.get(`/api/dept/ceo/sales-query-analytics${query ? `?${query}` : ''}`, token);
+  },
   getReports: (token, params = {}) => {
     const searchParams = new URLSearchParams();
     Object.entries(params || {}).forEach(([key, value]) => {

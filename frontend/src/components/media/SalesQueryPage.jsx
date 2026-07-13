@@ -97,7 +97,7 @@ const SalesQueryPage = () => {
 
   const primaryProject = projects[0] || null;
   const ermsProject = projects.find((item) => item.code === 'ERMS') || null;
-  const formProject = category?.id === 'vendor' ? (ermsProject || primaryProject) : primaryProject;
+  const formProject = ermsProject || primaryProject;
 
   return (
     <SalesPortalLayout activeId="query">
@@ -180,12 +180,13 @@ const SalesQueryPage = () => {
             {formProject && category && (
               <div className="border-t border-neutral-100 pt-5 dark:border-neutral-800">
                 <p className="mb-3 text-sm font-bold text-neutral-800 dark:text-neutral-100">3. Fill the questionnaire</p>
-                {category.id === 'vendor' && projects.some((item) => item.code === 'ERMS') ? (
+                {projects.some((item) => item.code === 'ERMS') ? (
                   <VendorQuestionnaireForm
                     token={token}
                     project={formProject}
                     projects={projects}
                     category={category}
+                    userId={user?._id}
                     onSubmitted={() => {
                       setSubmitted(true);
                       loadQueries();
@@ -197,7 +198,8 @@ const SalesQueryPage = () => {
                     project={formProject}
                     projects={projects}
                     category={category}
-                    formType={category.id === 'vendor' ? 'vendor' : 'generic'}
+                    formType="generic"
+                    userId={user?._id}
                     onSubmitted={() => {
                       setSubmitted(true);
                       loadQueries();

@@ -1,14 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { departmentApi } from '../../services/departments';
 import { fallbackSalesAssessmentQuestions } from './salesAssessmentQuestions';
+import { loadDraft, clearDraft, useDraftAutosave, relativeSavedLabel } from './useDraftAutosave';
 
-const GenericQuestionForm = ({ token, project, projects = [], category, formType = 'generic', onSubmitted }) => {
-  const [form, setForm] = useState({ buyerName: '', businessName: '', phone: '', email: '', location: '', notes: '' });
+const emptyGenericForm = { buyerName: '', businessName: '', phone: '', email: '', location: '', notes: '' };
+
+const GenericQuestionForm = ({ token, project, projects = [], category, formType = 'generic', userId, onSubmitted }) => {
+  const draftKey = `salesQueryDraft:generic:${userId || 'anon'}:${project.code}:${category.id}`;
+  const draft = useMemo(() => loadDraft(draftKey), [draftKey]);
+
+  const [form, setForm] = useState(() => ({ ...emptyGenericForm, ...(draft?.value?.form || {}) }));
   const [questions, setQuestions] = useState([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState(() => draft?.value?.answers || {});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [draftDismissed, setDraftDismissed] = useState(false);
+
+  const savedAt = useDraftAutosave(draftKey, { form, answers }, !submitting);
 
   useEffect(() => {
     let alive = true;
@@ -57,6 +66,7 @@ const GenericQuestionForm = ({ token, project, projects = [], category, formType
       fd.append('answers', JSON.stringify(questions.map((q) => ({ question: q.question, answer: answers[q._id] }))));
 
       await departmentApi.createSalesQuery(token, fd);
+      clearDraft(draftKey);
       onSubmitted();
     } catch (err) {
       setSubmitError(err?.message || 'Failed to submit questionnaire.');
@@ -65,12 +75,28 @@ const GenericQuestionForm = ({ token, project, projects = [], category, formType
     }
   };
 
+  const discardDraft = () => {
+    clearDraft(draftKey);
+    setForm(emptyGenericForm);
+    setAnswers({});
+    setDraftDismissed(true);
+  };
+
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
           {project.name} &middot; {category.label}
         </p>
+        {!draftDismissed && savedAt && (
+          <div className="flex items-center gap-2 text-[11px] text-neutral-400 dark:text-neutral-500">
+            <span className="material-symbols-outlined text-[14px]">cloud_done</span>
+            {relativeSavedLabel(savedAt)}
+            <button type="button" onClick={discardDraft} className="font-bold text-rose-500 hover:underline">
+              Discard draft
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2">

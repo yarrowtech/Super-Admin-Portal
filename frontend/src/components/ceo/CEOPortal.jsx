@@ -9,6 +9,7 @@ const DepartmentStats = lazy(() => import('./DepartmentStats'));
 const CEOProjectUpdates = lazy(() => import('./CEOProjectUpdates'));
 const CEORevenueAnalytics = lazy(() => import('./CEORevenueAnalytics'));
 const CEOProductInsights = lazy(() => import('./CEOProductInsights'));
+const CEOSalesQueryAnalyticsPage = lazy(() => import('./CEOSalesQueryAnalyticsPage'));
 const CEONotifications = lazy(() => import('./CEONotifications'));
 const CEOLegalApproval = lazy(() => import('./CEOLegalApproval'));
 const CEOSettingsPage = lazy(() => import('../shared/PortalSettingsPage').then(m => ({ default: () => <m.default portalLabel="CEO" accentColor="#ef4444" /> })));
@@ -22,6 +23,7 @@ const ceoMobileItems = [
   { key: 'productInsights', label: 'Product Insights', icon: 'insights' },
   { key: 'employees', label: 'Employee Analytics', icon: 'groups' },
   { key: 'departmentStats', label: 'Department Insights', icon: 'monitoring' },
+  { key: 'salesQueryAnalytics', label: 'Sales Query Analytics', icon: 'query_stats' },
   { key: 'reports', label: 'Reports', icon: 'summarize' },
   { key: 'projectUpdates', label: 'Project Updates', icon: 'update' },
   { key: 'legalApproval', label: 'Legal Approval', icon: 'gavel' },
@@ -61,6 +63,8 @@ const CEOPortal = () => {
         return <CEOChatPage />;
       case 'departmentStats':
         return <DepartmentStats />;
+      case 'salesQueryAnalytics':
+        return <CEOSalesQueryAnalyticsPage />;
       case 'projectUpdates':
         return <CEOProjectUpdates />;
       case 'notifications':

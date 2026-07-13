@@ -20,6 +20,7 @@ const menuItems = [
   { key: 'productInsights', label: 'Product Insights',    icon: 'insights' },
   { key: 'employees',       label: 'Employee Analytics',  icon: 'groups' },
   { key: 'departmentStats', label: 'Department Insights', icon: 'bar_chart' },
+  { key: 'salesQueryAnalytics', label: 'Sales Query Analytics', icon: 'query_stats' },
   { key: 'reports',         label: 'Reports',             icon: 'summarize' },
   { key: 'projectUpdates',  label: 'Project Updates',     icon: 'update' },
   { key: 'legalApproval',   label: 'Legal Approval',      icon: 'gavel' },

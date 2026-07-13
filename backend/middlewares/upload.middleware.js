@@ -30,7 +30,26 @@ const upload = multer({
 const uploadSingle = (fieldName = 'file') => upload.single(fieldName);
 const uploadMany = (fieldName = 'files', maxCount = 5) => upload.array(fieldName, maxCount);
 
+const jpegOnlyUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_FILE_SIZE_BYTES,
+    files: 10
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'image/jpeg') {
+      const err = new Error('Only JPG/JPEG photos are allowed');
+      err.statusCode = 400;
+      return cb(err);
+    }
+    return cb(null, true);
+  }
+});
+
+const uploadJpegImages = (fieldName = 'images', maxCount = 8) => jpegOnlyUpload.array(fieldName, maxCount);
+
 module.exports = {
   uploadSingle,
-  uploadMany
+  uploadMany,
+  uploadJpegImages
 };

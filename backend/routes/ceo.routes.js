@@ -4,6 +4,7 @@ const router = express.Router();
 const ceoController = require('../controllers/ceo/ceoDashboard.controller');
 const departmentStatsController = require('../controllers/ceo/departmentStats.controller');
 const ceoChatController = require('../controllers/ceo/ceoChat.controller');
+const ceoSalesAnalyticsController = require('../controllers/ceo/ceoSalesAnalytics.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { ROLES } = require('../config/roles');
 
@@ -21,6 +22,7 @@ router.get('/employees-analytics', ceoController.getEmployeeAnalytics);
 router.get('/departments-analytics', ceoController.getDepartmentAnalytics);
 router.get('/projects-analytics', ceoController.getProjectAnalytics);
 router.get('/notifications-analytics', ceoController.getNotificationAnalytics);
+router.get('/sales-query-analytics', ceoSalesAnalyticsController.getSalesQueryAnalytics);
 // Alias analytics endpoints for standardized API contract
 router.get('/employees', ceoController.getEmployeeAnalytics);
 router.get('/departments', ceoController.getDepartmentAnalytics);

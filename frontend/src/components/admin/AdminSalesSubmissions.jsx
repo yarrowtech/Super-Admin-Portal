@@ -30,7 +30,7 @@ const csvEscape = (value) => {
 
 const buildCsv = (rows) => {
   const headers = [
-    'Business / Vendor Name', 'Contact Person', 'Phone', 'GST Number', 'Email', 'Location',
+    'Business / Vendor Name', 'Contact Person', 'Phone', 'GST Number', 'Website', 'Email', 'Location',
     'Product Name', 'Buyer Category', 'Product Category', 'Quality Rating',
     'MOQ', 'Price Range', 'Lead Time', 'Payment Terms', 'Brand Name(s)', 'Brand Section',
     'Online Collaboration', 'Notes', 'Submitted By', 'Submitted On', 'Assessment Answers', 'Image URLs',
@@ -40,7 +40,7 @@ const buildCsv = (rows) => {
     const answers = (item.answers || []).map((a) => `${a.question}: ${a.answer}`).join(' | ');
     const images = (item.images || []).map((img) => img.url).join(' | ');
     return [
-      item.businessName, item.buyerName, phoneDisplay(item), item.gstNumber, item.email, item.location,
+      item.businessName, item.buyerName, phoneDisplay(item), item.gstNumber, item.website, item.email, item.location,
       projectDisplay(item), item.buyerCategory, productCategoryDisplay(item), item.qualityRating,
       item.moq, item.priceRange, item.leadTime, item.paymentTerms, brandNamesDisplay(item), item.brandSection,
       item.onlineCollaboration, item.notes, submitterName(item), formatDate(item.createdAt), answers, images,
@@ -106,6 +106,7 @@ const SubmissionModal = ({ item, onClose }) => {
             <DetailRow label="Product Name" value={projectDisplay(item)} />
             <DetailRow label="Phone" value={phoneDisplay(item)} />
             <DetailRow label="GST Number" value={item.gstNumber} />
+            <DetailRow label="Website" value={item.website} />
             <DetailRow label="Email" value={item.email} />
             <DetailRow label="Location" value={item.location} />
             <DetailRow label="City" value={item.city} />
@@ -151,6 +152,7 @@ const BASE_EDIT_FIELDS = [
 
 const VENDOR_EDIT_FIELDS = [
   { key: 'gstNumber', label: 'GST Number' },
+  { key: 'website', label: 'Website' },
   { key: 'moq', label: 'MOQ' },
   { key: 'priceRange', label: 'Price Range' },
   { key: 'leadTime', label: 'Lead Time' },
@@ -170,6 +172,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
     location: item.location || '',
     buyerCategory: item.buyerCategory || '',
     gstNumber: item.gstNumber || '',
+    website: item.website || '',
     qualityRating: item.qualityRating || 0,
     moq: item.moq || '',
     priceRange: item.priceRange || '',

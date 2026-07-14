@@ -60,6 +60,7 @@ export const SubmissionDetailModal = ({ submission, onClose }) => {
             {vendorForm && (
               <>
                 <DetailRow label="GST Number" value={submission.gstNumber} />
+                <DetailRow label="Website" value={submission.website} />
                 <DetailRow label="Product Category" value={productCategoryDisplay(submission)} />
                 <DetailRow label="Quality Rating" value={submission.qualityRating ? `${submission.qualityRating}/5` : ''} />
                 <DetailRow label="MOQ" value={submission.moq} />

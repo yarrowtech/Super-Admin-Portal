@@ -3,6 +3,7 @@ import { departmentApi } from '../../services/departments';
 import { fallbackSalesAssessmentQuestions } from './salesAssessmentQuestions';
 import { PRODUCT_CATEGORY_GROUPS, formatProductCategorySelection } from './productCategoryOptions';
 import { loadDraft, clearDraft, useDraftAutosave, relativeSavedLabel } from './useDraftAutosave';
+import { INP, INP_ERROR, Field, FieldError, OptionPill, SectionCard, DraftBadge, SubmitBar } from './salesFormUi';
 
 const SECTIONS = [
   { id: 'general', label: 'General Information', icon: 'apartment', color: '#6366f1' },
@@ -12,64 +13,24 @@ const SECTIONS = [
   { id: 'assessment', label: 'Sales Assessment', icon: 'quiz', color: '#ec4899' },
 ];
 
-const PAYMENT_TERMS = ['ADVANCE', 'PDC', 'CREDIT 45 - 60 DAYS'];
+const PAYMENT_TERMS = [
+  { term: 'ADVANCE', discount: 30, icon: 'bolt', hint: 'Full payment before dispatch' },
+  { term: 'PDC', discount: 15, icon: 'receipt_long', hint: 'Post-dated cheque' },
+  { term: 'CREDIT 45 - 60 DAYS', discount: 5, icon: 'calendar_month', hint: 'Credit period of 45-60 days' },
+];
 const BRAND_SECTIONS = ['CITI MART', 'RAPHAAA', 'NP', 'MIX'];
 
-const INP = 'block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-[var(--portal-accent)]/40 dark:border-neutral-800 dark:bg-neutral-950';
-const INP_ERROR = 'border-rose-400 focus:ring-2 focus:ring-rose-300/50 dark:border-rose-500';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const FieldError = ({ message }) => (!message ? null : (
-  <p className="text-[11px] font-semibold text-rose-500">{message}</p>
-));
-
-const Field = ({ label, icon, children }) => (
-  <div className="space-y-1.5">
-    <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{label}</label>
-    <div className="relative">
-      {icon && (
-        <span className="material-symbols-outlined pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-neutral-400">
-          {icon}
-        </span>
-      )}
-      {React.cloneElement(children, { className: `${children.props.className || ''} ${icon ? 'pl-9' : ''}` })}
-    </div>
-  </div>
-);
-
-const OptionPill = ({ active, color, onClick, children, wide }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${wide ? 'flex-1 text-center' : ''} ${
-      active
-        ? 'border-transparent text-white shadow-sm'
-        : 'border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300'
-    }`}
-    style={active ? { backgroundColor: color } : {}}
-  >
-    {children}
-  </button>
-);
-
-const SectionCard = ({ section, children }) => (
-  <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
-    <div className="mb-4 flex items-center gap-2">
-      <span className="material-symbols-outlined text-[20px]" style={{ color: section.color }}>{section.icon}</span>
-      <h3 className="text-sm font-black text-neutral-900 dark:text-neutral-100">{section.label}</h3>
-    </div>
-    {children}
-  </div>
-);
+const TOTAL_REQUIRED_CHECKS = 9;
 
 const emptyVendorForm = {
-  businessName: '', buyerName: '', gstNumber: '', email: '', location: '', city: '', state: '',
+  businessName: '', buyerName: '', gstNumber: '', email: '', location: '', city: '', state: '', website: '',
   productCategories: [],
-  moq: '', priceRange: '', leadTime: '', paymentTerms: '',
+  moq: '', priceRange: '', leadTime: '', paymentTerms: '', paymentDiscount: '',
   brandSection: [], onlineCollaboration: '', notes: '',
 };
 
-const VendorQuestionnaireForm = ({ token, project, projects = [], category, userId, onSubmitted }) => {
+const VendorQuestionnaireForm = ({ token, project, projects = [], category, userId, onSubmitted, onProgress }) => {
   const draftKey = `salesQueryDraft:vendor:${userId || 'anon'}:${project.code}:${category.id}`;
   const draft = useMemo(() => loadDraft(draftKey), [draftKey]);
 
@@ -190,6 +151,39 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
     return missing;
   }, [fieldErrors, images.length, form.moq, allAnswered]);
 
+  const completedChecks = Math.max(0, TOTAL_REQUIRED_CHECKS - missingFields.length);
+
+  const overallFillPct = useMemo(() => {
+    const fixedFieldsFilled = [
+      form.businessName.trim(),
+      form.buyerName.trim(),
+      phones.some((p) => p.trim()),
+      form.email.trim(),
+      form.location.trim(),
+      form.city.trim(),
+      form.state.trim(),
+      form.gstNumber.trim(),
+      form.website.trim(),
+      brandNames.some((b) => b.trim()),
+      form.productCategories.length > 0,
+      images.length > 0,
+      form.moq.trim(),
+      form.priceRange.trim(),
+      form.leadTime.trim(),
+      Boolean(form.paymentTerms),
+      form.brandSection.length > 0,
+      Boolean(form.onlineCollaboration),
+      form.notes.trim(),
+    ].filter(Boolean).length;
+    const totalFields = 19 + questions.length;
+    const filledFields = fixedFieldsFilled + answeredCount;
+    return totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
+  }, [form, phones, brandNames, images.length, questions.length, answeredCount]);
+
+  useEffect(() => {
+    onProgress?.(overallFillPct);
+  }, [overallFillPct, onProgress]);
+
   const handleSubmit = async () => {
     setSubmitAttempted(true);
     if (missingFields.length > 0) {
@@ -211,12 +205,14 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
       fd.append('location', form.location.trim());
       fd.append('city', form.city.trim());
       fd.append('state', form.state.trim());
+      fd.append('website', form.website.trim());
       fd.append('brandNames', JSON.stringify(brandNames.map((b) => b.trim()).filter(Boolean)));
       fd.append('productCategories', JSON.stringify(form.productCategories));
       fd.append('moq', form.moq.trim());
       fd.append('priceRange', form.priceRange.trim());
       fd.append('leadTime', form.leadTime.trim());
-      fd.append('paymentTerms', form.paymentTerms);
+      const paymentDiscount = form.paymentDiscount.trim();
+      fd.append('paymentTerms', form.paymentTerms && paymentDiscount ? `${form.paymentTerms} (${paymentDiscount}% discount)` : form.paymentTerms);
       fd.append('brandSection', JSON.stringify(form.brandSection));
       fd.append('onlineCollaboration', form.onlineCollaboration);
       fd.append('notes', form.notes.trim());
@@ -244,19 +240,30 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
-          {project.name} &middot; {category.label}
-        </p>
-        {!draftDismissed && savedAt && (
-          <div className="flex items-center gap-2 text-[11px] text-neutral-400 dark:text-neutral-500">
-            <span className="material-symbols-outlined text-[14px]">cloud_done</span>
-            {relativeSavedLabel(savedAt)}
-            <button type="button" onClick={discardDraft} className="font-bold text-rose-500 hover:underline">
-              Discard draft
-            </button>
+      <div className="mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--portal-accent-soft)]">
+              <span className="material-symbols-outlined text-[20px] text-[var(--portal-accent)]">local_shipping</span>
+            </span>
+            <div>
+              <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">
+                {project.name} <span className="text-neutral-300 dark:text-neutral-700">&middot;</span> {category.label}
+              </p>
+              <p className="text-[11px] font-semibold text-neutral-400">Vendor onboarding questionnaire</p>
+            </div>
           </div>
-        )}
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-black text-[var(--portal-accent)]">{overallFillPct}% filled</span>
+            <DraftBadge visible={!draftDismissed} savedAt={savedAt} relativeSavedLabel={relativeSavedLabel} onDiscard={discardDraft} />
+          </div>
+        </div>
+        <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800">
+          <div
+            className="h-full rounded-r-full bg-[var(--portal-accent)] transition-all duration-500 ease-out"
+            style={{ width: `${overallFillPct}%` }}
+          />
+        </div>
       </div>
 
       <div className="space-y-5">
@@ -301,7 +308,7 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
             </div>
 
             <div>
-            <Field label="Email (optional)" icon="mail">
+            <Field label="Email" icon="mail">
               <input type="email" className={`${INP} ${submitAttempted && fieldErrors.email ? INP_ERROR : ''}`} placeholder="vendor@company.com" value={form.email} onChange={(e) => setField('email', e.target.value)} />
             </Field>
             {submitAttempted && <FieldError message={fieldErrors.email} />}
@@ -326,6 +333,9 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
             </div>
             <Field label="GST Number" icon="badge">
               <input type="text" className={`${INP} uppercase`} placeholder="e.g. 22AAAAA0000A1Z5" value={form.gstNumber} onChange={(e) => setField('gstNumber', e.target.value.toUpperCase())} />
+            </Field>
+            <Field label="Company Website" icon="language">
+              <input type="url" className={INP} placeholder="https://www.company.com" value={form.website} onChange={(e) => setField('website', e.target.value)} />
             </Field>
 
             <div className="space-y-1.5 sm:col-span-2">
@@ -462,12 +472,40 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
             <div className="space-y-2">
               <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Payment Terms</label>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {PAYMENT_TERMS.map((term) => (
-                  <OptionPill key={term} active={form.paymentTerms === term} color={SECTIONS[2].color} onClick={() => setField('paymentTerms', term)}>
-                    {term}
-                  </OptionPill>
-                ))}
+                {PAYMENT_TERMS.map(({ term, discount, icon, hint }) => {
+                  const active = form.paymentTerms === term;
+                  return (
+                    <button
+                      key={term}
+                      type="button"
+                      title={hint}
+                      onClick={() => setForm((prev) => ({ ...prev, paymentTerms: term, paymentDiscount: String(discount) }))}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        active
+                          ? 'border-transparent text-white shadow-sm'
+                          : 'border-neutral-200 bg-neutral-50 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950'
+                      }`}
+                      style={active ? { backgroundColor: SECTIONS[2].color } : {}}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`material-symbols-outlined text-[18px] ${active ? 'text-white' : 'text-neutral-400'}`}>{icon}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                          active ? 'bg-white/25 text-white' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                        }`}>
+                          {discount}% OFF
+                        </span>
+                      </div>
+                      <p className={`mt-2 text-xs font-black ${active ? 'text-white' : 'text-neutral-700 dark:text-neutral-200'}`}>{term}</p>
+                    </button>
+                  );
+                })}
               </div>
+              {form.paymentTerms && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                  <span className="material-symbols-outlined text-[16px]">percent</span>
+                  {form.paymentDiscount}% discount applies for {form.paymentTerms}
+                </div>
+              )}
             </div>
           </div>
         </SectionCard>
@@ -475,23 +513,74 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
         <SectionCard section={SECTIONS[3]}>
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Brand Section</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Brand Section</label>
+                <span className="text-[11px] font-semibold text-neutral-400">Select all that apply</span>
+              </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {BRAND_SECTIONS.map((brand) => (
-                  <OptionPill key={brand} active={form.brandSection.includes(brand)} color={SECTIONS[3].color} onClick={() => toggleBrandSection(brand)}>
-                    {brand}
-                  </OptionPill>
-                ))}
+                {BRAND_SECTIONS.map((brand) => {
+                  const active = form.brandSection.includes(brand);
+                  return (
+                    <button
+                      key={brand}
+                      type="button"
+                      onClick={() => toggleBrandSection(brand)}
+                      className={`relative flex items-center justify-center rounded-xl border px-3 py-3 text-xs font-black transition ${
+                        active
+                          ? 'border-transparent text-white shadow-sm'
+                          : 'border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300'
+                      }`}
+                      style={active ? { backgroundColor: SECTIONS[3].color } : {}}
+                    >
+                      {active && (
+                        <span className="material-symbols-outlined absolute right-1 top-1 text-[14px]">check_circle</span>
+                      )}
+                      {brand}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300">Online Collaboration</label>
-              <div className="flex gap-2">
-                {['YES', 'No'].map((opt) => (
-                  <OptionPill key={opt} active={form.onlineCollaboration === opt} color={SECTIONS[3].color} onClick={() => setField('onlineCollaboration', opt)} wide>
-                    {opt}
-                  </OptionPill>
-                ))}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { value: 'YES', label: 'Yes', hint: 'Open to online collaboration', icon: 'check_circle' },
+                  { value: 'No', label: 'No', hint: 'Not interested right now', icon: 'cancel' },
+                ].map(({ value, label, hint, icon }) => {
+                  const active = form.onlineCollaboration === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setField('onlineCollaboration', value)}
+                      className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left transition ${
+                        active
+                          ? 'shadow-sm'
+                          : 'border-neutral-200 bg-neutral-50 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950'
+                      }`}
+                      style={active ? { borderColor: SECTIONS[3].color, backgroundColor: `${SECTIONS[3].color}14` } : {}}
+                    >
+                      <span
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                          active ? 'text-white' : 'bg-neutral-200 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500'
+                        }`}
+                        style={active ? { backgroundColor: SECTIONS[3].color } : {}}
+                      >
+                        <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                      </span>
+                      <div className="min-w-0">
+                        <p
+                          className={`text-xs font-black ${active ? '' : 'text-neutral-700 dark:text-neutral-200'}`}
+                          style={active ? { color: SECTIONS[3].color } : {}}
+                        >
+                          {label}
+                        </p>
+                        <p className="truncate text-[10px] text-neutral-400">{hint}</p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -543,7 +632,7 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
               ))}
             </div>
           )}
-          <textarea placeholder="Additional notes (optional)" rows={3} className={`${INP} mt-4 resize-none`}
+          <textarea placeholder="Additional notes" rows={3} className={`${INP} mt-4 resize-none`}
             value={form.notes} onChange={(e) => setField('notes', e.target.value)} />
           <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{answeredCount}/{questions.length} questions answered</p>
         </SectionCard>
@@ -555,13 +644,13 @@ const VendorQuestionnaireForm = ({ token, project, projects = [], category, user
         </div>
       )}
 
-      <div className="mt-5 flex justify-end">
+      <SubmitBar hint={`${completedChecks}/${TOTAL_REQUIRED_CHECKS} required items complete`}>
         <button type="button" disabled={submitting} onClick={handleSubmit}
           className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
           {submitting && <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
           {submitting ? 'Submitting...' : 'Submit questionnaire'}
         </button>
-      </div>
+      </SubmitBar>
     </div>
   );
 };

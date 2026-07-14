@@ -20,7 +20,20 @@
       "Bash(tasklist)",
       "Bash(wmic process *)",
       "Bash(taskkill //F //PID 21224)",
-      "Bash(curl -s -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTA1NzhlODVhOWQzZTZlMzY3MDQxNTEiLCJlbWFpbCI6ImFkbWluQHRlc3QuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzgzNjIyNDgyLCJleHAiOjE3ODM2MjMwODIsImp0aSI6IjM0NDBhZmNiLWQ1ZjYtNGVmYi05YTM4LWM5NjVhYTI5NzA5ZSJ9.6FCVK0o7EHP0yZhn0wEJqY4jYHb9-oseDRCghkhfG38' http://localhost:5000/api/dept/media/advertisements/6a4fec6329c62c22ded8c5c0?projectId=69ea11291c903278f10ac3de)"
+      "Bash(curl -s -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTA1NzhlODVhOWQzZTZlMzY3MDQxNTEiLCJlbWFpbCI6ImFkbWluQHRlc3QuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzgzNjIyNDgyLCJleHAiOjE3ODM2MjMwODIsImp0aSI6IjM0NDBhZmNiLWQ1ZjYtNGVmYi05YTM4LWM5NjVhYTI5NzA5ZSJ9.6FCVK0o7EHP0yZhn0wEJqY4jYHb9-oseDRCghkhfG38' http://localhost:5000/api/dept/media/advertisements/6a4fec6329c62c22ded8c5c0?projectId=69ea11291c903278f10ac3de)",
+      "Bash(export NODE_PATH=\"/c/Users/SANTU/AppData/Local/npm-cache/_npx/361ceb562f3b3235/node_modules\")",
+      "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_query_page.js\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5000/api/health --max-time 3)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5001/api/health --max-time 3)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://super-admin-portal-1.onrender.com/api/health --max-time 8)",
+      "Bash(curl -s -w \"\\\\nHTTP:%{http_code}\\\\n\" https://super-admin-portal-1.onrender.com/api/health --max-time 8)",
+      "Bash(curl -s -w '\\\\nHTTP:%{http_code}\\\\n' -X POST https://super-admin-portal-1.onrender.com/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"sales@test.com\",\"password\":\"sales@test.com\"}' --max-time 10)",
+      "Bash(env)",
+      "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_query_page2.js\")",
+      "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_query_page3.js\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/ --max-time 3)",
+      "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_progress_ring.js\")",
+      "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_full_progress.js\")"
     ]
   }
 }

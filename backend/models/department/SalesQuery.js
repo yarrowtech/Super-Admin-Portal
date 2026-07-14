@@ -44,6 +44,7 @@ const salesQuerySchema = new mongoose.Schema(
     location: { type: String, trim: true },
     city: { type: String, trim: true },
     state: { type: String, trim: true },
+    website: { type: String, trim: true },
     businessType: { type: String, trim: true },
     productCategory: { type: String, trim: true },
     productCategories: { type: [String], default: [] },

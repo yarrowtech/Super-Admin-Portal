@@ -6,7 +6,7 @@ import { departmentApi } from '../../services/departments';
 import { QK } from '../../utils/queryKeys';
 import { findCanonicalProject } from '../../config/projectNames';
 import PortalHeader from '../common/PortalHeader';
-import AdminProjectsPage from '../admin/AdminProjectsPage';
+import MediaProjectList from './MediaProjectList';
 import CampaignLifecycleStepper from './CampaignLifecycleStepper';
 import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
 import CampaignTaskBoard from './CampaignTaskBoard';
@@ -19,7 +19,7 @@ import MarketingReportPanel from './MarketingReportPanel';
 
 const MEDIA_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'campaign' },
-  { id: 'project-hub', label: 'Projects', icon: 'folder_copy' },
+  { id: 'projects', label: 'Projects', icon: 'folder_copy' },
   { id: 'assets', label: 'Assets', icon: 'perm_media' },
   { id: 'brand', label: 'Brand', icon: 'palette' },
   { id: 'content', label: 'Content', icon: 'edit_note' },
@@ -63,7 +63,7 @@ const MODULE_FOR_SECTION = {
 
 const META = {
   dashboard: ['Media Command Center', 'Executive overview of media production, campaigns, approvals, and delivery', 'campaign'],
-  'project-hub': ['Project Hub', 'Dedicated workspace for shared projects and EFNBMMS workstreams', 'folder_copy'],
+  projects: ['Projects', 'Click a project to open its full media & marketing plan', 'folder_copy'],
   assets: ['Digital Asset Management', 'Searchable, versioned asset vault', 'perm_media'],
   brand: ['Brand Management', 'Guidelines, templates, and compliance tracking', 'palette'],
   content: ['Content Studio', 'Blogs, copy, web content, and editorial workflow', 'edit_note'],
@@ -640,7 +640,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   // with none selected — purely local (reads already-fetched `projects`), so it
   // doesn't reintroduce a network round-trip on every section switch.
   useEffect(() => {
-    if (activeSection === 'dashboard' || activeSection === 'project-hub') return;
+    if (activeSection === 'dashboard' || activeSection === 'projects') return;
     const storedProjectId = String(effectiveProjectId || '');
     const hasRealProjectId = Boolean(storedProjectId && !storedProjectId.startsWith('virtual-'));
     if (hasRealProjectId) return;
@@ -2062,7 +2062,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
-  const renderProjectHub = () => <AdminProjectsPage />;
+  const renderProjectHub = () => <MediaProjectList projects={projectOptions} />;
 
   const renderGeneric = (section) => {
     const meta = META[section] || META.dashboard;
@@ -2328,7 +2328,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
   const renderSection = () => {
     if (activeSection === 'dashboard') return renderDashboard();
-    if (activeSection === 'project-hub') return renderProjectHub();
+    if (activeSection === 'projects') return renderProjectHub();
     if (activeSection === 'assets') return renderCreativeSection('assets', assets, [
       { key: 'title', label: 'Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || item.moduleType || 'Asset'}</p></div> },
       { key: 'assetType', label: 'Type', render: (item) => item?.metadata?.assetType || item.category || '-' },
@@ -2751,7 +2751,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
-  const isProjectHub = activeSection === 'project-hub';
+  const isProjectHub = activeSection === 'projects';
 
   return (
     <main className="portal-page">
@@ -2829,7 +2829,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                 </button>
               ) : null}
             </div>
-            {activeSection !== 'project-hub' ? (
+            {activeSection !== 'projects' ? (
               <div className="rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Project scope</p>

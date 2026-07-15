@@ -996,54 +996,6 @@ exports.uploadAvatar = async (req, res) => {
 };
 
 /**
- * @route   PUT /api/auth/change-password
- * @desc    Change user password
- * @access  Private (all authenticated users)
- */
-exports.changePassword = async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    const user = await User.findById(req.user.id).select('+password');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found',
-        code: 'USER_NOT_FOUND'
-      });
-    }
-
-    // Verify current password
-    const isMatch = await user.comparePassword(currentPassword);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        error: 'Current password is incorrect',
-        code: 'INCORRECT_PASSWORD'
-      });
-    }
-
-    // Update password
-    user.password = newPassword;
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Password changed successfully'
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Change password error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to change password',
-      code: 'CHANGE_PASSWORD_ERROR'
-    });
-  }
-};
-
-/**
  * @route   POST /api/auth/logout
  * @desc    Logout user (client-side token removal)
  * @access  Private
@@ -1081,6 +1033,42 @@ exports.logout = async (req, res) => {
       success: false,
       error: 'Logout failed',
       code: 'LOGOUT_ERROR'
+    });
+  }
+};
+
+/**
+ * @route   POST /api/auth/logout-all
+ * @desc    Revoke every other active session for the current user (every
+ *          other browser/device), leaving the session that made this
+ *          request untouched. Self-service equivalent of the Super Admin
+ *          "Revoke all sessions" action, scoped to the caller's own account.
+ * @access  Private
+ */
+exports.logoutAllOtherSessions = async (req, res) => {
+  try {
+    const filter = { user: req.user.id, revokedAt: null };
+    if (req.authTokenJti) {
+      filter.jti = { $ne: req.authTokenJti };
+    }
+
+    const { modifiedCount } = await Session.updateMany(filter, { revokedAt: new Date() });
+
+    await writeAuthActivity(req, 'auth.logout_all_other_sessions', { _id: req.user.id }, { revokedCount: modifiedCount });
+
+    res.status(200).json({
+      success: true,
+      message: modifiedCount
+        ? `Logged out of ${modifiedCount} other device${modifiedCount === 1 ? '' : 's'}.`
+        : 'No other active sessions found.',
+      data: { revokedCount: modifiedCount }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Logout all sessions error');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to log out other sessions',
+      code: 'LOGOUT_ALL_ERROR'
     });
   }
 };

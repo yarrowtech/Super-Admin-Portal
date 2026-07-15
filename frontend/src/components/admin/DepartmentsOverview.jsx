@@ -59,7 +59,7 @@ const departments = [
     name: 'Media',
     icon: 'perm_media',
     description: 'Centralize branding, promotions, advertising, marketing materials, and communication.',
-    route: '/media/dashboard?section=project-hub',
+    route: '/media/dashboard/projects',
     badge: 'MEDIA ON & OFFLINE',
     teams: ['Branding Officer', 'Marketing', 'PR', 'Sales', 'FAQs', 'Graphics'],
   },

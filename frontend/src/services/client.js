@@ -123,10 +123,20 @@ const parseResponse = async (res, requestId) => {
       url: res.url,
       data,
     }, 'API request failed');
-    const error = new Error(data?.error || data?.message || `HTTP ${res.status}: ${res.statusText}`);
+    // express-validator's `validate` middleware returns a flat "Validation failed"
+    // top-level message plus a per-field `errors` array — surface the actual
+    // field-level reason instead of the generic banner text wherever it exists.
+    const fieldErrors = Array.isArray(data?.errors) ? data.errors : [];
+    const fieldMessage = fieldErrors
+      .map((item) => (item?.field ? `${item.field}: ${item.message || 'invalid'}` : item?.message))
+      .filter(Boolean)
+      .join('; ');
+
+    const error = new Error(fieldMessage || data?.error || data?.message || `HTTP ${res.status}: ${res.statusText}`);
     error.status = res.status;
     error.code = data?.code;
     error.details = data?.details;
+    error.fieldErrors = fieldErrors;
     error.userRole = data?.userRole;
     error.requiredRoles = data?.requiredRoles;
     throw error;

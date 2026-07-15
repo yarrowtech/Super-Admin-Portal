@@ -12,7 +12,7 @@ const GROUPS = [
   { id: 'channels', label: 'Channels', icon: 'public', sectionIds: ['advertisements', 'seo', 'website', 'testimonials', 'case-studies'] },
   { id: 'governance', label: 'Governance', icon: 'fact_check', sectionIds: ['approvals', 'reporting', 'audit'] },
 ];
-const STANDALONE_IDS = new Set(['dashboard', 'project-hub']);
+const STANDALONE_IDS = new Set(['dashboard', 'projects']);
 
 const buildGroupedItems = (sections = []) => {
   const byId = new Map(sections.map((section) => [section.id, section]));

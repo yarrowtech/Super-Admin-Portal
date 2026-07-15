@@ -46,6 +46,9 @@ const Msg = ({ type, text }) => !text ? null : (
     {text}
   </div>
 );
+const FieldError = ({ message }) => (!message ? null : (
+  <p className="mt-1 text-[11px] font-semibold text-rose-500">{message}</p>
+));
 
 // ─── Main component ────────────────────────────────────────────────────────────
 // portalLabel  — display name e.g. "HR", "Manager", "Employee"
@@ -61,6 +64,8 @@ const PortalSettingsPage = ({ portalLabel = 'Portal', accentColor = '#6366f1' })
     firstName: '', lastName: '', email: '', phone: '', timezone: 'Asia/Kolkata', language: 'English',
   });
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwFieldErrors, setPwFieldErrors] = useState({});
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState({
     emailAssignments: true, emailUpdates: true, emailAlerts: true, emailSystem: false,
   });
@@ -123,14 +128,16 @@ const PortalSettingsPage = ({ portalLabel = 'Portal', accentColor = '#6366f1' })
 
   const changePassword = async () => {
     setMsg({ type: '', text: '' });
-    if (!pwForm.current || !pwForm.next || !pwForm.confirm) {
-      setMsg({ type: 'err', text: 'All fields are required.' }); return;
-    }
-    if (pwForm.next !== pwForm.confirm) {
-      setMsg({ type: 'err', text: 'New passwords do not match.' }); return;
-    }
-    if (pwForm.next.length < 6) {
-      setMsg({ type: 'err', text: 'New password must be at least 6 characters.' }); return;
+    setPwFieldErrors({});
+    const clientErrors = {};
+    if (!pwForm.current) clientErrors.currentPassword = 'Current password is required.';
+    if (!pwForm.next) clientErrors.newPassword = 'New password is required.';
+    else if (pwForm.next.length < 6) clientErrors.newPassword = 'New password must be at least 6 characters.';
+    if (!pwForm.confirm) clientErrors.confirm = 'Please confirm your new password.';
+    else if (pwForm.next && pwForm.next !== pwForm.confirm) clientErrors.confirm = 'Passwords do not match.';
+    if (Object.keys(clientErrors).length) {
+      setPwFieldErrors(clientErrors);
+      return;
     }
     try {
       setSaving(true);
@@ -141,13 +148,42 @@ const PortalSettingsPage = ({ portalLabel = 'Portal', accentColor = '#6366f1' })
         body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || json?.error || 'Failed to change password');
+      if (!res.ok) {
+        const errorMap = Array.isArray(json?.errors)
+          ? json.errors.reduce((acc, item) => (item?.field ? { ...acc, [item.field]: item.message } : acc), {})
+          : {};
+        if (Object.keys(errorMap).length) {
+          setPwFieldErrors(errorMap);
+        } else {
+          setMsg({ type: 'err', text: json?.error || json?.message || 'Failed to change password' });
+        }
+        return;
+      }
       setPwForm({ current: '', next: '', confirm: '' });
       setMsg({ type: 'ok', text: 'Password updated successfully!' });
     } catch (e) {
       setMsg({ type: 'err', text: e.message || 'Failed to change password' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const logoutOtherSessions = async () => {
+    setMsg({ type: '', text: '' });
+    try {
+      setLoggingOutAll(true);
+      const res = await fetch(`${API_BASE}/api/auth/logout-all`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to log out other devices');
+      setMsg({ type: 'ok', text: json?.message || 'Logged out of all other devices.' });
+    } catch (e) {
+      setMsg({ type: 'err', text: e.message || 'Failed to log out other devices' });
+    } finally {
+      setLoggingOutAll(false);
     }
   };
 
@@ -264,15 +300,36 @@ const PortalSettingsPage = ({ portalLabel = 'Portal', accentColor = '#6366f1' })
                 <div className="space-y-4 max-w-lg">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-neutral-500">Current Password</label>
-                    <Inp type="password" value={pwForm.current} onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })} placeholder="••••••••" />
+                    <Inp
+                      type="password"
+                      value={pwForm.current}
+                      onChange={(e) => { setPwForm({ ...pwForm, current: e.target.value }); setPwFieldErrors((f) => ({ ...f, currentPassword: undefined })); }}
+                      placeholder="••••••••"
+                      className={pwFieldErrors.currentPassword ? 'border-rose-400! focus:ring-rose-200!' : ''}
+                    />
+                    <FieldError message={pwFieldErrors.currentPassword} />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-neutral-500">New Password</label>
-                    <Inp type="password" value={pwForm.next} onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })} placeholder="Min. 6 characters" />
+                    <Inp
+                      type="password"
+                      value={pwForm.next}
+                      onChange={(e) => { setPwForm({ ...pwForm, next: e.target.value }); setPwFieldErrors((f) => ({ ...f, newPassword: undefined })); }}
+                      placeholder="Min. 6 characters"
+                      className={pwFieldErrors.newPassword ? 'border-rose-400! focus:ring-rose-200!' : ''}
+                    />
+                    <FieldError message={pwFieldErrors.newPassword} />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-neutral-500">Confirm New Password</label>
-                    <Inp type="password" value={pwForm.confirm} onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })} placeholder="Repeat new password" />
+                    <Inp
+                      type="password"
+                      value={pwForm.confirm}
+                      onChange={(e) => { setPwForm({ ...pwForm, confirm: e.target.value }); setPwFieldErrors((f) => ({ ...f, confirm: undefined })); }}
+                      placeholder="Repeat new password"
+                      className={pwFieldErrors.confirm ? 'border-rose-400! focus:ring-rose-200!' : ''}
+                    />
+                    <FieldError message={pwFieldErrors.confirm} />
                   </div>
                   <BtnPrimary onClick={changePassword} disabled={saving}>
                     {saving ? 'Updating…' : 'Update Password'}
@@ -285,6 +342,17 @@ const PortalSettingsPage = ({ portalLabel = 'Portal', accentColor = '#6366f1' })
                       <p className="text-xs text-neutral-500">Add an extra layer of security to your account.</p>
                     </div>
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">Coming soon</span>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">Active Sessions</p>
+                      <p className="text-xs text-neutral-500">Signed in on another browser or device you don't recognize? Sign it out from here.</p>
+                    </div>
+                    <BtnPrimary onClick={logoutOtherSessions} disabled={loggingOutAll} className="bg-rose-600! hover:bg-rose-500! dark:bg-rose-600! dark:hover:bg-rose-500!">
+                      {loggingOutAll ? 'Signing out…' : 'Log out of all other devices'}
+                    </BtnPrimary>
                   </div>
                 </div>
               </Inner>

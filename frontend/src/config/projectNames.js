@@ -83,6 +83,40 @@ export const findCanonicalProject = (project = {}) => {
 
 export const isCanonicalProject = (project = {}) => Boolean(findCanonicalProject(project));
 
+export const slugify = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'project';
+
+export const getProjectSlug = (project = {}) => {
+  const canonical = findCanonicalProject(project);
+  return slugify(canonical?.name || project?.name || project?.projectCode || project?.code || project?._id || project?.id);
+};
+
+// Builds an id -> slug map from a fetched project list, deterministically
+// disambiguating duplicate slugs (Project.name has no unique index server-side,
+// so two docs could plausibly share a name) by appending part of the Mongo id
+// to every collision after the first-seen entry.
+export const buildProjectSlugMap = (projects = []) => {
+  const seenCounts = new Map();
+  const map = new Map();
+
+  (Array.isArray(projects) ? projects : []).forEach((project) => {
+    const id = String(project?._id || project?.id || project?.value || '').trim();
+    if (!id) return;
+
+    const base = getProjectSlug(project);
+    const count = seenCounts.get(base) || 0;
+    seenCounts.set(base, count + 1);
+    const slug = count === 0 ? base : `${base}-${id.slice(-6)}`;
+    map.set(id, slug);
+  });
+
+  return map;
+};
+
 export const resolveCanonicalProjects = (projects = []) => {
   const entries = Array.isArray(projects) ? projects : [];
   const byKey = new Map();

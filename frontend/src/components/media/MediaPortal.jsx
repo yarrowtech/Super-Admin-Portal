@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
 import { departmentApi } from '../../services/departments';
@@ -8,22 +8,36 @@ import MediaSidebar from './MediaSidebar';
 import MediaDashboard from './MediaDashboard';
 import MediaWorkspace, { MEDIA_SECTIONS } from './MediaWorkspace';
 
-const SECTION_STORAGE_KEY = 'media_active_section';
 const PROJECT_STORAGE_KEY = 'activeProjectId';
 const SECTION_IDS = MEDIA_SECTIONS.map((section) => section.id);
 const isValidSection = (value) => SECTION_IDS.includes(String(value || '').trim());
+const readStoredProjectId = () => {
+  try {
+    const stored = String(localStorage.getItem(PROJECT_STORAGE_KEY) || '').trim();
+    return stored && stored !== 'all' && !stored.startsWith('virtual-') ? stored : '';
+  } catch {
+    return '';
+  }
+};
 const MEDIA_THEME = {
   '--portal-accent': '#0f766e',
   '--portal-accent-soft': '#ccfbf1',
   '--portal-accent-strong': '#134e4a',
 };
 
+// Section is now driven entirely by the URL path (/media/dashboard/:section)
+// instead of a ?section= query param + localStorage restore. The URL is the
+// single source of truth, so there's no read/write race to guard against.
 const MediaPortal = () => {
+  const { section: sectionParam } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { collapsed } = useSidebar();
   const { token } = useAuth();
   const [pendingApprovals, setPendingApprovals] = useState(0);
-  const resolveSection = (value) => (isValidSection(value) ? String(value).trim() : 'dashboard');
+  const [selectedProjectId, setSelectedProjectId] = useState(readStoredProjectId);
+
+  const activeSection = isValidSection(sectionParam) ? String(sectionParam).trim() : 'dashboard';
 
   // Independent of whichever section is active, so the sidebar badge stays
   // accurate even while the user is deep in Assets, Campaigns, etc.
@@ -47,112 +61,71 @@ const MediaPortal = () => {
     [pendingApprovals]
   );
 
-  const [activeSection, setActiveSection] = useState(() => {
-    const fromQuery = resolveSection(searchParams.get('section'));
-    if (fromQuery !== 'dashboard' || searchParams.get('section')) return fromQuery;
-
-    try {
-      const stored = resolveSection(localStorage.getItem(SECTION_STORAGE_KEY));
-      if (stored !== 'dashboard' || localStorage.getItem(SECTION_STORAGE_KEY)) return stored;
-    } catch {
-      // ignore storage issues
-    }
-
-    return 'dashboard';
-  });
-
-  const rawProjectId = searchParams.get('projectId') || '';
-  const hasProjectQuery = searchParams.has('projectId');
-  const isVirtualProjectId = rawProjectId.startsWith('virtual-');
-  const selectedProjectId = hasProjectQuery ? (isVirtualProjectId ? '' : rawProjectId) : undefined;
-  const mobileItems = sectionsWithBadges.map((section) => ({
-    key: section.id,
-    label: section.label,
-    icon: section.icon,
-    active: activeSection === section.id,
-    onClick: () => setActiveSection(section.id),
-  }));
-
-  // Reflects the LATEST activeSection without making the effect below re-run whenever
-  // activeSection changes locally — it should only react to real URL navigation
-  // (back/forward, deep link), never to its own sibling effect's URL write below.
-  // Depending on activeSection directly caused a race: switching to "dashboard" (which
-  // deletes the ?section param) would get immediately reverted because this effect ran
-  // in the same commit against the *old* searchParams, before the URL write took effect.
-  const activeSectionRef = useRef(activeSection);
   useEffect(() => {
-    activeSectionRef.current = activeSection;
-  }, [activeSection]);
+    if (!searchParams.has('projectId')) return;
 
-  useEffect(() => {
-    const querySection = resolveSection(searchParams.get('section'));
-    if (searchParams.has('section') && querySection !== activeSectionRef.current) {
-      setActiveSection(querySection);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    try {
-      if (activeSection === 'dashboard') localStorage.removeItem(SECTION_STORAGE_KEY);
-      else localStorage.setItem(SECTION_STORAGE_KEY, activeSection);
-    } catch {
-      // ignore storage issues
-    }
-
-    const nextParams = new URLSearchParams(searchParams);
-    if (activeSection === 'dashboard') nextParams.delete('section');
-    else nextParams.set('section', activeSection);
-
-    if (nextParams.toString() !== searchParams.toString()) {
-      setSearchParams(nextParams, { replace: true });
-    }
-  }, [activeSection, searchParams, setSearchParams]);
-
-  useEffect(() => {
-    if (!hasProjectQuery || !isVirtualProjectId) return;
+    const rawProjectId = String(searchParams.get('projectId') || '').trim();
+    const nextProjectId = rawProjectId && !rawProjectId.startsWith('virtual-') ? rawProjectId : '';
+    setSelectedProjectId(nextProjectId);
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('projectId');
     setSearchParams(nextParams, { replace: true });
 
     try {
-      localStorage.removeItem(PROJECT_STORAGE_KEY);
+      if (nextProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, nextProjectId);
+      else localStorage.removeItem(PROJECT_STORAGE_KEY);
     } catch {
       // ignore storage issues
     }
-  }, [hasProjectQuery, isVirtualProjectId, searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams]);
 
   const handleProjectChange = (projectId) => {
     const nextProjectId = String(projectId || '').trim();
-    const nextParams = new URLSearchParams(searchParams);
+    setSelectedProjectId(nextProjectId);
 
-    if (nextProjectId) {
-      nextParams.set('projectId', nextProjectId);
-      try {
-        localStorage.setItem(PROJECT_STORAGE_KEY, nextProjectId);
-      } catch {
-        // ignore storage issues
-      }
-    } else {
-      nextParams.delete('projectId');
-      try {
-        localStorage.removeItem(PROJECT_STORAGE_KEY);
-      } catch {
-        // ignore storage issues
-      }
+    try {
+      if (nextProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, nextProjectId);
+      else localStorage.removeItem(PROJECT_STORAGE_KEY);
+    } catch {
+      // ignore storage issues
     }
 
-    setSearchParams(nextParams, { replace: true });
+    if (searchParams.has('projectId')) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('projectId');
+      setSearchParams(nextParams, { replace: true });
+    }
   };
 
   const handleSectionChange = (sectionId) => {
-    const nextSection = resolveSection(sectionId);
-    setActiveSection(nextSection);
+    const nextSection = isValidSection(sectionId) ? String(sectionId).trim() : 'dashboard';
+    const pathname = nextSection === 'dashboard' ? '/media/dashboard' : `/media/dashboard/${nextSection}`;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('projectId');
+    const search = nextParams.toString();
 
-    if (nextSection === 'project-hub') {
+    if (nextSection === 'projects') {
       handleProjectChange('');
     }
+
+    navigate({ pathname, search: search ? `?${search}` : '' });
   };
+
+  const mobileItems = sectionsWithBadges.map((section) => ({
+    key: section.id,
+    label: section.label,
+    icon: section.icon,
+    active: activeSection === section.id,
+    onClick: () => handleSectionChange(section.id),
+  }));
+
+  if (sectionParam && !isValidSection(sectionParam)) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('projectId');
+    const search = nextParams.toString();
+    return <Navigate replace to={{ pathname: '/media/dashboard', search: search ? `?${search}` : '' }} />;
+  }
 
   return (
     <div

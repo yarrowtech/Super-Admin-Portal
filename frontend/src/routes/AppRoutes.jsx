@@ -57,6 +57,7 @@ import {
   OutsourcingSettingsPage,
   OutsourcingSupportPage,
   MediaDashboardPage,
+  MediaProjectDetailPage,
   SalesDashboardPage,
   SalesQueryPage,
   SalesSubmissionPage,
@@ -318,6 +319,26 @@ export default function AppRoutes() {
 
         <Route
           path="/media/dashboard"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media')}>
+                <MediaDashboardPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/dashboard/projects/:projectSlug"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media')}>
+                <MediaProjectDetailPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/dashboard/:section"
           element={
             <PortalRoute portal={PORTALS.MEDIA}>
               <PrivateRoute roles={allow('media')}>

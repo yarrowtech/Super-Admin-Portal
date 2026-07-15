@@ -78,6 +78,7 @@ export const OutsourcingEfnbmmsAdminManagementPage = lazy(() => import('../compo
 // ── Media portal ─────────────────────────────────────────────────────────────
 export const MediaDashboardPage = lazy(() => import('../components/media/MediaPortal'));
 export const MediaPortalPage    = MediaDashboardPage;
+export const MediaProjectDetailPage = lazy(() => import('../components/media/MediaProjectDetail'));
 
 // ── Department portals ────────────────────────────────────────────────────────
 export const SalesDashboardPage    = lazy(() => import('../components/media/MediaSalesPortal'));

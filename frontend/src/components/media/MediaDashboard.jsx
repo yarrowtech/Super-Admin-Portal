@@ -363,12 +363,6 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
   }, [approvals, assets, brandAssets, campaigns, content, dashboard, projects, reporting]);
 
   const meta = SECTION_META[activeSection] || SECTION_META.dashboard;
-  const projectOptions = useMemo(
-    () => projects.filter((project) => project.value),
-    [projects]
-  );
-  const selectedProjectLabel = projectOptions.find((item) => item.value === effectiveProjectId)?.code || 'All Projects';
-  const projectScopeLabel = effectiveProjectId ? selectedProjectLabel : 'All Projects';
   const lastSyncAt =
     dashboard?.updatedAt ||
     dashboard?.generatedAt ||
@@ -379,15 +373,6 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
     summary.recentItems?.[0]?.createdAt ||
     new Date().toISOString();
   const lastSyncLabel = formatTime(lastSyncAt);
-  const updateProject = (projectId) => {
-    if (selectedProjectId !== undefined) {
-      onProjectChange?.(projectId);
-      return;
-    }
-
-    setActiveProjectId(projectId);
-  };
-
   const renderEmptyCard = (title, description) => (
     <article className={cardClass}>
       <p className="text-sm font-semibold text-neutral-900">{title}</p>
@@ -682,9 +667,6 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
                   Monitor projects, campaigns, content, approvals, and media health from one analytics workspace.
                 </p>
               </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                {selectedProjectLabel}
-              </span>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -890,61 +872,10 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Live sync {lastSyncLabel}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-cyan-700">
-              <span className="material-symbols-outlined text-[14px]">folder_copy</span>
-              Scope {projectScopeLabel}
-            </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
               <span className="material-symbols-outlined text-[14px]">inventory_2</span>
               {summary.totalAssets} assets
             </span>
-          </div>
-          <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[520px]">
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {activeSection === 'dashboard' ? (
-                <select
-                  value={effectiveProjectId || ''}
-                  onChange={(e) => updateProject(e.target.value)}
-                  className="h-10 min-w-[210px] rounded-xl border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 outline-none transition focus:border-[var(--portal-accent)]"
-                >
-                  <option value="">All approved projects</option>
-                  {projectOptions.map((project) => (
-                    <option key={project.value} value={project.value}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-            </div>
-            {activeSection === 'dashboard' ? (
-              <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm sm:grid-cols-3">
-                {projectOptions.map((project, index) => {
-                  const isActive = effectiveProjectId === project.value;
-                  const accentClasses = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500'];
-                  return (
-                    <button
-                      key={project.value}
-                      type="button"
-                      onClick={() => updateProject(project.value)}
-                      className={`rounded-xl border p-3 text-left transition ${
-                        isActive
-                          ? 'border-teal-500 bg-teal-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                      }`}
-                    >
-                      <div className={`h-1 w-full rounded-full ${accentClasses[index % accentClasses.length]}`} />
-                      <p className="mt-2 truncate text-sm font-black text-slate-950">{project.name}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500">{project.description}</p>
-                    </button>
-                  );
-                })}
-                {!projectOptions.length ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs font-semibold text-slate-500 sm:col-span-3">
-                    No approved projects found.
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         </PortalHeader>
 

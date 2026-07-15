@@ -8,6 +8,7 @@ const v = require('./media.validation');
 const { canManageMedia, canDecideApproval } = require('./media.middleware');
 const { uploadMediaFile } = require('./media.upload.middleware');
 const campaignRoutes = require('./campaign.routes');
+const marketingPlanRoutes = require('./marketingPlan.routes');
 const budgetRoutes = require('./budget.routes');
 const kpiRoutes = require('./kpi.routes');
 const calendarController = require('./calendar.controller');
@@ -61,6 +62,7 @@ router.delete('/assets/:id', canManageMedia, v.mediaIdValidation, validate, cont
 router.post('/assets/:id/approval-request', setMediaSection('asset'), canManageMedia, v.mediaIdValidation, validate, controller.requestApproval);
 
 router.use('/campaigns', campaignRoutes);
+router.use('/marketing-plans', marketingPlanRoutes);
 router.use('/budget', budgetRoutes);
 router.use('/kpi', kpiRoutes);
 router.use('/weekly-plans', weeklyPlanRoutes);

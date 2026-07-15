@@ -16,13 +16,21 @@ const emailNormalizeOptions = {
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const errorList = errors.array().map(err => ({
+      field: err.path,
+      message: err.msg
+    }));
+    // Surface the actual field + reason in the top-level `error` string (not just
+    // the generic "Validation failed" literal) so every consumer — including raw
+    // fetch() call sites that only read response.error — shows what actually broke.
+    const summary = errorList
+      .map(item => (item.field ? `${item.field}: ${item.message}` : item.message))
+      .filter(Boolean)
+      .join('; ');
     return res.status(400).json({
       success: false,
-      error: 'Validation failed',
-      errors: errors.array().map(err => ({
-        field: err.path,
-        message: err.msg
-      }))
+      error: summary || 'Validation failed',
+      errors: errorList
     });
   }
   next();

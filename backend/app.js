@@ -24,6 +24,7 @@ const { ensureSuperAdminDefaults } = require("./utils/bootstrapSuperAdminData");
 const { buildManagerSnapshot } = require("./services/dashboard.service");
 const { startLawExpiryTracker } = require("./modules/law/law.cron");
 const { startMediaNotificationScheduler } = require("./jobs/mediaNotificationScheduler");
+const { startRenderKeepAlive } = require("./jobs/renderKeepAlive");
 const { User } = require("./models/auth");
 const errorMiddleware = require("./middlewares/error.middleware");
 const cacheHeaders = require("./middlewares/cacheHeaders");
@@ -45,6 +46,7 @@ connectDB().then(async () => {
     await ensureSuperAdminDefaults();
     startLawExpiryTracker();
     startMediaNotificationScheduler();
+    startRenderKeepAlive();
     logger.info("Super Admin defaults ensured");
   } catch (err) {
     logger.error({ err }, "Super Admin defaults bootstrap failed");

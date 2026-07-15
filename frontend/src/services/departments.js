@@ -28,7 +28,7 @@ export const departmentApi = {
   getMediaCampaignTasks: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/campaigns/tasks', params), token),
   updateMediaCampaignTaskStatus: (token, campaignId, taskId, status) =>
     apiClient.patch(`/api/dept/media/campaigns/${campaignId}/tasks/${taskId}/status`, { status }, token),
-  getMediaMarketingPlan: (token, projectId) => apiClient.get(`/api/dept/media/marketing-plans/project/${projectId}`, token),
+  getMediaMarketingPlan: (token, projectId, options = {}) => apiClient.get(`/api/dept/media/marketing-plans/project/${projectId}`, token, options),
   saveMediaMarketingPlan: (token, projectId, body) => apiClient.put(`/api/dept/media/marketing-plans/project/${projectId}`, body, token),
   getMediaContent: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/content', params), token),
   getMediaContentItem: (token, id) => apiClient.get(`/api/dept/media/content/${id}`, token),

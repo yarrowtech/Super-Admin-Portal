@@ -562,6 +562,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   }, [effectiveProjectId]);
   const listParams = useMemo(() => ({ ...projectParams, limit: 12 }), [projectParams]);
   const enabled = Boolean(token);
+  const isProjectHub = activeSection === 'projects';
+  const enableWorkspaceData = enabled && !isProjectHub;
 
   const [
     projectsQuery, dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery,
@@ -570,22 +572,22 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   ] = useQueries({
     queries: [
       { queryKey: QK.media.projects({ limit: 200 }), queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }), enabled },
-      { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled },
-      { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled },
-      { queryKey: QK.media.campaigns(listParams), queryFn: () => departmentApi.getMediaCampaigns(token, listParams), enabled },
-      { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled },
-      { queryKey: QK.media.brandAssets(listParams), queryFn: () => departmentApi.getMediaBrandAssets(token, listParams), enabled },
-      { queryKey: QK.media.approvals(listParams), queryFn: () => departmentApi.getMediaApprovals(token, listParams), enabled },
-      { queryKey: QK.media.reporting(projectParams), queryFn: () => departmentApi.getMediaReportingSummary(token, projectParams), enabled },
-      { queryKey: QK.media.campaignTasks(projectParams), queryFn: () => departmentApi.getMediaCampaignTasks(token, projectParams), enabled },
-      { queryKey: QK.media.design(listParams), queryFn: () => departmentApi.getMediaDesignItems(token, listParams), enabled },
-      { queryKey: QK.media.video(listParams), queryFn: () => departmentApi.getMediaVideoItems(token, listParams), enabled },
-      { queryKey: QK.media.social(listParams), queryFn: () => departmentApi.getMediaSocialPosts(token, listParams), enabled },
-      { queryKey: QK.media.advertisements(listParams), queryFn: () => departmentApi.getMediaAdvertisements(token, listParams), enabled },
-      { queryKey: QK.media.seo(listParams), queryFn: () => departmentApi.getMediaSeoItems(token, listParams), enabled },
-      { queryKey: QK.media.website(listParams), queryFn: () => departmentApi.getMediaWebsiteItems(token, listParams), enabled },
-      { queryKey: QK.media.testimonials(listParams), queryFn: () => departmentApi.getMediaTestimonials(token, listParams), enabled },
-      { queryKey: QK.media.caseStudies(listParams), queryFn: () => departmentApi.getMediaCaseStudies(token, listParams), enabled },
+      { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.campaigns(listParams), queryFn: () => departmentApi.getMediaCampaigns(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.brandAssets(listParams), queryFn: () => departmentApi.getMediaBrandAssets(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.approvals(listParams), queryFn: () => departmentApi.getMediaApprovals(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.reporting(projectParams), queryFn: () => departmentApi.getMediaReportingSummary(token, projectParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.campaignTasks(projectParams), queryFn: () => departmentApi.getMediaCampaignTasks(token, projectParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.design(listParams), queryFn: () => departmentApi.getMediaDesignItems(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.video(listParams), queryFn: () => departmentApi.getMediaVideoItems(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.social(listParams), queryFn: () => departmentApi.getMediaSocialPosts(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.advertisements(listParams), queryFn: () => departmentApi.getMediaAdvertisements(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.seo(listParams), queryFn: () => departmentApi.getMediaSeoItems(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.website(listParams), queryFn: () => departmentApi.getMediaWebsiteItems(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.testimonials(listParams), queryFn: () => departmentApi.getMediaTestimonials(token, listParams), enabled: enableWorkspaceData },
+      { queryKey: QK.media.caseStudies(listParams), queryFn: () => departmentApi.getMediaCaseStudies(token, listParams), enabled: enableWorkspaceData },
     ],
   });
 
@@ -2750,8 +2752,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       </div>
     );
   };
-
-  const isProjectHub = activeSection === 'projects';
 
   return (
     <main className="portal-page">

@@ -43,7 +43,10 @@ const MediaPortal = () => {
   // accurate even while the user is deep in Assets, Campaigns, etc.
   useEffect(() => {
     let alive = true;
-    if (!token) return undefined;
+    if (!token || activeSection === 'projects') {
+      setPendingApprovals(0);
+      return undefined;
+    }
     departmentApi
       .getMediaDashboard(token, {})
       .then((res) => {
@@ -54,7 +57,7 @@ const MediaPortal = () => {
     return () => {
       alive = false;
     };
-  }, [token]);
+  }, [token, activeSection]);
 
   const sectionsWithBadges = useMemo(
     () => MEDIA_SECTIONS.map((section) => (section.id === 'approvals' ? { ...section, badge: pendingApprovals } : section)),

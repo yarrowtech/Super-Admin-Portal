@@ -11,7 +11,6 @@ import KPICard from '../common/KPICard';
 const SECTION_META = {
   dashboard: {
     title: 'Media Command Center',
-    subtitle: 'Campaign visibility, content flow, and brand performance in one place',
     icon: 'campaign',
   },
   campaigns: {
@@ -878,10 +877,6 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
             </span>
           </div>
         </PortalHeader>
-
-        <section className="mb-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-900">
-          Media portal focus: creative flow, launch visibility, and publishing discipline.
-        </section>
 
         {loading ? (
           <div className="h-56 animate-pulse rounded-2xl border border-neutral-200 bg-white" />

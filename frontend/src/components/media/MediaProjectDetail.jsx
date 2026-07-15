@@ -58,6 +58,208 @@ const DELIVERABLES_ITEMS = [
   'Content Calendar', 'Performance Review',
 ];
 
+const DEFAULT_STRATEGY = {
+  overview: {
+    industry: 'Digital services',
+    platform: 'Website, social media, paid ads, search, email, WhatsApp',
+    targetAudience: 'Prospects, partners, and existing customers',
+    usp: 'Clear value, fast onboarding, consistent service delivery',
+    currentPhase: 'Foundation',
+    overallStatus: 'On Track',
+  },
+  goals: {
+    brand: ['Build a consistent public identity', 'Create trust across all customer touchpoints'],
+    marketing: ['Launch full-funnel acquisition campaigns', 'Build measurable weekly lead flow'],
+    business: ['Convert qualified leads into paying customers', 'Create repeatable growth systems'],
+  },
+  planning: {
+    targetCustomers: ['Primary buyers with clear intent', 'Decision makers comparing alternatives', 'Existing users ready for upgrades'],
+    painPoints: ['Lack of clarity before purchase', 'Too many disconnected communication channels', 'Low trust before the first transaction'],
+    buyingTriggers: ['Urgent need for a reliable solution', 'Clear offer with measurable value', 'Social proof and simple onboarding'],
+    positioning: 'A dependable digital solution that makes discovery, onboarding, and conversion easier for the right customers.',
+    valueProposition: 'Customers get a clear offer, simple next steps, and a reliable experience from first touch to conversion.',
+  },
+};
+
+const PROJECT_STRATEGIES = {
+  BETTERPASS: {
+    overview: {
+      industry: 'Travel, tourism, and local experiences',
+      platform: 'Website, mobile-first landing pages, Google, Meta, Instagram, WhatsApp',
+      targetAudience: 'Travelers, students, families, tourists, travel vendors, and local activity providers',
+      usp: 'One pass for easier trip planning, local discovery, vendor offers, and booking support',
+      currentPhase: 'Foundation',
+      overallStatus: 'On Track',
+    },
+    goals: {
+      brand: ['Position Better Pass as the trusted travel and experience pass', 'Build confidence with vendor stories, destination content, and user proof'],
+      marketing: ['Generate qualified traveler registrations', 'Build vendor acquisition and partnership demand', 'Create a repeatable content and paid acquisition engine'],
+      business: ['Increase pass purchases and booking intent', 'Grow active vendor supply', 'Improve retention through offers, reminders, and referral loops'],
+    },
+    planning: {
+      targetCustomers: ['Travelers planning short trips or weekend experiences', 'Students and young professionals looking for offers', 'Families comparing destinations and activities', 'Hotels, attractions, guides, and local vendors'],
+      painPoints: ['Trip planning is scattered across too many sources', 'Travelers do not know which vendors are reliable', 'Vendors need more predictable online discovery', 'Offers and passes are not easy to compare'],
+      buyingTriggers: ['Upcoming trip or holiday plan', 'Discounted pass or limited-time destination offer', 'Trusted vendor package', 'Referral from friend, influencer, or travel community'],
+      positioning: 'Better Pass helps travelers discover, plan, and book experiences through one trusted pass-led platform.',
+      valueProposition: 'Travelers save time and unlock better local options, while vendors get measurable discovery and booking opportunities.',
+    },
+  },
+  EEC: {
+    overview: {
+      industry: 'Education technology',
+      platform: 'Website, SEO, Google Search, Meta, email, WhatsApp',
+      targetAudience: 'Students, parents, educators, and learning partners',
+      usp: 'Structured learning support with measurable academic progress',
+    },
+  },
+  ESPORTSM: {
+    overview: {
+      industry: 'Esports and gaming community',
+      platform: 'Discord, YouTube, Instagram, Meta, event landing pages',
+      targetAudience: 'Gamers, teams, organizers, sponsors, and gaming fans',
+      usp: 'Competitive esports experiences with community-led growth',
+    },
+  },
+};
+
+const DEFAULT_FRAMEWORK = [
+  {
+    phase: 'Foundation Kit',
+    mainFocus: ['Brand story and visual identity', 'Landing pages and tracking setup', 'Content pillars and launch assets'],
+    keyOutput: 'Launch-ready brand and measurement base',
+  },
+  {
+    phase: 'Growth Kit',
+    mainFocus: ['Paid and organic acquisition', 'Lead capture and nurturing', 'Weekly performance optimization'],
+    keyOutput: 'Predictable lead and engagement engine',
+  },
+  {
+    phase: 'Scaling Kit',
+    mainFocus: ['Partnerships and referral loops', 'Automation and retargeting', 'Channel budget scaling'],
+    keyOutput: 'Repeatable growth system',
+  },
+];
+
+const DEFAULT_CHANNEL_PLAN = {
+  Organic: ['SEO content', 'Instagram reels and posts', 'YouTube shorts', 'Community posts'],
+  Paid: ['Google Search Ads', 'Meta conversion campaigns', 'Retargeting ads'],
+  Direct: ['Email nurturing', 'WhatsApp broadcast and automation', 'Landing page lead forms'],
+  Partnerships: ['Vendor partnerships', 'Influencer collaborations', 'Referral campaigns'],
+};
+
+const DEFAULT_FUNNEL = [
+  'Awareness', 'Website Visits', 'Registrations', 'Qualified Leads', 'Bookings', 'Paid Bookings', 'Retention', 'Referral',
+];
+
+const DEFAULT_KPIS = [
+  'Website visits and source split',
+  'Registration conversion rate',
+  'Qualified leads by channel',
+  'Cost per lead and cost per booking',
+  'Booking conversion rate',
+  'Revenue, ROAS, and retention',
+];
+
+const DEFAULT_BUDGET = {
+  Foundation: ['Brand identity and landing page setup', 'Analytics, pixels, and CRM setup', 'Launch content production'],
+  Growth: ['Google and Meta acquisition campaigns', 'Influencer and creator tests', 'Email and WhatsApp nurturing'],
+  Scaling: ['Retargeting and lookalike campaigns', 'Partnership campaigns', 'Automation and CRO experiments'],
+};
+
+const hasPlanContent = (data = {}) => {
+  if (!data || typeof data !== 'object') return false;
+  return Boolean(
+    data._id ||
+    Object.values(data.overview || {}).some(Boolean) ||
+    ['brand', 'marketing', 'business'].some((key) => (data.goals?.[key] || []).length) ||
+    (data.framework || []).some((row) => row?.mainFocus?.length || row?.keyOutput) ||
+    Object.values(data.planning || {}).some((value) => (Array.isArray(value) ? value.length : Boolean(value))) ||
+    (data.funnelStages || []).length ||
+    (data.kpiPlan || []).length ||
+    (data.budgetPlan || []).some((row) => row?.items?.length) ||
+    (data.acquisitionBudget || []).some((row) => row?.monthlyInvestment || row?.leadsEstimate || row?.cpl)
+  );
+};
+
+const buildSeedPlan = (project = {}, canonical = null) => {
+  const key = canonical?.code || '';
+  const strategy = {
+    overview: { ...DEFAULT_STRATEGY.overview, ...(PROJECT_STRATEGIES[key]?.overview || {}) },
+    goals: { ...DEFAULT_STRATEGY.goals, ...(PROJECT_STRATEGIES[key]?.goals || {}) },
+    planning: { ...DEFAULT_STRATEGY.planning, ...(PROJECT_STRATEGIES[key]?.planning || {}) },
+  };
+  const name = canonical?.name || project?.name || project?.projectCode || 'Project';
+  const description = project?.description || canonical?.description || '';
+
+  return {
+    overview: {
+      ...strategy.overview,
+      platform: strategy.overview.platform,
+      currentPhase: project?.status === 'in-progress' ? 'Growth' : strategy.overview.currentPhase,
+    },
+    goals: strategy.goals,
+    framework: DEFAULT_FRAMEWORK.map((row) => ({
+      phase: row.phase,
+      whenUsed: FRAMEWORK_PHASES.find((phase) => phase.phase === row.phase)?.hint || '',
+      mainFocus: row.mainFocus,
+      keyOutput: row.keyOutput,
+    })),
+    planning: {
+      ...strategy.planning,
+      positioning: strategy.planning.positioning.replace('digital solution', name),
+      channelPlan: CHANNEL_CATEGORIES.map((category) => ({
+        category,
+        channels: DEFAULT_CHANNEL_PLAN[category] || [],
+      })),
+    },
+    funnelStages: DEFAULT_FUNNEL,
+    kpiPlan: DEFAULT_KPIS,
+    budgetPlan: BUDGET_PHASES.map((phase) => ({ phase, items: DEFAULT_BUDGET[phase] || [] })),
+    priorityMatrix: {
+      high: ['Complete tracking setup', 'Publish landing pages', 'Launch first acquisition campaign'],
+      medium: ['Build weekly content calendar', 'Create retargeting audiences', 'Prepare partner outreach list'],
+      low: ['Archive old creative variants', 'Document learnings for future tests'],
+    },
+    notes: {
+      keyObservations: description ? `Initial plan seeded from project context: ${description}` : '',
+      nextWeekFocus: 'Finalize campaign assets, tracking, owners, and weekly KPI baseline.',
+    },
+  };
+};
+
+const parseMetric = (value) => Number(String(value || '').replace(/[^0-9.-]/g, '')) || 0;
+const formatPlainNumber = (value) => (value ? value.toLocaleString('en-IN') : '');
+const formatInr = (value) => (value ? `INR ${value.toLocaleString('en-IN')}` : '');
+const calcCpl = (investment, leads) => {
+  const spend = parseMetric(investment);
+  const leadCount = parseMetric(leads);
+  return spend && leadCount ? Math.round(spend / leadCount) : 0;
+};
+const calcConversion = (current, previous) => {
+  const now = parseMetric(current);
+  const before = parseMetric(previous);
+  return now && before ? `${((now / before) * 100).toFixed(1)}%` : '';
+};
+
+const applyPlanCalculations = (payload) => {
+  const acquisitionBudget = (payload.acquisitionBudget || []).map((row) => {
+    const cpl = row.cpl || (calcCpl(row.monthlyInvestment, row.leadsEstimate) || '');
+    const hasSpend = parseMetric(row.monthlyInvestment) > 0;
+    return {
+      ...row,
+      cpl: cpl ? String(cpl) : '',
+      status: row.status || (hasSpend ? 'Active' : 'Planned'),
+    };
+  });
+
+  const funnelPerformance = (payload.funnelPerformance || []).map((row, idx, rows) => ({
+    ...row,
+    conversionPct: row.conversionPct || (idx > 0 ? calcConversion(row.actual, rows[idx - 1]?.actual) : ''),
+  }));
+
+  return { ...payload, acquisitionBudget, funnelPerformance };
+};
+
 const emptyPlan = () => ({
   overview: { industry: '', platform: '', targetAudience: '', usp: '', currentPhase: '', overallStatus: 'On Track' },
   goals: { brand: [], marketing: [], business: [] },
@@ -175,7 +377,7 @@ const buildDraft = (plan) => ({
   notes: { ...plan.notes },
 });
 
-const buildPayload = (draft) => ({
+const buildPayload = (draft) => applyPlanCalculations({
   overview: { ...draft.overview },
   goals: {
     brand: fromLines(draft.goalsBrand),
@@ -273,9 +475,11 @@ const MediaProjectDetail = () => {
 
         setProject(match);
         const resolvedId = String(match._id || match.id);
-        return departmentApi.getMediaMarketingPlan(token, resolvedId).then((planRes) => {
+        return departmentApi.getMediaMarketingPlan(token, resolvedId, { forceRefresh: true }).then((planRes) => {
           if (!alive) return;
-          const merged = mergePlan(planRes?.data || {});
+          const planData = planRes?.data || {};
+          const seed = buildSeedPlan(match, findCanonicalProject(match));
+          const merged = mergePlan(hasPlanContent(planData) ? planData : seed);
           setPlan(merged);
           setDraft(buildDraft(merged));
         });
@@ -344,10 +548,11 @@ const MediaProjectDetail = () => {
   const setPerformanceSnapshotField = (key, value) => setDraft((d) => ({ ...d, performanceSnapshot: { ...d.performanceSnapshot, [key]: value } }));
   const setNotesField = (key, value) => setDraft((d) => ({ ...d, notes: { ...d.notes, [key]: value } }));
 
-  const totalMonthlyInvestment = (editing ? draft.acquisitionBudget : plan.acquisitionBudget)
-    .reduce((sum, r) => sum + (Number(String(r.monthlyInvestment).replace(/[^0-9.-]/g, '')) || 0), 0);
-  const totalLeads = (editing ? draft.acquisitionBudget : plan.acquisitionBudget)
-    .reduce((sum, r) => sum + (Number(String(r.leadsEstimate).replace(/[^0-9.-]/g, '')) || 0), 0);
+  const activeAcquisitionBudget = editing ? draft.acquisitionBudget : plan.acquisitionBudget;
+  const activeFunnelPerformance = editing ? draft.funnelPerformance : plan.funnelPerformance;
+  const totalMonthlyInvestment = activeAcquisitionBudget.reduce((sum, r) => sum + parseMetric(r.monthlyInvestment), 0);
+  const totalLeads = activeAcquisitionBudget.reduce((sum, r) => sum + parseMetric(r.leadsEstimate), 0);
+  const totalCpl = calcCpl(totalMonthlyInvestment, totalLeads);
 
   return (
     <div
@@ -826,52 +1031,60 @@ const MediaProjectDetail = () => {
                     <thead>
                       <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Channel</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Monthly Investment (₹)</th>
+                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Monthly Investment (INR)</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Leads (Est.)</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">CPL (₹)</th>
+                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">CPL (INR)</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(editing ? draft.acquisitionBudget : plan.acquisitionBudget).map((row, idx) => (
-                        <tr key={row.channel}>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.channel}</td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
-                            {editing ? (
-                              <input className={inputCls} value={row.monthlyInvestment} onChange={(e) => setAcquisitionField(idx, 'monthlyInvestment', e.target.value)} />
-                            ) : (
-                              row.monthlyInvestment || '—'
-                            )}
-                          </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
-                            {editing ? (
-                              <input className={inputCls} value={row.leadsEstimate} onChange={(e) => setAcquisitionField(idx, 'leadsEstimate', e.target.value)} />
-                            ) : (
-                              row.leadsEstimate || '—'
-                            )}
-                          </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
-                            {editing ? (
-                              <input className={inputCls} value={row.cpl} onChange={(e) => setAcquisitionField(idx, 'cpl', e.target.value)} />
-                            ) : (
-                              row.cpl || '—'
-                            )}
-                          </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
-                            {editing ? (
-                              <input className={inputCls} value={row.status} onChange={(e) => setAcquisitionField(idx, 'status', e.target.value)} />
-                            ) : (
-                              row.status || '—'
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {activeAcquisitionBudget.map((row, idx) => {
+                        const calculatedCpl = calcCpl(row.monthlyInvestment, row.leadsEstimate);
+                        const displayCpl = row.cpl || (calculatedCpl ? formatPlainNumber(calculatedCpl) : '');
+                        const displayStatus = row.status || (parseMetric(row.monthlyInvestment) ? 'Active' : 'Planned');
+                        return (
+                          <tr key={row.channel}>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.channel}</td>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                              {editing ? (
+                                <input className={inputCls} value={row.monthlyInvestment} onChange={(e) => setAcquisitionField(idx, 'monthlyInvestment', e.target.value)} />
+                              ) : (
+                                row.monthlyInvestment || '-'
+                              )}
+                            </td>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                              {editing ? (
+                                <input className={inputCls} value={row.leadsEstimate} onChange={(e) => setAcquisitionField(idx, 'leadsEstimate', e.target.value)} />
+                              ) : (
+                                row.leadsEstimate || '-'
+                              )}
+                            </td>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                              {editing ? (
+                                <div>
+                                  <input className={inputCls} value={row.cpl} placeholder={displayCpl || 'Auto'} onChange={(e) => setAcquisitionField(idx, 'cpl', e.target.value)} />
+                                  {calculatedCpl ? <p className="mt-1 text-[11px] font-semibold text-neutral-400">Auto: {formatInr(calculatedCpl)}</p> : null}
+                                </div>
+                              ) : (
+                                displayCpl || '-'
+                              )}
+                            </td>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                              {editing ? (
+                                <input className={inputCls} value={row.status} placeholder={displayStatus} onChange={(e) => setAcquisitionField(idx, 'status', e.target.value)} />
+                              ) : (
+                                displayStatus || '-'
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                       <tr className="font-black text-neutral-900 dark:text-neutral-100">
                         <td className="px-3 py-2.5">TOTAL</td>
-                        <td className="px-3 py-2.5">{totalMonthlyInvestment ? `₹${totalMonthlyInvestment.toLocaleString('en-IN')}` : '—'}</td>
-                        <td className="px-3 py-2.5">{totalLeads ? totalLeads.toLocaleString('en-IN') : '—'}</td>
-                        <td className="px-3 py-2.5">—</td>
-                        <td className="px-3 py-2.5">—</td>
+                        <td className="px-3 py-2.5">{formatInr(totalMonthlyInvestment) || '-'}</td>
+                        <td className="px-3 py-2.5">{formatPlainNumber(totalLeads) || '-'}</td>
+                        <td className="px-3 py-2.5">{formatInr(totalCpl) || '-'}</td>
+                        <td className="px-3 py-2.5">{totalMonthlyInvestment ? 'Budgeted' : '-'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -892,32 +1105,39 @@ const MediaProjectDetail = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(editing ? draft.funnelPerformance : plan.funnelPerformance).map((row, idx) => (
-                        <tr key={row.stage}>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.stage}</td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
-                            {editing ? (
-                              <input className={inputCls} value={row.target} onChange={(e) => setFunnelPerfField(idx, 'target', e.target.value)} />
-                            ) : (
-                              row.target || '—'
-                            )}
-                          </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
-                            {editing ? (
-                              <input className={inputCls} value={row.actual} onChange={(e) => setFunnelPerfField(idx, 'actual', e.target.value)} />
-                            ) : (
-                              row.actual || '—'
-                            )}
-                          </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
-                            {editing ? (
-                              <input className={inputCls} value={row.conversionPct} onChange={(e) => setFunnelPerfField(idx, 'conversionPct', e.target.value)} />
-                            ) : (
-                              row.conversionPct || '—'
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {activeFunnelPerformance.map((row, idx) => {
+                        const calculatedConversion = idx > 0 ? calcConversion(row.actual, activeFunnelPerformance[idx - 1]?.actual) : '';
+                        const displayConversion = row.conversionPct || calculatedConversion;
+                        return (
+                          <tr key={row.stage}>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.stage}</td>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                              {editing ? (
+                                <input className={inputCls} value={row.target} onChange={(e) => setFunnelPerfField(idx, 'target', e.target.value)} />
+                              ) : (
+                                row.target || '-'
+                              )}
+                            </td>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                              {editing ? (
+                                <input className={inputCls} value={row.actual} onChange={(e) => setFunnelPerfField(idx, 'actual', e.target.value)} />
+                              ) : (
+                                row.actual || '-'
+                              )}
+                            </td>
+                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                              {editing ? (
+                                <div>
+                                  <input className={inputCls} value={row.conversionPct} placeholder={calculatedConversion || 'Auto'} onChange={(e) => setFunnelPerfField(idx, 'conversionPct', e.target.value)} />
+                                  {calculatedConversion ? <p className="mt-1 text-[11px] font-semibold text-neutral-400">Auto: {calculatedConversion}</p> : null}
+                                </div>
+                              ) : (
+                                displayConversion || '-'
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

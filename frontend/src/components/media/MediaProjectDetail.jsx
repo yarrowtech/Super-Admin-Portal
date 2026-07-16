@@ -11,11 +11,11 @@ const MEDIA_THEME = {
   '--portal-accent-strong': '#134e4a',
 };
 
-const card = 'rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-neutral-800 dark:bg-neutral-900';
-const soft = 'rounded-[1.25rem] border border-slate-200 bg-[#fbfeff] p-4 dark:border-neutral-800 dark:bg-neutral-900/60';
-const sectionTitle = 'text-[11px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400';
-const fieldLabel = 'text-[11px] font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
-const inputCls = 'mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition focus:border-[var(--portal-accent)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+const card = 'rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] transition-shadow duration-300 hover:shadow-[0_22px_60px_rgba(15,23,42,0.11)] dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-[0_18px_50px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_22px_60px_rgba(0,0,0,0.45)]';
+const soft = 'rounded-[1.25rem] border border-slate-200/80 bg-[#fbfeff] p-4 shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition-colors duration-200 hover:border-teal-200 dark:border-neutral-800 dark:bg-neutral-900/60 dark:hover:border-teal-900/60';
+const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.14em] text-teal-700 dark:text-teal-400';
+const fieldLabel = 'text-[11px] font-bold uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400';
+const inputCls = 'mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition-all duration-200 focus:border-[var(--portal-accent)] focus:shadow-[0_0_0_3px_var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:shadow-[0_0_0_3px_rgba(15,118,110,0.25)]';
 const textareaCls = `${inputCls} min-h-[96px] resize-y`;
 
 const FRAMEWORK_PHASES = [
@@ -417,7 +417,7 @@ const BulletList = ({ items = [], empty = 'Not defined yet.' }) =>
     <ul className="space-y-1.5">
       {items.map((item, idx) => (
         <li key={idx} className="flex items-start gap-2 text-sm leading-5 text-neutral-700 dark:text-neutral-300">
-          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
+          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_0_3px_var(--portal-accent-soft)]" style={{ background: 'var(--portal-accent)' }} />
           <span>{item}</span>
         </li>
       ))}
@@ -561,20 +561,20 @@ const MediaProjectDetail = () => {
     >
       <main className="portal-page">
         <div className="portal-page-inner space-y-4">
-          <header className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-            <div className="h-1 w-full" style={{ background: 'var(--portal-accent)' }} />
+          <header className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-950">
+            <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, var(--portal-accent-strong), var(--portal-accent))' }} />
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
                   onClick={() => navigate('/media/dashboard/projects')}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 transition hover:border-teal-300 hover:text-teal-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 shadow-sm transition-all duration-200 hover:border-teal-300 hover:text-teal-700 hover:shadow-md active:scale-95 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
                   title="Back to Projects"
                 >
                   <span className="material-symbols-outlined text-[20px]">arrow_back</span>
                 </button>
                 <div className="min-w-0">
-                  <h1 className="truncate text-[18px] font-black leading-tight">{projectName}</h1>
+                  <h1 className="truncate text-[18px] font-black leading-tight tracking-tight">{projectName}</h1>
                   <p className="truncate text-[12px] text-neutral-500 dark:text-neutral-400">{projectDescription}</p>
                 </div>
               </div>
@@ -588,7 +588,7 @@ const MediaProjectDetail = () => {
                       type="button"
                       onClick={cancelEdit}
                       disabled={saving}
-                      className="rounded-xl border border-neutral-300 px-4 py-2 text-[13px] font-bold text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300"
+                      className="rounded-xl border border-neutral-300 px-4 py-2 text-[13px] font-bold text-neutral-600 transition-all duration-200 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900"
                     >
                       Cancel
                     </button>
@@ -596,8 +596,8 @@ const MediaProjectDetail = () => {
                       type="button"
                       onClick={save}
                       disabled={saving}
-                      className="rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-sm transition disabled:opacity-50"
-                      style={{ background: 'var(--portal-accent)' }}
+                      className="rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_10px_24px_rgba(15,118,110,0.35)] active:scale-[0.98] disabled:opacity-50"
+                      style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
                     >
                       {saving ? 'Saving…' : 'Save Plan'}
                     </button>
@@ -606,8 +606,8 @@ const MediaProjectDetail = () => {
                   <button
                     type="button"
                     onClick={startEdit}
-                    className="rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-sm transition"
-                    style={{ background: 'var(--portal-accent)' }}
+                    className="rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_10px_24px_rgba(15,118,110,0.35)] active:scale-[0.98]"
+                    style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
                   >
                     Edit Plan
                   </button>
@@ -636,7 +636,7 @@ const MediaProjectDetail = () => {
           ) : null}
 
           {!loading && !notFound ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.05)] dark:border-neutral-800 dark:bg-neutral-900">
               <p className="text-[12px] font-bold text-neutral-500 dark:text-neutral-400">
                 Page {page} of 2 — {page === '1' ? 'Marketing Command Center' : 'Weekly Execution'}
               </p>
@@ -645,7 +645,7 @@ const MediaProjectDetail = () => {
                   type="button"
                   onClick={() => setPage('1')}
                   disabled={page === '1'}
-                  className="flex items-center gap-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-[12px] font-bold text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-40 disabled:hover:bg-transparent dark:border-neutral-700 dark:text-neutral-300"
+                  className="flex items-center gap-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-[12px] font-bold text-neutral-600 transition-all duration-200 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-40 disabled:hover:bg-transparent dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
                   <span className="material-symbols-outlined text-[16px]">arrow_back</span>
                   Previous
@@ -654,8 +654,8 @@ const MediaProjectDetail = () => {
                   type="button"
                   onClick={() => setPage('2')}
                   disabled={page === '2'}
-                  className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-bold text-white shadow-sm transition disabled:opacity-40"
-                  style={{ background: 'var(--portal-accent)' }}
+                  className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-bold text-white shadow-[0_6px_16px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:hover:brightness-100"
+                  style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
                 >
                   Next
                   <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
@@ -665,7 +665,7 @@ const MediaProjectDetail = () => {
           ) : null}
 
           {loading ? (
-            <div className="h-56 animate-pulse rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900" />
+            <div className="h-56 animate-pulse rounded-[1.75rem] border border-neutral-200 bg-gradient-to-br from-white via-slate-50 to-white shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:from-neutral-900 dark:via-neutral-900/70 dark:to-neutral-900" />
           ) : notFound ? null : page === '1' ? (
             <>
               {/* Project Overview */}
@@ -707,7 +707,10 @@ const MediaProjectDetail = () => {
                     <OverviewField label="Current Phase" value={plan.overview.currentPhase} />
                     <div>
                       <p className={fieldLabel}>Overall Status</p>
-                      <span className="mt-1 inline-flex items-center rounded-full bg-teal-600 px-3 py-1 text-[12px] font-black uppercase tracking-wide text-white">
+                      <span
+                        className="mt-1 inline-flex items-center rounded-full px-3 py-1 text-[12px] font-black uppercase tracking-wide text-white shadow-[0_6px_14px_rgba(15,118,110,0.35)]"
+                        style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
+                      >
                         {plan.overview.overallStatus || 'On Track'}
                       </span>
                     </div>
@@ -749,7 +752,7 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[640px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Phase</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">When Used</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Main Focus</th>
@@ -758,7 +761,7 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.framework : plan.framework).map((row, idx) => (
-                        <tr key={row.phase} className="align-top">
+                        <tr key={row.phase} className="align-top transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
                           <td className="border-b border-neutral-100 px-3 py-3 font-bold text-teal-700 dark:border-neutral-800 dark:text-teal-400">
                             {row.phase}
                           </td>
@@ -887,7 +890,7 @@ const MediaProjectDetail = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       {plan.funnelStages.map((stage, idx) => (
                         <React.Fragment key={stage}>
-                          <span className="rounded-xl border border-teal-300 bg-teal-50 px-3 py-2 text-[13px] font-bold text-teal-800 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                          <span className="rounded-xl border border-teal-300/80 bg-teal-50 px-3 py-2 text-[13px] font-bold text-teal-800 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
                             {stage}
                           </span>
                           {idx < plan.funnelStages.length - 1 ? (
@@ -953,7 +956,7 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[480px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Task</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Owner</th>
                         <th className="border-b border-neutral-200 px-3 py-2 text-center dark:border-neutral-800">Status</th>
@@ -961,7 +964,7 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.weeklyChecklist : plan.weeklyChecklist).map((row, idx) => (
-                        <tr key={row.task}>
+                        <tr key={row.task} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">{row.task}</td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
@@ -992,7 +995,7 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Week</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Focus Area</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Progress</th>
@@ -1000,7 +1003,7 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.weeklyUpdates : plan.weeklyUpdates).map((row, idx) => (
-                        <tr key={row.week}>
+                        <tr key={row.week} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
                           <td className="border-b border-neutral-100 px-3 py-2.5 font-bold text-teal-700 dark:border-neutral-800 dark:text-teal-400">{row.week}</td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
@@ -1029,7 +1032,7 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[680px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Channel</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Monthly Investment (INR)</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Leads (Est.)</th>
@@ -1043,7 +1046,7 @@ const MediaProjectDetail = () => {
                         const displayCpl = row.cpl || (calculatedCpl ? formatPlainNumber(calculatedCpl) : '');
                         const displayStatus = row.status || (parseMetric(row.monthlyInvestment) ? 'Active' : 'Planned');
                         return (
-                          <tr key={row.channel}>
+                          <tr key={row.channel} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
                             <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.channel}</td>
                             <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                               {editing ? (
@@ -1079,7 +1082,7 @@ const MediaProjectDetail = () => {
                           </tr>
                         );
                       })}
-                      <tr className="font-black text-neutral-900 dark:text-neutral-100">
+                      <tr className="bg-teal-50/50 font-black text-neutral-900 dark:bg-teal-500/10 dark:text-neutral-100">
                         <td className="px-3 py-2.5">TOTAL</td>
                         <td className="px-3 py-2.5">{formatInr(totalMonthlyInvestment) || '-'}</td>
                         <td className="px-3 py-2.5">{formatPlainNumber(totalLeads) || '-'}</td>
@@ -1097,7 +1100,7 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Stage</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Target</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Actual</th>
@@ -1109,7 +1112,7 @@ const MediaProjectDetail = () => {
                         const calculatedConversion = idx > 0 ? calcConversion(row.actual, activeFunnelPerformance[idx - 1]?.actual) : '';
                         const displayConversion = row.conversionPct || calculatedConversion;
                         return (
-                          <tr key={row.stage}>
+                          <tr key={row.stage} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
                             <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.stage}</td>
                             <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                               {editing ? (
@@ -1149,7 +1152,7 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[480px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Content Type</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Target</th>
                         <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Completed</th>
@@ -1157,7 +1160,7 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.contentTracker : plan.contentTracker).map((row, idx) => (
-                        <tr key={row.contentType}>
+                        <tr key={row.contentType} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
                           <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.contentType}</td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
@@ -1213,7 +1216,7 @@ const MediaProjectDetail = () => {
                 <p className={sectionTitle}>Deliverables Checklist</p>
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {(editing ? draft.deliverables : plan.deliverables).map((row, idx) => (
-                    <label key={row.label} className="flex items-center gap-2 rounded-lg border border-neutral-100 px-3 py-2 text-sm dark:border-neutral-800">
+                    <label key={row.label} className="flex items-center gap-2 rounded-lg border border-neutral-100 px-3 py-2 text-sm transition-colors duration-150 hover:border-teal-200 hover:bg-teal-50/30 dark:border-neutral-800 dark:hover:border-teal-900/50 dark:hover:bg-teal-500/5">
                       <input
                         type="checkbox"
                         checked={row.done}

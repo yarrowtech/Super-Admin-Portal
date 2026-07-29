@@ -9,6 +9,7 @@ import { createLogger } from '../../utils/logger';
 
 const BASE_NAV_ITEMS = [
   { label: 'Dashboard',   icon: 'dashboard',       path: '/manager/dashboard' },
+  { label: 'Project Overview', icon: 'folder_copy', path: '/manager/project-overview' },
   { label: 'Work Board',  icon: 'work_history',    path: '/manager/work-board' },
   { label: 'Tasks',       icon: 'task_alt',        path: '/manager/tasks' },
   { label: 'Recruitment', icon: 'person_search',   path: '/manager/recruitment' },

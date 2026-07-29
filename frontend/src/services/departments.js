@@ -11,6 +11,8 @@ const buildUrl = (path, params = {}) => {
 };
 
 export const departmentApi = {
+  getProjectOverviewProjects: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/project-overview/projects', params), token, options),
+  getProjectOverviewDetail: (token, projectId, params = {}, options = {}) => apiClient.get(buildUrl(`/api/dept/project-overview/projects/${projectId}/overview`, params), token, options),
   getMediaDashboard: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/dashboard', params), token),
   getMediaProjects: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/projects', params), token),
   uploadMediaProjectLogo: (token, projectId, file) => {

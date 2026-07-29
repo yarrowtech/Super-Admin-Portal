@@ -12,6 +12,7 @@ const CEOProductInsights = lazy(() => import('./CEOProductInsights'));
 const CEOSalesQueryAnalyticsPage = lazy(() => import('./CEOSalesQueryAnalyticsPage'));
 const CEONotifications = lazy(() => import('./CEONotifications'));
 const CEOLegalApproval = lazy(() => import('./CEOLegalApproval'));
+const ProjectOverviewPage = lazy(() => import('../shared/ProjectOverviewPage'));
 const CEOSettingsPage = lazy(() => import('../shared/PortalSettingsPage').then(m => ({ default: () => <m.default portalLabel="CEO" accentColor="#ef4444" /> })));
 const CEOSupportPage = lazy(() => import('../shared/PortalSupportPage').then(m => ({ default: () => <m.default portal="ceo" portalLabel="CEO" accentColor="#ef4444" /> })));
 import { NotificationProvider } from '../../context/NotificationContext';
@@ -19,6 +20,7 @@ import MobilePortalNav from '../common/MobilePortalNav';
 
 const ceoMobileItems = [
   { key: 'dashboard', label: 'Overview Dashboard', icon: 'dashboard' },
+  { key: 'projectOverview', label: 'Project Overview', icon: 'folder_copy' },
   { key: 'revenueAnalytics', label: 'Revenue Analytics', icon: 'payments' },
   { key: 'productInsights', label: 'Product Insights', icon: 'insights' },
   { key: 'employees', label: 'Employee Analytics', icon: 'groups' },
@@ -51,6 +53,8 @@ const CEOPortal = () => {
     switch (currentView) {
       case 'dashboard':
         return <CEODashboard />;
+      case 'projectOverview':
+        return <ProjectOverviewPage portalKey="ceo" portalName="CEO Portal" />;
       case 'revenueAnalytics':
         return <CEORevenueAnalytics />;
       case 'reports':

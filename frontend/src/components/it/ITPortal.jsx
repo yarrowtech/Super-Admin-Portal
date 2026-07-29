@@ -9,6 +9,7 @@ const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').rep
 
 const IT_SECTIONS = [
   { id: 'dashboard',       label: 'Overview',            icon: 'dashboard',              description: 'Command center overview',                    path: '/it/dashboard' },
+  { id: 'project-overview', label: 'Project Overview',    icon: 'folder_copy',            description: 'Read-only project plan visibility',           path: '/it/dashboard/project-overview' },
   { id: 'products',        label: 'Products & Systems',  icon: 'inventory_2',            description: 'Workspace control for each product',          path: '/it/dashboard/products' },
   { id: 'tickets',         label: 'IT Tickets',          icon: 'confirmation_number',    description: 'Service desk queues and SLAs',                path: '/it/dashboard/tickets' },
   { id: 'assets',          label: 'Asset Management',    icon: 'devices',                description: 'Device and hardware lifecycle',               path: '/it/dashboard/assets' },
@@ -39,6 +40,7 @@ const ITPortal = () => {
   const activeSection = useMemo(() => {
     const pathname = location.pathname;
     if (pathname.startsWith('/it/dashboard/products'))   return 'products';
+    if (pathname.startsWith('/it/dashboard/project-overview')) return 'project-overview';
     if (pathname.startsWith('/it/dashboard/tickets'))    return 'tickets';
     if (pathname.startsWith('/it/dashboard/assets'))     return 'assets';
     if (pathname.startsWith('/it/dashboard/security'))   return 'security';

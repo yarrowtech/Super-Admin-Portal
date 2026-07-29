@@ -7,3 +7,4 @@ export { default as ITLayout } from '../components/it/ITPortal';
 export { default as LawLayout } from '../components/law/LawPortal';
 export { default as ManagerLayout } from '../components/manager/ManagerPortal';
 export { default as OutsourcingLayout } from '../components/outsourcing/OutsourcingPortal';
+export { default as ResearchLayout } from '../components/research/ResearchPortal';

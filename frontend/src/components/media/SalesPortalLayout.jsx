@@ -12,11 +12,12 @@ export const MEDIA_THEME = {
 
 export const SALES_NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', description: 'Sales command view' },
+  { id: 'project-overview', label: 'Project Overview', icon: 'folder_copy', description: 'Read-only project visibility' },
   { id: 'query', label: 'Query', icon: 'quiz', description: 'Field buyer questionnaire' },
   { id: 'submission', label: 'Submission', icon: 'fact_check', description: 'Your submitted queries' },
 ];
 
-const SalesPortalLayout = ({ activeId, children }) => {
+const SalesPortalLayout = ({ activeId, children, bare = false }) => {
   const { collapsed } = useSidebar();
   const navigate = useNavigate();
 
@@ -54,9 +55,11 @@ const SalesPortalLayout = ({ activeId, children }) => {
           collapsed ? 'md:ml-16' : 'md:ml-[250px]'
         } pt-16 md:pt-0`}
       >
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5 lg:px-6">
-          {children}
-        </div>
+        {bare ? children : (
+          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5 lg:px-6">
+            {children}
+          </div>
+        )}
       </main>
     </div>
   );

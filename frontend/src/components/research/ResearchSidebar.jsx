@@ -5,33 +5,17 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import PortalSidebar from '../common/PortalSidebar';
 import { useSidebar } from '../../context/SidebarContext';
 
-const lawNavItems = [
-  { label: 'Workflow',         icon: 'gavel',          path: '/law/dashboard' },
-  { label: 'Project Overview', icon: 'folder_copy',    path: '/law/project-overview' },
-  { label: 'Outsrc Contracts', icon: 'contract',       path: '/law/contracts' },
-  { label: 'Legal Documents',  icon: 'description',    path: '/law/legal-docs' },
-  { label: 'Approved Library', icon: 'library_books',  path: '/law/legal-library' },
-  { label: 'Agreements',       icon: 'handshake',      path: '/law/agreements' },
-  { label: 'Privacy & Policy', icon: 'policy',         path: '/law/policy' },
-  { label: 'Disputes & Fraud', icon: 'balance',        path: '/law/disputes' },
-  { label: 'IP & Copyright',   icon: 'copyright',      path: '/law/ip' },
-  { label: 'Work on Hire',     icon: 'assignment_ind', path: '/law/work-hire' },
-  { label: 'Third Party',      icon: 'groups',         path: '/law/third-party' },
+const researchNavItems = [
+  { label: 'Dashboard',        icon: 'science',      path: '/research/dashboard' },
+  { label: 'Project Overview', icon: 'folder_copy',  path: '/research/project-overview' },
 ];
 
-const LawSidebar = () => {
+const ResearchSidebar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { collapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const projectId = new URLSearchParams(location.search).get('projectId') || '';
-  const lawNavWithProject = lawNavItems.map((item) => ({
-    ...item,
-    path: projectId && !String(projectId).startsWith('virtual-')
-      ? `${item.path}?projectId=${encodeURIComponent(projectId)}`
-      : item.path,
-  }));
 
   const handleLogout = useCallback(() => {
     logout();
@@ -40,7 +24,7 @@ const LawSidebar = () => {
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
-  if (!canAccessPortal(user, PORTALS.LAW)) return null;
+  if (!canAccessPortal(user, PORTALS.RESEARCH)) return null;
 
   return (
     <>
@@ -55,7 +39,7 @@ const LawSidebar = () => {
           <span className="material-symbols-outlined">menu</span>
         </button>
         <div className="min-w-0 text-center">
-          <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">Law Portal</p>
+          <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">Research Portal</p>
           <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{user?.firstName} {user?.lastName}</p>
         </div>
         <button
@@ -71,16 +55,16 @@ const LawSidebar = () => {
       {/* Desktop sidebar */}
       <div className={`fixed left-0 top-0 z-1000 hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
         <PortalSidebar
-          brandingTitle="Law Portal"
-          brandingSubtitle="Legal Department"
-          brandingIcon="gavel"
+          brandingTitle="Research Portal"
+          brandingSubtitle="Research Operations"
+          brandingIcon="science"
           user={user}
-          navItems={lawNavWithProject}
+          navItems={researchNavItems}
           currentPath={location.pathname}
           onLogout={handleLogout}
           footerItems={[
-            { path: '/law/settings', label: 'Settings', icon: 'settings' },
-            { path: '/law/support',  label: 'Support',  icon: 'support_agent' },
+            { path: '/research/settings', label: 'Settings', icon: 'settings' },
+            { path: '/research/support',  label: 'Support',  icon: 'support_agent' },
           ]}
         />
       </div>
@@ -96,17 +80,17 @@ const LawSidebar = () => {
           />
           <div className="relative h-full w-[min(250px,86vw)] shadow-2xl">
             <PortalSidebar
-              brandingTitle="Law Portal"
-              brandingSubtitle="Legal Department"
-              brandingIcon="gavel"
+              brandingTitle="Research Portal"
+              brandingSubtitle="Research Operations"
+              brandingIcon="science"
               user={user}
-              navItems={lawNavWithProject}
+              navItems={researchNavItems}
               currentPath={location.pathname}
               onLogout={handleLogout}
               onNavigate={closeMobile}
               footerItems={[
-                { path: '/law/settings', label: 'Settings', icon: 'settings' },
-                { path: '/law/support',  label: 'Support',  icon: 'support_agent' },
+                { path: '/research/settings', label: 'Settings', icon: 'settings' },
+                { path: '/research/support',  label: 'Support',  icon: 'support_agent' },
               ]}
             />
           </div>
@@ -116,4 +100,4 @@ const LawSidebar = () => {
   );
 };
 
-export default LawSidebar;
+export default ResearchSidebar;

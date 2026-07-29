@@ -5,6 +5,7 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 
 const navItems = [
   { id: 'overview', label: 'Overview Dashboard', icon: 'dashboard' },
+  { id: 'project-overview', label: 'Project Overview', icon: 'folder_copy' },
   { id: 'transactions', label: 'Transactions', icon: 'payments' },
   { id: 'budgets', label: 'Budget Management', icon: 'account_balance_wallet' },
   { id: 'payroll', label: 'Payroll Integration', icon: 'badge' },

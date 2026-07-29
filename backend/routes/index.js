@@ -20,6 +20,7 @@ exports.salesRoutes = require("./sales.routes");
 exports.researchRoutes = require("./research.routes");
 exports.outsourcingRoutes = require("./outsourcing.routes");
 exports.projectAccessRoutes = require("./projectAccess.routes");
+exports.projectOverviewRoutes = require("./projectOverview.routes");
 exports.externalAuthRoutes = require("./externalAuth.routes");
 exports.efnbmmsRoutes = require("./efnbmms.routes");
 exports.ssoRoutes = require("./sso.routes");

@@ -58,10 +58,11 @@ import {
   OutsourcingSupportPage,
   MediaDashboardPage,
   MediaProjectDetailPage,
+  ProjectOverviewPage,
   SalesDashboardPage,
   SalesQueryPage,
   SalesSubmissionPage,
-  ResearchDashboardPage,
+  SalesProjectOverviewPage,
   // Legal Document Management
   LegalDocManagementPage,
   LSWLegalLibraryPage,
@@ -106,6 +107,7 @@ import {
   LawLayout,
   ManagerLayout,
   OutsourcingLayout,
+  ResearchLayout,
 } from '../layouts/portals';
 import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
@@ -237,6 +239,7 @@ export default function AppRoutes() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<HRDashboardPage />} />
+          <Route path="project-overview" element={<ProjectOverviewPage portalKey="hr" portalName="HR Portal" />} />
           <Route path="employees" element={<EmployeesPage />} />
           <Route path="users" element={<EmployeesPage />} />
           <Route path="attendance" element={<AttendancePage />} />
@@ -263,6 +266,7 @@ export default function AppRoutes() {
           }
         >
           <Route index element={<ITOverviewPage />} />
+          <Route path="project-overview" element={<ProjectOverviewPage portalKey="it" portalName="IT Portal" />} />
           <Route path="products" element={<ITProductsPage />} />
           <Route path="products/:projectId" element={<ITProductWorkspacePage />} />
           <Route path="tickets" element={<ITTicketsPage />} />
@@ -396,13 +400,31 @@ export default function AppRoutes() {
             </PortalRoute>
           }
         />
+        <Route
+          path="/media/sales/project-overview"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('sales')}>
+                <SalesProjectOverviewPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
 
         <Route
-          path="/research/dashboard"
+          path="/research"
+          element={
+            <PrivateRoute roles={allow('research_operator')}>
+              <Navigate to="/research/dashboard" replace />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/research/*"
           element={
             <PortalRoute portal={PORTALS.RESEARCH}>
               <PrivateRoute roles={allow('research_operator')}>
-                <ResearchDashboardPage />
+                <ResearchLayout />
               </PrivateRoute>
             </PortalRoute>
           }
@@ -658,6 +680,16 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/manager/project-overview"
+          element={
+            <PortalRoute portal={PORTALS.MANAGER}>
+              <PrivateRoute roles={allow('manager')}>
+                {React.createElement(ManagerLayout, null, <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/manager/products"
           element={
             <PortalRoute portal={PORTALS.MANAGER}>
@@ -784,6 +816,16 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.EMPLOYEE}>
               <PrivateRoute roles={allow('employee')}>
                 {withPortal(EmployeeLayout, EmployeeProjectsPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/employee/project-overview"
+          element={
+            <PortalRoute portal={PORTALS.EMPLOYEE}>
+              <PrivateRoute roles={allow('employee')}>
+                {React.createElement(EmployeeLayout, null, <ProjectOverviewPage portalKey="employee" portalName="Employee Portal" />)}
               </PrivateRoute>
             </PortalRoute>
           }

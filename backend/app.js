@@ -118,6 +118,7 @@ app.use("/api/dept/finance", routes.financeRoutes);
 app.use("/api/dept/law", routes.lawRoutes);
 app.use("/api/law", routes.lawRoutes);
 app.use("/api/dept/media", routes.mediaRoutes);
+app.use("/api/dept/project-overview", routes.projectOverviewRoutes);
 app.use("/api/dept/sales", routes.salesRoutes);
 app.use("/api/dept/research", routes.researchRoutes);
 app.use("/api/dept/manager", routes.managerRoutes);

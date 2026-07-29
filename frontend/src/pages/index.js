@@ -79,12 +79,13 @@ export const OutsourcingEfnbmmsAdminManagementPage = lazy(() => import('../compo
 export const MediaDashboardPage = lazy(() => import('../components/media/MediaPortal'));
 export const MediaPortalPage    = MediaDashboardPage;
 export const MediaProjectDetailPage = lazy(() => import('../components/media/MediaProjectDetail'));
+export const ProjectOverviewPage = lazy(() => import('../components/shared/ProjectOverviewPage'));
 
 // ── Department portals ────────────────────────────────────────────────────────
 export const SalesDashboardPage    = lazy(() => import('../components/media/MediaSalesPortal'));
 export const SalesQueryPage        = lazy(() => import('../components/media/SalesQueryPage'));
 export const SalesSubmissionPage   = lazy(() => import('../components/media/SalesSubmissionsPage'));
-export const ResearchDashboardPage = lazy(() => import('../components/department/DepartmentPortals').then(m => ({ default: m.ResearchDepartmentPortal })));
+export const SalesProjectOverviewPage = lazy(() => import('../components/media/SalesProjectOverviewPage'));
 
 // ── Law portal ────────────────────────────────────────────────────────────────
 export const LegalDocManagementPage  = lazy(() => import('../components/law/pages/LegalDocumentManagementPage'));

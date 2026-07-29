@@ -16,6 +16,7 @@ const MiniTooltip = memo(({ label }) => (
 
 const menuItems = [
   { key: 'dashboard',       label: 'Overview Dashboard',  icon: 'dashboard' },
+  { key: 'projectOverview', label: 'Project Overview',    icon: 'folder_copy' },
   { key: 'revenueAnalytics',label: 'Revenue Analytics',   icon: 'payments' },
   { key: 'productInsights', label: 'Product Insights',    icon: 'insights' },
   { key: 'employees',       label: 'Employee Analytics',  icon: 'groups' },

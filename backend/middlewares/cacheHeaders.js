@@ -31,6 +31,10 @@ const cacheHeaders = (req, res, next) => {
   }
 
   const path = req.path || '';
+  if (/\/project-overview/.test(path)) {
+    res.setHeader('Cache-Control', 'no-store');
+    return next();
+  }
 
   for (const pattern of PATTERNS) {
     if (pattern.test.test(path)) {

@@ -8,6 +8,7 @@ export const portalMenuConfig = {
   ],
   hr: [
     { label: 'Dashboard',   icon: 'dashboard',       path: '/hr/dashboard',    description: 'HR command center' },
+    { label: 'Project Overview', icon: 'folder_copy', path: '/hr/project-overview', description: 'Read-only project plan visibility' },
     { label: 'Users',       icon: 'manage_accounts', path: '/hr/users',        description: 'Employee records' },
     { label: 'Recruitment', icon: 'person_search',   path: '/hr/recruitment',  description: 'Hiring pipeline' },
     { label: 'Attendance',  icon: 'calendar_month',  path: '/hr/attendance',   description: 'Attendance operations' },
@@ -19,6 +20,7 @@ export const portalMenuConfig = {
   ],
   user: [
     { label: 'Dashboard', icon: 'dashboard',     path: '/employee/dashboard', description: 'Personal workspace' },
+    { label: 'Project Overview', icon: 'folder_copy', path: '/employee/project-overview', description: 'Read-only project plan visibility' },
     { label: 'My Profile', icon: 'person',        path: '/employee/profile',   description: 'Profile and personal data' },
     { label: 'Projects',   icon: 'folder_open',  path: '/employee/projects',  description: 'My projects and work logs' },
     { label: 'Tasks',      icon: 'task',          path: '/employee/tasks',     description: 'Assigned tasks' },
@@ -30,6 +32,7 @@ export const portalMenuConfig = {
   ],
   manager: [
     { label: 'Dashboard',    icon: 'dashboard',    path: '/manager/dashboard',    description: 'Operations overview' },
+    { label: 'Project Overview', icon: 'folder_copy', path: '/manager/project-overview', description: 'Read-only project plan visibility' },
     { label: 'Work Board',   icon: 'work_history', path: '/manager/work-board',   description: 'Execution board' },
     { label: 'Tasks',        icon: 'task_alt',     path: '/manager/tasks',        description: 'Task operations' },
     { label: 'Recruitment',  icon: 'person_search', path: '/manager/recruitment', description: 'Hiring pipeline' },
@@ -45,6 +48,7 @@ export const portalMenuConfig = {
   ],
   law: [
     { label: 'Dashboard',  icon: 'gavel',         path: '/law/dashboard',   description: 'Legal operations' },
+    { label: 'Project Overview', icon: 'folder_copy', path: '/law/project-overview', description: 'Read-only project plan visibility' },
     { label: 'Contracts',  icon: 'contract',      path: '/law/contracts',   description: 'Outsourcing contract validation' },
     { label: 'Legal Docs', icon: 'description',   path: '/law/legal-docs',  description: 'Legal document management' },
   ],

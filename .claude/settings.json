@@ -33,7 +33,9 @@
       "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_query_page3.js\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/ --max-time 3)",
       "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_progress_ring.js\")",
-      "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_full_progress.js\")"
+      "Bash(node \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\968787bd-29d6-4522-88e4-1cda59f5a348\\\\scratchpad\\\\verify_full_progress.js\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5000/api/dept/project-overview/projects)",
+      "Bash(curl -s http://localhost:5000/api/dept/project-overview/projects)"
     ]
   }
 }

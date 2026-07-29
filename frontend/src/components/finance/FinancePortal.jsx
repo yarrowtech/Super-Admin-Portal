@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { lazy, useState } from 'react';
 import FinanceSidebar from './FinanceSidebar';
 import FinanceDashboard from './FinanceDashboard';
 import FinanceSettingsPage from './FinanceSettingsPage';
@@ -6,8 +6,11 @@ import FinanceSupportPage from './FinanceSupportPage';
 import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 
+const ProjectOverviewPage = lazy(() => import('../shared/ProjectOverviewPage'));
+
 const financeTabs = [
   { id: 'invoices',    label: 'Invoices',    icon: 'receipt_long' },
+  { id: 'project-overview', label: 'Project Overview', icon: 'folder_copy' },
   { id: 'payments',   label: 'Payments',    icon: 'payments' },
   { id: 'expenses',   label: 'Expenses',    icon: 'request_quote' },
   { id: 'budgets',    label: 'Budgets',     icon: 'account_balance_wallet' },
@@ -34,6 +37,7 @@ const FinancePortal = () => {
   const renderContent = () => {
     if (activeTab === 'settings') return <FinanceSettingsPage />;
     if (activeTab === 'support')  return <FinanceSupportPage />;
+    if (activeTab === 'project-overview') return <ProjectOverviewPage portalKey="finance" portalName="Finance Portal" />;
     return <FinanceDashboard activeTab={activeTab} onTabChange={setActiveTab} />;
   };
 

@@ -26,6 +26,7 @@ const { startLawExpiryTracker } = require("./modules/law/law.cron");
 const { startMediaNotificationScheduler } = require("./jobs/mediaNotificationScheduler");
 const { startRenderKeepAlive } = require("./jobs/renderKeepAlive");
 const { User } = require("./models/auth");
+const Session = require("./models/auth/Session");
 const errorMiddleware = require("./middlewares/error.middleware");
 const cacheHeaders = require("./middlewares/cacheHeaders");
 const jwtConfig = require("./config/jwt");
@@ -149,17 +150,43 @@ app.use((req, res) => {
 
 app.use(errorMiddleware);
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   const requestId = socket.handshake.headers["x-request-id"] || socket.id;
   const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(" ")[1];
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, jwtConfig.accessSecret);
-      socket.data.userId = decoded.userId;
-      socket.data.role = decoded.role;
-    } catch (err) {
-      logger.warn({ err, requestId, socketId: socket.id }, "Socket token verification failed");
+  if (!token) {
+    logger.warn({ requestId, socketId: socket.id }, "Socket connection rejected without token");
+    socket.disconnect(true);
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, jwtConfig.accessSecret);
+    if (!decoded.jti) {
+      logger.warn({ requestId, socketId: socket.id }, "Socket connection rejected without session id");
+      socket.disconnect(true);
+      return;
     }
+
+    const session = await Session.findOne({
+      user: decoded.userId,
+      jti: decoded.jti,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() },
+    }).select("_id");
+
+    const user = await User.findById(decoded.userId).select("_id role isActive accountStatus").lean();
+    if (!session || !user || !user.isActive || ["suspended", "blocked"].includes(user.accountStatus)) {
+      logger.warn({ requestId, socketId: socket.id, userId: decoded.userId || null }, "Socket connection rejected for inactive session");
+      socket.disconnect(true);
+      return;
+    }
+
+    socket.data.userId = String(user._id);
+    socket.data.role = user.role;
+  } catch (err) {
+    logger.warn({ err, requestId, socketId: socket.id }, "Socket token verification failed");
+    socket.disconnect(true);
+    return;
   }
   logger.info({ socketId: socket.id, requestId, userId: socket.data.userId || null }, "Socket connected");
   if (socket.data.userId) {

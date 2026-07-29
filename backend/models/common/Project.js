@@ -17,6 +17,11 @@ const projectSchema = new mongoose.Schema(
       unique: true,
       trim: true
     },
+    logo: {
+      url: String,
+      storageKey: String,
+      storageProvider: String
+    },
     client: {
       name: String,
       email: String,

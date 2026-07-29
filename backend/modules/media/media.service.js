@@ -24,6 +24,7 @@ const DEFAULT_APPROVAL_STEPS = [
   { role: 'marketing_head' },
   { role: 'ceo', optional: true },
 ];
+const MEDIA_APPROVAL_OVERRIDE_ROLES = ['admin', 'super_admin', 'ceo', 'department_head'];
 
 const MEDIA_DEPARTMENT_STRUCTURE = {
   department: 'MEDIA ON & OFFLINE',
@@ -130,17 +131,24 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const exactTextFilter = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized ? new RegExp(`^${escapeRegex(normalized)}$`, 'i') : undefined;
+};
+
 const buildFilter = (query = {}, projectId) => {
   const filter = {};
 
   if (projectId) filter.projectId = projectId;
-  if (query.section) filter.section = query.section;
-  if (query.moduleType) filter.moduleType = query.moduleType;
-  if (query.status) filter.status = query.status;
-  if (query.priority) filter.priority = query.priority;
+  if (query.section) filter.section = exactTextFilter(query.section);
+  if (query.moduleType) filter.moduleType = exactTextFilter(query.moduleType);
+  if (query.status && String(query.status).toLowerCase() !== 'all') filter.status = exactTextFilter(query.status);
+  if (query.priority && String(query.priority).toLowerCase() !== 'all') filter.priority = exactTextFilter(query.priority);
   if (query.clientId) filter.clientId = query.clientId;
   if (query.campaignId) filter.campaignId = query.campaignId;
-  if (query.approvalStatus) filter.approvalStatus = query.approvalStatus;
+  if (query.approvalStatus && String(query.approvalStatus).toLowerCase() !== 'all') {
+    filter.approvalStatus = exactTextFilter(query.approvalStatus);
+  }
 
   if (query.search) {
     const q = new RegExp(query.search, 'i');
@@ -363,7 +371,9 @@ const listMedia = async (query = {}, projectId, section) => {
   const { page, limit, skip } = withPagination(query);
   const filter = buildFilter(query, projectId);
   if (section) filter.section = section;
-  const sortField = String(query.sortBy || 'updatedAt');
+  const allowedSortFields = new Set(['createdAt', 'updatedAt', 'title', 'status', 'priority', 'publishAt', 'submittedAt']);
+  const requestedSortField = String(query.sortBy || 'updatedAt');
+  const sortField = allowedSortFields.has(requestedSortField) ? requestedSortField : 'updatedAt';
   const sortDir = String(query.order || 'desc').toLowerCase() === 'asc' ? 1 : -1;
 
   const [items, total] = await Promise.all([
@@ -575,8 +585,10 @@ const listApprovals = async (query = {}, projectId) => {
     approvalWorkflowId: { $ne: null },
   };
 
-  if (query.approvalStatus) filter.approvalStatus = query.approvalStatus;
-  if (query.status) filter.status = query.status;
+  if (query.approvalStatus && String(query.approvalStatus).toLowerCase() !== 'all') {
+    filter.approvalStatus = exactTextFilter(query.approvalStatus);
+  }
+  if (query.status && String(query.status).toLowerCase() !== 'all') filter.status = exactTextFilter(query.status);
   if (query.search) {
     const q = new RegExp(query.search, 'i');
     filter.$or = [
@@ -670,6 +682,7 @@ const decideApproval = async ({ workflowId, actorId, actorRole, decision, remark
     userId: actorId,
     decision,
     remarks,
+    overrideRoles: MEDIA_APPROVAL_OVERRIDE_ROLES,
   });
 
   const media = await Media.findOne({ approvalWorkflowId: workflow._id });
@@ -777,6 +790,54 @@ const uploadMediaFile = async ({ file, section, projectId }) => {
   };
 };
 
+const setProjectLogo = async (projectId, file) => {
+  if (!file) {
+    const err = new Error('No logo file provided');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (resolveResourceType(file.mimetype) !== 'image') {
+    const err = new Error('Logo must be an image file');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!isCloudinaryConfigured()) {
+    const err = new Error('Cloudinary is not configured for media uploads');
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const project = await Project.findById(projectId);
+  if (!project) {
+    const err = new Error('Project not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const previousStorageKey = project.logo?.storageKey;
+
+  const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  const uploaded = await cloudinary.uploader.upload(dataUri, {
+    folder: `media/project-logos/${projectId}`,
+    resource_type: 'image',
+    use_filename: true,
+    unique_filename: true,
+  });
+
+  project.logo = {
+    url: uploaded.secure_url,
+    storageKey: uploaded.public_id,
+    storageProvider: 'cloudinary',
+  };
+  await project.save();
+
+  if (previousStorageKey && previousStorageKey !== uploaded.public_id) {
+    await deleteCloudinaryAsset(previousStorageKey, 'image/png');
+  }
+
+  return project.toObject();
+};
+
 const getReportingSummary = async (projectId) => {
   const scope = projectId ? { projectId } : {};
   const [byStatus, byType, auditRows, recentItems] = await Promise.all([
@@ -814,4 +875,5 @@ module.exports = {
   decideApproval,
   getReportingSummary,
   uploadMediaFile,
+  setProjectLogo,
 };

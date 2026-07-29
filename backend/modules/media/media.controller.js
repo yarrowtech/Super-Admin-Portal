@@ -285,6 +285,19 @@ exports.uploadFile = async (req, res) => {
   }
 };
 
+exports.uploadProjectLogo = async (req, res) => {
+  try {
+    const data = await mediaService.setProjectLogo(req.params.id, req.file);
+    getMediaRequestLogger(req, { action: 'uploadProjectLogo' }).info(
+      { projectId: req.params.id, fileName: req.file?.originalname || null },
+      'Project logo uploaded'
+    );
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to upload project logo', 'Media module uploadProjectLogo error');
+  }
+};
+
 exports.getApprovals = async (req, res) => {
   try {
     const data = await mediaService.listApprovals(req.query || {}, req.projectId);

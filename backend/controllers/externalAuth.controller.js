@@ -329,18 +329,15 @@ const ssoLogin = async (req, res) => {
 const userAccess = async (req, res) => {
   try {
     const token = req.body?.token || req.query?.token || req.headers.authorization?.split(' ')[1];
-    const userId = req.body?.userId || req.query?.userId;
 
     let user = null;
     if (token) {
       const decoded = jwt.verify(token, jwtConfig.accessSecret);
       user = await resolveUser(decoded.userId || decoded.sub);
-    } else if (userId) {
-      user = await resolveUser(userId);
     }
 
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(400).json({ success: false, error: 'token is required' });
     }
 
     const { projects, summary } = buildProjectAccessSummary(user);

@@ -27,8 +27,20 @@ const upload = multer({
   }
 });
 
-const uploadSingle = (fieldName = 'file') => upload.single(fieldName);
-const uploadMany = (fieldName = 'files', maxCount = 5) => upload.array(fieldName, maxCount);
+const runUpload = (middleware) => (req, res, next) => {
+  middleware(req, res, (err) => {
+    if (!err) return next();
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : Number(err.statusCode) || 400;
+    return res.status(status).json({
+      success: false,
+      error: err.message || 'File upload failed',
+      code: err.code || 'UPLOAD_REJECTED',
+    });
+  });
+};
+
+const uploadSingle = (fieldName = 'file') => runUpload(upload.single(fieldName));
+const uploadMany = (fieldName = 'files', maxCount = 5) => runUpload(upload.array(fieldName, maxCount));
 
 const jpegOnlyUpload = multer({
   storage: multer.memoryStorage(),
@@ -46,7 +58,7 @@ const jpegOnlyUpload = multer({
   }
 });
 
-const uploadJpegImages = (fieldName = 'images', maxCount = 8) => jpegOnlyUpload.array(fieldName, maxCount);
+const uploadJpegImages = (fieldName = 'images', maxCount = 8) => runUpload(jpegOnlyUpload.array(fieldName, maxCount));
 
 module.exports = {
   uploadSingle,

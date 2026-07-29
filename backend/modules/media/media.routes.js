@@ -53,6 +53,7 @@ router.use((req, res, next) => {
 router.get('/dashboard', controller.getDashboard);
 router.get('/overview', controller.getOverview);
 router.get('/projects', v.listValidation, validate, controller.getProjects);
+router.post('/projects/:id/logo', canManageMedia, v.mediaIdValidation, validate, uploadMediaFile(), controller.uploadProjectLogo);
 
 router.get('/assets', v.listValidation, validate, controller.getAssets);
 router.post('/assets', requireProjectContext, canManageMedia, v.mediaRecordValidation, validate, controller.createAsset);

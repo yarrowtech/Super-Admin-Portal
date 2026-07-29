@@ -28,12 +28,24 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     if (!allowedMimeTypes.has(file.mimetype)) {
-      return cb(new Error('Unsupported file type'));
+      const err = new Error('Unsupported file type');
+      err.statusCode = 400;
+      return cb(err);
     }
     return cb(null, true);
   },
 });
 
-const uploadMediaFile = () => upload.single('file');
+const uploadMediaFile = () => (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : Number(err.statusCode) || 400;
+    return res.status(status).json({
+      success: false,
+      error: err.message || 'File upload failed',
+      code: err.code || 'UPLOAD_REJECTED',
+    });
+  });
+};
 
 module.exports = { uploadMediaFile };

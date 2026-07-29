@@ -18,7 +18,7 @@ const devLocalOrigins = env.IS_PRODUCTION
 const originAllowList = Array.from(new Set([...allowedOrigins, ...devLocalOrigins]));
 
 const origin = (requestOrigin, callback) => {
-  if (!requestOrigin) return callback(null, true);
+  if (!requestOrigin) return callback(null, !env.IS_PRODUCTION);
   if (originAllowList.includes(requestOrigin)) return callback(null, true);
   return callback(new Error(`CORS blocked: ${requestOrigin}`));
 };

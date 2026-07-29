@@ -11,12 +11,16 @@ const MEDIA_THEME = {
   '--portal-accent-strong': '#134e4a',
 };
 
-const card = 'rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] transition-shadow duration-300 hover:shadow-[0_22px_60px_rgba(15,23,42,0.11)] dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-[0_18px_50px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_22px_60px_rgba(0,0,0,0.45)]';
-const soft = 'rounded-[1.25rem] border border-slate-200/80 bg-[#fbfeff] p-4 shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition-colors duration-200 hover:border-teal-200 dark:border-neutral-800 dark:bg-neutral-900/60 dark:hover:border-teal-900/60';
+const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900';
+const soft = 'rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-neutral-800 dark:bg-neutral-950/45';
 const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.14em] text-teal-700 dark:text-teal-400';
 const fieldLabel = 'text-[11px] font-bold uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400';
 const inputCls = 'mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition-all duration-200 focus:border-[var(--portal-accent)] focus:shadow-[0_0_0_3px_var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:shadow-[0_0_0_3px_rgba(15,118,110,0.25)]';
 const textareaCls = `${inputCls} min-h-[96px] resize-y`;
+const tableWrap = 'mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/30';
+const tableHead = 'text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50 dark:[&>th]:bg-neutral-900/70';
+const tableTh = 'border-b border-neutral-200 px-3 py-2.5 dark:border-neutral-800';
+const tableTd = 'border-b border-neutral-100 px-3 py-3 dark:border-neutral-800';
 
 const FRAMEWORK_PHASES = [
   { phase: 'Foundation Kit', hint: 'Before Launch' },
@@ -27,14 +31,14 @@ const CHANNEL_CATEGORIES = ['Organic', 'Paid', 'Direct', 'Partnerships'];
 const BUDGET_PHASES = ['Foundation', 'Growth', 'Scaling'];
 
 const WEEKLY_CHECKLIST_TASKS = [
-  'Website & Landing Pages', 'Vendor Onboarding', 'Google Analytics Setup', 'Meta Pixel Installation',
+  'Website & Landing Pages', 'Partner / Stakeholder Onboarding', 'Google Analytics Setup', 'Meta Pixel Installation',
   'SEO Setup', 'Campaign Setup (Google Ads)', 'Campaign Setup (Meta Ads)', 'Social Media Content Plan',
   'Email Marketing Setup', 'WhatsApp Automation', 'Partnership Outreach', 'Content Published (Blog/Guides)',
   'Weekly Report & Dashboard',
 ];
 const WEEKLY_UPDATE_WEEKS = [
   { week: 'Week 1', hint: 'Branding & Website' },
-  { week: 'Week 2', hint: 'Vendor Onboarding & Partnerships' },
+  { week: 'Week 2', hint: 'Partner Onboarding & Partnerships' },
   { week: 'Week 3', hint: 'Campaign Setup' },
   { week: 'Week 4', hint: 'Lead Generation' },
   { week: 'Week 5', hint: 'Optimization' },
@@ -45,12 +49,12 @@ const ACQUISITION_CHANNELS = [
   'Influencer Marketing', 'SEO & Content', 'Referral Program', 'Email & WhatsApp', 'Partnership Campaigns',
 ];
 const FUNNEL_PERF_STAGES = [
-  'Awareness (Impressions)', 'Website Visits', 'Registrations', 'Pass / Trip Planning', 'Bookings',
+  'Awareness (Impressions)', 'Website Visits', 'Registrations', 'Product / Service Interest', 'Bookings',
   'Paid Bookings', 'Retention', 'Referral',
 ];
 const CONTENT_TRACKER_TYPES = [
   'Reels / Shorts', 'Social Media Posts', 'Blog Articles / Travel Guides', 'YouTube Videos',
-  'Destination Spotlights', 'Email Campaigns', 'Vendor Stories', 'User Stories / Testimonials', 'Feature Updates',
+  'Product / Service Spotlights', 'Email Campaigns', 'Partner / Customer Stories', 'User Stories / Testimonials', 'Feature Updates',
 ];
 const DELIVERABLES_ITEMS = [
   'Website & Landing Pages', 'Social Media Creatives', 'Ad Campaigns', 'Blog & SEO Content', 'Email Campaigns',
@@ -111,6 +115,18 @@ const PROJECT_STRATEGIES = {
       targetAudience: 'Students, parents, educators, and learning partners',
       usp: 'Structured learning support with measurable academic progress',
     },
+    goals: {
+      brand: ['Position EdifyEight as a trusted learning and academic-support platform', 'Build credibility through outcomes, faculty proof, and parent/student stories'],
+      marketing: ['Generate qualified student and parent enquiries', 'Improve counselling/demo bookings through targeted campaigns', 'Build a repeatable education content engine'],
+      business: ['Increase admissions, course purchases, and renewals', 'Grow learning partner demand', 'Improve retention through progress updates and nurture flows'],
+    },
+    planning: {
+      targetCustomers: ['Students comparing learning support options', 'Parents evaluating academic outcomes', 'Schools and educators looking for structured programs', 'Learning partners and tutors'],
+      painPoints: ['Parents lack clear evidence before enrolment', 'Students need structured guidance and progress tracking', 'Course benefits are hard to compare', 'Follow-up after enquiry is inconsistent'],
+      buyingTriggers: ['Exam preparation window', 'Low academic confidence', 'Visible success proof', 'Clear counselling or demo path'],
+      positioning: 'EdifyEight helps students and parents find structured learning support with clear progress signals.',
+      valueProposition: 'Students get guided learning and measurable improvement, while parents get clarity, confidence, and simple next steps.',
+    },
   },
   ESPORTSM: {
     overview: {
@@ -118,6 +134,42 @@ const PROJECT_STRATEGIES = {
       platform: 'Discord, YouTube, Instagram, Meta, event landing pages',
       targetAudience: 'Gamers, teams, organizers, sponsors, and gaming fans',
       usp: 'Competitive esports experiences with community-led growth',
+    },
+    goals: {
+      brand: ['Position ESPORTSM as a credible esports community and tournament platform', 'Build excitement through player stories, event highlights, and sponsor proof'],
+      marketing: ['Grow community joins and tournament registrations', 'Drive sponsor and team interest', 'Create a repeatable short-form video and event promotion engine'],
+      business: ['Increase paid entries, sponsorships, and event partnerships', 'Improve participant retention between events', 'Build recurring community engagement loops'],
+    },
+    planning: {
+      targetCustomers: ['Competitive gamers and teams', 'Casual gaming communities', 'Tournament organizers', 'Brands and sponsors targeting gaming audiences'],
+      painPoints: ['Players lack trusted event discovery', 'Teams need visibility and organized competition', 'Sponsors need measurable gaming-community reach', 'Community attention drops between events'],
+      buyingTriggers: ['Upcoming tournament', 'Prize pool announcement', 'Influencer or team participation', 'Sponsor-backed event campaign'],
+      positioning: 'ESPORTSM helps gamers, teams, and sponsors connect through organized esports experiences and community-led promotion.',
+      valueProposition: 'Players get credible competitions and visibility, while sponsors and organizers get measurable community engagement.',
+    },
+  },
+  EHC: {
+    overview: {
+      industry: 'Employee services and operations',
+      platform: 'Employee portal, email, WhatsApp, internal communications',
+      targetAudience: 'Employees, department heads, HR teams, and operations stakeholders',
+      usp: 'Centralized employee service communication and request handling',
+    },
+  },
+  ERMS: {
+    overview: {
+      industry: 'Resource and relationship management',
+      platform: 'Website, CRM, email, WhatsApp, search, and partner channels',
+      targetAudience: 'Clients, operators, partners, and internal business teams',
+      usp: 'Organized relationship tracking with measurable business follow-through',
+    },
+  },
+  EFNBMMS: {
+    overview: {
+      industry: 'Admin management and business operations',
+      platform: 'Admin portal, operational dashboards, email, and internal workflows',
+      targetAudience: 'Admins, managers, operations teams, and business stakeholders',
+      usp: 'Structured admin-management workflows with auditable operational visibility',
     },
   },
 };
@@ -166,6 +218,131 @@ const DEFAULT_BUDGET = {
   Scaling: ['Retargeting and lookalike campaigns', 'Partnership campaigns', 'Automation and CRO experiments'],
 };
 
+const DEFAULT_EXECUTION_PROFILE = {
+  weeklyChecklistTasks: WEEKLY_CHECKLIST_TASKS,
+  weeklyUpdateWeeks: WEEKLY_UPDATE_WEEKS,
+  funnelPerformanceStages: FUNNEL_PERF_STAGES,
+  contentTrackerTypes: CONTENT_TRACKER_TYPES,
+  deliverables: DELIVERABLES_ITEMS,
+  performanceLabels: {
+    websiteVisits: 'Website Visits',
+    registrations: 'Registrations',
+    vendorSignups: 'Partner Signups',
+    bookings: 'Conversions',
+    revenue: 'Revenue (INR)',
+    roas: 'ROAS',
+  },
+};
+
+const PROJECT_EXECUTION_PROFILES = {
+  BETTERPASS: {
+    weeklyChecklistTasks: [
+      'Website & Landing Pages', 'Vendor Onboarding', 'Google Analytics Setup', 'Meta Pixel Installation',
+      'SEO Setup', 'Campaign Setup (Google Ads)', 'Campaign Setup (Meta Ads)', 'Social Media Content Plan',
+      'Email Marketing Setup', 'WhatsApp Automation', 'Partnership Outreach', 'Content Published (Blog/Guides)',
+      'Weekly Report & Dashboard',
+    ],
+    weeklyUpdateWeeks: [
+      { week: 'Week 1', hint: 'Branding & Website' },
+      { week: 'Week 2', hint: 'Vendor Onboarding & Partnerships' },
+      { week: 'Week 3', hint: 'Campaign Setup' },
+      { week: 'Week 4', hint: 'Lead Generation' },
+      { week: 'Week 5', hint: 'Optimization' },
+      { week: 'Week 6+', hint: 'Scaling & Expansion' },
+    ],
+    funnelPerformanceStages: [
+      'Awareness (Impressions)', 'Website Visits', 'Registrations', 'Pass / Trip Planning', 'Bookings',
+      'Paid Bookings', 'Retention', 'Referral',
+    ],
+    contentTrackerTypes: [
+      'Reels / Shorts', 'Social Media Posts', 'Blog Articles / Travel Guides', 'YouTube Videos',
+      'Destination Spotlights', 'Email Campaigns', 'Vendor Stories', 'User Stories / Testimonials', 'Feature Updates',
+    ],
+    performanceLabels: {
+      vendorSignups: 'Vendor Signups',
+      bookings: 'Bookings',
+    },
+  },
+  EEC: {
+    weeklyChecklistTasks: [
+      'Course Landing Pages', 'Lead Form & CRM Setup', 'Google Analytics Setup', 'Meta Pixel Installation',
+      'SEO Setup', 'Google Search Campaigns', 'Meta Lead Campaigns', 'Academic Content Plan',
+      'Email Marketing Setup', 'WhatsApp Counselling Flow', 'School / Partner Outreach', 'Blogs & Learning Guides',
+      'Weekly Report & Dashboard',
+    ],
+    funnelPerformanceStages: [
+      'Awareness (Impressions)', 'Website Visits', 'Enquiries', 'Counselling Requests', 'Demo Bookings',
+      'Admissions / Purchases', 'Retention', 'Referral',
+    ],
+    contentTrackerTypes: [
+      'Reels / Shorts', 'Social Media Posts', 'Learning Guides', 'YouTube Videos',
+      'Course Spotlights', 'Email Campaigns', 'Student Success Stories', 'Parent Testimonials', 'Feature Updates',
+    ],
+    performanceLabels: {
+      registrations: 'Enquiries',
+      vendorSignups: 'Demo Requests',
+      bookings: 'Admissions',
+    },
+  },
+  ESPORTSM: {
+    weeklyChecklistTasks: [
+      'Event Landing Pages', 'Community Onboarding', 'Analytics Setup', 'Meta Pixel Installation',
+      'SEO Setup', 'Tournament Campaigns', 'Meta / Instagram Campaigns', 'Gaming Content Plan',
+      'Email Marketing Setup', 'Discord / WhatsApp Automation', 'Sponsor Outreach', 'Match Highlights Published',
+      'Weekly Report & Dashboard',
+    ],
+    funnelPerformanceStages: [
+      'Awareness (Impressions)', 'Website Visits', 'Community Joins', 'Tournament Interest', 'Registrations',
+      'Paid Entries / Sponsors', 'Retention', 'Referral',
+    ],
+    contentTrackerTypes: [
+      'Reels / Shorts', 'Social Media Posts', 'Tournament Updates', 'YouTube Videos',
+      'Player / Team Spotlights', 'Email Campaigns', 'Sponsor Stories', 'Community Testimonials', 'Feature Updates',
+    ],
+    performanceLabels: {
+      registrations: 'Community Joins',
+      vendorSignups: 'Team Signups',
+      bookings: 'Tournament Entries',
+    },
+  },
+  EHC: {
+    performanceLabels: {
+      registrations: 'Employee Requests',
+      vendorSignups: 'Department Requests',
+      bookings: 'Resolved Requests',
+    },
+  },
+  ERMS: {
+    performanceLabels: {
+      registrations: 'Leads',
+      vendorSignups: 'Client Signups',
+      bookings: 'Deals / Bookings',
+    },
+  },
+  EFNBMMS: {
+    performanceLabels: {
+      registrations: 'Admin Requests',
+      vendorSignups: 'Account Setups',
+      bookings: 'Completed Operations',
+    },
+  },
+};
+
+const getExecutionProfile = (canonical = null) => {
+  const custom = PROJECT_EXECUTION_PROFILES[canonical?.code || ''] || {};
+  return {
+    ...DEFAULT_EXECUTION_PROFILE,
+    ...custom,
+    performanceLabels: {
+      ...DEFAULT_EXECUTION_PROFILE.performanceLabels,
+      ...(custom.performanceLabels || {}),
+    },
+  };
+};
+
+const listFromProfile = (profile, key) => (Array.isArray(profile?.[key]) && profile[key].length ? profile[key] : DEFAULT_EXECUTION_PROFILE[key]);
+const rowsFromLabels = (labels = [], rowFactory) => labels.map((label) => rowFactory(label));
+
 const hasPlanContent = (data = {}) => {
   if (!data || typeof data !== 'object') return false;
   return Boolean(
@@ -183,6 +360,7 @@ const hasPlanContent = (data = {}) => {
 
 const buildSeedPlan = (project = {}, canonical = null) => {
   const key = canonical?.code || '';
+  const executionProfile = getExecutionProfile(canonical);
   const strategy = {
     overview: { ...DEFAULT_STRATEGY.overview, ...(PROJECT_STRATEGIES[key]?.overview || {}) },
     goals: { ...DEFAULT_STRATEGY.goals, ...(PROJECT_STRATEGIES[key]?.goals || {}) },
@@ -220,6 +398,13 @@ const buildSeedPlan = (project = {}, canonical = null) => {
       medium: ['Build weekly content calendar', 'Create retargeting audiences', 'Prepare partner outreach list'],
       low: ['Archive old creative variants', 'Document learnings for future tests'],
     },
+    weeklyChecklist: rowsFromLabels(listFromProfile(executionProfile, 'weeklyChecklistTasks'), (task) => ({ task, owner: '', done: false })),
+    weeklyUpdates: listFromProfile(executionProfile, 'weeklyUpdateWeeks').map((w) => ({ week: w.week, focusArea: w.hint, progress: '' })),
+    acquisitionBudget: ACQUISITION_CHANNELS.map((channel) => ({ channel, monthlyInvestment: '', leadsEstimate: '', cpl: '', status: '' })),
+    funnelPerformance: rowsFromLabels(listFromProfile(executionProfile, 'funnelPerformanceStages'), (stage) => ({ stage, target: '', actual: '', conversionPct: '' })),
+    contentTracker: rowsFromLabels(listFromProfile(executionProfile, 'contentTrackerTypes'), (contentType) => ({ contentType, target: '', completed: '' })),
+    deliverables: rowsFromLabels(listFromProfile(executionProfile, 'deliverables'), (label) => ({ label, done: false })),
+    performanceLabels: executionProfile.performanceLabels,
     notes: {
       keyObservations: description ? `Initial plan seeded from project context: ${description}` : '',
       nextWeekFocus: 'Finalize campaign assets, tracking, owners, and weekly KPI baseline.',
@@ -260,7 +445,7 @@ const applyPlanCalculations = (payload) => {
   return { ...payload, acquisitionBudget, funnelPerformance };
 };
 
-const emptyPlan = () => ({
+const emptyPlan = (executionProfile = DEFAULT_EXECUTION_PROFILE) => ({
   overview: { industry: '', platform: '', targetAudience: '', usp: '', currentPhase: '', overallStatus: 'On Track' },
   goals: { brand: [], marketing: [], business: [] },
   framework: FRAMEWORK_PHASES.map((f) => ({ phase: f.phase, whenUsed: f.hint, mainFocus: [], keyOutput: '' })),
@@ -276,19 +461,29 @@ const emptyPlan = () => ({
   kpiPlan: [],
   budgetPlan: BUDGET_PHASES.map((p) => ({ phase: p, items: [] })),
 
-  weeklyChecklist: WEEKLY_CHECKLIST_TASKS.map((task) => ({ task, owner: '', done: false })),
-  weeklyUpdates: WEEKLY_UPDATE_WEEKS.map((w) => ({ week: w.week, focusArea: w.hint, progress: '' })),
+  weeklyChecklist: rowsFromLabels(listFromProfile(executionProfile, 'weeklyChecklistTasks'), (task) => ({ task, owner: '', done: false })),
+  weeklyUpdates: listFromProfile(executionProfile, 'weeklyUpdateWeeks').map((w) => ({ week: w.week, focusArea: w.hint, progress: '' })),
   acquisitionBudget: ACQUISITION_CHANNELS.map((channel) => ({ channel, monthlyInvestment: '', leadsEstimate: '', cpl: '', status: '' })),
-  funnelPerformance: FUNNEL_PERF_STAGES.map((stage) => ({ stage, target: '', actual: '', conversionPct: '' })),
-  contentTracker: CONTENT_TRACKER_TYPES.map((contentType) => ({ contentType, target: '', completed: '' })),
+  funnelPerformance: rowsFromLabels(listFromProfile(executionProfile, 'funnelPerformanceStages'), (stage) => ({ stage, target: '', actual: '', conversionPct: '' })),
+  contentTracker: rowsFromLabels(listFromProfile(executionProfile, 'contentTrackerTypes'), (contentType) => ({ contentType, target: '', completed: '' })),
   priorityMatrix: { high: [], medium: [], low: [] },
-  deliverables: DELIVERABLES_ITEMS.map((label) => ({ label, done: false })),
+  deliverables: rowsFromLabels(listFromProfile(executionProfile, 'deliverables'), (label) => ({ label, done: false })),
   performanceSnapshot: { websiteVisits: '', registrations: '', vendorSignups: '', bookings: '', revenue: '', roas: '' },
+  performanceLabels: { ...DEFAULT_EXECUTION_PROFILE.performanceLabels, ...(executionProfile.performanceLabels || {}) },
   notes: { keyObservations: '', challenges: '', nextWeekFocus: '', actionItems: '' },
 });
 
-const mergePlan = (data = {}) => {
-  const base = emptyPlan();
+const mergeRows = (defaults = [], dataRows = [], key) => {
+  const rows = Array.isArray(dataRows) && dataRows.length ? dataRows : defaults;
+  return rows.map((defaultRow) => {
+    const label = defaultRow?.[key];
+    const savedRow = (Array.isArray(dataRows) ? dataRows : []).find((row) => row?.[key] === label) || {};
+    return { ...defaultRow, ...savedRow, [key]: savedRow?.[key] || label };
+  });
+};
+
+const mergePlan = (data = {}, executionProfile = DEFAULT_EXECUTION_PROFILE) => {
+  const base = emptyPlan(executionProfile);
   return {
     overview: { ...base.overview, ...(data.overview || {}) },
     goals: { ...base.goals, ...(data.goals || {}) },
@@ -311,36 +506,22 @@ const mergePlan = (data = {}) => {
       return { phase: p, items: row.items || [] };
     }),
 
-    weeklyChecklist: WEEKLY_CHECKLIST_TASKS.map((task) => {
-      const row = (data.weeklyChecklist || []).find((r) => r.task === task) || {};
-      return { task, owner: row.owner || '', done: Boolean(row.done) };
-    }),
-    weeklyUpdates: WEEKLY_UPDATE_WEEKS.map((w) => {
-      const row = (data.weeklyUpdates || []).find((r) => r.week === w.week) || {};
-      return { week: w.week, focusArea: row.focusArea || w.hint, progress: row.progress || '' };
-    }),
+    weeklyChecklist: mergeRows(base.weeklyChecklist, data.weeklyChecklist, 'task').map((row) => ({ task: row.task, owner: row.owner || '', done: Boolean(row.done) })),
+    weeklyUpdates: mergeRows(base.weeklyUpdates, data.weeklyUpdates, 'week').map((row) => ({ week: row.week, focusArea: row.focusArea || '', progress: row.progress || '' })),
     acquisitionBudget: ACQUISITION_CHANNELS.map((channel) => {
       const row = (data.acquisitionBudget || []).find((r) => r.channel === channel) || {};
       return { channel, monthlyInvestment: row.monthlyInvestment || '', leadsEstimate: row.leadsEstimate || '', cpl: row.cpl || '', status: row.status || '' };
     }),
-    funnelPerformance: FUNNEL_PERF_STAGES.map((stage) => {
-      const row = (data.funnelPerformance || []).find((r) => r.stage === stage) || {};
-      return { stage, target: row.target || '', actual: row.actual || '', conversionPct: row.conversionPct || '' };
-    }),
-    contentTracker: CONTENT_TRACKER_TYPES.map((contentType) => {
-      const row = (data.contentTracker || []).find((r) => r.contentType === contentType) || {};
-      return { contentType, target: row.target || '', completed: row.completed || '' };
-    }),
+    funnelPerformance: mergeRows(base.funnelPerformance, data.funnelPerformance, 'stage').map((row) => ({ stage: row.stage, target: row.target || '', actual: row.actual || '', conversionPct: row.conversionPct || '' })),
+    contentTracker: mergeRows(base.contentTracker, data.contentTracker, 'contentType').map((row) => ({ contentType: row.contentType, target: row.target || '', completed: row.completed || '' })),
     priorityMatrix: {
       high: Array.isArray(data.priorityMatrix?.high) ? data.priorityMatrix.high : [],
       medium: Array.isArray(data.priorityMatrix?.medium) ? data.priorityMatrix.medium : [],
       low: Array.isArray(data.priorityMatrix?.low) ? data.priorityMatrix.low : [],
     },
-    deliverables: DELIVERABLES_ITEMS.map((label) => {
-      const row = (data.deliverables || []).find((r) => r.label === label) || {};
-      return { label, done: Boolean(row.done) };
-    }),
+    deliverables: mergeRows(base.deliverables, data.deliverables, 'label').map((row) => ({ label: row.label, done: Boolean(row.done) })),
     performanceSnapshot: { ...base.performanceSnapshot, ...(data.performanceSnapshot || {}) },
+    performanceLabels: { ...base.performanceLabels, ...(data.performanceLabels || {}) },
     notes: { ...base.notes, ...(data.notes || {}) },
   };
 };
@@ -374,6 +555,7 @@ const buildDraft = (plan) => ({
   priorityLow: toLines(plan.priorityMatrix.low),
   deliverables: plan.deliverables.map((r) => ({ ...r })),
   performanceSnapshot: { ...plan.performanceSnapshot },
+  performanceLabels: { ...(plan.performanceLabels || DEFAULT_EXECUTION_PROFILE.performanceLabels) },
   notes: { ...plan.notes },
 });
 
@@ -409,6 +591,7 @@ const buildPayload = (draft) => applyPlanCalculations({
   },
   deliverables: draft.deliverables,
   performanceSnapshot: { ...draft.performanceSnapshot },
+  performanceLabels: { ...(draft.performanceLabels || DEFAULT_EXECUTION_PROFILE.performanceLabels) },
   notes: { ...draft.notes },
 });
 
@@ -427,10 +610,35 @@ const BulletList = ({ items = [], empty = 'Not defined yet.' }) =>
   );
 
 const OverviewField = ({ label, value }) => (
-  <div>
+  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950/40">
     <p className={fieldLabel}>{label}</p>
-    <p className="mt-0.5 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{value || '—'}</p>
+    <p className="mt-0.5 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{value || '-'}</p>
   </div>
+);
+
+const SectionHeader = ({ eyebrow, title, description, icon }) => (
+  <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="min-w-0">
+      <p className={sectionTitle}>{eyebrow}</p>
+      {title ? <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-neutral-100">{title}</h2> : null}
+      {description ? <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500 dark:text-neutral-400">{description}</p> : null}
+    </div>
+    {icon ? (
+      <span className="material-symbols-outlined flex h-10 w-10 items-center justify-center rounded-xl border border-teal-100 bg-teal-50 text-[20px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+        {icon}
+      </span>
+    ) : null}
+  </div>
+);
+
+const StatusPill = ({ value }) => (
+  <span
+    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white shadow-[0_6px_14px_rgba(15,118,110,0.25)]"
+    style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
+  >
+    <span className="h-1.5 w-1.5 rounded-full bg-white/85" />
+    {value || 'On Track'}
+  </span>
 );
 
 const MediaProjectDetail = () => {
@@ -448,6 +656,9 @@ const MediaProjectDetail = () => {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [page, setPage] = useState('1');
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  const logoInputRef = React.useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -478,8 +689,10 @@ const MediaProjectDetail = () => {
         return departmentApi.getMediaMarketingPlan(token, resolvedId, { forceRefresh: true }).then((planRes) => {
           if (!alive) return;
           const planData = planRes?.data || {};
-          const seed = buildSeedPlan(match, findCanonicalProject(match));
-          const merged = mergePlan(hasPlanContent(planData) ? planData : seed);
+          const projectCanonical = findCanonicalProject(match);
+          const executionProfile = getExecutionProfile(projectCanonical);
+          const seed = buildSeedPlan(match, projectCanonical);
+          const merged = mergePlan(hasPlanContent(planData) ? planData : seed, executionProfile);
           setPlan(merged);
           setDraft(buildDraft(merged));
         });
@@ -498,6 +711,23 @@ const MediaProjectDetail = () => {
   const canonical = useMemo(() => (project ? findCanonicalProject(project) : null), [project]);
   const projectName = canonical?.name || project?.name || project?.projectCode || 'Project';
   const projectDescription = canonical?.description || project?.description || 'Media & marketing summary';
+
+  const handleLogoSelect = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const resolvedId = String(project?._id || project?.id || '');
+    if (!file || !resolvedId) return;
+    setLogoUploading(true);
+    setLogoError('');
+    try {
+      const res = await departmentApi.uploadMediaProjectLogo(token, resolvedId, file);
+      setProject(res?.data || project);
+    } catch (err) {
+      setLogoError(err.message || 'Failed to upload logo.');
+    } finally {
+      setLogoUploading(false);
+    }
+  };
 
   const startEdit = () => {
     setDraft(buildDraft(plan));
@@ -518,7 +748,7 @@ const MediaProjectDetail = () => {
     try {
       const payload = buildPayload(draft);
       const res = await departmentApi.saveMediaMarketingPlan(token, resolvedId, payload);
-      const saved = mergePlan(res?.data || payload);
+      const saved = mergePlan(res?.data || payload, getExecutionProfile(canonical));
       setPlan(saved);
       setDraft(buildDraft(saved));
       setEditing(false);
@@ -553,6 +783,20 @@ const MediaProjectDetail = () => {
   const totalMonthlyInvestment = activeAcquisitionBudget.reduce((sum, r) => sum + parseMetric(r.monthlyInvestment), 0);
   const totalLeads = activeAcquisitionBudget.reduce((sum, r) => sum + parseMetric(r.leadsEstimate), 0);
   const totalCpl = calcCpl(totalMonthlyInvestment, totalLeads);
+  const completedDeliverables = (editing ? draft.deliverables : plan.deliverables).filter((item) => item.done).length;
+  const totalDeliverables = (editing ? draft.deliverables : plan.deliverables).length;
+  const currentPlan = editing ? buildPayload(draft) : plan;
+  const performanceLabels = {
+    ...DEFAULT_EXECUTION_PROFILE.performanceLabels,
+    ...(currentPlan.performanceLabels || {}),
+  };
+  const commandStats = [
+    { label: 'Phase', value: currentPlan.overview.currentPhase || 'Foundation', icon: 'rocket_launch' },
+    { label: 'Status', value: currentPlan.overview.overallStatus || 'On Track', icon: 'verified' },
+    { label: 'Budget', value: formatInr(totalMonthlyInvestment) || 'Not budgeted', icon: 'payments' },
+    { label: 'Leads Est.', value: formatPlainNumber(totalLeads) || 'No target', icon: 'groups' },
+    { label: 'Deliverables', value: `${completedDeliverables}/${totalDeliverables}`, icon: 'task_alt' },
+  ];
 
   return (
     <div
@@ -560,10 +804,10 @@ const MediaProjectDetail = () => {
       style={MEDIA_THEME}
     >
       <main className="portal-page">
-        <div className="portal-page-inner space-y-4">
-          <header className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-950">
+        <div className="portal-page-inner max-w-[1480px] space-y-4">
+          <header className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_14px_38px_rgba(15,23,42,0.08)] dark:border-neutral-800 dark:bg-neutral-950">
             <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, var(--portal-accent-strong), var(--portal-accent))' }} />
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
@@ -573,9 +817,45 @@ const MediaProjectDetail = () => {
                 >
                   <span className="material-symbols-outlined text-[20px]">arrow_back</span>
                 </button>
+
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                  className="hidden"
+                  onChange={handleLogoSelect}
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading || notFound}
+                  title={project?.logo?.url ? 'Change project logo' : 'Upload project logo'}
+                  className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-slate-50 shadow-sm transition-all duration-200 hover:border-teal-300 hover:shadow-md disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-900"
+                >
+                  {project?.logo?.url ? (
+                    <img src={project.logo.url} alt={`${projectName} logo`} className="h-full w-full object-cover" />
+                  ) : (
+                    <span
+                      className="text-[16px] font-black uppercase text-white"
+                      style={{ display: 'flex', height: '100%', width: '100%', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
+                    >
+                      {projectName.trim().charAt(0) || '?'}
+                    </span>
+                  )}
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <span className={`material-symbols-outlined text-[18px] text-white ${logoUploading ? 'animate-spin' : ''}`}>
+                      {logoUploading ? 'progress_activity' : 'photo_camera'}
+                    </span>
+                  </span>
+                </button>
+
                 <div className="min-w-0">
-                  <h1 className="truncate text-[18px] font-black leading-tight tracking-tight">{projectName}</h1>
-                  <p className="truncate text-[12px] text-neutral-500 dark:text-neutral-400">{projectDescription}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="truncate text-[22px] font-black leading-tight tracking-tight text-slate-950 dark:text-neutral-100">{projectName}</h1>
+                    {!notFound ? <StatusPill value={currentPlan.overview.overallStatus} /> : null}
+                  </div>
+                  <p className="mt-1 max-w-3xl text-sm leading-5 text-neutral-500 dark:text-neutral-400">{projectDescription}</p>
+                  {logoError ? <p className="truncate text-[11px] font-semibold text-red-600">{logoError}</p> : null}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -599,7 +879,7 @@ const MediaProjectDetail = () => {
                       className="rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_10px_24px_rgba(15,118,110,0.35)] active:scale-[0.98] disabled:opacity-50"
                       style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
                     >
-                      {saving ? 'Saving…' : 'Save Plan'}
+                      {saving ? 'Saving...' : 'Save Plan'}
                     </button>
                   </>
                 ) : (
@@ -636,16 +916,16 @@ const MediaProjectDetail = () => {
           ) : null}
 
           {!loading && !notFound ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.05)] dark:border-neutral-800 dark:bg-neutral-900">
-              <p className="text-[12px] font-bold text-neutral-500 dark:text-neutral-400">
-                Page {page} of 2 — {page === '1' ? 'Marketing Command Center' : 'Weekly Execution'}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
+              <p className="px-1 text-[12px] font-bold text-neutral-500 dark:text-neutral-400">
+                Page {page} of 2 - {page === '1' ? 'Marketing Command Center' : 'Weekly Execution'}
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setPage('1')}
                   disabled={page === '1'}
-                  className="flex items-center gap-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-[12px] font-bold text-neutral-600 transition-all duration-200 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-40 disabled:hover:bg-transparent dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  className="flex h-9 items-center gap-1 rounded-lg border border-neutral-300 px-3 text-[12px] font-bold text-neutral-600 transition-all duration-200 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-40 disabled:hover:bg-transparent dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
                   <span className="material-symbols-outlined text-[16px]">arrow_back</span>
                   Previous
@@ -654,7 +934,7 @@ const MediaProjectDetail = () => {
                   type="button"
                   onClick={() => setPage('2')}
                   disabled={page === '2'}
-                  className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-bold text-white shadow-[0_6px_16px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:hover:brightness-100"
+                  className="flex h-9 items-center gap-1 rounded-lg px-3 text-[12px] font-bold text-white shadow-[0_6px_16px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:hover:brightness-100"
                   style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
                 >
                   Next
@@ -664,13 +944,36 @@ const MediaProjectDetail = () => {
             </div>
           ) : null}
 
+          {!loading && !notFound ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {commandStats.map((stat) => (
+                  <div key={stat.label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-neutral-800 dark:bg-neutral-950/40">
+                    <span className="material-symbols-outlined flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[19px] text-teal-700 shadow-sm dark:bg-neutral-900 dark:text-teal-300">
+                      {stat.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <p className={fieldLabel}>{stat.label}</p>
+                      <p className="truncate text-sm font-black text-slate-950 dark:text-neutral-100">{stat.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {loading ? (
             <div className="h-56 animate-pulse rounded-[1.75rem] border border-neutral-200 bg-gradient-to-br from-white via-slate-50 to-white shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:from-neutral-900 dark:via-neutral-900/70 dark:to-neutral-900" />
           ) : notFound ? null : page === '1' ? (
             <>
               {/* Project Overview */}
               <section className={card}>
-                <p className={sectionTitle}>Project Overview</p>
+                <SectionHeader
+                  eyebrow="Project Overview"
+                  title="Marketing command center"
+                  description="Core audience, market position, active phase, and status for the project."
+                  icon="dashboard"
+                />
                 {editing ? (
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <label className="block">
@@ -705,14 +1008,9 @@ const MediaProjectDetail = () => {
                     <OverviewField label="Target Audience" value={plan.overview.targetAudience} />
                     <OverviewField label="USP" value={plan.overview.usp} />
                     <OverviewField label="Current Phase" value={plan.overview.currentPhase} />
-                    <div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950/40">
                       <p className={fieldLabel}>Overall Status</p>
-                      <span
-                        className="mt-1 inline-flex items-center rounded-full px-3 py-1 text-[12px] font-black uppercase tracking-wide text-white shadow-[0_6px_14px_rgba(15,118,110,0.35)]"
-                        style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
-                      >
-                        {plan.overview.overallStatus || 'On Track'}
-                      </span>
+                      <div className="mt-2"><StatusPill value={plan.overview.overallStatus} /></div>
                     </div>
                   </div>
                 )}
@@ -720,7 +1018,12 @@ const MediaProjectDetail = () => {
 
               {/* Main Goal */}
               <section className={card}>
-                <p className={sectionTitle}>Main Goal</p>
+                <SectionHeader
+                  eyebrow="Main Goal"
+                  title="Outcome alignment"
+                  description="Brand, marketing, and business goals side by side for fast review."
+                  icon="track_changes"
+                />
                 <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
                   {[
                     { key: 'brand', label: 'Brand Goal', draftKey: 'goalsBrand' },
@@ -748,31 +1051,36 @@ const MediaProjectDetail = () => {
 
               {/* Three-Phase Media Framework */}
               <section className={card}>
-                <p className={sectionTitle}>Three-Phase Media Framework</p>
-                <div className="mt-3 overflow-x-auto">
+                <SectionHeader
+                  eyebrow="Three-Phase Media Framework"
+                  title="Foundation, growth, and scaling path"
+                  description="A compact view of when each phase is used, what the team focuses on, and the expected output."
+                  icon="account_tree"
+                />
+                <div className={tableWrap}>
                   <table className="w-full min-w-[640px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Phase</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">When Used</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Main Focus</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Key Output</th>
+                      <tr className={tableHead}>
+                        <th className={tableTh}>Phase</th>
+                        <th className={tableTh}>When Used</th>
+                        <th className={tableTh}>Main Focus</th>
+                        <th className={tableTh}>Key Output</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(editing ? draft.framework : plan.framework).map((row, idx) => (
                         <tr key={row.phase} className="align-top transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
-                          <td className="border-b border-neutral-100 px-3 py-3 font-bold text-teal-700 dark:border-neutral-800 dark:text-teal-400">
+                          <td className={`${tableTd} font-bold text-teal-700 dark:text-teal-400`}>
                             {row.phase}
                           </td>
-                          <td className="border-b border-neutral-100 px-3 py-3 dark:border-neutral-800">
+                          <td className={tableTd}>
                             {editing ? (
                               <input className={inputCls} value={row.whenUsed} onChange={(e) => setFrameworkField(idx, 'whenUsed', e.target.value)} />
                             ) : (
-                              row.whenUsed || '—'
+                              row.whenUsed || '-'
                             )}
                           </td>
-                          <td className="border-b border-neutral-100 px-3 py-3 dark:border-neutral-800">
+                          <td className={tableTd}>
                             {editing ? (
                               <textarea
                                 className={textareaCls}
@@ -784,11 +1092,11 @@ const MediaProjectDetail = () => {
                               <BulletList items={row.mainFocus} />
                             )}
                           </td>
-                          <td className="border-b border-neutral-100 px-3 py-3 dark:border-neutral-800">
+                          <td className={tableTd}>
                             {editing ? (
                               <input className={inputCls} value={row.keyOutput} onChange={(e) => setFrameworkField(idx, 'keyOutput', e.target.value)} />
                             ) : (
-                              row.keyOutput || '—'
+                              row.keyOutput || '-'
                             )}
                           </td>
                         </tr>
@@ -798,9 +1106,14 @@ const MediaProjectDetail = () => {
                 </div>
               </section>
 
-              {/* Before Campaign Starts – Required Planning */}
+              {/* Before Campaign Starts - Required Planning */}
               <section className={card}>
-                <p className={sectionTitle}>Before Campaign Starts — Required Planning</p>
+                <SectionHeader
+                  eyebrow="Required Planning"
+                  title="Before campaign starts"
+                  description="Audience segments, friction points, triggers, positioning, value proposition, and channel mix."
+                  icon="fact_check"
+                />
                 <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <div className={soft}>
                     <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">Target Customer</p>
@@ -877,7 +1190,12 @@ const MediaProjectDetail = () => {
 
               {/* Funnel Structure */}
               <section className={card}>
-                <p className={sectionTitle}>Funnel Structure</p>
+                <SectionHeader
+                  eyebrow="Funnel Structure"
+                  title="Acquisition journey"
+                  description="The ordered path from awareness through retention and referral."
+                  icon="schema"
+                />
                 <div className="mt-3">
                   {editing ? (
                     <textarea
@@ -907,7 +1225,12 @@ const MediaProjectDetail = () => {
 
               {/* KPI Plan */}
               <section className={card}>
-                <p className={sectionTitle}>KPI Plan</p>
+                <SectionHeader
+                  eyebrow="KPI Plan"
+                  title="Measurement focus"
+                  description="The core signals used to monitor acquisition quality and campaign efficiency."
+                  icon="insights"
+                />
                 <div className="mt-3">
                   {editing ? (
                     <textarea
@@ -926,7 +1249,12 @@ const MediaProjectDetail = () => {
 
               {/* Budget Plan Overview */}
               <section className={card}>
-                <p className={sectionTitle}>Budget Plan (Overview)</p>
+                <SectionHeader
+                  eyebrow="Budget Plan"
+                  title="Investment overview"
+                  description="High-level spending themes for each stage of the media plan."
+                  icon="account_balance_wallet"
+                />
                 <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
                   {(editing ? draft.budgetPlan : plan.budgetPlan).map((row, idx) => (
                     <div key={row.phase} className={soft}>
@@ -952,7 +1280,12 @@ const MediaProjectDetail = () => {
             <>
               {/* Weekly Checklist */}
               <section className={card}>
-                <p className={sectionTitle}>Weekly Checklist</p>
+                <SectionHeader
+                  eyebrow="Weekly Checklist"
+                  title="Execution readiness"
+                  description="Task ownership and completion status for the current marketing cycle."
+                  icon="checklist"
+                />
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[480px] border-collapse text-sm">
                     <thead>
@@ -970,7 +1303,7 @@ const MediaProjectDetail = () => {
                             {editing ? (
                               <input className={inputCls} value={row.owner} onChange={(e) => setChecklistField(idx, 'owner', e.target.value)} />
                             ) : (
-                              row.owner || '—'
+                              row.owner || '-'
                             )}
                           </td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 text-center dark:border-neutral-800">
@@ -991,7 +1324,12 @@ const MediaProjectDetail = () => {
 
               {/* Weekly Update */}
               <section className={card}>
-                <p className={sectionTitle}>Weekly Update</p>
+                <SectionHeader
+                  eyebrow="Weekly Update"
+                  title="Progress by week"
+                  description="Focus area and progress notes across launch and scaling weeks."
+                  icon="event_note"
+                />
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
@@ -1009,14 +1347,14 @@ const MediaProjectDetail = () => {
                             {editing ? (
                               <input className={inputCls} value={row.focusArea} onChange={(e) => setWeeklyUpdateField(idx, 'focusArea', e.target.value)} />
                             ) : (
-                              row.focusArea || '—'
+                              row.focusArea || '-'
                             )}
                           </td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
                               <input className={inputCls} placeholder="Progress notes" value={row.progress} onChange={(e) => setWeeklyUpdateField(idx, 'progress', e.target.value)} />
                             ) : (
-                              row.progress || '—'
+                              row.progress || '-'
                             )}
                           </td>
                         </tr>
@@ -1028,7 +1366,12 @@ const MediaProjectDetail = () => {
 
               {/* Acquisition = Investment (Budget) */}
               <section className={card}>
-                <p className={sectionTitle}>Acquisition = Investment (Budget)</p>
+                <SectionHeader
+                  eyebrow="Acquisition Budget"
+                  title="Channel investment plan"
+                  description="Monthly investment, estimated leads, calculated CPL, and channel status."
+                  icon="payments"
+                />
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[680px] border-collapse text-sm">
                     <thead>
@@ -1096,7 +1439,12 @@ const MediaProjectDetail = () => {
 
               {/* Funnel Performance (Weekly) */}
               <section className={card}>
-                <p className={sectionTitle}>Funnel Performance (Weekly)</p>
+                <SectionHeader
+                  eyebrow="Funnel Performance"
+                  title="Weekly conversion tracker"
+                  description="Targets, actuals, and calculated conversion between funnel stages."
+                  icon="filter_alt"
+                />
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
@@ -1148,7 +1496,12 @@ const MediaProjectDetail = () => {
 
               {/* Content Tracker (Monthly) */}
               <section className={card}>
-                <p className={sectionTitle}>Content Tracker (Monthly)</p>
+                <SectionHeader
+                  eyebrow="Content Tracker"
+                  title="Monthly publishing output"
+                  description="Planned and completed output by content format."
+                  icon="edit_note"
+                />
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[480px] border-collapse text-sm">
                     <thead>
@@ -1166,14 +1519,14 @@ const MediaProjectDetail = () => {
                             {editing ? (
                               <input className={inputCls} value={row.target} onChange={(e) => setContentTrackerField(idx, 'target', e.target.value)} />
                             ) : (
-                              row.target || '—'
+                              row.target || '-'
                             )}
                           </td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
                               <input className={inputCls} value={row.completed} onChange={(e) => setContentTrackerField(idx, 'completed', e.target.value)} />
                             ) : (
-                              row.completed || '—'
+                              row.completed || '-'
                             )}
                           </td>
                         </tr>
@@ -1185,7 +1538,12 @@ const MediaProjectDetail = () => {
 
               {/* Priority Matrix */}
               <section className={card}>
-                <p className={sectionTitle}>Priority Matrix</p>
+                <SectionHeader
+                  eyebrow="Priority Matrix"
+                  title="Next action focus"
+                  description="High, medium, and low priority work for campaign execution."
+                  icon="priority_high"
+                />
                 <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
                   {[
                     { key: 'high', label: 'High Priority', draftKey: 'priorityHigh' },
@@ -1213,7 +1571,12 @@ const MediaProjectDetail = () => {
 
               {/* Deliverables Checklist */}
               <section className={card}>
-                <p className={sectionTitle}>Deliverables Checklist</p>
+                <SectionHeader
+                  eyebrow="Deliverables Checklist"
+                  title="Campaign assets and systems"
+                  description="The reusable deliverables required for a complete media operation."
+                  icon="task_alt"
+                />
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {(editing ? draft.deliverables : plan.deliverables).map((row, idx) => (
                     <label key={row.label} className="flex items-center gap-2 rounded-lg border border-neutral-100 px-3 py-2 text-sm transition-colors duration-150 hover:border-teal-200 hover:bg-teal-50/30 dark:border-neutral-800 dark:hover:border-teal-900/50 dark:hover:bg-teal-500/5">
@@ -1232,15 +1595,20 @@ const MediaProjectDetail = () => {
 
               {/* Performance Snapshot */}
               <section className={card}>
-                <p className={sectionTitle}>Performance Snapshot (This Month)</p>
+                <SectionHeader
+                  eyebrow="Performance Snapshot"
+                  title="This month"
+                  description="Current headline metrics for traffic, leads, supply, conversions, revenue, and ROAS."
+                  icon="monitoring"
+                />
                 <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   {[
-                    { key: 'websiteVisits', label: 'Website Visits' },
-                    { key: 'registrations', label: 'Registrations' },
-                    { key: 'vendorSignups', label: 'Vendor Signups' },
-                    { key: 'bookings', label: 'Bookings' },
-                    { key: 'revenue', label: 'Revenue (₹)' },
-                    { key: 'roas', label: 'ROAS' },
+                    { key: 'websiteVisits', label: performanceLabels.websiteVisits },
+                    { key: 'registrations', label: performanceLabels.registrations },
+                    { key: 'vendorSignups', label: performanceLabels.vendorSignups },
+                    { key: 'bookings', label: performanceLabels.bookings },
+                    { key: 'revenue', label: performanceLabels.revenue },
+                    { key: 'roas', label: performanceLabels.roas },
                   ].map(({ key, label }) => (
                     <div key={key} className={soft}>
                       <p className={fieldLabel}>{label}</p>
@@ -1251,7 +1619,7 @@ const MediaProjectDetail = () => {
                           onChange={(e) => setPerformanceSnapshotField(key, e.target.value)}
                         />
                       ) : (
-                        <p className="mt-1 text-lg font-black text-neutral-900 dark:text-neutral-100">{plan.performanceSnapshot[key] || '—'}</p>
+                        <p className="mt-1 text-lg font-black text-neutral-900 dark:text-neutral-100">{plan.performanceSnapshot[key] || '-'}</p>
                       )}
                     </div>
                   ))}
@@ -1260,7 +1628,12 @@ const MediaProjectDetail = () => {
 
               {/* Notes & Next Week Focus */}
               <section className={card}>
-                <p className={sectionTitle}>Notes & Next Week Focus</p>
+                <SectionHeader
+                  eyebrow="Notes & Focus"
+                  title="Review and next moves"
+                  description="Observations, blockers, next-week focus, and action items for the team."
+                  icon="notes"
+                />
                 <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {[
                     { key: 'keyObservations', label: 'Key Observations' },

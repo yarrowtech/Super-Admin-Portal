@@ -22,7 +22,7 @@ const createApprovalRequest = async ({
   });
 };
 
-const decideApprovalRequest = async ({ workflowId, role, userId, decision, remarks = "" }) => {
+const decideApprovalRequest = async ({ workflowId, role, userId, decision, remarks = "", overrideRoles = [] }) => {
   const workflow = await ApprovalWorkflow.findById(workflowId);
   if (!workflow) {
     const err = new Error("Approval workflow not found");
@@ -30,9 +30,12 @@ const decideApprovalRequest = async ({ workflowId, role, userId, decision, remar
     throw err;
   }
 
+  const normalizedRole = String(role || "").toLowerCase();
+  const canOverride = overrideRoles.map((item) => String(item || "").toLowerCase()).includes(normalizedRole);
   const step = workflow.steps.find(
     (row) => row.status === "pending" && String(row.role || "").toLowerCase() === String(role || "").toLowerCase()
-  );
+  ) || (canOverride ? workflow.steps.find((row) => row.status === "pending" && !row.optional) : null);
+
   if (!step) {
     const err = new Error("No pending approval step for this role");
     err.statusCode = 403;

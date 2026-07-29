@@ -13,6 +13,11 @@ const buildUrl = (path, params = {}) => {
 export const departmentApi = {
   getMediaDashboard: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/dashboard', params), token),
   getMediaProjects: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/projects', params), token),
+  uploadMediaProjectLogo: (token, projectId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.upload(`/api/dept/media/projects/${projectId}/logo`, formData, token);
+  },
   getMediaAssets: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/assets', params), token),
   getMediaAsset: (token, id) => apiClient.get(`/api/dept/media/assets/${id}`, token),
   createMediaAsset: (token, body) => apiClient.post('/api/dept/media/assets', body, token),

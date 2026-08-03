@@ -1,10 +1,11 @@
 const { body, param, query } = require('express-validator');
 const { CAMPAIGN_STATUSES } = require('../../models/department/Campaign');
+const { TASK_STATUSES } = require('./campaignTask.service');
 
 const listValidation = [
   query('page').optional().isInt({ min: 1 }).withMessage('page must be >= 1'),
   query('limit').optional().isInt({ min: 1, max: 200 }).withMessage('limit must be between 1 and 200'),
-  query('status').optional().trim().isIn(CAMPAIGN_STATUSES).withMessage('invalid status'),
+  query('status').optional().trim().isIn([...CAMPAIGN_STATUSES, 'all']).withMessage('invalid status'),
   query('search').optional().trim().isLength({ max: 200 }),
 ];
 
@@ -34,7 +35,7 @@ const taskIdValidation = [
 ];
 
 const taskStatusValidation = [
-  body('status').trim().isIn(['pending', 'in-progress', 'review', 'completed', 'cancelled']).withMessage('invalid task status'),
+  body('status').trim().isIn(TASK_STATUSES).withMessage('invalid task status'),
 ];
 
 module.exports = {

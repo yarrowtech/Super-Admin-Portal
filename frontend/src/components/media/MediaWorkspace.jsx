@@ -1277,6 +1277,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const detailCampaign = campaignDetailId ? campaigns.find((item) => String(item._id) === String(campaignDetailId)) : null;
     if (detailCampaign) return renderCampaignDetail(detailCampaign);
 
+    const recentCampaigns = [...campaigns]
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+      .slice(0, 3);
+
     return (
       <div className="space-y-4">
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -1333,6 +1337,41 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         {!effectiveProjectId ? (
           <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             Select a project before creating a campaign.
+          </section>
+        ) : null}
+
+        {recentCampaigns.length ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Recent Campaigns</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Most recently updated campaigns across this scope.</p>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+              {recentCampaigns.map((campaign) => (
+                <article key={`${campaign._id}-recent`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-slate-950 dark:text-neutral-100">{campaign.name}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500 dark:text-neutral-400">{money(campaign.budgetAllocated)}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone(campaign.status)}`}>
+                      {CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-neutral-400">
+                    <span>{campaign.updatedAt ? new Date(campaign.updatedAt).toLocaleDateString() : 'No date'}</span>
+                    <button
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={() => setCampaignDetailId(campaign._id)}
+                      className="rounded-full border border-teal-200 bg-white px-3 py-1 font-semibold text-teal-700 transition hover:bg-teal-50 disabled:opacity-50 dark:border-teal-900/60 dark:bg-neutral-900 dark:text-teal-300 dark:hover:bg-teal-500/10"
+                    >
+                      View
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
         ) : null}
 
@@ -1404,31 +1443,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             </table>
           </div>
         ) : empty('No campaigns found', 'Create a campaign to start the objective, platform, budget, team, and content pipeline.')}
-
-        {rows.length ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {rows.map((campaign) => (
-              <article key={`${campaign._id}-lifecycle`} className={card}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-lg font-bold text-neutral-950 dark:text-neutral-100">{campaign.name}</p>
-                    <p className="text-sm text-neutral-500 dark:text-neutral-400">{CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}</p>
-                  </div>
-                  <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                    {money(campaign.budgetAllocated)}
-                  </span>
-                </div>
-                <div className="mt-4">
-                  <CampaignLifecycleStepper
-                    status={campaign.status}
-                    busy={actionBusy}
-                    onAdvance={(nextStage) => advanceCampaignStage(campaign._id, nextStage)}
-                  />
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : null}
       </div>
     );
   };

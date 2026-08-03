@@ -3,25 +3,36 @@ const Task = require('../../models/common/Task');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
 const { generateTasksForCampaign } = require('./campaignTask.service');
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const withPagination = (query = {}) => {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(query.limit, 10) || 20, 1), 200);
   return { page, limit, skip: (page - 1) * limit };
 };
 
+const exactTextFilter = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized ? new RegExp(`^${escapeRegex(normalized)}$`, 'i') : undefined;
+};
+
 const buildFilter = (query = {}, projectId) => {
   const filter = {};
 
   if (projectId) filter.projectId = projectId;
-  if (query.status) filter.status = query.status;
+  if (query.status && String(query.status).toLowerCase() !== 'all') {
+    filter.status = exactTextFilter(query.status);
+  }
 
   if (query.search) {
-    const q = new RegExp(query.search, 'i');
+    const q = new RegExp(escapeRegex(query.search), 'i');
     filter.$or = [{ name: q }, { objective: q }, { description: q }];
   }
 
   return filter;
 };
+
+const ALLOWED_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'name', 'status', 'startDate', 'endDate', 'budgetAllocated']);
 
 const normalizeCampaignPayload = (payload = {}) => {
   const platform = Array.isArray(payload.platform)
@@ -61,7 +72,8 @@ const stripUndefined = (obj = {}) =>
 const listCampaigns = async (query = {}, projectId) => {
   const { page, limit, skip } = withPagination(query);
   const filter = buildFilter(query, projectId);
-  const sortField = String(query.sortBy || 'updatedAt');
+  const requestedSortField = String(query.sortBy || 'updatedAt');
+  const sortField = ALLOWED_SORT_FIELDS.has(requestedSortField) ? requestedSortField : 'updatedAt';
   const sortDir = String(query.order || 'desc').toLowerCase() === 'asc' ? 1 : -1;
 
   const [items, total] = await Promise.all([

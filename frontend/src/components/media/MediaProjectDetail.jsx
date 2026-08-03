@@ -32,7 +32,7 @@ const BUDGET_PHASES = ['Foundation', 'Growth', 'Scaling'];
 
 const WEEKLY_CHECKLIST_TASKS = [
   'Website & Landing Pages', 'Partner / Stakeholder Onboarding', 'Google Analytics Setup', 'Meta Pixel Installation',
-  'SEO Setup', 'Campaign Setup (Google Ads)', 'Campaign Setup (Meta Ads)', 'Social Media Content Plan',
+  'AEO Setup', 'Campaign Setup (Google Ads)', 'Campaign Setup (Meta Ads)', 'Social Media Content Plan',
   'Email Marketing Setup', 'WhatsApp Automation', 'Partnership Outreach', 'Content Published (Blog/Guides)',
   'Weekly Report & Dashboard',
 ];
@@ -238,7 +238,7 @@ const PROJECT_EXECUTION_PROFILES = {
   BETTERPASS: {
     weeklyChecklistTasks: [
       'Website & Landing Pages', 'Vendor Onboarding', 'Google Analytics Setup', 'Meta Pixel Installation',
-      'SEO Setup', 'Campaign Setup (Google Ads)', 'Campaign Setup (Meta Ads)', 'Social Media Content Plan',
+      'AEO Setup', 'Campaign Setup (Google Ads)', 'Campaign Setup (Meta Ads)', 'Social Media Content Plan',
       'Email Marketing Setup', 'WhatsApp Automation', 'Partnership Outreach', 'Content Published (Blog/Guides)',
       'Weekly Report & Dashboard',
     ],
@@ -266,7 +266,7 @@ const PROJECT_EXECUTION_PROFILES = {
   EEC: {
     weeklyChecklistTasks: [
       'Course Landing Pages', 'Lead Form & CRM Setup', 'Google Analytics Setup', 'Meta Pixel Installation',
-      'SEO Setup', 'Google Search Campaigns', 'Meta Lead Campaigns', 'Academic Content Plan',
+      'AEO Setup', 'Google Search Campaigns', 'Meta Lead Campaigns', 'Academic Content Plan',
       'Email Marketing Setup', 'WhatsApp Counselling Flow', 'School / Partner Outreach', 'Blogs & Learning Guides',
       'Weekly Report & Dashboard',
     ],
@@ -287,7 +287,7 @@ const PROJECT_EXECUTION_PROFILES = {
   ESPORTSM: {
     weeklyChecklistTasks: [
       'Event Landing Pages', 'Community Onboarding', 'Analytics Setup', 'Meta Pixel Installation',
-      'SEO Setup', 'Tournament Campaigns', 'Meta / Instagram Campaigns', 'Gaming Content Plan',
+      'AEO Setup', 'Tournament Campaigns', 'Meta / Instagram Campaigns', 'Gaming Content Plan',
       'Email Marketing Setup', 'Discord / WhatsApp Automation', 'Sponsor Outreach', 'Match Highlights Published',
       'Weekly Report & Dashboard',
     ],

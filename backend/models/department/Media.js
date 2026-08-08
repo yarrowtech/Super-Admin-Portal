@@ -71,7 +71,7 @@ const mediaSchema = new mongoose.Schema(
     clientName: { type: String, trim: true, default: '' },
     teamId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', index: true },
     teamName: { type: String, trim: true, default: '' },
-    campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', index: true },
+    campaignId: { type: mongoose.Schema.Types.ObjectId, index: true },
     campaignName: { type: String, trim: true, default: '' },
 
     assignedEmployees: { type: [assignedEmployeeSchema], default: [] },

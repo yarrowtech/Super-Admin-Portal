@@ -9,6 +9,7 @@ const DepartmentStats = lazy(() => import('./DepartmentStats'));
 const CEOProjectUpdates = lazy(() => import('./CEOProjectUpdates'));
 const CEORevenueAnalytics = lazy(() => import('./CEORevenueAnalytics'));
 const CEOProductInsights = lazy(() => import('./CEOProductInsights'));
+const CEOMediaAnalysis = lazy(() => import('./CEOMediaAnalysis'));
 const CEOSalesQueryAnalyticsPage = lazy(() => import('./CEOSalesQueryAnalyticsPage'));
 const CEONotifications = lazy(() => import('./CEONotifications'));
 const CEOLegalApproval = lazy(() => import('./CEOLegalApproval'));
@@ -25,6 +26,7 @@ const ceoMobileItems = [
   { key: 'productInsights', label: 'Product Insights', icon: 'insights' },
   { key: 'employees', label: 'Employee Analytics', icon: 'groups' },
   { key: 'departmentStats', label: 'Department Insights', icon: 'monitoring' },
+  { key: 'mediaAnalysis', label: 'Media Analysis', icon: 'analytics' },
   { key: 'salesQueryAnalytics', label: 'Sales Query Analytics', icon: 'query_stats' },
   { key: 'reports', label: 'Reports', icon: 'summarize' },
   { key: 'projectUpdates', label: 'Project Updates', icon: 'update' },
@@ -67,6 +69,8 @@ const CEOPortal = () => {
         return <CEOChatPage />;
       case 'departmentStats':
         return <DepartmentStats />;
+      case 'mediaAnalysis':
+        return <CEOMediaAnalysis />;
       case 'salesQueryAnalytics':
         return <CEOSalesQueryAnalyticsPage />;
       case 'projectUpdates':
@@ -98,7 +102,7 @@ const CEOPortal = () => {
               onClick: () => setCurrentView(item.key),
             }))}
           />
-          <CEOSidebar onViewChange={setCurrentView} />
+          <CEOSidebar currentView={currentView} onViewChange={setCurrentView} />
           <div className={`portal-content flex-1 overflow-x-hidden pt-16 transition-[margin] duration-300 ease-out-expo md:pt-0 ${collapsed ? 'md:ml-16' : 'md:ml-64'}`}>
             <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
               {renderContent()}

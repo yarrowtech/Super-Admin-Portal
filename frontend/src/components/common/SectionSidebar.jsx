@@ -155,7 +155,12 @@ const SectionSidebar = ({
                   {!collapsed && (
                     <>
                       <div className="min-w-0 flex-1 text-left">
-                        <div title={item.label} className={`truncate leading-none ${hasChildren ? 'font-semibold' : 'font-medium'}`}>{item.label}</div>
+                        <div
+                          title={item.label}
+                          className={`${hasChildren ? 'text-[12px] font-semibold leading-tight' : 'truncate font-medium leading-none'}`}
+                        >
+                          {item.label}
+                        </div>
                         {item.description && !isActive && !hasChildren && (
                           <div className="mt-0.5 truncate text-[11px] text-neutral-400 dark:text-neutral-500">{item.description}</div>
                         )}

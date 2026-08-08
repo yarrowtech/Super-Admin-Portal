@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
@@ -21,6 +21,7 @@ const menuItems = [
   { key: 'productInsights', label: 'Product Insights',    icon: 'insights' },
   { key: 'employees',       label: 'Employee Analytics',  icon: 'groups' },
   { key: 'departmentStats', label: 'Department Insights', icon: 'bar_chart' },
+  { key: 'mediaAnalysis',   label: 'Media Analysis',      icon: 'analytics' },
   { key: 'salesQueryAnalytics', label: 'Sales Query Analytics', icon: 'query_stats' },
   { key: 'reports',         label: 'Reports',             icon: 'summarize' },
   { key: 'projectUpdates',  label: 'Project Updates',     icon: 'update' },
@@ -29,8 +30,7 @@ const menuItems = [
   { key: 'notifications',   label: 'Notifications',       icon: 'notifications' },
 ];
 
-const CEOSidebar = ({ onViewChange }) => {
-  const [activeView, setActiveView] = useState('dashboard');
+const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { collapsed, toggle } = useSidebar();
@@ -38,7 +38,6 @@ const CEOSidebar = ({ onViewChange }) => {
   if (!canAccessPortal(user, PORTALS.CEO)) return null;
 
   const handleViewChange = (view) => {
-    setActiveView(view);
     onViewChange?.(view);
   };
 
@@ -105,7 +104,7 @@ const CEOSidebar = ({ onViewChange }) => {
       <nav className="flex-1 overflow-y-auto px-2 pb-2 pt-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-200 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700">
         <div className="space-y-0.5">
           {menuItems.map((item) => {
-            const active = activeView === item.key;
+            const active = currentView === item.key;
             return (
               <button
                 key={item.key}
@@ -144,7 +143,7 @@ const CEOSidebar = ({ onViewChange }) => {
             { key: 'settings', label: 'Settings', icon: 'settings' },
             { key: 'support',  label: 'Support',  icon: 'support_agent' },
           ].map((item) => {
-            const active = activeView === item.key;
+            const active = currentView === item.key;
             return (
               <button
                 key={item.key}

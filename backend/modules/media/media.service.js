@@ -2,9 +2,7 @@ const { v2: cloudinary } = require('cloudinary');
 const { mediaLogger: logger } = require('./media.logger');
 const Media = require('../../models/department/Media');
 const Project = require('../../models/common/Project');
-const Campaign = require('../../models/department/Campaign');
-const ActivityLog = require('../../models/auth/ActivityLog');
-const { createApprovalRequest, decideApprovalRequest } = require('../../services/approvalEngine.service');
+const { createApprovalRequest } = require('../../services/approvalEngine.service');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
 const { notifyApprovalPending } = require('../../services/notificationTrigger.service');
 const { PROJECT_REGISTRY } = require('../../utils/projectAccess');
@@ -24,8 +22,6 @@ const DEFAULT_APPROVAL_STEPS = [
   { role: 'marketing_head' },
   { role: 'ceo', optional: true },
 ];
-const MEDIA_APPROVAL_OVERRIDE_ROLES = ['admin', 'super_admin', 'ceo', 'department_head'];
-
 const MEDIA_DEPARTMENT_STRUCTURE = {
   department: 'MEDIA ON & OFFLINE',
   summary:
@@ -255,7 +251,6 @@ const getOverview = async (projectId) => {
 
   const [
     activeProjectIds,
-    runningCampaigns,
     pendingApprovals,
     designRequests,
     videoRequests,
@@ -266,14 +261,11 @@ const getOverview = async (projectId) => {
     contentTotal,
     upcomingDeadlines,
     storageAgg,
-    spendAgg,
-    roiAgg,
     statusRows,
     moduleRows,
     recentItems,
   ] = await Promise.all([
     Media.distinct('projectId', projectId ? { projectId } : { projectId: { $ne: null } }),
-    Campaign.countDocuments({ ...scope, status: { $in: Campaign.RUNNING_CAMPAIGN_STATUSES } }),
     Media.countDocuments({ ...scope, approvalStatus: 'pending' }),
     Media.countDocuments({ ...scope, moduleType: { $in: ['design'] } }),
     Media.countDocuments({ ...scope, moduleType: { $in: ['video'] } }),
@@ -297,14 +289,6 @@ const getOverview = async (projectId) => {
       { $group: { _id: null, totalBytes: { $sum: '$storageUsageBytes' } } },
     ]),
     Media.aggregate([
-      { $match: { ...scope, moduleType: 'advertisement' } },
-      { $group: { _id: null, spend: { $sum: { $ifNull: ['$budgetImpact.spend', 0] } } } },
-    ]),
-    Media.aggregate([
-      { $match: { ...scope, moduleType: 'advertisement' } },
-      { $group: { _id: null, roi: { $avg: { $ifNull: ['$budgetImpact.roiAtSnapshot', 0] } } } },
-    ]),
-    Media.aggregate([
       { $match: { ...scope } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
@@ -318,8 +302,6 @@ const getOverview = async (projectId) => {
   ]);
 
   const totalBytes = storageAgg[0]?.totalBytes || 0;
-  const totalSpend = spendAgg[0]?.spend || 0;
-  const avgRoi = roiAgg[0]?.roi || 0;
   const socialReach = socialMetrics[0]?.reach || 0;
   const socialEngagement = socialMetrics[0]?.engagement || 0;
 
@@ -331,11 +313,8 @@ const getOverview = async (projectId) => {
     departmentStructure: MEDIA_DEPARTMENT_STRUCTURE,
     kpis: {
       activeProjects: activeProjectIds.filter(Boolean).length,
-      runningCampaigns,
       socialReach,
       socialEngagement,
-      advertisementSpend: totalSpend,
-      marketingRoi: avgRoi,
       contentProductionStatus: {
         published: contentPublished,
         inReview: contentInReview,
@@ -563,19 +542,11 @@ const mapModuleKeyToSection = (moduleKey = '') => {
   const key = String(moduleKey).toLowerCase();
   if (key === 'dashboard') return 'dashboard';
   if (key === 'assets' || key === 'asset') return 'asset';
-  if (key === 'campaigns' || key === 'campaign') return 'campaign';
   if (key === 'content') return 'content';
   if (key === 'brand') return 'brand';
   if (key === 'design') return 'design';
   if (key === 'video') return 'video';
   if (key === 'social') return 'social';
-  if (key === 'ads' || key === 'advertisements' || key === 'advertisement') return 'advertisement';
-  if (key === 'seo') return 'seo';
-  if (key === 'website') return 'website';
-  if (key === 'testimonials' || key === 'testimonial') return 'testimonial';
-  if (key === 'case-studies' || key === 'case-study') return 'case-study';
-  if (key === 'approvals') return 'approval';
-  if (key === 'reports' || key === 'reporting') return 'report';
   if (key === 'archive') return 'archive';
   return null;
 };
@@ -589,52 +560,6 @@ const getModuleDataByProject = async ({ moduleKey, projectId, query = {} }) => {
   }
 
   return listMedia(query, projectId, section);
-};
-
-const listApprovals = async (query = {}, projectId) => {
-  const { page, limit, skip } = withPagination(query);
-  const filter = {
-    ...(projectId ? { projectId } : {}),
-    approvalWorkflowId: { $ne: null },
-  };
-
-  if (query.approvalStatus && String(query.approvalStatus).toLowerCase() !== 'all') {
-    filter.approvalStatus = exactTextFilter(query.approvalStatus);
-  }
-  if (query.status && String(query.status).toLowerCase() !== 'all') filter.status = exactTextFilter(query.status);
-  if (query.search) {
-    const q = new RegExp(query.search, 'i');
-    filter.$or = [
-      { title: q },
-      { description: q },
-      { projectName: q },
-      { campaignName: q },
-      { ownerName: q },
-    ];
-  }
-
-  const [items, total] = await Promise.all([
-    Media.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).populate('projectId', 'name projectCode').lean(),
-    Media.countDocuments(filter),
-  ]);
-
-  return {
-    items: items.map((item) => {
-      const linkedProject = item.projectId;
-      return {
-        ...item,
-        projectId: linkedProject?._id ? String(linkedProject._id) : (item.projectId ? String(item.projectId) : null),
-        projectName: linkedProject?.name || linkedProject?.projectCode || item.projectName || '',
-        workflowId: item.approvalWorkflowId,
-      };
-    }),
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit) || 1,
-    },
-  };
 };
 
 const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps = DEFAULT_APPROVAL_STEPS }) => {
@@ -689,64 +614,6 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps
       metadata: { mediaId: record._id, workflowId: workflow._id, projectId: record.projectId },
     });
   }
-
-  return workflow;
-};
-
-const decideApproval = async ({ workflowId, actorId, actorRole, decision, remarks }) => {
-  const workflow = await decideApprovalRequest({
-    workflowId,
-    role: actorRole,
-    userId: actorId,
-    decision,
-    remarks,
-    overrideRoles: MEDIA_APPROVAL_OVERRIDE_ROLES,
-  });
-
-  const media = await Media.findOne({ approvalWorkflowId: workflow._id });
-  if (media) {
-    media.approvalStatus = workflow.status;
-    media.approvalSteps = workflow.steps.map((step) => ({
-      role: step.role,
-      status: step.status,
-      optional: Boolean(step.optional),
-      decidedBy: step.decidedBy,
-      decidedAt: step.decidedAt,
-      remarks: step.remarks || '',
-    }));
-    if (workflow.status === 'approved') {
-      media.status = 'Approved';
-      media.approvedAt = new Date();
-    } else if (workflow.status === 'rejected') {
-      media.status = 'Needs Revision';
-      media.rejectedAt = new Date();
-    } else {
-      media.status = 'In Review';
-    }
-    media.updatedBy = actorId;
-    await media.save();
-  }
-
-  if (workflow.status === 'pending' && media) {
-    const nextStep = workflow.steps.find((step) => step.status === 'pending');
-    if (nextStep) {
-      await notifyApprovalPending(nextStep.role, {
-        title: 'Approval pending',
-        message: `"${media.title}" is waiting on your approval.`,
-        metadata: { mediaId: media._id, workflowId: workflow._id, projectId: media.projectId },
-      });
-    }
-  }
-
-  await writeAuditTrail({
-    userId: actorId,
-    role: actorRole,
-    module: 'media',
-    action: 'media_approval_decided',
-    targetType: 'ApprovalWorkflow',
-    targetId: workflow._id,
-    metadata: { decision, remarks, workflowStatus: workflow.status },
-  });
 
   return workflow;
 };
@@ -878,56 +745,6 @@ const setProjectThemeColor = async (projectId, themeColor) => {
   return project.toObject();
 };
 
-const getReportingSummary = async (projectId) => {
-  const scope = projectId ? { projectId } : {};
-  const [byStatus, byType, auditRowsRaw, recentItemsRaw] = await Promise.all([
-    Media.aggregate([{ $match: { ...scope } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
-    Media.aggregate([{ $match: { ...scope } }, { $group: { _id: '$moduleType', count: { $sum: 1 } } }]),
-    ActivityLog.find({
-      module: 'media',
-      ...(projectId ? { $or: [{ projectId }, { 'metadata.projectId': projectId }] } : {}),
-    })
-      .sort({ createdAt: -1 })
-      .limit(25)
-      .lean(),
-    Media.find(scope).select('title section status updatedAt projectId').sort({ updatedAt: -1 }).limit(10).populate('projectId', 'name projectCode').lean(),
-  ]);
-
-  const recentItems = recentItemsRaw.map((item) => {
-    const linkedProject = item.projectId;
-    return {
-      ...item,
-      projectId: linkedProject?._id ? String(linkedProject._id) : (item.projectId ? String(item.projectId) : null),
-      projectName: linkedProject?.name || linkedProject?.projectCode || '',
-    };
-  });
-
-  // Only viewing "All" mixes rows from every project together — resolve a
-  // project label per row so it's clear which project each entry belongs to.
-  // A single-project view already has that context from the page/selector.
-  let auditRows = auditRowsRaw;
-  if (!projectId) {
-    const distinctProjectIds = [...new Set(
-      auditRowsRaw.map((row) => String(row.projectId || row.metadata?.projectId || '')).filter(Boolean)
-    )];
-    if (distinctProjectIds.length) {
-      const projectDocs = await Project.find({ _id: { $in: distinctProjectIds } }).select('name projectCode').lean();
-      const nameById = new Map(projectDocs.map((p) => [String(p._id), p.name || p.projectCode || 'Project']));
-      auditRows = auditRowsRaw.map((row) => ({
-        ...row,
-        projectName: nameById.get(String(row.projectId || row.metadata?.projectId || '')) || null,
-      }));
-    }
-  }
-
-  return {
-    byStatus,
-    byType,
-    auditRows,
-    recentItems,
-  };
-};
-
 module.exports = {
   getOverview,
   listMedia,
@@ -937,10 +754,7 @@ module.exports = {
   updateMediaRecord,
   deleteMediaRecord,
   getModuleDataByProject,
-  listApprovals,
   requestApproval,
-  decideApproval,
-  getReportingSummary,
   uploadMediaFile,
   setProjectLogo,
   setProjectThemeColor,

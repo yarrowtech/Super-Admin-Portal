@@ -262,11 +262,6 @@ exports.brandAssets = makeSectionController('brand', 'brand asset');
 exports.design = makeSectionController('design', 'design item');
 exports.video = makeSectionController('video', 'video item');
 exports.social = makeSectionController('social', 'social post');
-exports.advertisements = makeSectionController('advertisement', 'advertisement');
-exports.seo = makeSectionController('seo', 'SEO item');
-exports.website = makeSectionController('website', 'website item');
-exports.testimonials = makeSectionController('testimonial', 'testimonial');
-exports.caseStudies = makeSectionController('case-study', 'case study');
 
 exports.uploadFile = async (req, res) => {
   try {
@@ -311,19 +306,6 @@ exports.updateProjectThemeColor = async (req, res) => {
   }
 };
 
-exports.getApprovals = async (req, res) => {
-  try {
-    const data = await mediaService.listApprovals(req.query || {}, req.projectId);
-    getMediaRequestLogger(req, { action: 'getApprovals' }).info(
-      { projectId: req.projectId || null, query: req.query || {} },
-      'Media approvals listed'
-    );
-    res.status(200).json({ success: true, data });
-  } catch (err) {
-    handleError(res, err, 'Failed to fetch approvals', 'Media module getApprovals error');
-  }
-};
-
 exports.requestApproval = async (req, res) => {
   try {
     const data = await mediaService.requestApproval({
@@ -340,38 +322,6 @@ exports.requestApproval = async (req, res) => {
     res.status(201).json({ success: true, data });
   } catch (err) {
     handleError(res, err, 'Failed to create approval request', 'Media module requestApproval error');
-  }
-};
-
-exports.decideApproval = async (req, res) => {
-  try {
-    const data = await mediaService.decideApproval({
-      workflowId: req.params.workflowId,
-      actorId: req.user?.id || req.user?._id,
-      actorRole: req.user?.role,
-      decision: req.body?.decision,
-      remarks: req.body?.remarks || '',
-    });
-    getMediaRequestLogger(req, { action: 'decideApproval' }).info(
-      { projectId: req.projectId || null, workflowId: req.params.workflowId, decision: req.body?.decision },
-      'Media approval decided'
-    );
-    res.status(200).json({ success: true, data });
-  } catch (err) {
-    handleError(res, err, 'Failed to decide approval', 'Media module decideApproval error');
-  }
-};
-
-exports.getReportingSummary = async (req, res) => {
-  try {
-    const data = await mediaService.getReportingSummary(req.projectId);
-    getMediaRequestLogger(req, { action: 'getReportingSummary' }).info(
-      { projectId: req.projectId || null },
-      'Media reporting summary loaded'
-    );
-    res.status(200).json({ success: true, data });
-  } catch (err) {
-    handleError(res, err, 'Failed to fetch reporting summary', 'Media module getReportingSummary error');
   }
 };
 

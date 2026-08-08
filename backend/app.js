@@ -23,7 +23,6 @@ const requestLogger = require("./logger/requestLogger");
 const { ensureSuperAdminDefaults } = require("./utils/bootstrapSuperAdminData");
 const { buildManagerSnapshot } = require("./services/dashboard.service");
 const { startLawExpiryTracker } = require("./modules/law/law.cron");
-const { startMediaNotificationScheduler } = require("./jobs/mediaNotificationScheduler");
 const { startRenderKeepAlive } = require("./jobs/renderKeepAlive");
 const { User } = require("./models/auth");
 const Session = require("./models/auth/Session");
@@ -46,7 +45,6 @@ connectDB().then(async () => {
   try {
     await ensureSuperAdminDefaults();
     startLawExpiryTracker();
-    startMediaNotificationScheduler();
     startRenderKeepAlive();
     logger.info("Super Admin defaults ensured");
   } catch (err) {

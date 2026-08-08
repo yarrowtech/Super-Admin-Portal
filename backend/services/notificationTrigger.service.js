@@ -52,46 +52,9 @@ const notifyApprovalPending = async (role, { title, message, metadata = {} }) =>
   return Promise.all(users.map((user) => notifyUser(user._id, { title, message, type: 'approval_pending', metadata })));
 };
 
-const notifyCampaignEnding = (campaign, recipientId) =>
-  notifyUser(recipientId, {
-    title: 'Campaign ending soon',
-    message: `"${campaign.name}" ends on ${new Date(campaign.endDate).toLocaleDateString()}`,
-    type: 'campaign_ending',
-    metadata: { campaignId: campaign._id, endDate: campaign.endDate },
-  });
-
-const notifyBudgetExceeded = (projectId, recipientId, { totalBudget, used }) =>
-  notifyUser(recipientId, {
-    title: 'Budget exceeded',
-    message: `Media spend (${used}) has exceeded the allocated budget (${totalBudget}).`,
-    type: 'budget_exceeded',
-    metadata: { projectId, totalBudget, used },
-  });
-
-const notifyDeadlineTomorrow = (task) =>
-  notifyUser(task.assignedTo, {
-    title: 'Deadline tomorrow',
-    message: `"${task.title}" is due tomorrow.`,
-    type: 'deadline_tomorrow',
-    metadata: { taskId: task._id, campaignId: task.campaignId, dueDate: task.dueDate },
-    sourceTask: task._id,
-  });
-
-const notifyReportReady = (recipientId, report) =>
-  notifyUser(recipientId, {
-    title: 'Report ready',
-    message: `Your ${report.periodType} marketing report for ${report.periodStart?.toDateString?.() || ''} is ready.`,
-    type: 'report_ready',
-    metadata: { reportId: report._id, projectId: report.projectId, periodType: report.periodType },
-  });
-
 module.exports = {
   notifyUser,
   notifyTaskAssigned,
   notifyTaskCompleted,
   notifyApprovalPending,
-  notifyCampaignEnding,
-  notifyBudgetExceeded,
-  notifyDeadlineTomorrow,
-  notifyReportReady,
 };

@@ -7,15 +7,7 @@ import { QK } from '../../utils/queryKeys';
 import { findCanonicalProject } from '../../config/projectNames';
 import PortalHeader from '../common/PortalHeader';
 import MediaProjectList from './MediaProjectList';
-import CampaignLifecycleStepper from './CampaignLifecycleStepper';
 import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
-import CampaignTaskBoard from './CampaignTaskBoard';
-import BudgetTracker from './BudgetTracker';
-import KpiFunnelChart from './KpiFunnelChart';
-import MarketingCalendar from './MarketingCalendar';
-import WeeklyPlanner from './WeeklyPlanner';
-import ProjectChecklists from './ProjectChecklists';
-import MarketingReportPanel from './MarketingReportPanel';
 
 const MEDIA_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'campaign' },
@@ -26,21 +18,6 @@ const MEDIA_SECTIONS = [
   { id: 'design', label: 'Design', icon: 'draw' },
   { id: 'video', label: 'Video', icon: 'movie' },
   { id: 'social', label: 'Social', icon: 'chat_bubble' },
-  { id: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
-  { id: 'tasks', label: 'Tasks', icon: 'checklist' },
-  { id: 'budget', label: 'Budget', icon: 'payments' },
-  { id: 'funnel', label: 'KPI & Funnel', icon: 'insights' },
-  { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
-  { id: 'weekly-planning', label: 'Weekly Planning', icon: 'event_note' },
-  { id: 'checklists', label: 'Checklists', icon: 'checklist_rtl' },
-  { id: 'advertisements', label: 'Ads', icon: 'credit_card' },
-  { id: 'seo', label: 'SEO', icon: 'search' },
-  { id: 'website', label: 'Website', icon: 'public' },
-  { id: 'testimonials', label: 'Testimonials', icon: 'reviews' },
-  { id: 'case-studies', label: 'Case Studies', icon: 'description' },
-  { id: 'approvals', label: 'Approvals', icon: 'fact_check' },
-  { id: 'reporting', label: 'Reporting', icon: 'bar_chart' },
-  { id: 'audit', label: 'Audit Trail', icon: 'history' },
 ];
 
 const MODULE_FOR_SECTION = {
@@ -50,19 +27,10 @@ const MODULE_FOR_SECTION = {
   design: 'design',
   video: 'video',
   social: 'social',
-  campaigns: 'campaign',
-  advertisements: 'advertisement',
-  seo: 'seo',
-  website: 'website',
-  testimonials: 'testimonial',
-  'case-studies': 'case-study',
-  approvals: 'approval',
-  reporting: 'report',
-  audit: 'report',
 };
 
 const META = {
-  dashboard: ['Media Command Center', 'Executive overview of media production, campaigns, approvals, and delivery', 'campaign'],
+  dashboard: ['Media Command Center', 'Executive overview of media production, approvals, and delivery', 'campaign'],
   projects: ['Projects', 'Click a project to open its full media & marketing plan', 'folder_copy'],
   assets: ['Digital Asset Management', 'Searchable, versioned asset vault', 'perm_media'],
   brand: ['Brand Management', 'Guidelines, templates, and compliance tracking', 'palette'],
@@ -70,24 +38,9 @@ const META = {
   design: ['Design Requests', 'Creative intake, assignment, revisions, and delivery', 'draw'],
   video: ['Video Production', 'Scripts, footage, edits, reviews, and publishing', 'movie'],
   social: ['Social Media', 'Calendar, scheduling, and performance', 'chat_bubble'],
-  campaigns: ['Campaign Management', 'Planning, budgets, and KPI tracking', 'ads_click'],
-  tasks: ['Campaign Tasks', 'Auto-generated task board across all campaigns', 'checklist'],
-  budget: ['Budget Logic', 'Total budget, allocations, expenses, ROI, ROAS, and cost per lead', 'payments'],
-  funnel: ['KPI & Marketing Funnel', 'Traffic-to-revenue KPIs and the awareness-to-referral funnel', 'insights'],
-  calendar: ['Marketing Calendar', 'Every campaign, task, publish, and approval date in one view', 'calendar_month'],
-  'weekly-planning': ['Weekly Planning', 'Objectives, owners, deadlines, and progress for the current week', 'event_note'],
-  checklists: ['Project Checklists', 'Website, SEO, CRM, Ads, Email, WhatsApp, and reporting readiness', 'checklist_rtl'],
-  advertisements: ['Advertisement Management', 'CPC, CPM, CTR, and ROI', 'credit_card'],
-  seo: ['SEO Management', 'Keywords, rankings, backlinks, and technical SEO', 'search'],
-  website: ['Website Media', 'Publishing workflow and approval tracking', 'public'],
-  testimonials: ['Testimonial Management', 'Client proof, ratings, and success stories', 'reviews'],
-  'case-studies': ['Case Studies', 'Impact stories and approvals', 'description'],
-  approvals: ['Approval Center', 'Multi-level approvals and revision control', 'fact_check'],
-  reporting: ['Reporting Center', 'Exportable marketing and operational reports', 'bar_chart'],
-  audit: ['Audit Trail', 'Immutable activity and compliance logging', 'history'],
 };
 
-const EDITABLE_SECTIONS = new Set(['assets', 'content', 'brand', 'design', 'video', 'social', 'advertisements', 'seo', 'website', 'testimonials', 'case-studies']);
+const EDITABLE_SECTIONS = new Set(['assets', 'content', 'brand', 'design', 'video', 'social']);
 const SECTION_ACTIONS = {
   assets: {
     label: 'Asset',
@@ -209,66 +162,9 @@ const DOMAIN_FIELDS = {
     { key: 'reach', label: 'Reach', type: 'number' },
     { key: 'engagement', label: 'Engagement', type: 'number' },
   ],
-  advertisements: [
-    { key: 'platform', label: 'Platform', placeholder: 'Google Ads, Meta, LinkedIn...' },
-    { key: 'impressions', label: 'Impressions', type: 'number' },
-    { key: 'clicks', label: 'Clicks', type: 'number' },
-    { key: 'cpc', label: 'CPC', type: 'number' },
-    { key: 'cpm', label: 'CPM', type: 'number' },
-    { key: 'ctr', label: 'CTR (%)', type: 'number' },
-    { key: 'spend', label: 'Spend', type: 'number', top: true },
-    { key: 'roi', label: 'ROI (%)', type: 'number', top: true },
-  ],
-  seo: [
-    { key: 'keyword', label: 'Keyword' },
-    { key: 'targetUrl', label: 'Target URL' },
-    { key: 'ranking', label: 'Ranking', type: 'number' },
-    { key: 'searchVolume', label: 'Search Volume', type: 'number' },
-    { key: 'backlinks', label: 'Backlinks', type: 'number' },
-  ],
-  website: [
-    { key: 'pageUrl', label: 'Page URL' },
-    { key: 'pageType', label: 'Page Type', placeholder: 'Landing, Blog, Product...' },
-  ],
-  testimonials: [
-    { key: 'clientName', label: 'Client Name' },
-    { key: 'rating', label: 'Rating (1-5)', type: 'number' },
-    { key: 'source', label: 'Source', placeholder: 'Google, LinkedIn, Direct...' },
-  ],
-  'case-studies': [
-    { key: 'clientName', label: 'Client Name' },
-    { key: 'industry', label: 'Industry' },
-    { key: 'resultsSummary', label: 'Results Summary' },
-  ],
 };
 
 const STATUS_OPTIONS = ['all', 'draft', 'pending', 'in review', 'approved', 'live', 'active', 'published', 'needs revision', 'rejected'];
-const CAMPAIGN_STAGES = [
-  'draft',
-  'objective-defined',
-  'platform-selected',
-  'budget-allocated',
-  'team-assigned',
-  'content-in-progress',
-  'in-approval',
-  'scheduled',
-  'live',
-  'tracking',
-  'closed',
-];
-const CAMPAIGN_STAGE_LABELS = {
-  draft: 'Draft',
-  'objective-defined': 'Objective Defined',
-  'platform-selected': 'Platform Selected',
-  'budget-allocated': 'Budget Allocated',
-  'team-assigned': 'Team Assigned',
-  'content-in-progress': 'Content In Progress',
-  'in-approval': 'In Approval',
-  scheduled: 'Scheduled',
-  live: 'Live',
-  tracking: 'Tracking',
-  closed: 'Closed',
-};
 const CREATIVE_SECTION_IDS = new Set(['assets', 'brand', 'content', 'design', 'video', 'social']);
 const CREATIVE_DETAILS = {
   assets: ['Asset Library', 'Manage logos, campaign files, source assets, and approved deliverables.', 'assetType', 'Asset types'],
@@ -316,47 +212,6 @@ const CREATIVE_WORKFLOWS = {
     ['Measure', 'Update reach and engagement.'],
   ],
 };
-const CHANNEL_SECTION_IDS = new Set(['advertisements', 'seo', 'website', 'testimonials', 'case-studies']);
-const CHANNEL_DETAILS = {
-  advertisements: ['Paid Ads Control', 'Manage paid media creatives, spend, platform performance, approvals, and ROI snapshots.', 'platform', 'Platforms'],
-  seo: ['SEO Growth Desk', 'Track keyword ownership, ranking movement, backlinks, page targets, and optimization status.', 'keyword', 'Keywords'],
-  website: ['Website Publishing Desk', 'Control page updates, launch readiness, owners, approvals, and publishing evidence.', 'pageType', 'Page types'],
-  testimonials: ['Proof & Testimonial Desk', 'Collect, approve, and reuse client proof across campaigns, sales pages, and social channels.', 'source', 'Sources'],
-  'case-studies': ['Case Study Pipeline', 'Build client impact stories from intake through proof, approval, publishing, and reuse.', 'industry', 'Industries'],
-};
-const CHANNEL_WORKFLOWS = {
-  advertisements: [
-    ['Plan', 'Define platform, target, budget, and creative owner.'],
-    ['Launch', 'Attach ad creative and move approved work live.'],
-    ['Optimize', 'Update spend, CPC, CPM, CTR, and ROI snapshots.'],
-    ['Report', 'Keep performance evidence tied to project and campaign.'],
-  ],
-  seo: [
-    ['Research', 'Capture keyword, target page, volume, and intent.'],
-    ['Optimize', 'Assign page owner, content work, and technical fixes.'],
-    ['Measure', 'Update rank, backlinks, and search volume.'],
-    ['Improve', 'Keep next actions visible until ranking target is reached.'],
-  ],
-  website: [
-    ['Request', 'Capture page type, URL, owner, and project context.'],
-    ['Build', 'Track copy, design, dev, and media requirements.'],
-    ['Approve', 'Route page changes through review before publish.'],
-    ['Publish', 'Mark live, attach proof, and keep launch records auditable.'],
-  ],
-  testimonials: [
-    ['Collect', 'Capture client, rating, quote source, and permission.'],
-    ['Verify', 'Check proof, consent, and reusable marketing claims.'],
-    ['Approve', 'Move testimonial through review before publishing.'],
-    ['Reuse', 'Attach to campaigns, website pages, ads, and sales content.'],
-  ],
-  'case-studies': [
-    ['Qualify', 'Select client, industry, problem, and measurable outcome.'],
-    ['Write', 'Build story, result summary, assets, and supporting proof.'],
-    ['Approve', 'Route internal and client approval before publishing.'],
-    ['Distribute', 'Use approved story across website, campaigns, and sales.'],
-  ],
-};
-
 const EXPORT_OPTIONS = ['PDF', 'Excel', 'CSV', 'PPT'];
 const COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#ec4899'];
 
@@ -376,59 +231,6 @@ const average = (values) => {
   const valid = values.map(num).filter((value) => value > 0);
   if (!valid.length) return 0;
   return valid.reduce((sum, value) => sum + value, 0) / valid.length;
-};
-const getChannelInsights = (section, records) => {
-  if (section === 'advertisements') {
-    const spend = records.reduce((sum, item) => sum + num(item?.budgetImpact?.spend || item?.metadata?.spend), 0);
-    const clicks = records.reduce((sum, item) => sum + num(item?.metadata?.clicks), 0);
-    return [
-      ['Total Spend', money(spend), 'payments'],
-      ['Clicks', clicks.toLocaleString(), 'ads_click'],
-      ['Avg CTR', `${average(records.map((item) => item?.metadata?.ctr)).toFixed(1)}%`, 'percent'],
-      ['Avg ROI', `${average(records.map((item) => item?.budgetImpact?.roiAtSnapshot || item?.metadata?.roi)).toFixed(1)}%`, 'trending_up'],
-    ];
-  }
-  if (section === 'seo') {
-    const topTen = records.filter((item) => num(item?.metadata?.ranking) > 0 && num(item?.metadata?.ranking) <= 10).length;
-    const backlinks = records.reduce((sum, item) => sum + num(item?.metadata?.backlinks), 0);
-    return [
-      ['Tracked Keywords', records.length.toLocaleString(), 'search'],
-      ['Top 10 Ranks', topTen.toLocaleString(), 'military_tech'],
-      ['Backlinks', backlinks.toLocaleString(), 'link'],
-      ['Avg Position', average(records.map((item) => item?.metadata?.ranking)).toFixed(1), 'leaderboard'],
-    ];
-  }
-  if (section === 'website') {
-    const liveCount = records.filter((item) => ['live', 'published', 'approved'].some((status) => recordStatus(item).includes(status))).length;
-    const urls = new Set(records.map((item) => String(item?.metadata?.pageUrl || '').trim()).filter(Boolean)).size;
-    return [
-      ['Pages', records.length.toLocaleString(), 'web'],
-      ['URLs', urls.toLocaleString(), 'link'],
-      ['Live/Approved', liveCount.toLocaleString(), 'published_with_changes'],
-      ['Page Types', new Set(records.map((item) => String(item?.metadata?.pageType || '').trim()).filter(Boolean)).size.toLocaleString(), 'category'],
-    ];
-  }
-  if (section === 'testimonials') {
-    const avgRating = average(records.map((item) => item?.metadata?.rating));
-    const clients = new Set(records.map((item) => String(item?.metadata?.clientName || '').trim()).filter(Boolean)).size;
-    return [
-      ['Testimonials', records.length.toLocaleString(), 'reviews'],
-      ['Clients', clients.toLocaleString(), 'business_center'],
-      ['Avg Rating', avgRating ? `${avgRating.toFixed(1)}/5` : '0/5', 'star'],
-      ['Approved', records.filter((item) => recordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
-    ];
-  }
-  if (section === 'case-studies') {
-    const clients = new Set(records.map((item) => String(item?.metadata?.clientName || '').trim()).filter(Boolean)).size;
-    const industries = new Set(records.map((item) => String(item?.metadata?.industry || '').trim()).filter(Boolean)).size;
-    return [
-      ['Stories', records.length.toLocaleString(), 'description'],
-      ['Clients', clients.toLocaleString(), 'business_center'],
-      ['Industries', industries.toLocaleString(), 'domain'],
-      ['Approved', records.filter((item) => recordStatus(item).includes('approved')).length.toLocaleString(), 'verified'],
-    ];
-  }
-  return [];
 };
 const bytes = (value) => {
   const n = num(value);
@@ -450,44 +252,17 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [dashboard, setDashboard] = useState(null);
   const [projects, setProjects] = useState([]);
   const [assets, setAssets] = useState([]);
-  const [campaigns, setCampaigns] = useState([]);
-  const [campaignTasks, setCampaignTasks] = useState([]);
   const [content, setContent] = useState([]);
   const [brandAssets, setBrandAssets] = useState([]);
   const [designItems, setDesignItems] = useState([]);
   const [videoItems, setVideoItems] = useState([]);
   const [socialPosts, setSocialPosts] = useState([]);
-  const [advertisements, setAdvertisements] = useState([]);
-  const [seoItems, setSeoItems] = useState([]);
-  const [websiteItems, setWebsiteItems] = useState([]);
-  const [testimonials, setTestimonials] = useState([]);
-  const [caseStudies, setCaseStudies] = useState([]);
-  const [approvals, setApprovals] = useState([]);
-  const [reporting, setReporting] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeProjectId, setActiveProjectId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [actionBusy, setActionBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
-  const [campaignEditor, setCampaignEditor] = useState({ open: false, mode: 'create', record: null });
-  const [campaignDetailId, setCampaignDetailId] = useState(null);
-  const [campaignDraft, setCampaignDraft] = useState({
-    name: '',
-    objective: '',
-    description: '',
-    platform: '',
-    status: 'draft',
-    budgetAllocated: '',
-    startDate: '',
-    endDate: '',
-    projectName: '',
-    teamMembersText: '',
-    targetReach: '',
-    targetLeads: '',
-    targetConversions: '',
-    targetRevenue: '',
-  });
   const [editor, setEditor] = useState({ open: false, mode: 'create', section: 'assets', record: null });
   const [draft, setDraft] = useState({
     title: '',
@@ -562,28 +337,18 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const enableWorkspaceData = enabled && !isProjectHub;
 
   const [
-    projectsQuery, dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery,
-    approvalsQuery, reportingQuery, campaignTasksQuery, designQuery, videoQuery, socialQuery,
-    advertisementsQuery, seoQuery, websiteQuery, testimonialsQuery, caseStudiesQuery,
+    projectsQuery, dashboardQuery, assetsQuery, contentQuery, brandAssetsQuery,
+    designQuery, videoQuery, socialQuery,
   ] = useQueries({
     queries: [
       { queryKey: QK.media.projects({ limit: 200 }), queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }), enabled },
       { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.campaigns(listParams), queryFn: () => departmentApi.getMediaCampaigns(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.brandAssets(listParams), queryFn: () => departmentApi.getMediaBrandAssets(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.approvals(listParams), queryFn: () => departmentApi.getMediaApprovals(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.reporting(projectParams), queryFn: () => departmentApi.getMediaReportingSummary(token, projectParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.campaignTasks(projectParams), queryFn: () => departmentApi.getMediaCampaignTasks(token, projectParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.design(listParams), queryFn: () => departmentApi.getMediaDesignItems(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.video(listParams), queryFn: () => departmentApi.getMediaVideoItems(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.social(listParams), queryFn: () => departmentApi.getMediaSocialPosts(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.advertisements(listParams), queryFn: () => departmentApi.getMediaAdvertisements(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.seo(listParams), queryFn: () => departmentApi.getMediaSeoItems(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.website(listParams), queryFn: () => departmentApi.getMediaWebsiteItems(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.testimonials(listParams), queryFn: () => departmentApi.getMediaTestimonials(token, listParams), enabled: enableWorkspaceData },
-      { queryKey: QK.media.caseStudies(listParams), queryFn: () => departmentApi.getMediaCaseStudies(token, listParams), enabled: enableWorkspaceData },
     ],
   });
 
@@ -596,26 +361,15 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   }, [projectsQuery.data]);
   useEffect(() => { setDashboard(dashboardQuery.data?.data || null); }, [dashboardQuery.data]);
   useEffect(() => { setAssets(arr(assetsQuery.data?.data?.items)); }, [assetsQuery.data]);
-  useEffect(() => { setCampaigns(arr(campaignsQuery.data?.data?.items)); }, [campaignsQuery.data]);
-  useEffect(() => { if (activeSection !== 'campaigns') setCampaignDetailId(null); }, [activeSection]);
   useEffect(() => { setContent(arr(contentQuery.data?.data?.items)); }, [contentQuery.data]);
   useEffect(() => { setBrandAssets(arr(brandAssetsQuery.data?.data?.items)); }, [brandAssetsQuery.data]);
-  useEffect(() => { setApprovals(arr(approvalsQuery.data?.data?.items)); }, [approvalsQuery.data]);
-  useEffect(() => { setReporting(reportingQuery.data?.data || null); }, [reportingQuery.data]);
-  useEffect(() => { setCampaignTasks(arr(campaignTasksQuery.data?.data?.items)); }, [campaignTasksQuery.data]);
   useEffect(() => { setDesignItems(arr(designQuery.data?.data?.items)); }, [designQuery.data]);
   useEffect(() => { setVideoItems(arr(videoQuery.data?.data?.items)); }, [videoQuery.data]);
   useEffect(() => { setSocialPosts(arr(socialQuery.data?.data?.items)); }, [socialQuery.data]);
-  useEffect(() => { setAdvertisements(arr(advertisementsQuery.data?.data?.items)); }, [advertisementsQuery.data]);
-  useEffect(() => { setSeoItems(arr(seoQuery.data?.data?.items)); }, [seoQuery.data]);
-  useEffect(() => { setWebsiteItems(arr(websiteQuery.data?.data?.items)); }, [websiteQuery.data]);
-  useEffect(() => { setTestimonials(arr(testimonialsQuery.data?.data?.items)); }, [testimonialsQuery.data]);
-  useEffect(() => { setCaseStudies(arr(caseStudiesQuery.data?.data?.items)); }, [caseStudiesQuery.data]);
 
   const anyLoading = [
-    projectsQuery, dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery,
-    approvalsQuery, reportingQuery, campaignTasksQuery, designQuery, videoQuery, socialQuery,
-    advertisementsQuery, seoQuery, websiteQuery, testimonialsQuery, caseStudiesQuery,
+    projectsQuery, dashboardQuery, assetsQuery, contentQuery, brandAssetsQuery,
+    designQuery, videoQuery, socialQuery,
   ].some((q) => q.isLoading);
 
   useEffect(() => {
@@ -664,11 +418,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const statusRows = arr(dashboard?.charts?.statusBreakdown);
     return {
       activeProjects: num(kpis.activeProjects ?? projects.length),
-      runningCampaigns: num(kpis.runningCampaigns ?? campaigns.length),
-      pendingApprovals: num(kpis.pendingApprovals ?? approvals.length),
+      pendingApprovals: num(kpis.pendingApprovals),
       assetStorage: kpis.assetStorageUsageLabel || bytes(kpis.assetStorageUsage),
-      adSpend: money(kpis.advertisementSpend),
-      roi: typeof kpis.marketingRoi === 'number' ? `${kpis.marketingRoi.toFixed(1)}%` : `${kpis.marketingRoi || 0}%`,
       productivity: num(kpis.teamProductivity),
       socialReach: num(kpis.socialReach),
       socialEngagement: num(kpis.socialEngagement),
@@ -678,9 +429,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       recent,
       moduleRows,
       statusRows,
-      reportRows: arr(reporting?.auditRows),
     };
-  }, [approvals.length, campaigns.length, dashboard, projects.length, reporting]);
+  }, [dashboard, projects.length]);
 
   const projectOptions = useMemo(
     () => projects.filter((project) => project.value),
@@ -797,11 +547,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       case 'design': return setDesignItems;
       case 'video': return setVideoItems;
       case 'social': return setSocialPosts;
-      case 'advertisements': return setAdvertisements;
-      case 'seo': return setSeoItems;
-      case 'website': return setWebsiteItems;
-      case 'testimonials': return setTestimonials;
-      case 'case-studies': return setCaseStudies;
       default: return null;
     }
   };
@@ -838,12 +583,12 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     setActionBusy(true);
     try {
       let fileFields = {
-        storageUrl: draft.storageUrl,
-        storageKey: draft.storageKey,
-        storageProvider: draft.storageProvider,
-        thumbnailUrl: draft.thumbnailUrl,
-        mimeType: draft.mimeType,
-        fileSizeBytes: draft.fileSizeBytes,
+        storageUrl: draft.storageUrl || undefined,
+        storageKey: draft.storageKey || undefined,
+        storageProvider: draft.storageProvider === 'cloudinary' ? draft.storageProvider : undefined,
+        thumbnailUrl: draft.thumbnailUrl || undefined,
+        mimeType: draft.mimeType || undefined,
+        fileSizeBytes: draft.fileSizeBytes || undefined,
       };
 
       if (draft.file) {
@@ -953,7 +698,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       const nextStatus = decision === 'approve' ? 'Approved' : 'Needs Revision';
       const patch = { approvalStatus: decision === 'approve' ? 'approved' : 'rejected', status: nextStatus };
       const matchesWorkflow = (item) => item?.approvalWorkflowId === workflowId || item?.workflowId === workflowId;
-      [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts, setAdvertisements, setSeoItems, setWebsiteItems, setTestimonials, setCaseStudies, setApprovals].forEach((setter) => {
+      [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts].forEach((setter) => {
         setter((prev) => prev.map((item) => (matchesWorkflow(item) ? { ...item, ...patch } : item)));
       });
     } catch (err) {
@@ -961,612 +706,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     } finally {
       setActionBusy(false);
     }
-  };
-
-  const toDateInput = (value) => {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toISOString().slice(0, 10);
-  };
-
-  const buildCampaignDraft = (record = {}) => ({
-    name: toInputValue(record.name),
-    objective: toInputValue(record.objective),
-    description: toInputValue(record.description),
-    platform: arr(record.platform).join(', '),
-    status: toInputValue(record.status || 'draft'),
-    budgetAllocated: toInputValue(record.budgetAllocated || ''),
-    startDate: toDateInput(record.startDate),
-    endDate: toDateInput(record.endDate),
-    projectName: toInputValue(record.projectName || ''),
-    teamMembersText: arr(record.teamMembers)
-      .map((member) => [member.name, member.role].filter(Boolean).join(' - '))
-      .join('\n'),
-    targetReach: toInputValue(record.kpiTargets?.reach || ''),
-    targetLeads: toInputValue(record.kpiTargets?.leads || ''),
-    targetConversions: toInputValue(record.kpiTargets?.conversions || ''),
-    targetRevenue: toInputValue(record.kpiTargets?.revenue || ''),
-  });
-
-  const openCampaignEditor = (mode = 'create', record = null) => {
-    setActionMessage('');
-    setCampaignEditor({ open: true, mode, record });
-    setCampaignDraft(buildCampaignDraft(record || {}));
-  };
-
-  const closeCampaignEditor = () => {
-    setCampaignEditor({ open: false, mode: 'create', record: null });
-    setCampaignDraft(buildCampaignDraft({}));
-  };
-
-  const parseCampaignTeamMembers = (value = '') =>
-    String(value || '')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [name, ...roleParts] = line.split(/\s+-\s+|,/);
-        return {
-          name: String(name || '').trim(),
-          role: roleParts.join(' ').trim(),
-        };
-      })
-      .filter((member) => member.name || member.role);
-
-  const buildCampaignPayload = () => {
-    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
-    return {
-      projectId: effectiveProjectId || undefined,
-      projectName: campaignDraft.projectName.trim() || selectedProject?.name || undefined,
-      name: campaignDraft.name.trim(),
-      objective: campaignDraft.objective.trim(),
-      description: campaignDraft.description.trim(),
-      platform: campaignDraft.platform.split(',').map((item) => item.trim()).filter(Boolean),
-      status: campaignDraft.status || 'draft',
-      budgetAllocated: Number(campaignDraft.budgetAllocated) || 0,
-      startDate: campaignDraft.startDate || undefined,
-      endDate: campaignDraft.endDate || undefined,
-      teamMembers: parseCampaignTeamMembers(campaignDraft.teamMembersText),
-      kpiTargets: {
-        reach: Number(campaignDraft.targetReach) || 0,
-        leads: Number(campaignDraft.targetLeads) || 0,
-        conversions: Number(campaignDraft.targetConversions) || 0,
-        revenue: Number(campaignDraft.targetRevenue) || 0,
-      },
-    };
-  };
-
-  const persistCampaignRecord = async (event) => {
-    event.preventDefault();
-    if (!effectiveProjectId) {
-      setError('Select a project before creating a campaign.');
-      return;
-    }
-    if (!campaignDraft.name.trim()) {
-      setError('Campaign name is required.');
-      return;
-    }
-    setActionBusy(true);
-    try {
-      const payload = buildCampaignPayload();
-      let saved;
-      if (campaignEditor.mode === 'edit') {
-        const id = campaignEditor.record?._id || campaignEditor.record?.id;
-        const res = await departmentApi.updateMediaCampaign(token, id, payload);
-        saved = res?.data;
-        if (saved) setCampaigns((prev) => prev.map((item) => (String(item._id) === String(id) ? saved : item)));
-        setActionMessage('Campaign updated.');
-      } else {
-        const res = await departmentApi.createMediaCampaign(token, payload);
-        saved = res?.data;
-        if (saved) setCampaigns((prev) => [saved, ...prev]);
-        setActionMessage('Campaign created.');
-      }
-      closeCampaignEditor();
-    } catch (err) {
-      setError(err.message || 'Failed to save campaign.');
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const advanceCampaignStage = async (campaignId, nextStage) => {
-    setActionBusy(true);
-    try {
-      const res = await departmentApi.advanceMediaCampaignStage(token, campaignId, nextStage);
-      if (res?.data) {
-        setCampaigns((prev) => prev.map((item) => (String(item._id) === String(campaignId) ? res.data : item)));
-      }
-      if (nextStage === 'content-in-progress') {
-        const projectParams = effectiveProjectId ? { projectId: effectiveProjectId } : {};
-        const tasksRes = await departmentApi.getMediaCampaignTasks(token, projectParams);
-        setCampaignTasks(arr(tasksRes?.data?.items));
-      }
-      setActionMessage(`Campaign moved to ${nextStage.replace(/-/g, ' ')}.`);
-    } catch (err) {
-      setError(err.message || 'Failed to update campaign stage.');
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const deleteCampaignRecord = async (campaignId) => {
-    const ok = window.confirm('Delete this campaign? This cannot be undone.');
-    if (!ok) return;
-    setActionBusy(true);
-    try {
-      await departmentApi.deleteMediaCampaign(token, campaignId);
-      setActionMessage('Campaign deleted.');
-      setCampaigns((prev) => prev.filter((item) => String(item._id) !== String(campaignId)));
-      setCampaignTasks((prev) => prev.filter((task) => String(task.campaignId) !== String(campaignId)));
-      setCampaignDetailId((prev) => (String(prev) === String(campaignId) ? null : prev));
-    } catch (err) {
-      setError(err.message || 'Failed to delete campaign.');
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const renderCampaignDetail = (campaign) => {
-    const statusIndex = Math.max(CAMPAIGN_STAGES.indexOf(campaign.status), 0);
-    const progress = Math.round(((statusIndex + 1) / CAMPAIGN_STAGES.length) * 100);
-    const tasksForCampaign = campaignTasks.filter((task) => String(task.campaignId) === String(campaign._id));
-    const tasksDone = tasksForCampaign.filter((task) => task.status === 'completed').length;
-    const kpiTargets = campaign.kpiTargets || {};
-    const teamMembers = arr(campaign.teamMembers);
-    const history = arr(campaign.lifecycleHistory).slice().reverse();
-
-    const now = Date.now();
-    const start = campaign.startDate ? new Date(campaign.startDate).getTime() : null;
-    const end = campaign.endDate ? new Date(campaign.endDate).getTime() : null;
-    let timelinePercent = null;
-    let timelineLabel = 'No dates set';
-    if (start && end && end > start) {
-      timelinePercent = Math.min(100, Math.max(0, Math.round(((now - start) / (end - start)) * 100)));
-      const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-      timelineLabel = now > end ? 'Timeline ended' : now < start ? 'Not started yet' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`;
-    } else if (start) {
-      timelineLabel = now < start ? 'Not started yet' : 'In progress (no end date)';
-    }
-
-    return (
-      <div className="space-y-4">
-        <button
-          type="button"
-          onClick={() => setCampaignDetailId(null)}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 transition hover:text-teal-900 dark:text-teal-300 dark:hover:text-teal-100"
-        >
-          <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-          Back to campaigns
-        </button>
-
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">{campaign.name}</h2>
-                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(campaign.status)}`}>
-                  {CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}
-                </span>
-              </div>
-              <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-neutral-400">{campaign.objective || campaign.description || 'No objective set yet.'}</p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {arr(campaign.platform).length ? arr(campaign.platform).map((platform) => (
-                  <span key={platform} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{platform}</span>
-                )) : <span className="text-xs text-slate-400">No platforms set</span>}
-              </div>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button type="button" disabled={actionBusy} onClick={() => openCampaignEditor('edit', campaign)} className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300">
-                Edit
-              </button>
-              <button type="button" disabled={actionBusy} onClick={() => deleteCampaignRecord(campaign._id)} className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">
-                Delete
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              ['Budget Allocated', money(campaign.budgetAllocated), 'payments'],
-              ['Team Members', teamMembers.length || 'Unassigned', 'group'],
-              ['Tasks', `${tasksDone}/${tasksForCampaign.length}`, 'checklist'],
-              ['Lifecycle Progress', `${progress}%`, 'timeline'],
-            ].map(([label, value, icon]) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
-                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
-                </div>
-                <p className="mt-2 text-xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5">
-            <CampaignLifecycleStepper
-              status={campaign.status}
-              busy={actionBusy}
-              onAdvance={(nextStage) => advanceCampaignStage(campaign._id, nextStage)}
-            />
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <section className={card}>
-            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Timeline</h3>
-            <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
-              {campaign.startDate ? new Date(campaign.startDate).toLocaleDateString() : 'No start date'}
-              {' → '}
-              {campaign.endDate ? new Date(campaign.endDate).toLocaleDateString() : 'No end date'}
-            </p>
-            {timelinePercent !== null ? (
-              <div className="mt-2 h-2 w-full rounded-full bg-slate-100 dark:bg-neutral-800">
-                <div className="h-full rounded-full bg-teal-500" style={{ width: `${timelinePercent}%` }} />
-              </div>
-            ) : null}
-            <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-neutral-400">{timelineLabel}</p>
-
-            <h3 className="mt-5 text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Description</h3>
-            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600 dark:text-neutral-300">{campaign.description || 'No description added.'}</p>
-          </section>
-
-          <section className={card}>
-            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">KPI Targets</h3>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              {[
-                ['Reach', kpiTargets.reach],
-                ['Leads', kpiTargets.leads],
-                ['Conversions', kpiTargets.conversions],
-                ['Revenue', kpiTargets.revenue != null ? money(kpiTargets.revenue) : null],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
-                  <p className="mt-1 text-lg font-black text-slate-950 dark:text-neutral-100">{value || value === 0 ? value : '—'}</p>
-                </div>
-              ))}
-            </div>
-
-            <h3 className="mt-5 text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Team</h3>
-            {teamMembers.length ? (
-              <div className="mt-2 space-y-2">
-                {teamMembers.map((member, index) => (
-                  <div key={`${member.name}-${index}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950/50">
-                    <span className="font-semibold text-slate-800 dark:text-neutral-200">{member.name || 'Unnamed'}</span>
-                    <span className="text-xs text-slate-500 dark:text-neutral-400">{member.role || '—'}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 text-sm text-slate-400">No team members assigned yet.</p>
-            )}
-          </section>
-        </div>
-
-        <section className={card}>
-          <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Campaign Tasks</h3>
-          <div className="mt-4">
-            <CampaignTaskBoard tasks={tasksForCampaign} busy={actionBusy} onMove={moveCampaignTask} />
-          </div>
-        </section>
-
-        <section className={card}>
-          <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Lifecycle History</h3>
-          {history.length ? (
-            <div className="mt-3 space-y-2">
-              {history.map((entry, index) => (
-                <div key={`${entry.stage}-${index}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950/50">
-                  <span className="font-semibold text-slate-800 dark:text-neutral-200">{CAMPAIGN_STAGE_LABELS[entry.stage] || entry.stage}</span>
-                  <span className="text-xs text-slate-500 dark:text-neutral-400">{entry.enteredAt ? new Date(entry.enteredAt).toLocaleString() : ''}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-slate-400">No lifecycle changes recorded yet.</p>
-          )}
-        </section>
-      </div>
-    );
-  };
-
-  const renderCampaigns = () => {
-    const rows = filterRecords(campaigns);
-    const totalBudget = rows.reduce((sum, campaign) => sum + num(campaign.budgetAllocated), 0);
-    const liveCount = rows.filter((campaign) => ['live', 'tracking'].includes(campaign.status)).length;
-    const planningCount = rows.filter((campaign) => ['draft', 'objective-defined', 'platform-selected', 'budget-allocated', 'team-assigned'].includes(campaign.status)).length;
-    const reviewCount = rows.filter((campaign) => ['content-in-progress', 'in-approval', 'scheduled'].includes(campaign.status)).length;
-    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
-
-    const detailCampaign = campaignDetailId ? campaigns.find((item) => String(item._id) === String(campaignDetailId)) : null;
-    if (detailCampaign) return renderCampaignDetail(detailCampaign);
-
-    const recentCampaigns = [...campaigns]
-      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
-      .slice(0, 3);
-
-    return (
-      <div className="space-y-4">
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[22px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-                  ads_click
-                </span>
-                <div>
-                  <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">Campaign Command Center</h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Plan, launch, track, and close media campaigns with budget, KPI, team, and lifecycle control.</p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                  Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                  Showing {rows.length} of {campaigns.length}
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => openCampaignEditor('create')}
-              disabled={actionBusy || !effectiveProjectId}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[18px]">add_circle</span>
-              New Campaign
-            </button>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {[
-              ['Campaigns', rows.length, 'campaign'],
-              ['Planning', planningCount, 'edit_calendar'],
-              ['Production/Review', reviewCount, 'rate_review'],
-              ['Live/Tracking', liveCount, 'monitoring'],
-              ['Budget', money(totalBudget), 'payments'],
-            ].map(([label, value, icon]) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
-                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
-                </div>
-                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {!effectiveProjectId ? (
-          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Select a project before creating a campaign.
-          </section>
-        ) : null}
-
-        {recentCampaigns.length ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Recent Campaigns</h3>
-              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Most recently updated campaigns across this scope.</p>
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
-              {recentCampaigns.map((campaign) => (
-                <article key={`${campaign._id}-recent`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-slate-950 dark:text-neutral-100">{campaign.name}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500 dark:text-neutral-400">{money(campaign.budgetAllocated)}</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone(campaign.status)}`}>
-                      {CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-neutral-400">
-                    <span>{campaign.updatedAt ? new Date(campaign.updatedAt).toLocaleDateString() : 'No date'}</span>
-                    <button
-                      type="button"
-                      disabled={actionBusy}
-                      onClick={() => setCampaignDetailId(campaign._id)}
-                      className="rounded-full border border-teal-200 bg-white px-3 py-1 font-semibold text-teal-700 transition hover:bg-teal-50 disabled:opacity-50 dark:border-teal-900/60 dark:bg-neutral-900 dark:text-teal-300 dark:hover:bg-teal-500/10"
-                    >
-                      View
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {rows.length ? (
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-neutral-800">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-neutral-950 dark:text-neutral-400">
-                <tr>
-                  <th className="px-4 py-3">Campaign</th>
-                  <th className="px-4 py-3">Stage</th>
-                  <th className="px-4 py-3">Budget</th>
-                  <th className="px-4 py-3">Timeline</th>
-                  <th className="px-4 py-3">Team</th>
-                  <th className="px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-neutral-800">
-                {rows.map((campaign) => {
-                  const statusIndex = Math.max(CAMPAIGN_STAGES.indexOf(campaign.status), 0);
-                  const progress = Math.round(((statusIndex + 1) / CAMPAIGN_STAGES.length) * 100);
-                  return (
-                    <tr key={campaign._id} className="align-top">
-                      <td className="px-4 py-4">
-                        <div className="max-w-md">
-                          <button type="button" onClick={() => setCampaignDetailId(campaign._id)} className="text-left font-black text-slate-950 hover:text-teal-700 hover:underline dark:text-neutral-100 dark:hover:text-teal-300">
-                            {campaign.name}
-                          </button>
-                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-neutral-400">{campaign.objective || campaign.description || '-'}</p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {arr(campaign.platform).length ? arr(campaign.platform).map((platform) => (
-                              <span key={platform} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{platform}</span>
-                            )) : <span className="text-xs text-slate-400">No platforms</span>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(campaign.status)}`}>
-                          {CAMPAIGN_STAGE_LABELS[campaign.status] || campaign.status}
-                        </span>
-                        <div className="mt-2 h-2 w-36 rounded-full bg-slate-100 dark:bg-neutral-800">
-                          <div className="h-full rounded-full bg-teal-500" style={{ width: `${progress}%` }} />
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 font-semibold text-slate-700 dark:text-neutral-300">{money(campaign.budgetAllocated)}</td>
-                      <td className="px-4 py-4 text-xs text-slate-500 dark:text-neutral-400">
-                        <p>{campaign.startDate ? new Date(campaign.startDate).toLocaleDateString() : 'No start'}</p>
-                        <p>{campaign.endDate ? new Date(campaign.endDate).toLocaleDateString() : 'No end'}</p>
-                      </td>
-                      <td className="px-4 py-4 text-xs text-slate-500 dark:text-neutral-400">
-                        {arr(campaign.teamMembers).length ? `${campaign.teamMembers.length} member${campaign.teamMembers.length === 1 ? '' : 's'}` : 'Unassigned'}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button type="button" disabled={actionBusy} onClick={() => setCampaignDetailId(campaign._id)} className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-100 disabled:opacity-50 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-                            View
-                          </button>
-                          <button type="button" disabled={actionBusy} onClick={() => openCampaignEditor('edit', campaign)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300">
-                            Edit
-                          </button>
-                          <button type="button" disabled={actionBusy} onClick={() => deleteCampaignRecord(campaign._id)} className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : empty('No campaigns found', 'Create a campaign to start the objective, platform, budget, team, and content pipeline.')}
-      </div>
-    );
-  };
-
-  const moveCampaignTask = async (task, nextStatus) => {
-    setActionBusy(true);
-    try {
-      const res = await departmentApi.updateMediaCampaignTaskStatus(token, task.campaignId, task._id, nextStatus);
-      const saved = res?.data;
-      setCampaignTasks((prev) => prev.map((item) => (String(item._id) === String(task._id) ? (saved || { ...item, status: nextStatus }) : item)));
-      setActionMessage(`Task moved to ${nextStatus.replace(/-/g, ' ')}.`);
-    } catch (err) {
-      setError(err.message || 'Failed to update task status.');
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const renderCampaignTasks = () => {
-    const rows = filterRecords(campaignTasks);
-    const counts = {
-      pending: rows.filter((task) => task.status === 'pending').length,
-      working: rows.filter((task) => task.status === 'in-progress').length,
-      review: rows.filter((task) => task.status === 'review').length,
-      completed: rows.filter((task) => task.status === 'completed').length,
-    };
-    const productionCampaigns = campaigns.filter((campaign) => ['content-in-progress', 'in-approval', 'scheduled', 'live', 'tracking'].includes(campaign.status));
-    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
-
-    return (
-      <div className="space-y-4">
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[22px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-                  checklist
-                </span>
-                <div>
-                  <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">Campaign Task Board</h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Track production work from assignment to review and completion.</p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                  Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                  {productionCampaigns.length} production campaign{productionCampaigns.length === 1 ? '' : 's'}
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onSectionChange?.('campaigns')}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700"
-            >
-              <span className="material-symbols-outlined text-[18px]">ads_click</span>
-              Open Campaigns
-            </button>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              ['Pending', counts.pending, 'pending_actions'],
-              ['Working', counts.working, 'engineering'],
-              ['Review', counts.review, 'rate_review'],
-              ['Completed', counts.completed, 'task_alt'],
-            ].map(([label, value, icon]) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
-                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
-                </div>
-                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {rows.length ? (
-          <CampaignTaskBoard tasks={rows} busy={actionBusy} onMove={moveCampaignTask} />
-        ) : (
-          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr]">
-              <div className="border-b border-slate-200 bg-slate-50 p-6 dark:border-neutral-800 dark:bg-neutral-950/50 lg:border-b-0 lg:border-r">
-                <span className="material-symbols-outlined rounded-2xl border border-teal-200 bg-teal-50 p-3 text-3xl text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-                  account_tree
-                </span>
-                <h3 className="mt-4 text-xl font-black text-slate-950 dark:text-neutral-100">No campaign tasks are active</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-neutral-400">
-                  Move a campaign into content production when the campaign plan is ready. Tasks will appear here as a board.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onSectionChange?.('campaigns')}
-                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700"
-                >
-                  <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
-                  Go to Campaigns
-                </button>
-              </div>
-              <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
-                {[
-                  ['1', 'Create campaign', 'Set objective, budget, platforms, dates, and team.'],
-                  ['2', 'Advance lifecycle', 'Move the campaign to content production from Campaigns.'],
-                  ['3', 'Work the board', 'Design, write, review, approval, and publish tasks show here.'],
-                ].map(([step, title, detail]) => (
-                  <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-black text-white">{step}</span>
-                    <p className="mt-4 text-sm font-black text-slate-950 dark:text-neutral-100">{title}</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-neutral-400">{detail}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-      </div>
-    );
   };
 
   const renderMetric = (label, value, icon, detail) => (
@@ -1643,11 +782,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:w-[460px]">
               {[
                 ['Active Projects', summary.activeProjects, 'folder_open', 'from-cyan-400 to-sky-500'],
-                ['Campaigns Running', summary.runningCampaigns, 'ads_click', 'from-emerald-400 to-teal-500'],
                 ['Pending Approvals', summary.pendingApprovals, 'fact_check', 'from-amber-400 to-orange-500'],
                 ['Team Productivity', `${summary.productivity}%`, 'groups', 'from-fuchsia-400 to-violet-500'],
-                ['Advertisement Spend', summary.adSpend, 'payments', 'from-rose-400 to-pink-500'],
-                ['Marketing ROI', summary.roi, 'insights', 'from-lime-400 to-emerald-500'],
               ].map(([label, value, icon, accent]) => (
                 <article key={label} className="rounded-[1.4rem] border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
                   <div className={`inline-flex rounded-2xl bg-gradient-to-br ${accent} p-2 text-white shadow-lg`}>
@@ -1728,8 +864,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
               <div className="mt-5 space-y-3">
                 {[
-                  ['Advertisement Spend', summary.adSpend, Math.min(summary.runningCampaigns * 12, 100)],
-                  ['Marketing ROI', summary.roi, Math.min(Math.max(parseFloat(summary.roi) || 0, 0), 100)],
                   ['Social Reach', summary.socialReach.toLocaleString(), Math.min(summary.socialReach / 100000, 100)],
                   ['Social Engagement', summary.socialEngagement.toLocaleString(), Math.min(summary.socialEngagement / 5000, 100)],
                   ['Upcoming Deadlines', summary.deadlines, Math.min(summary.deadlines * 10, 100)],
@@ -1754,7 +888,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         {renderMetric('Assets', assets.length, 'image', 'Uploaded and versioned media items')}
         {renderMetric('Content', content.length, 'draft', 'Blogs, copy, newsletters, and web content')}
         {renderMetric('Brand Assets', brandAssets.length, 'brand_family', 'Guidelines, logos, and templates')}
-        {renderMetric('Reports', arr(reporting?.recentItems).length, 'assessment', 'Recent reporting and audit outputs')}
+        {renderMetric('Social Posts', socialPosts.length, 'chat_bubble', 'Scheduled and published social content')}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -1881,11 +1015,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const renderCreativeSection = (section, records, columns, emptyTitle, emptyMessage) => {
     const rows = filterRecords(records);
     const config = getSectionAction(section);
-    const details = CREATIVE_SECTION_IDS.has(section)
-      ? CREATIVE_DETAILS[section]
-      : CHANNEL_DETAILS[section] || (META[section] || [config?.label || 'Records', 'Manage records for this section.']);
-    const workflow = CREATIVE_WORKFLOWS[section] || CHANNEL_WORKFLOWS[section] || [];
-    const channelInsights = CHANNEL_SECTION_IDS.has(section) ? getChannelInsights(section, records) : [];
+    const details = CREATIVE_DETAILS[section] || (META[section] || [config?.label || 'Records', 'Manage records for this section.']);
+    const workflow = CREATIVE_WORKFLOWS[section] || [];
     const approvedCount = records.filter((item) => ['approved', 'live', 'published'].some((status) => getRecordStatus(item).includes(status))).length;
     const inReviewCount = records.filter((item) => ['pending', 'review'].some((status) => getRecordStatus(item).includes(status))).length;
     const attachedCount = records.filter((item) => item?.storageUrl || item?.thumbnailUrl).length;
@@ -1909,16 +1040,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[20px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-                  {META[section]?.[2] || 'perm_media'}
-                </span>
-                <div>
-                  <h2 className="text-xl font-black text-slate-950 dark:text-neutral-100">{details[0]}</h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">{details[1]}</p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+              <div className="flex flex-wrap gap-2 text-xs font-semibold">
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                   Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
                 </span>
@@ -1964,37 +1086,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         {!effectiveProjectId ? (
           <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             Select a project before creating a new {String(config?.label || 'record').toLowerCase()}.
-          </section>
-        ) : null}
-
-        {channelInsights.length ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Channel Control</h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Operational numbers for planning, optimization, approvals, and reporting.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => openEditor('create', section)}
-                disabled={actionBusy || !effectiveProjectId}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 text-sm font-semibold text-teal-700 transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300"
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-                New {config?.label || 'Record'}
-              </button>
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-              {channelInsights.map(([label, value, icon]) => (
-                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
-                    <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
-                  </div>
-                  <p className="mt-3 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
-                </div>
-              ))}
-            </div>
           </section>
         ) : null}
 
@@ -2102,184 +1193,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
-  const renderGovernanceHeader = (section, stats = []) => {
-    const meta = META[section] || META.approvals;
-    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
-
-    return (
-      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[20px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-                {meta[2]}
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-slate-950 dark:text-neutral-100">{meta[0]}</h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">{meta[1]}</p>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                Updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : 'now'}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={refreshData}
-            disabled={actionBusy}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-            Refresh
-          </button>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {stats.map(([label, value, icon]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
-                <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
-              </div>
-              <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  };
-
-  const renderApprovalsGovernance = () => {
-    const pending = approvals.filter((item) => getRecordStatus(item).includes('pending')).length;
-    const approved = approvals.filter((item) => getRecordStatus(item).includes('approved')).length;
-    const rejected = approvals.filter((item) => getRecordStatus(item).includes('rejected') || getRecordStatus(item).includes('revision')).length;
-
-    return (
-      <div className="space-y-4">
-        {renderGovernanceHeader('approvals', [
-          ['Total', approvals.length, 'fact_check'],
-          ['Pending', pending, 'pending_actions'],
-          ['Approved', approved, 'verified'],
-          ['Needs Revision', rejected, 'report'],
-        ])}
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Approval Queue</h3>
-            </div>
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-              {pending} waiting
-            </span>
-          </div>
-          {renderTable(approvals, [
-            { key: 'title', label: 'Request', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || item.moduleType || 'Approval request'}</p></div> },
-            { key: 'projectName', label: 'Project' },
-            { key: 'moduleType', label: 'Module' },
-            { key: 'ownerName', label: 'Owner' },
-            { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status || item.approvalStatus)}`}>{item.status || item.approvalStatus}</span> },
-            { key: 'createdAt', label: 'Submitted', render: (item) => (item.submittedAt || item.createdAt ? new Date(item.submittedAt || item.createdAt).toLocaleDateString() : '-') },
-          ], 'No pending approvals', 'Approval flows will appear here once media records are submitted for review.', {
-            rowActions: (item) => renderRowActions('approvals', item),
-          })}
-        </section>
-      </div>
-    );
-  };
-
-  const renderReportingGovernance = () => {
-    const recentItems = arr(reporting?.recentItems);
-    const auditRows = arr(reporting?.auditRows);
-    const reportModules = arr(reporting?.byType || reporting?.moduleRows);
-
-    return (
-      <div className="space-y-4">
-        {renderGovernanceHeader('reporting', [
-          ['Recent Items', recentItems.length, 'article'],
-          ['Audit Rows', auditRows.length, 'history'],
-          ['Published', summary.published, 'publish'],
-          ['In Review', summary.inReview, 'pending'],
-        ])}
-        <MarketingReportPanel projectId={effectiveProjectId} />
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Recent Records</h3>
-            <div className="mt-4 space-y-2">
-              {recentItems.length ? recentItems.slice(0, 6).map((item) => (
-                <div key={resolveRecordId(item) || item.title} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-950 dark:text-neutral-100">{item.title || item.action || 'Media record'}</p>
-                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-neutral-400">{item.projectName || item.moduleType || item.targetType || '-'}</p>
-                  </div>
-                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone(item.status)}`}>{item.status || item.moduleType || 'Record'}</span>
-                </div>
-              )) : (
-                <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">No recent report records.</p>
-              )}
-            </div>
-          </div>
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Module Breakdown</h3>
-            <div className="mt-4 space-y-3">
-              {(reportModules.length ? reportModules : summary.moduleRows).slice(0, 8).map((row) => {
-                const label = row.name || row._id || 'Module';
-                const value = num(row.value ?? row.count);
-                const total = Math.max(1, (reportModules.length ? reportModules : summary.moduleRows).reduce((sum, item) => sum + num(item.value ?? item.count), 0));
-                return (
-                  <div key={label}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-semibold text-slate-700 dark:text-neutral-300">{label}</span>
-                      <span className="text-slate-500 dark:text-neutral-500">{value}</span>
-                    </div>
-                    <div className="mt-2 h-2 rounded-full bg-slate-100 dark:bg-neutral-800">
-                      <div className="h-2 rounded-full bg-teal-600" style={{ width: `${Math.min(100, (value / total) * 100)}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-              {!reportModules.length && !summary.moduleRows.length ? (
-                <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">No module reporting data.</p>
-              ) : null}
-            </div>
-          </div>
-        </section>
-      </div>
-    );
-  };
-
-  const renderAuditGovernance = () => {
-    const rows = summary.reportRows;
-    const createCount = rows.filter((item) => String(item.action || '').toLowerCase().includes('created')).length;
-    const updateCount = rows.filter((item) => String(item.action || '').toLowerCase().includes('updated')).length;
-    const deleteCount = rows.filter((item) => String(item.action || '').toLowerCase().includes('deleted')).length;
-
-    return (
-      <div className="space-y-4">
-        {renderGovernanceHeader('audit', [
-          ['Entries', rows.length, 'history'],
-          ['Created', createCount, 'add_circle'],
-          ['Updated', updateCount, 'edit'],
-          ['Deleted', deleteCount, 'delete'],
-        ])}
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="mb-4">
-            <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Activity Log</h3>
-          </div>
-          {renderTable(rows, [
-            { key: 'action', label: 'Action', render: (item) => <span className="font-semibold text-slate-900 dark:text-neutral-100">{String(item.action || '-').replaceAll('_', ' ')}</span> },
-            { key: 'module', label: 'Module' },
-            { key: 'targetType', label: 'Target' },
-            ...(!effectiveProjectId ? [{ key: 'projectName', label: 'Project', render: (item) => item.projectName || '-' }] : []),
-            { key: 'createdAt', label: 'Timestamp', render: (item) => (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-') },
-          ], 'No audit trail entries found', 'Create, update, delete, approval, publish, and file actions will appear here.')}
-        </section>
-      </div>
-    );
-  };
-
   const renderRowActions = (section, item) => {
     const id = resolveRecordId(item);
     const config = getSectionAction(section);
@@ -2359,13 +1272,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'version', label: 'Version', render: (item) => item?.version?.current || 'v1.0' },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No assets uploaded yet', 'Upload images, logos, banners, PDFs, videos, or creative files to populate the DAM view.');
-    if (activeSection === 'campaigns') return renderCampaigns();
-    if (activeSection === 'tasks') return renderCampaignTasks();
-    if (activeSection === 'budget') return <BudgetTracker projectId={effectiveProjectId} />;
-    if (activeSection === 'funnel') return <KpiFunnelChart projectId={effectiveProjectId} />;
-    if (activeSection === 'calendar') return <MarketingCalendar projectId={effectiveProjectId} />;
-    if (activeSection === 'weekly-planning') return <WeeklyPlanner projectId={effectiveProjectId} />;
-    if (activeSection === 'checklists') return <ProjectChecklists projectId={effectiveProjectId} />;
     if (activeSection === 'content') return renderCreativeSection('content', content, [
       { key: 'title', label: 'Content', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Editorial item'}</p></div> },
       { key: 'contentType', label: 'Type', render: (item) => item?.metadata?.contentType || item.category || '-' },
@@ -2415,175 +1321,13 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'engagement', label: 'Engagement', render: (item) => num(item?.metadata?.engagement || item?.analytics?.engagement).toLocaleString() },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No social posts found', 'Plan and track scheduled posts, captions, and performance across every platform.');
-    if (activeSection === 'advertisements') return renderCreativeSection('advertisements', advertisements, [
-      { key: 'title', label: 'Advertisement', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item?.metadata?.platform || item.category || 'Ad creative'}</p></div> },
-      { key: 'platform', label: 'Platform', render: (item) => item?.metadata?.platform || '-' },
-      { key: 'projectName', label: 'Project' },
-      { key: 'spend', label: 'Spend', render: (item) => money(item?.budgetImpact?.spend) },
-      { key: 'roi', label: 'ROI', render: (item) => `${num(item?.budgetImpact?.roiAtSnapshot)}%` },
-      { key: 'ctr', label: 'CTR', render: (item) => (item?.metadata?.ctr ? `${item.metadata.ctr}%` : '-') },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
-      { key: 'approvalStatus', label: 'Approval' },
-      { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No advertisements found', 'Create paid media records with platform, budget, spend, CTR, ROI, approvals, and final creative evidence.');
-    if (activeSection === 'seo') return renderCreativeSection('seo', seoItems, [
-      { key: 'title', label: 'SEO Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item?.metadata?.keyword || item.category || 'Keyword / page'}</p></div> },
-      { key: 'keyword', label: 'Keyword', render: (item) => item?.metadata?.keyword || '-' },
-      { key: 'projectName', label: 'Project' },
-      { key: 'targetUrl', label: 'Target URL', render: (item) => item?.metadata?.targetUrl || '-' },
-      { key: 'ranking', label: 'Ranking', render: (item) => item?.metadata?.ranking ?? '-' },
-      { key: 'backlinks', label: 'Backlinks', render: (item) => item?.metadata?.backlinks ?? '-' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
-      { key: 'approvalStatus', label: 'Approval' },
-      { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No SEO records found', 'Create SEO records with keyword, target URL, ranking, search volume, backlinks, owner, and approval status.');
-    if (activeSection === 'website') return renderCreativeSection('website', websiteItems, [
-      { key: 'title', label: 'Website Item', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item?.metadata?.pageUrl || item.category || 'Page / update'}</p></div> },
-      { key: 'projectName', label: 'Project' },
-      { key: 'pageUrl', label: 'Page URL', render: (item) => item?.metadata?.pageUrl || '-' },
-      { key: 'pageType', label: 'Page Type', render: (item) => item?.metadata?.pageType || '-' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
-      { key: 'approvalStatus', label: 'Approval' },
-      { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No website items found', 'Create website records for page changes, publish readiness, approvals, launch evidence, and final URLs.');
-    if (activeSection === 'testimonials') return renderCreativeSection('testimonials', testimonials, [
-      { key: 'title', label: 'Testimonial', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Client proof'}</p></div> },
-      { key: 'clientName', label: 'Client', render: (item) => item?.metadata?.clientName || '-' },
-      { key: 'rating', label: 'Rating', render: (item) => (item?.metadata?.rating ? `${item.metadata.rating}/5` : '-') },
-      { key: 'source', label: 'Source', render: (item) => item?.metadata?.source || '-' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
-      { key: 'approvalStatus', label: 'Approval' },
-      { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No testimonials found', 'Create testimonial records with client, rating, source, permission, approval state, and reusable proof assets.');
-    if (activeSection === 'case-studies') return renderCreativeSection('case-studies', caseStudies, [
-      { key: 'title', label: 'Case Study', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.description || 'Impact story'}</p></div> },
-      { key: 'clientName', label: 'Client', render: (item) => item?.metadata?.clientName || '-' },
-      { key: 'industry', label: 'Industry', render: (item) => item?.metadata?.industry || '-' },
-      { key: 'resultsSummary', label: 'Results', render: (item) => item?.metadata?.resultsSummary || '-' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
-      { key: 'approvalStatus', label: 'Approval' },
-      { key: 'file', label: 'File', render: renderFileCell },
-    ], 'No case studies found', 'Create case study records with client, industry, results, approval state, publish status, and reusable assets.');
-    if (activeSection === 'approvals') return renderApprovalsGovernance();
-    if (activeSection === 'reporting') return renderReportingGovernance();
-    if (activeSection === 'audit') return renderAuditGovernance();
     return renderGeneric(activeSection);
-  };
-
-  const renderCampaignEditorModal = () => {
-    if (!campaignEditor.open) return null;
-    const isEdit = campaignEditor.mode === 'edit';
-
-    return (
-      <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/70 px-4 py-8 backdrop-blur-sm">
-        <form onSubmit={persistCampaignRecord} className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-white/10 bg-slate-950 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-300">{isEdit ? 'Edit Campaign' : 'New Campaign'}</p>
-              <h3 className="mt-2 text-2xl font-black text-white">{campaignDraft.name || 'Campaign record'}</h3>
-              <p className="mt-2 text-sm text-neutral-400">Define the campaign plan, team, budget, lifecycle stage, and KPI targets.</p>
-            </div>
-            <button type="button" onClick={closeCampaignEditor} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-white/10">
-              Close
-            </button>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Campaign Name</span>
-              <input required value={campaignDraft.name} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, name: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="Launch campaign name" />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Project</span>
-              <select
-                value={effectiveProjectId || ''}
-                onChange={(e) => {
-                  const projectId = e.target.value;
-                  const project = projectOptions.find((item) => item.value === projectId);
-                  updateProject(projectId);
-                  setCampaignDraft((prev) => ({ ...prev, projectName: project?.name || prev.projectName }));
-                }}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400"
-              >
-                <option className="text-slate-950" value="">Select project</option>
-                {projectOptions.map((project) => (
-                  <option className="text-slate-950" key={project.value} value={project.value}>{project.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Stage</span>
-              <select value={campaignDraft.status} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, status: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400">
-                {CAMPAIGN_STAGES.map((stage) => (
-                  <option className="text-slate-950" key={stage} value={stage}>{CAMPAIGN_STAGE_LABELS[stage] || stage}</option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Objective</span>
-              <textarea rows={3} value={campaignDraft.objective} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, objective: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400" placeholder="Primary outcome and audience" />
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Description</span>
-              <textarea rows={4} value={campaignDraft.description} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, description: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400" placeholder="Execution notes, offers, segments, creative direction" />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Platforms</span>
-              <input value={campaignDraft.platform} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, platform: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="Meta, Google, LinkedIn" />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Budget</span>
-              <input type="number" min="0" value={campaignDraft.budgetAllocated} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, budgetAllocated: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="0" />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Start Date</span>
-              <input type="date" value={campaignDraft.startDate} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, startDate: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">End Date</span>
-              <input type="date" value={campaignDraft.endDate} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, endDate: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" />
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Team Members</span>
-              <textarea rows={4} value={campaignDraft.teamMembersText} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, teamMembersText: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400" placeholder={'One per line: Name - Role'} />
-            </label>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 md:col-span-4">KPI targets</p>
-            {[
-              ['targetReach', 'Reach'],
-              ['targetLeads', 'Leads'],
-              ['targetConversions', 'Conversions'],
-              ['targetRevenue', 'Revenue'],
-            ].map(([key, label]) => (
-              <label key={key} className="space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">{label}</span>
-                <input type="number" min="0" value={campaignDraft[key]} onChange={(e) => setCampaignDraft((prev) => ({ ...prev, [key]: e.target.value }))} className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-400" placeholder="0" />
-              </label>
-            ))}
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-neutral-400">{isEdit ? 'Update the campaign record.' : 'Create the campaign record.'}</p>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={closeCampaignEditor} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-white/10">
-                Cancel
-              </button>
-              <button type="submit" disabled={actionBusy || !campaignDraft.name.trim() || !effectiveProjectId} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-50 transition hover:border-cyan-300/40 hover:bg-cyan-400/20 disabled:opacity-50">
-                {actionBusy ? 'Saving...' : isEdit ? 'Save changes' : 'Create campaign'}
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    );
   };
 
   const renderEditorModal = () => {
     if (!editor.open || !activeSectionAction) return null;
     const title = editor.mode === 'edit' ? `Edit ${activeSectionAction.label}` : activeSectionAction.create;
-    const sectionInfo = CHANNEL_DETAILS[editor.section] || CREATIVE_DETAILS[editor.section] || META[editor.section] || [activeSectionAction.label, 'Manage this media record.', 'category'];
+    const sectionInfo = CREATIVE_DETAILS[editor.section] || META[editor.section] || [activeSectionAction.label, 'Manage this media record.', 'category'];
     const domainFields = DOMAIN_FIELDS[editor.section] || [];
     const sectionIcon = META[editor.section]?.[2] || MODULE_FOR_SECTION[editor.section] || 'edit_note';
     const fieldClass = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
@@ -2898,7 +1642,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         ) : null}
 
         {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div> : renderSection()}
-        {renderCampaignEditorModal()}
         {renderEditorModal()}
       </div>
     </main>

@@ -3,20 +3,11 @@ const { body, param, query } = require('express-validator');
 const MEDIA_MODULE_KEYS = [
   'dashboard',
   'assets',
-  'campaigns',
   'content',
   'brand',
   'design',
   'video',
   'social',
-  'advertisements',
-  'ads',
-  'seo',
-  'website',
-  'testimonials',
-  'case-studies',
-  'approvals',
-  'reports',
   'archive',
 ];
 
@@ -30,30 +21,16 @@ const listValidation = [
 
 const mediaIdValidation = [param('id').isMongoId().withMessage('Invalid media id')];
 
-const approvalDecisionValidation = [
-  param('workflowId').isMongoId().withMessage('Invalid workflowId'),
-  body('decision').trim().isIn(['approve', 'reject']).withMessage('decision must be approve or reject'),
-  body('remarks').optional().trim().isLength({ max: 1000 }).withMessage('remarks too long'),
-];
-
 const mediaRecordValidation = [
   body('title').trim().notEmpty().withMessage('title is required'),
   body('section').optional().trim().isIn([
     'dashboard',
     'asset',
-    'campaign',
     'content',
     'brand',
     'design',
     'video',
     'social',
-    'advertisement',
-    'seo',
-    'website',
-    'testimonial',
-    'case-study',
-    'approval',
-    'report',
     'archive',
   ]),
   body('moduleType').optional().trim().isLength({ min: 1, max: 80 }),
@@ -99,7 +76,6 @@ const moduleProjectValidation = [
 module.exports = {
   listValidation,
   mediaIdValidation,
-  approvalDecisionValidation,
   mediaRecordValidation,
   themeColorValidation,
   moduleProjectValidation,

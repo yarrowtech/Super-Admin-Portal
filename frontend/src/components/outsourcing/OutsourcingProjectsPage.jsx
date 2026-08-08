@@ -6,11 +6,19 @@ import { resolveCanonicalProjects } from '../../config/projectNames';
 import { OutsourcingPageHeader } from '../../features/outsourcing/components/OutsourcingUI';
 
 // Backend access logic — unchanged
-const hasProjectAccess = (project) =>
-  Boolean(project?.access?.canUseApi || project?.accessGranted || project?.access?.canLaunch || project?.code === 'EEC');
+const isFreelancerUser = (user) => String(user?.role || '').trim().toLowerCase() === 'freelancer';
 
-const canOpenProject = (project) =>
-  Boolean(project?.code !== 'EFNBMMS' && (project?.access?.canLaunch || project?.code === 'EEC'));
+const hasProjectAccess = (project, user) =>
+  Boolean(
+    isFreelancerUser(user) ||
+    project?.access?.canUseApi ||
+    project?.accessGranted ||
+    project?.access?.canLaunch ||
+    project?.code === 'EEC'
+  );
+
+const canOpenProject = (project, user) =>
+  Boolean(project?.code !== 'EFNBMMS' && project?.code !== 'EEC' && (isFreelancerUser(user) || project?.access?.canLaunch));
 
 const ACCENTS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#6366f1', '#ef4444'];
 
@@ -88,6 +96,10 @@ export default function OutsourcingProjectsPage() {
   }, [jobs]);
 
   const handleLaunch = async (projectCode) => {
+    if (projectCode === 'EEC') {
+      navigate('/outsourcing/edifyeight');
+      return;
+    }
     if (projectCode === 'EFNBMMS') {
       navigate('/outsourcing/efnbmms-admin-management');
       return;
@@ -160,12 +172,12 @@ export default function OutsourcingProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {projects.map((project, index) => {
-            const canLaunch = canOpenProject(project);
+            const canLaunch = canOpenProject(project, user);
             const isEec = project.code === 'EEC';
             const isEfmbmms = project.code === 'EFNBMMS';
-            const hasAccess = hasProjectAccess(project);
+            const hasAccess = hasProjectAccess(project, user);
             const launchEnabled = !isEfmbmms && (isEec || canLaunch);
-            const actionEnabled = isEfmbmms ? hasAccess : launchEnabled;
+            const actionEnabled = (isEec || isEfmbmms) ? hasAccess : launchEnabled;
             const blockedReason = project?.access?.blockedReason || 'Access not available';
             const accent = ACCENTS[index % ACCENTS.length];
             const displayRole = isEfmbmms ? user?.role || project.role || 'freelancer' : project.role || 'member';
@@ -192,7 +204,7 @@ export default function OutsourcingProjectsPage() {
                           : 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-300'
                       }`}
                     >
-                      {hasAccess ? (isEfmbmms ? 'API Access' : 'Accessible') : 'Blocked'}
+                      {hasAccess ? (isEec || isEfmbmms ? 'API Access' : 'Accessible') : 'Blocked'}
                     </span>
                   </div>
 
@@ -225,10 +237,10 @@ export default function OutsourcingProjectsPage() {
                   <div className="mb-4 flex items-center gap-2 rounded-xl border border-neutral-100 bg-neutral-50/70 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-800/50">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${hasAccess ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                     <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                      {canLaunch
+                      {isEec
+                        ? 'Teacher CRUD available inside this portal'
+                        : canLaunch
                         ? 'Ready to open'
-                        : isEec
-                          ? 'SSO token required'
                           : isEfmbmms
                             ? 'Admin management API only'
                             : blockedReason}
@@ -255,13 +267,15 @@ export default function OutsourcingProjectsPage() {
                     style={actionEnabled ? { background: accent } : {}}
                   >
                     <span className="material-symbols-outlined text-[17px]">
-                      {launchingProject === project.code ? 'hourglass_top' : actionEnabled ? (isEfmbmms ? 'database' : 'open_in_new') : 'lock'}
+                      {launchingProject === project.code ? 'hourglass_top' : actionEnabled ? (isEec ? 'school' : isEfmbmms ? 'database' : 'open_in_new') : 'lock'}
                     </span>
                     {launchingProject === project.code
                       ? 'Connecting…'
                       : launchError.code === project.code
                         ? 'Retry'
-                        : isEfmbmms
+                        : isEec
+                          ? 'Open Workspace'
+                          : isEfmbmms
                           ? 'View API data'
                           : launchEnabled
                           ? `Open ${project.code}`

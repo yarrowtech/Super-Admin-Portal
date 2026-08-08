@@ -22,6 +22,11 @@ const projectSchema = new mongoose.Schema(
       storageKey: String,
       storageProvider: String
     },
+    themeColor: {
+      type: String,
+      trim: true,
+      match: [/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/, 'themeColor must be a hex color like #0f766e']
+    },
     client: {
       name: String,
       email: String,

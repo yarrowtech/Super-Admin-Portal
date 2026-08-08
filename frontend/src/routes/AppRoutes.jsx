@@ -86,6 +86,21 @@ import {
   ITReportsPage,
   ITSettingsPage,
   ITSupportCenterPage,
+  FinanceOverviewPage,
+  FinanceInvoicesPage,
+  FinanceInvoiceDetailPage,
+  FinancePaymentsPage,
+  FinanceExpensesPage,
+  FinanceBudgetsPage,
+  FinancePayrollPage,
+  FinanceAccountingPage,
+  FinanceReportsPage,
+  FinanceCompliancePage,
+  FinanceDirectoryPage,
+  FinanceActivityPage,
+  FinanceApprovalsPage,
+  FinanceSettingsPage,
+  FinanceSupportPage,
   HRSettingsPage,
   HRSupportPage,
   ManagerSettingsPage,
@@ -96,6 +111,8 @@ import {
   AdminSettingsPage,
   OutsourcingProjectsPage,
   OutsourcingEfnbmmsAdminManagementPage,
+  OutsourcingEdifyEightWorkspacePage,
+  OutsourcingEdifyEightTeachersPage,
 } from '../pages';
 import {
   AdminLayout,
@@ -319,7 +336,24 @@ export default function AppRoutes() {
               </PrivateRoute>
             </PortalRoute>
           }
-        />
+        >
+          <Route index element={<FinanceOverviewPage />} />
+          <Route path="project-overview" element={<ProjectOverviewPage portalKey="finance" portalName="Finance Portal" />} />
+          <Route path="invoices" element={<FinanceInvoicesPage />} />
+          <Route path="invoices/:invoiceId" element={<FinanceInvoiceDetailPage />} />
+          <Route path="payments" element={<FinancePaymentsPage />} />
+          <Route path="expenses" element={<FinanceExpensesPage />} />
+          <Route path="budgets" element={<FinanceBudgetsPage />} />
+          <Route path="payroll" element={<FinancePayrollPage />} />
+          <Route path="accounting" element={<FinanceAccountingPage />} />
+          <Route path="reports" element={<FinanceReportsPage />} />
+          <Route path="compliance" element={<FinanceCompliancePage />} />
+          <Route path="directory" element={<FinanceDirectoryPage />} />
+          <Route path="activity" element={<FinanceActivityPage />} />
+          <Route path="approvals" element={<FinanceApprovalsPage />} />
+          <Route path="settings" element={<FinanceSettingsPage />} />
+          <Route path="support" element={<FinanceSupportPage />} />
+        </Route>
 
         <Route
           path="/media/dashboard"
@@ -485,6 +519,17 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/admin/edifyeight-teachers"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, OutsourcingEdifyEightWorkspacePage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route path="/admin/efnbmms-teachers" element={<Navigate to="/admin/efnbmms-admin-management" replace />} />
+        <Route
           path="/admin/departments"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
@@ -638,6 +683,9 @@ export default function AppRoutes() {
           <Route path="dashboard" element={<OutsourcingDashboardPage />} />
           <Route path="projects" element={<OutsourcingProjectsPage />} />
           <Route path="efnbmms-admin-management" element={<OutsourcingEfnbmmsAdminManagementPage />} />
+          <Route path="edifyeight" element={<OutsourcingEdifyEightWorkspacePage />} />
+          <Route path="edifyeight-teachers" element={<OutsourcingEdifyEightTeachersPage />} />
+          <Route path="efnbmms-teachers" element={<Navigate to="/outsourcing/efnbmms-admin-management" replace />} />
           <Route path="jobs" element={<OutsourcingJobsPage />} />
           <Route path="contracts" element={<OutsourcingContractsPage />} />
           <Route path="time-logs" element={<OutsourcingTimeLogsPage />} />

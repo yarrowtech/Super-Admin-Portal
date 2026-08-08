@@ -100,6 +100,20 @@ app.get("/health", (req, res) => {
       database: {
         state: dbState,
         code: dbStateCode
+      },
+      integrations: {
+        edifyEightTeachers: {
+          configured: Boolean(env.EDIFYEIGHT_API_TOKEN && (env.EDIFYEIGHT_TEACHER_API_URL || env.EDIFYEIGHT_API_URL)),
+          url: env.EDIFYEIGHT_TEACHER_API_URL || (env.EDIFYEIGHT_API_URL ? `${env.EDIFYEIGHT_API_URL.replace(/\/$/, "")}/api/internal/teachers` : "")
+        },
+        edifyEightStudyMaterials: {
+          configured: Boolean(env.EDIFYEIGHT_API_TOKEN && (env.EDIFYEIGHT_STUDY_MATERIAL_API_URL || env.EDIFYEIGHT_API_URL)),
+          url: env.EDIFYEIGHT_STUDY_MATERIAL_API_URL || (env.EDIFYEIGHT_API_URL ? `${env.EDIFYEIGHT_API_URL.replace(/\/$/, "")}/api/internal/study-materials` : "")
+        },
+        efnbmmsAdminManagement: {
+          configured: Boolean(env.EFNBMMS_API_TOKEN && env.EFNBMMS_ADMIN_MANAGEMENT_API_URL),
+          url: env.EFNBMMS_ADMIN_MANAGEMENT_API_URL
+        }
       }
     }
   });
@@ -133,6 +147,7 @@ app.use("/api/chat", routes.chatRoutes);
 app.use("/api/reports", routes.reportRoutes);
 app.use("/api/analytics", routes.analyticsRoutes);
 app.use("/api/automation", routes.automationRoutes);
+app.use("/api/outsourcing/edifyeight", routes.edifyEightTeacherRoutes);
 app.use("/api/outsourcing", routes.outsourcingRoutes);
 app.use("/api/integrations/efnbmms/admin-management", routes.efnbmmsRoutes);
 app.use("/api/dashboard", routes.dashboardRoutes);

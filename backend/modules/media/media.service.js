@@ -376,10 +376,23 @@ const listMedia = async (query = {}, projectId, section) => {
   const sortField = allowedSortFields.has(requestedSortField) ? requestedSortField : 'updatedAt';
   const sortDir = String(query.order || 'desc').toLowerCase() === 'asc' ? 1 : -1;
 
-  const [items, total] = await Promise.all([
-    Media.find(filter).sort({ [sortField]: sortDir }).skip(skip).limit(limit).lean(),
+  const [rawItems, total] = await Promise.all([
+    Media.find(filter).sort({ [sortField]: sortDir }).skip(skip).limit(limit).populate('projectId', 'name projectCode').lean(),
     Media.countDocuments(filter),
   ]);
+
+  // `projectName` is free-typed at record-creation time and can drift from (or
+  // never match) the linked project. The populated Project.name is authoritative
+  // for the "Project" column shown in the UI — the stored value is only a
+  // fallback for legacy records where projectId failed to populate.
+  const items = rawItems.map((item) => {
+    const linkedProject = item.projectId;
+    return {
+      ...item,
+      projectId: linkedProject?._id ? String(linkedProject._id) : (item.projectId ? String(item.projectId) : null),
+      projectName: linkedProject?.name || linkedProject?.projectCode || item.projectName || '',
+    };
+  });
 
   return {
     items,
@@ -601,15 +614,20 @@ const listApprovals = async (query = {}, projectId) => {
   }
 
   const [items, total] = await Promise.all([
-    Media.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+    Media.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).populate('projectId', 'name projectCode').lean(),
     Media.countDocuments(filter),
   ]);
 
   return {
-    items: items.map((item) => ({
-      ...item,
-      workflowId: item.approvalWorkflowId,
-    })),
+    items: items.map((item) => {
+      const linkedProject = item.projectId;
+      return {
+        ...item,
+        projectId: linkedProject?._id ? String(linkedProject._id) : (item.projectId ? String(item.projectId) : null),
+        projectName: linkedProject?.name || linkedProject?.projectCode || item.projectName || '',
+        workflowId: item.approvalWorkflowId,
+      };
+    }),
     pagination: {
       page,
       limit,
@@ -838,9 +856,31 @@ const setProjectLogo = async (projectId, file) => {
   return project.toObject();
 };
 
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
+
+const setProjectThemeColor = async (projectId, themeColor) => {
+  if (!HEX_COLOR_RE.test(String(themeColor || ''))) {
+    const err = new Error('themeColor must be a hex color like #0f766e');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const project = await Project.findById(projectId);
+  if (!project) {
+    const err = new Error('Project not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  project.themeColor = themeColor;
+  await project.save();
+
+  return project.toObject();
+};
+
 const getReportingSummary = async (projectId) => {
   const scope = projectId ? { projectId } : {};
-  const [byStatus, byType, auditRows, recentItems] = await Promise.all([
+  const [byStatus, byType, auditRowsRaw, recentItemsRaw] = await Promise.all([
     Media.aggregate([{ $match: { ...scope } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     Media.aggregate([{ $match: { ...scope } }, { $group: { _id: '$moduleType', count: { $sum: 1 } } }]),
     ActivityLog.find({
@@ -850,8 +890,35 @@ const getReportingSummary = async (projectId) => {
       .sort({ createdAt: -1 })
       .limit(25)
       .lean(),
-    Media.find(scope).select('title section status updatedAt projectId').sort({ updatedAt: -1 }).limit(10).lean(),
+    Media.find(scope).select('title section status updatedAt projectId').sort({ updatedAt: -1 }).limit(10).populate('projectId', 'name projectCode').lean(),
   ]);
+
+  const recentItems = recentItemsRaw.map((item) => {
+    const linkedProject = item.projectId;
+    return {
+      ...item,
+      projectId: linkedProject?._id ? String(linkedProject._id) : (item.projectId ? String(item.projectId) : null),
+      projectName: linkedProject?.name || linkedProject?.projectCode || '',
+    };
+  });
+
+  // Only viewing "All" mixes rows from every project together — resolve a
+  // project label per row so it's clear which project each entry belongs to.
+  // A single-project view already has that context from the page/selector.
+  let auditRows = auditRowsRaw;
+  if (!projectId) {
+    const distinctProjectIds = [...new Set(
+      auditRowsRaw.map((row) => String(row.projectId || row.metadata?.projectId || '')).filter(Boolean)
+    )];
+    if (distinctProjectIds.length) {
+      const projectDocs = await Project.find({ _id: { $in: distinctProjectIds } }).select('name projectCode').lean();
+      const nameById = new Map(projectDocs.map((p) => [String(p._id), p.name || p.projectCode || 'Project']));
+      auditRows = auditRowsRaw.map((row) => ({
+        ...row,
+        projectName: nameById.get(String(row.projectId || row.metadata?.projectId || '')) || null,
+      }));
+    }
+  }
 
   return {
     byStatus,
@@ -876,4 +943,5 @@ module.exports = {
   getReportingSummary,
   uploadMediaFile,
   setProjectLogo,
+  setProjectThemeColor,
 };

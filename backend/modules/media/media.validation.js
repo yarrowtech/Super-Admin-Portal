@@ -83,6 +83,14 @@ const mediaRecordValidation = [
   body('fileSizeBytes').optional().isInt({ min: 0 }).withMessage('fileSizeBytes must be >= 0'),
 ];
 
+const themeColorValidation = [
+  param('id').isMongoId().withMessage('Invalid project id'),
+  body('themeColor')
+    .trim()
+    .matches(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/)
+    .withMessage('themeColor must be a hex color like #0f766e'),
+];
+
 const moduleProjectValidation = [
   param('moduleKey').trim().isIn(MEDIA_MODULE_KEYS).withMessage('invalid module key'),
   param('projectId').isMongoId().withMessage('Invalid projectId'),
@@ -93,5 +101,6 @@ module.exports = {
   mediaIdValidation,
   approvalDecisionValidation,
   mediaRecordValidation,
+  themeColorValidation,
   moduleProjectValidation,
 };

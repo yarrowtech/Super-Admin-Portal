@@ -298,6 +298,19 @@ exports.uploadProjectLogo = async (req, res) => {
   }
 };
 
+exports.updateProjectThemeColor = async (req, res) => {
+  try {
+    const data = await mediaService.setProjectThemeColor(req.params.id, req.body?.themeColor);
+    getMediaRequestLogger(req, { action: 'updateProjectThemeColor' }).info(
+      { projectId: req.params.id, themeColor: req.body?.themeColor || null },
+      'Project theme color updated'
+    );
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to update project theme color', 'Media module updateProjectThemeColor error');
+  }
+};
+
 exports.getApprovals = async (req, res) => {
   try {
     const data = await mediaService.listApprovals(req.query || {}, req.projectId);

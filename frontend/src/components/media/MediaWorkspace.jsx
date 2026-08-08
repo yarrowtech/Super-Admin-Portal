@@ -430,10 +430,6 @@ const getChannelInsights = (section, records) => {
   }
   return [];
 };
-const formatTime = (value) =>
-  value
-    ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : 'pending';
 const bytes = (value) => {
   const n = num(value);
   if (!n) return '0 B';
@@ -638,16 +634,27 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     }
   }, [projectsQuery.isError, projectsQuery.isSuccess, projectsQuery.error]);
 
-  // Auto-pick a project the first time the user lands on a project-scoped section
+  // Auto-pick a project the FIRST time the user lands on a project-scoped section
   // with none selected — purely local (reads already-fetched `projects`), so it
-  // doesn't reintroduce a network round-trip on every section switch.
+  // doesn't reintroduce a network round-trip on every section switch. Guarded by
+  // a ref so this only ever fires once: without it, explicitly choosing "All
+  // Projects" (which clears effectiveProjectId) would immediately be overridden
+  // by this same effect re-picking a project, making "All" unusable.
+  const hasAutoPickedProjectRef = React.useRef(false);
   useEffect(() => {
     if (activeSection === 'dashboard' || activeSection === 'projects') return;
+    if (hasAutoPickedProjectRef.current) return;
     const storedProjectId = String(effectiveProjectId || '');
     const hasRealProjectId = Boolean(storedProjectId && !storedProjectId.startsWith('virtual-'));
-    if (hasRealProjectId) return;
+    if (hasRealProjectId) {
+      hasAutoPickedProjectRef.current = true;
+      return;
+    }
     const fallbackProject = projects.find((project) => project.value);
-    if (fallbackProject) onProjectChange?.(fallbackProject.value);
+    if (fallbackProject) {
+      hasAutoPickedProjectRef.current = true;
+      onProjectChange?.(fallbackProject.value);
+    }
   }, [activeSection, projects, effectiveProjectId, onProjectChange]);
 
   const summary = useMemo(() => {
@@ -679,9 +686,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     () => projects.filter((project) => project.value),
     [projects]
   );
-  const selectedProjectLabel = projectOptions.find((item) => item.value === effectiveProjectId)?.code || 'All Projects';
-  const lastSyncLabel = formatTime(lastUpdated);
-
   const moduleCount = (section) => {
     const key = MODULE_FOR_SECTION[section];
     if (!key) return 0;
@@ -2268,6 +2272,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             { key: 'action', label: 'Action', render: (item) => <span className="font-semibold text-slate-900 dark:text-neutral-100">{String(item.action || '-').replaceAll('_', ' ')}</span> },
             { key: 'module', label: 'Module' },
             { key: 'targetType', label: 'Target' },
+            ...(!effectiveProjectId ? [{ key: 'projectName', label: 'Project', render: (item) => item.projectName || '-' }] : []),
             { key: 'createdAt', label: 'Timestamp', render: (item) => (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-') },
           ], 'No audit trail entries found', 'Create, update, delete, approval, publish, and file actions will appear here.')}
         </section>
@@ -2780,20 +2785,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           showThemeToggle
         >
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[760px]">
-            <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] font-semibold">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Last sync {lastSyncLabel}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-cyan-700">
-                <span className="material-symbols-outlined text-[14px]">folder_copy</span>
-                Scope {selectedProjectLabel}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
-                <span className="material-symbols-outlined text-[14px]">checklist</span>
-                {summary.recent.length} recent
-              </span>
-            </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!isProjectHub ? (
                 <div className="relative min-w-[220px] flex-1 xl:flex-none">
@@ -2862,8 +2853,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {projectOptions.map((project, index) => {
                     const isActive = effectiveProjectId === project.value;
-                    const accentClasses = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500'];
-                    const accent = accentClasses[index % accentClasses.length];
+                    const accentColors = ['#3b82f6', '#10b981', '#8b5cf6'];
+                    const accent = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(project.themeColor || '')
+                      ? project.themeColor
+                      : accentColors[index % accentColors.length];
 
                     return (
                       <button
@@ -2876,8 +2869,13 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                             : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm'
                         }`}
                       >
-                        <div className={`h-1 w-full rounded-full ${accent}`} />
-                        <p className="mt-2 truncate text-sm font-black text-slate-950">{project.name || project.code}</p>
+                        <div className="h-1 w-full rounded-full" style={{ background: accent }} />
+                        <div className="mt-2 flex items-center gap-2">
+                          {project.logo?.url ? (
+                            <img src={project.logo.url} alt="" className="h-5 w-5 shrink-0 rounded-md object-cover" />
+                          ) : null}
+                          <p className="truncate text-sm font-black text-slate-950">{project.name || project.code}</p>
+                        </div>
                         <p className="mt-1 truncate text-xs text-slate-500">{project.description || 'Project workspace'}</p>
                       </button>
                     );

@@ -140,6 +140,8 @@ const buildProjectOptions = (projects = []) =>
         status: String(project?.status || '').trim(),
         value,
         label: name,
+        logo: project?.logo || null,
+        themeColor: project?.themeColor || '',
       };
     })
     .filter(Boolean);

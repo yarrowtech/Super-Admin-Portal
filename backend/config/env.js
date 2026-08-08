@@ -35,6 +35,32 @@ const env = Object.freeze({
     process.env.EFNBMMS_ADMIN_MANAGEMENT_API_URL ||
     process.env.EFMBMMS_ADMIN_MANAGEMENT_API_URL ||
     "",
+  EDIFYEIGHT_API_URL:
+    process.env.EDIFYEIGHT_API_URL ||
+    process.env.EFNBMMS_API_URL ||
+    process.env.EFMBMMS_API_URL ||
+    "",
+  EDIFYEIGHT_TEACHER_API_URL:
+    process.env.EDIFYEIGHT_TEACHER_API_URL ||
+    process.env.EFNBMMS_TEACHER_API_URL ||
+    process.env.EFMBMMS_TEACHER_API_URL ||
+    "",
+  EDIFYEIGHT_STUDY_MATERIAL_API_URL:
+    process.env.EDIFYEIGHT_STUDY_MATERIAL_API_URL ||
+    "",
+  EDIFYEIGHT_API_TOKEN:
+    process.env.EDIFYEIGHT_API_TOKEN ||
+    process.env.EFNBMMS_API_TOKEN ||
+    process.env.EFMBMMS_API_TOKEN ||
+    "",
+  EFNBMMS_API_URL:
+    process.env.EFNBMMS_API_URL ||
+    process.env.EFMBMMS_API_URL ||
+    "",
+  EFNBMMS_TEACHER_API_URL:
+    process.env.EFNBMMS_TEACHER_API_URL ||
+    process.env.EFMBMMS_TEACHER_API_URL ||
+    "",
   EFNBMMS_API_TOKEN:
     process.env.EFNBMMS_API_TOKEN ||
     process.env.EFMBMMS_API_TOKEN ||

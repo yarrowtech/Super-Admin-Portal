@@ -23,6 +23,7 @@ exports.projectAccessRoutes = require("./projectAccess.routes");
 exports.projectOverviewRoutes = require("./projectOverview.routes");
 exports.externalAuthRoutes = require("./externalAuth.routes");
 exports.efnbmmsRoutes = require("./efnbmms.routes");
+exports.edifyEightTeacherRoutes = require("./edifyEightTeacher.routes");
 exports.ssoRoutes = require("./sso.routes");
 exports.dashboardRoutes = require("./dashboard.routes");
 exports.profileRoutes = require("./profile.routes");

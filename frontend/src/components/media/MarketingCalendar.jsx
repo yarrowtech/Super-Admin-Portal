@@ -109,7 +109,10 @@ const MarketingCalendar = ({ projectId }) => {
             <span className="material-symbols-outlined rounded-xl border border-teal-200 bg-teal-50 p-2 text-[22px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">calendar_month</span>
             <div>
               <h2 className="text-2xl font-black text-slate-950 dark:text-neutral-100">Marketing Calendar</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Campaign dates, publish dates, approvals, and custom events.</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
+                Campaign dates, publish dates, approvals, and custom events.
+                {!projectId ? ' Showing every project — pick one above to add or edit events.' : ''}
+              </p>
             </div>
           </div>
         <button
@@ -151,6 +154,11 @@ const MarketingCalendar = ({ projectId }) => {
                   <div key={`${event.refId}-${index}`} className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-sm ${TYPE_TONE[event.type] || 'border-slate-200 bg-slate-50 text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'}`}>
                     <span className="font-semibold uppercase text-[10px] tracking-wide">{event.type}</span>
                     <span className="flex-1 truncate">{event.title}</span>
+                    {!projectId && event.projectName ? (
+                      <span className="shrink-0 rounded-full border border-current/25 bg-white/60 px-2 py-0.5 text-[10px] font-bold dark:bg-black/20">
+                        {event.projectName}
+                      </span>
+                    ) : null}
                     {event.editable ? (
                       <>
                         <button type="button" disabled={busy} onClick={() => openEditForm(event)} title="Edit" className="shrink-0 rounded-full p-1 text-current opacity-70 hover:opacity-100 disabled:opacity-30">

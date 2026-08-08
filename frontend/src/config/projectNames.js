@@ -8,10 +8,11 @@ export const CANONICAL_PROJECTS = Object.freeze([
   {
     code: 'EEC',
     name: 'EdifyEight',
-    description: 'EdifyEight project workspace.',
+    description: 'EdifyEight teacher management workspace.',
     launchUrl: 'https://www.edifyeight.com',
     ssoPath: '/sso/eec',
     aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT', 'EDIGYEIGHT', 'EDIFYEIGHT'],
+    teacherApi: true,
   },
   {
     code: 'EHC',

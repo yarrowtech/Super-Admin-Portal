@@ -11,10 +11,11 @@ const PROJECT_REGISTRY = [
   {
     code: 'EEC',
     name: 'EdifyEight',
-    description: 'EdifyEight project workspace.',
+    description: 'EdifyEight teacher management workspace.',
     launchUrl: process.env.EEC_PORTAL_URL || 'https://www.edifyeight.com',
     ssoPath: '/sso/eec',
     aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT', 'EDIGYEIGHT', 'EDIFYEIGHT'],
+    teacherApi: true,
   },
   {
     code: 'EHC',

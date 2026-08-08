@@ -74,6 +74,8 @@ export const OutsourcingSupportPage      = lazy(() => import('../components/outs
 
 export const OutsourcingProjectsPage = lazy(() => import('../components/outsourcing/OutsourcingProjectsPage'));
 export const OutsourcingEfnbmmsAdminManagementPage = lazy(() => import('../components/outsourcing/OutsourcingEfnbmmsAdminManagementPage'));
+export const OutsourcingEdifyEightWorkspacePage = lazy(() => import('../components/outsourcing/OutsourcingEdifyEightWorkspacePage'));
+export const OutsourcingEdifyEightTeachersPage = lazy(() => import('../components/outsourcing/OutsourcingEdifyEightTeachersPage'));
 
 // ── Media portal ─────────────────────────────────────────────────────────────
 export const MediaDashboardPage = lazy(() => import('../components/media/MediaPortal'));
@@ -114,6 +116,23 @@ export const ITChangesPage         = lazy(() => import('../components/it/ITWorks
 export const ITReportsPage         = lazy(() => import('../components/it/ITWorkspacePages').then(m => ({ default: m.ITReportsPage })));
 export const ITSettingsPage        = lazy(() => import('../components/it/ITSettingsPage'));
 export const ITSupportCenterPage   = lazy(() => import('../components/admin/AdminSupportCenter'));
+
+// ── Finance portal ───────────────────────────────────────────────────────────
+export const FinanceOverviewPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceOverviewPage })));
+export const FinanceInvoicesPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceInvoicesPage })));
+export const FinanceInvoiceDetailPage   = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceInvoiceDetailPage })));
+export const FinancePaymentsPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinancePaymentsPage })));
+export const FinanceExpensesPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceExpensesPage })));
+export const FinanceBudgetsPage         = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceBudgetsPage })));
+export const FinancePayrollPage         = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinancePayrollPage })));
+export const FinanceAccountingPage      = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceAccountingPage })));
+export const FinanceReportsPage         = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceReportsPage })));
+export const FinanceCompliancePage      = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceCompliancePage })));
+export const FinanceDirectoryPage       = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceDirectoryPage })));
+export const FinanceActivityPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceActivityPage })));
+export const FinanceApprovalsPage       = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceApprovalsPage })));
+export const FinanceSettingsPage        = lazy(() => import('../components/finance/FinanceSettingsPage'));
+export const FinanceSupportPage         = lazy(() => import('../components/finance/FinanceSupportPage'));
 
 // ── Shared Settings & Support pages ──────────────────────────────────────────
 export const HRSettingsPage        = lazy(() => import('../components/hr/HRSettingsPage'));

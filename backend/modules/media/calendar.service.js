@@ -2,6 +2,7 @@ const Campaign = require('../../models/department/Campaign');
 const Task = require('../../models/common/Task');
 const Media = require('../../models/department/Media');
 const CalendarEvent = require('../../models/department/CalendarEvent');
+const Project = require('../../models/common/Project');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
 
 // Live aggregation across every dated entity — Section 13 Calendar Logic.
@@ -20,20 +21,20 @@ const getAggregatedCalendar = async (projectId, { from, to } = {}) => {
   const taskProjectScope = projectId ? { project: projectId } : {};
 
   const [campaignStarts, campaignEnds, tasks, contentPublishes, contentApprovals, customEvents] = await Promise.all([
-    Campaign.find({ ...projectScope, ...withinRange('startDate') }).select('name startDate').lean(),
-    Campaign.find({ ...projectScope, ...withinRange('endDate') }).select('name endDate').lean(),
-    Task.find({ ...taskProjectScope, campaignId: { $ne: null }, ...withinRange('dueDate') }).select('title dueDate campaignId status').lean(),
-    Media.find({ ...projectScope, ...withinRange('publishAt') }).select('title publishAt').lean(),
-    Media.find({ ...projectScope, ...withinRange('approvedAt') }).select('title approvedAt').lean(),
+    Campaign.find({ ...projectScope, ...withinRange('startDate') }).select('name startDate projectId').lean(),
+    Campaign.find({ ...projectScope, ...withinRange('endDate') }).select('name endDate projectId').lean(),
+    Task.find({ ...taskProjectScope, campaignId: { $ne: null }, ...withinRange('dueDate') }).select('title dueDate campaignId status project').lean(),
+    Media.find({ ...projectScope, ...withinRange('publishAt') }).select('title publishAt projectId').lean(),
+    Media.find({ ...projectScope, ...withinRange('approvedAt') }).select('title approvedAt projectId').lean(),
     CalendarEvent.find({ ...projectScope, ...withinRange('date') }).lean(),
   ]);
 
   const events = [
-    ...campaignStarts.map((c) => ({ date: c.startDate, type: 'campaign', refId: c._id, title: `Campaign starts: ${c.name}` })),
-    ...campaignEnds.map((c) => ({ date: c.endDate, type: 'launch', refId: c._id, title: `Campaign ends: ${c.name}` })),
-    ...tasks.map((t) => ({ date: t.dueDate, type: 'task', refId: t._id, title: `Task due: ${t.title}`, status: t.status })),
-    ...contentPublishes.map((m) => ({ date: m.publishAt, type: 'content-publish', refId: m._id, title: `Publish: ${m.title}` })),
-    ...contentApprovals.map((m) => ({ date: m.approvedAt, type: 'approval', refId: m._id, title: `Approved: ${m.title}` })),
+    ...campaignStarts.map((c) => ({ date: c.startDate, type: 'campaign', refId: c._id, title: `Campaign starts: ${c.name}`, projectId: c.projectId })),
+    ...campaignEnds.map((c) => ({ date: c.endDate, type: 'launch', refId: c._id, title: `Campaign ends: ${c.name}`, projectId: c.projectId })),
+    ...tasks.map((t) => ({ date: t.dueDate, type: 'task', refId: t._id, title: `Task due: ${t.title}`, status: t.status, projectId: t.project })),
+    ...contentPublishes.map((m) => ({ date: m.publishAt, type: 'content-publish', refId: m._id, title: `Publish: ${m.title}`, projectId: m.projectId })),
+    ...contentApprovals.map((m) => ({ date: m.approvedAt, type: 'approval', refId: m._id, title: `Approved: ${m.title}`, projectId: m.projectId })),
     ...customEvents.map((e) => ({
       date: e.date,
       type: e.type || 'custom',
@@ -41,12 +42,27 @@ const getAggregatedCalendar = async (projectId, { from, to } = {}) => {
       title: e.title,
       description: e.description,
       editable: true,
+      projectId: e.projectId,
     })),
   ];
 
-  return events
-    .filter((event) => event.date)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const dated = events.filter((event) => event.date).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // Only viewing a single project already has scoping settled client-side —
+  // the per-event project label is only useful (and worth the extra lookup)
+  // when events from multiple projects are mixed together in the "All" view.
+  if (!projectId) {
+    const distinctProjectIds = [...new Set(dated.map((event) => String(event.projectId || '')).filter(Boolean))];
+    if (distinctProjectIds.length) {
+      const projectDocs = await Project.find({ _id: { $in: distinctProjectIds } }).select('name projectCode').lean();
+      const nameById = new Map(projectDocs.map((p) => [String(p._id), p.name || p.projectCode || 'Project']));
+      dated.forEach((event) => {
+        event.projectName = nameById.get(String(event.projectId || '')) || null;
+      });
+    }
+  }
+
+  return dated;
 };
 
 const createEvent = async (projectId, payload = {}, actorId) => {

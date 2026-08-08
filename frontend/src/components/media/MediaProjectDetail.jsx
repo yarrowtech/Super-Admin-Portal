@@ -1,19 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { departmentApi } from '../../services/departments';
 import { findCanonicalProject, buildProjectSlugMap } from '../../config/projectNames';
 import ThemeToggleButton from '../common/ThemeToggleButton';
 
-const MEDIA_THEME = {
-  '--portal-accent': '#0f766e',
-  '--portal-accent-soft': '#ccfbf1',
-  '--portal-accent-strong': '#134e4a',
+const DEFAULT_ACCENT = '#0f766e';
+const HEX_RE = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i;
+const THEME_PRESETS = ['#0f766e', '#2563eb', '#7c3aed', '#db2777', '#d97706', '#059669', '#dc2626', '#0891b2'];
+
+const hexToRgb = (hex) => {
+  const clean = String(hex || '').replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => `${c}${c}`).join('') : clean;
+  const num = parseInt(full, 16);
+  if (Number.isNaN(num)) return null;
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+};
+const rgba = (hex, alpha) => {
+  const rgb = hexToRgb(hex) || { r: 15, g: 118, b: 110 };
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+};
+const shade = (hex, percent) => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const target = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent);
+  const mix = (channel) => Math.max(0, Math.min(255, Math.round(channel + (target - channel) * p)));
+  return `#${[mix(rgb.r), mix(rgb.g), mix(rgb.b)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+};
+// `-strong` is a darkened shade — safe for gradients and white-text buttons in
+// either theme, but illegible as *text on top of the soft tint* once the page
+// itself turns dark (dark text on a dark-tinted chip). `-ink` is the variant
+// meant for that specific case: it flips lighter in dark mode so text drawn
+// on top of `-soft` chips stays readable against both page themes.
+const buildThemeVars = (accent, isDark = false) => {
+  const base = HEX_RE.test(accent || '') ? accent : DEFAULT_ACCENT;
+  return {
+    '--portal-accent': base,
+    '--portal-accent-soft': rgba(base, isDark ? 0.28 : 0.16),
+    '--portal-accent-strong': shade(base, -0.28),
+    '--portal-accent-ink': isDark ? shade(base, 0.42) : shade(base, -0.28),
+  };
 };
 
-const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900';
+const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-shadow duration-300 hover:shadow-[0_14px_34px_rgba(15,23,42,0.09)] dark:border-neutral-800 dark:bg-neutral-900';
 const soft = 'rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-neutral-800 dark:bg-neutral-950/45';
-const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.14em] text-teal-700 dark:text-teal-400';
+const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.14em]';
 const fieldLabel = 'text-[11px] font-bold uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400';
 const inputCls = 'mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition-all duration-200 focus:border-[var(--portal-accent)] focus:shadow-[0_0_0_3px_var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:shadow-[0_0_0_3px_rgba(15,118,110,0.25)]';
 const textareaCls = `${inputCls} min-h-[96px] resize-y`;
@@ -616,15 +649,28 @@ const OverviewField = ({ label, value }) => (
   </div>
 );
 
-const SectionHeader = ({ eyebrow, title, description, icon }) => (
+const SectionHeader = ({ eyebrow, title, description, icon, index }) => (
   <div className="flex flex-wrap items-start justify-between gap-3">
     <div className="min-w-0">
-      <p className={sectionTitle}>{eyebrow}</p>
+      <div className="flex items-center gap-2">
+        {index ? (
+          <span
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[10px] font-black"
+            style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-accent-ink)' }}
+          >
+            {index}
+          </span>
+        ) : null}
+        <p className={sectionTitle} style={{ color: 'var(--portal-accent)' }}>{eyebrow}</p>
+      </div>
       {title ? <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-neutral-100">{title}</h2> : null}
       {description ? <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500 dark:text-neutral-400">{description}</p> : null}
     </div>
     {icon ? (
-      <span className="material-symbols-outlined flex h-10 w-10 items-center justify-center rounded-xl border border-teal-100 bg-teal-50 text-[20px] text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+      <span
+        className="material-symbols-outlined flex h-10 w-10 items-center justify-center rounded-xl border text-[20px]"
+        style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-accent-soft)', color: 'var(--portal-accent)' }}
+      >
         {icon}
       </span>
     ) : null}
@@ -643,6 +689,7 @@ const StatusPill = ({ value }) => (
 
 const MediaProjectDetail = () => {
   const { token } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const { projectSlug } = useParams();
 
@@ -659,6 +706,10 @@ const MediaProjectDetail = () => {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = React.useRef(null);
+  const [themeSaving, setThemeSaving] = useState(false);
+  const [themeError, setThemeError] = useState('');
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const themeColorInputRef = React.useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -711,6 +762,8 @@ const MediaProjectDetail = () => {
   const canonical = useMemo(() => (project ? findCanonicalProject(project) : null), [project]);
   const projectName = canonical?.name || project?.name || project?.projectCode || 'Project';
   const projectDescription = canonical?.description || project?.description || 'Media & marketing summary';
+  const activeAccent = HEX_RE.test(project?.themeColor || '') ? project.themeColor : DEFAULT_ACCENT;
+  const themeVars = useMemo(() => buildThemeVars(activeAccent, theme === 'dark'), [activeAccent, theme]);
 
   const handleLogoSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -726,6 +779,22 @@ const MediaProjectDetail = () => {
       setLogoError(err.message || 'Failed to upload logo.');
     } finally {
       setLogoUploading(false);
+    }
+  };
+
+  const handleThemeColorChange = async (color) => {
+    const resolvedId = String(project?._id || project?.id || '');
+    if (!resolvedId || !HEX_RE.test(color || '')) return;
+    setThemeMenuOpen(false);
+    setThemeSaving(true);
+    setThemeError('');
+    try {
+      const res = await departmentApi.updateMediaProjectThemeColor(token, resolvedId, color);
+      setProject(res?.data || { ...project, themeColor: color });
+    } catch (err) {
+      setThemeError(err.message || 'Failed to update theme color.');
+    } finally {
+      setThemeSaving(false);
     }
   };
 
@@ -801,11 +870,27 @@ const MediaProjectDetail = () => {
   return (
     <div
       className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef6f4_45%,#f6f8fb_100%)] text-neutral-900 dark:bg-background-dark dark:text-neutral-100"
-      style={MEDIA_THEME}
+      style={themeVars}
     >
       <main className="portal-page">
         <div className="portal-page-inner max-w-[1480px] space-y-4">
-          <header className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_14px_38px_rgba(15,23,42,0.08)] dark:border-neutral-800 dark:bg-neutral-950">
+          <nav className="flex items-center gap-1.5 px-1 text-[12px] font-semibold text-neutral-400 dark:text-neutral-500">
+            <button type="button" onClick={() => navigate('/media/dashboard/projects')} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
+              Media Portal
+            </button>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <button type="button" onClick={() => navigate('/media/dashboard/projects')} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
+              Projects
+            </button>
+            {!notFound ? (
+              <>
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                <span className="truncate font-black" style={{ color: 'var(--portal-accent)' }}>{projectName}</span>
+              </>
+            ) : null}
+          </nav>
+
+          <header className="sticky top-0 z-30 overflow-hidden rounded-2xl border border-neutral-200 bg-white/90 shadow-[0_14px_38px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950/90">
             <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, var(--portal-accent-strong), var(--portal-accent))' }} />
             <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-6">
               <div className="flex min-w-0 items-center gap-3">
@@ -849,6 +934,60 @@ const MediaProjectDetail = () => {
                   </span>
                 </button>
 
+                <div className="relative shrink-0">
+                  <input
+                    ref={themeColorInputRef}
+                    type="color"
+                    value={activeAccent}
+                    className="hidden"
+                    onChange={(e) => handleThemeColorChange(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setThemeMenuOpen((v) => !v)}
+                    disabled={themeSaving || notFound}
+                    title="Change project theme color"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 shadow-sm transition-all duration-200 hover:border-teal-300 hover:text-teal-700 hover:shadow-md active:scale-95 disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                  >
+                    <span className={`material-symbols-outlined text-[18px] ${themeSaving ? 'animate-spin' : ''}`} style={{ color: themeSaving ? undefined : activeAccent }}>
+                      {themeSaving ? 'progress_activity' : 'palette'}
+                    </span>
+                  </button>
+                  {themeMenuOpen ? (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Close theme color menu"
+                        className="fixed inset-0 z-10 cursor-default"
+                        onClick={() => setThemeMenuOpen(false)}
+                      />
+                      <div className="absolute left-0 top-12 z-20 w-52 rounded-xl border border-neutral-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.16)] dark:border-neutral-800 dark:bg-neutral-900">
+                        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400">Theme color</p>
+                        <div className="mt-2 grid grid-cols-4 gap-2">
+                          {THEME_PRESETS.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => handleThemeColorChange(color)}
+                              title={color}
+                              className={`h-8 w-8 rounded-lg border-2 transition-transform duration-150 hover:scale-110 ${activeAccent.toLowerCase() === color.toLowerCase() ? 'border-neutral-900 dark:border-white' : 'border-transparent'}`}
+                              style={{ background: color }}
+                            />
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => themeColorInputRef.current?.click()}
+                          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-neutral-300 px-2 py-1.5 text-[12px] font-bold text-neutral-600 transition hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">colorize</span>
+                          Custom color
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="truncate text-[22px] font-black leading-tight tracking-tight text-slate-950 dark:text-neutral-100">{projectName}</h1>
@@ -856,6 +995,7 @@ const MediaProjectDetail = () => {
                   </div>
                   <p className="mt-1 max-w-3xl text-sm leading-5 text-neutral-500 dark:text-neutral-400">{projectDescription}</p>
                   {logoError ? <p className="truncate text-[11px] font-semibold text-red-600">{logoError}</p> : null}
+                  {themeError ? <p className="truncate text-[11px] font-semibold text-red-600">{themeError}</p> : null}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -897,6 +1037,37 @@ const MediaProjectDetail = () => {
             </div>
           </header>
 
+          {editing && !notFound && !loading ? (
+            <div
+              className="sticky top-21.5 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-[12px] font-bold shadow-sm"
+              style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-accent-soft)', color: 'var(--portal-accent-ink)' }}
+            >
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px]">edit</span>
+                Editing marketing plan — changes are not saved yet.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="rounded-lg border border-current/30 px-3 py-1 text-[11px] font-bold transition hover:bg-white/40 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={saving}
+                  className="rounded-lg px-3 py-1 text-[11px] font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
+                  style={{ background: 'var(--portal-accent)' }}
+                >
+                  {saving ? 'Saving...' : 'Save Plan'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 
           {notFound && !loading ? (
@@ -916,31 +1087,27 @@ const MediaProjectDetail = () => {
           ) : null}
 
           {!loading && !notFound ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
-              <p className="px-1 text-[12px] font-bold text-neutral-500 dark:text-neutral-400">
-                Page {page} of 2 - {page === '1' ? 'Marketing Command Center' : 'Weekly Execution'}
-              </p>
-              <div className="flex items-center gap-2">
+            <div className="flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
+              {[
+                { id: '1', label: 'Marketing Command Center', icon: 'dashboard' },
+                { id: '2', label: 'Weekly Execution', icon: 'checklist' },
+              ].map((tab) => (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={() => setPage('1')}
-                  disabled={page === '1'}
-                  className="flex h-9 items-center gap-1 rounded-lg border border-neutral-300 px-3 text-[12px] font-bold text-neutral-600 transition-all duration-200 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-40 disabled:hover:bg-transparent dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  onClick={() => setPage(tab.id)}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold transition-all duration-200 ${
+                    page === tab.id
+                      ? 'text-white shadow-[0_6px_16px_var(--portal-accent-soft)]'
+                      : 'text-neutral-500 hover:bg-slate-50 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                  }`}
+                  style={page === tab.id ? { background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' } : undefined}
                 >
-                  <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                  Previous
+                  <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.id === '1' ? 'Command Center' : 'Execution'}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setPage('2')}
-                  disabled={page === '2'}
-                  className="flex h-9 items-center gap-1 rounded-lg px-3 text-[12px] font-bold text-white shadow-[0_6px_16px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:hover:brightness-100"
-                  style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
-                >
-                  Next
-                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                </button>
-              </div>
+              ))}
             </div>
           ) : null}
 
@@ -948,13 +1115,19 @@ const MediaProjectDetail = () => {
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {commandStats.map((stat) => (
-                  <div key={stat.label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-neutral-800 dark:bg-neutral-950/40">
-                    <span className="material-symbols-outlined flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[19px] text-teal-700 shadow-sm dark:bg-neutral-900 dark:text-teal-300">
+                  <div
+                    key={stat.label}
+                    className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(15,23,42,0.08)] dark:border-neutral-800 dark:bg-neutral-950/40"
+                  >
+                    <span
+                      className="material-symbols-outlined flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[21px] transition-transform duration-200 group-hover:scale-105"
+                      style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-accent)' }}
+                    >
                       {stat.icon}
                     </span>
                     <div className="min-w-0">
                       <p className={fieldLabel}>{stat.label}</p>
-                      <p className="truncate text-sm font-black text-slate-950 dark:text-neutral-100">{stat.value}</p>
+                      <p className="truncate text-[15px] font-black text-slate-950 dark:text-neutral-100">{stat.value}</p>
                     </div>
                   </div>
                 ))}
@@ -963,12 +1136,26 @@ const MediaProjectDetail = () => {
           ) : null}
 
           {loading ? (
-            <div className="h-56 animate-pulse rounded-[1.75rem] border border-neutral-200 bg-gradient-to-br from-white via-slate-50 to-white shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:from-neutral-900 dark:via-neutral-900/70 dark:to-neutral-900" />
+            <div className="space-y-4">
+              <div className="h-16 animate-pulse rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" />
+              {[1, 2, 3].map((item) => (
+                <div key={item} className="animate-pulse rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                  <div className="h-3 w-32 rounded bg-slate-200 dark:bg-neutral-800" />
+                  <div className="mt-3 h-4 w-56 rounded bg-slate-200 dark:bg-neutral-800" />
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {[1, 2, 3].map((cell) => (
+                      <div key={cell} className="h-16 rounded-xl bg-slate-100 dark:bg-neutral-800/60" />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : notFound ? null : page === '1' ? (
             <>
               {/* Project Overview */}
               <section className={card}>
                 <SectionHeader
+                  index="01"
                   eyebrow="Project Overview"
                   title="Marketing command center"
                   description="Core audience, market position, active phase, and status for the project."
@@ -1019,6 +1206,7 @@ const MediaProjectDetail = () => {
               {/* Main Goal */}
               <section className={card}>
                 <SectionHeader
+                  index="02"
                   eyebrow="Main Goal"
                   title="Outcome alignment"
                   description="Brand, marketing, and business goals side by side for fast review."
@@ -1052,6 +1240,7 @@ const MediaProjectDetail = () => {
               {/* Three-Phase Media Framework */}
               <section className={card}>
                 <SectionHeader
+                  index="03"
                   eyebrow="Three-Phase Media Framework"
                   title="Foundation, growth, and scaling path"
                   description="A compact view of when each phase is used, what the team focuses on, and the expected output."
@@ -1069,8 +1258,8 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.framework : plan.framework).map((row, idx) => (
-                        <tr key={row.phase} className="align-top transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
-                          <td className={`${tableTd} font-bold text-teal-700 dark:text-teal-400`}>
+                        <tr key={row.phase} className="odd:bg-slate-50/50 align-top transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
+                          <td className={`${tableTd} font-bold`} style={{ color: 'var(--portal-accent)' }}>
                             {row.phase}
                           </td>
                           <td className={tableTd}>
@@ -1109,6 +1298,7 @@ const MediaProjectDetail = () => {
               {/* Before Campaign Starts - Required Planning */}
               <section className={card}>
                 <SectionHeader
+                  index="04"
                   eyebrow="Required Planning"
                   title="Before campaign starts"
                   description="Audience segments, friction points, triggers, positioning, value proposition, and channel mix."
@@ -1191,6 +1381,7 @@ const MediaProjectDetail = () => {
               {/* Funnel Structure */}
               <section className={card}>
                 <SectionHeader
+                  index="05"
                   eyebrow="Funnel Structure"
                   title="Acquisition journey"
                   description="The ordered path from awareness through retention and referral."
@@ -1208,7 +1399,10 @@ const MediaProjectDetail = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       {plan.funnelStages.map((stage, idx) => (
                         <React.Fragment key={stage}>
-                          <span className="rounded-xl border border-teal-300/80 bg-teal-50 px-3 py-2 text-[13px] font-bold text-teal-800 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
+                          <span
+                            className="rounded-xl border px-3 py-2 text-[13px] font-bold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                            style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-accent-soft)', color: 'var(--portal-accent-ink)' }}
+                          >
                             {stage}
                           </span>
                           {idx < plan.funnelStages.length - 1 ? (
@@ -1226,6 +1420,7 @@ const MediaProjectDetail = () => {
               {/* KPI Plan */}
               <section className={card}>
                 <SectionHeader
+                  index="06"
                   eyebrow="KPI Plan"
                   title="Measurement focus"
                   description="The core signals used to monitor acquisition quality and campaign efficiency."
@@ -1250,6 +1445,7 @@ const MediaProjectDetail = () => {
               {/* Budget Plan Overview */}
               <section className={card}>
                 <SectionHeader
+                  index="07"
                   eyebrow="Budget Plan"
                   title="Investment overview"
                   description="High-level spending themes for each stage of the media plan."
@@ -1281,6 +1477,7 @@ const MediaProjectDetail = () => {
               {/* Weekly Checklist */}
               <section className={card}>
                 <SectionHeader
+                  index="01"
                   eyebrow="Weekly Checklist"
                   title="Execution readiness"
                   description="Task ownership and completion status for the current marketing cycle."
@@ -1297,7 +1494,7 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.weeklyChecklist : plan.weeklyChecklist).map((row, idx) => (
-                        <tr key={row.task} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
+                        <tr key={row.task} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">{row.task}</td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
@@ -1312,7 +1509,8 @@ const MediaProjectDetail = () => {
                               checked={row.done}
                               disabled={!editing}
                               onChange={(e) => setChecklistField(idx, 'done', e.target.checked)}
-                              className="h-4 w-4 accent-teal-600"
+                              className="h-4 w-4"
+                              style={{ accentColor: 'var(--portal-accent)' }}
                             />
                           </td>
                         </tr>
@@ -1325,6 +1523,7 @@ const MediaProjectDetail = () => {
               {/* Weekly Update */}
               <section className={card}>
                 <SectionHeader
+                  index="02"
                   eyebrow="Weekly Update"
                   title="Progress by week"
                   description="Focus area and progress notes across launch and scaling weeks."
@@ -1341,8 +1540,8 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.weeklyUpdates : plan.weeklyUpdates).map((row, idx) => (
-                        <tr key={row.week} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
-                          <td className="border-b border-neutral-100 px-3 py-2.5 font-bold text-teal-700 dark:border-neutral-800 dark:text-teal-400">{row.week}</td>
+                        <tr key={row.week} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
+                          <td className="border-b border-neutral-100 px-3 py-2.5 font-bold dark:border-neutral-800" style={{ color: 'var(--portal-accent)' }}>{row.week}</td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
                               <input className={inputCls} value={row.focusArea} onChange={(e) => setWeeklyUpdateField(idx, 'focusArea', e.target.value)} />
@@ -1367,6 +1566,7 @@ const MediaProjectDetail = () => {
               {/* Acquisition = Investment (Budget) */}
               <section className={card}>
                 <SectionHeader
+                  index="03"
                   eyebrow="Acquisition Budget"
                   title="Channel investment plan"
                   description="Monthly investment, estimated leads, calculated CPL, and channel status."
@@ -1389,7 +1589,7 @@ const MediaProjectDetail = () => {
                         const displayCpl = row.cpl || (calculatedCpl ? formatPlainNumber(calculatedCpl) : '');
                         const displayStatus = row.status || (parseMetric(row.monthlyInvestment) ? 'Active' : 'Planned');
                         return (
-                          <tr key={row.channel} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
+                          <tr key={row.channel} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
                             <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.channel}</td>
                             <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                               {editing ? (
@@ -1425,7 +1625,7 @@ const MediaProjectDetail = () => {
                           </tr>
                         );
                       })}
-                      <tr className="bg-teal-50/50 font-black text-neutral-900 dark:bg-teal-500/10 dark:text-neutral-100">
+                      <tr className="font-black text-neutral-900 dark:text-neutral-100" style={{ background: 'var(--portal-accent-soft)' }}>
                         <td className="px-3 py-2.5">TOTAL</td>
                         <td className="px-3 py-2.5">{formatInr(totalMonthlyInvestment) || '-'}</td>
                         <td className="px-3 py-2.5">{formatPlainNumber(totalLeads) || '-'}</td>
@@ -1440,6 +1640,7 @@ const MediaProjectDetail = () => {
               {/* Funnel Performance (Weekly) */}
               <section className={card}>
                 <SectionHeader
+                  index="04"
                   eyebrow="Funnel Performance"
                   title="Weekly conversion tracker"
                   description="Targets, actuals, and calculated conversion between funnel stages."
@@ -1460,7 +1661,7 @@ const MediaProjectDetail = () => {
                         const calculatedConversion = idx > 0 ? calcConversion(row.actual, activeFunnelPerformance[idx - 1]?.actual) : '';
                         const displayConversion = row.conversionPct || calculatedConversion;
                         return (
-                          <tr key={row.stage} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
+                          <tr key={row.stage} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
                             <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.stage}</td>
                             <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                               {editing ? (
@@ -1497,6 +1698,7 @@ const MediaProjectDetail = () => {
               {/* Content Tracker (Monthly) */}
               <section className={card}>
                 <SectionHeader
+                  index="05"
                   eyebrow="Content Tracker"
                   title="Monthly publishing output"
                   description="Planned and completed output by content format."
@@ -1513,7 +1715,7 @@ const MediaProjectDetail = () => {
                     </thead>
                     <tbody>
                       {(editing ? draft.contentTracker : plan.contentTracker).map((row, idx) => (
-                        <tr key={row.contentType} className="transition-colors duration-150 hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
+                        <tr key={row.contentType} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
                           <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.contentType}</td>
                           <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
                             {editing ? (
@@ -1539,6 +1741,7 @@ const MediaProjectDetail = () => {
               {/* Priority Matrix */}
               <section className={card}>
                 <SectionHeader
+                  index="06"
                   eyebrow="Priority Matrix"
                   title="Next action focus"
                   description="High, medium, and low priority work for campaign execution."
@@ -1572,6 +1775,7 @@ const MediaProjectDetail = () => {
               {/* Deliverables Checklist */}
               <section className={card}>
                 <SectionHeader
+                  index="07"
                   eyebrow="Deliverables Checklist"
                   title="Campaign assets and systems"
                   description="The reusable deliverables required for a complete media operation."
@@ -1579,13 +1783,17 @@ const MediaProjectDetail = () => {
                 />
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {(editing ? draft.deliverables : plan.deliverables).map((row, idx) => (
-                    <label key={row.label} className="flex items-center gap-2 rounded-lg border border-neutral-100 px-3 py-2 text-sm transition-colors duration-150 hover:border-teal-200 hover:bg-teal-50/30 dark:border-neutral-800 dark:hover:border-teal-900/50 dark:hover:bg-teal-500/5">
+                    <label
+                      key={row.label}
+                      className="flex items-center gap-2 rounded-lg border border-neutral-100 px-3 py-2 text-sm transition-colors duration-150 hover:bg-(--portal-accent-soft) dark:border-neutral-800"
+                    >
                       <input
                         type="checkbox"
                         checked={row.done}
                         disabled={!editing}
                         onChange={(e) => setDeliverableField(idx, 'done', e.target.checked)}
-                        className="h-4 w-4 accent-teal-600"
+                        className="h-4 w-4"
+                        style={{ accentColor: 'var(--portal-accent)' }}
                       />
                       <span className="text-neutral-700 dark:text-neutral-300">{row.label}</span>
                     </label>
@@ -1596,6 +1804,7 @@ const MediaProjectDetail = () => {
               {/* Performance Snapshot */}
               <section className={card}>
                 <SectionHeader
+                  index="08"
                   eyebrow="Performance Snapshot"
                   title="This month"
                   description="Current headline metrics for traffic, leads, supply, conversions, revenue, and ROAS."
@@ -1629,6 +1838,7 @@ const MediaProjectDetail = () => {
               {/* Notes & Next Week Focus */}
               <section className={card}>
                 <SectionHeader
+                  index="09"
                   eyebrow="Notes & Focus"
                   title="Review and next moves"
                   description="Observations, blockers, next-week focus, and action items for the team."
@@ -1662,25 +1872,15 @@ const MediaProjectDetail = () => {
           )}
 
           {!loading && !notFound ? (
-            <div className="flex items-center justify-between gap-3 pb-2">
+            <div className="flex items-center justify-center pb-2 pt-1">
               <button
                 type="button"
-                onClick={() => setPage('1')}
-                disabled={page === '1'}
-                className="flex items-center gap-1 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-[13px] font-bold text-neutral-600 shadow-sm transition hover:bg-neutral-50 disabled:opacity-40 disabled:hover:bg-white dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+                onClick={() => { setPage(page === '1' ? '2' : '1'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-5 py-2 text-[12px] font-bold text-neutral-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                style={{ color: 'var(--portal-accent)' }}
               >
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage('2')}
-                disabled={page === '2'}
-                className="flex items-center gap-1 rounded-lg px-4 py-2 text-[13px] font-bold text-white shadow-sm transition disabled:opacity-40"
-                style={{ background: 'var(--portal-accent)' }}
-              >
-                Next
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                {page === '1' ? 'Continue to Weekly Execution' : 'Back to Marketing Command Center'}
+                <span className="material-symbols-outlined text-[16px]">{page === '1' ? 'arrow_forward' : 'arrow_back'}</span>
               </button>
             </div>
           ) : null}

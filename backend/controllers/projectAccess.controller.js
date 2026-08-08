@@ -57,6 +57,7 @@ const canAccessProjectHub = (user = {}) => {
 const buildProjectEnvelope = (project, user) => {
   if (!project) return null;
   const isEfnbmms = normalizeProjectKey(project.code) === 'EFNBMMS';
+  const isEdifyEight = normalizeProjectKey(project.code) === 'EEC';
   return {
     code: project.code,
     name: project.name,
@@ -68,18 +69,20 @@ const buildProjectEnvelope = (project, user) => {
     accessGranted: project.accessGranted,
     role: project.role,
     integrationRole: project.integrationRole || null,
-    apiRole: isEfnbmms ? 'admin' : project.integrationRole || project.role || null,
+    apiRole: isEdifyEight ? 'teacher_management' : isEfnbmms ? 'admin' : project.integrationRole || project.role || null,
     status: project.status,
     permissions: project.permissions || [],
     startDate: project.startDate || null,
     endDate: project.endDate || null,
     projectAssignment: project.projectAssignment || null,
     access: {
-      canLaunch: !isEfnbmms && Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
-      canUseApi: isEfnbmms && Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
-      mode: isEfnbmms ? 'admin_management_api' : 'launch',
+      canLaunch: !isEfnbmms && !isEdifyEight && Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
+      canUseApi: (isEfnbmms || isEdifyEight) && Boolean(project.accessGranted || isPrivilegedProjectLauncher(user)),
+      mode: isEdifyEight ? 'teacher_management_api' : isEfnbmms ? 'admin_management_api' : 'launch',
       blockedReason: isEfnbmms
         ? 'EFNBMMS is connected by admin-management API only'
+        : isEdifyEight
+          ? 'EdifyEight teacher management is connected by API only'
         : project.accessGranted ? null : 'Project not assigned or access has expired',
     },
   };

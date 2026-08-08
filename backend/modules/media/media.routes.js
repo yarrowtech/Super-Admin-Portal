@@ -54,6 +54,7 @@ router.get('/dashboard', controller.getDashboard);
 router.get('/overview', controller.getOverview);
 router.get('/projects', v.listValidation, validate, controller.getProjects);
 router.post('/projects/:id/logo', canManageMedia, v.mediaIdValidation, validate, uploadMediaFile(), controller.uploadProjectLogo);
+router.patch('/projects/:id/theme-color', canManageMedia, v.themeColorValidation, validate, controller.updateProjectThemeColor);
 
 router.get('/assets', v.listValidation, validate, controller.getAssets);
 router.post('/assets', requireProjectContext, canManageMedia, v.mediaRecordValidation, validate, controller.createAsset);

@@ -11,6 +11,26 @@ const getOutsourcingPortalBaseUrl = () => {
   return String(raw).replace(/\/$/, '');
 };
 
+const requestForm = async (method, path, formData, token) => {
+  const response = await fetch(`${getOutsourcingPortalBaseUrl()}${path}`, {
+    method,
+    headers: {
+      'x-request-id': `form_${Date.now().toString(36)}`,
+      'x-client-source': 'frontend',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+    credentials: 'include',
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.error || data?.message || `Request failed with status ${response.status}`);
+  }
+  apiClient.clearCache();
+  return data;
+};
+
 export const outsourcingApi = {
   getDashboard: async (token) => apiClient.get('/api/outsourcing/dashboard', token, { ttlMs: ttl.medium }),
   getEfnbmmsAdminManagement: async (token, params = {}) => {
@@ -26,6 +46,42 @@ export const outsourcingApi = {
     apiClient.get('/api/outsourcing/efnbmms/admin-management/summary', token, { ttlMs: ttl.fast }),
   getEfnbmmsAdminManagementDetail: async (token, adminId) =>
     apiClient.get(`/api/outsourcing/efnbmms/admin-management/${encodeURIComponent(adminId)}`, token, { ttlMs: ttl.fast }),
+  getEdifyEightTeachers: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.append(key, String(value));
+    });
+    const qs = query.toString();
+    return apiClient.get(`/api/outsourcing/edifyeight/teachers${qs ? `?${qs}` : ''}`, token, { ttlMs: ttl.fast });
+  },
+  getEdifyEightTeacher: async (token, teacherId) =>
+    apiClient.get(`/api/outsourcing/edifyeight/teachers/${encodeURIComponent(teacherId)}`, token, { ttlMs: ttl.fast }),
+  createEdifyEightTeacher: async (token, payload) =>
+    apiClient.post('/api/outsourcing/edifyeight/teachers', payload, token),
+  updateEdifyEightTeacher: async (token, teacherId, payload) =>
+    apiClient.put(`/api/outsourcing/edifyeight/teachers/${encodeURIComponent(teacherId)}`, payload, token),
+  deleteEdifyEightTeacher: async (token, teacherId) =>
+    apiClient.delete(`/api/outsourcing/edifyeight/teachers/${encodeURIComponent(teacherId)}`, token),
+  getEdifyEightStudyMaterials: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.append(key, String(value));
+    });
+    const qs = query.toString();
+    return apiClient.get(`/api/outsourcing/edifyeight/study-materials${qs ? `?${qs}` : ''}`, token, { ttlMs: ttl.fast });
+  },
+  getEdifyEightStudyMaterialStats: async (token) =>
+    apiClient.get('/api/outsourcing/edifyeight/study-materials/stats', token, { ttlMs: ttl.fast }),
+  getEdifyEightStudyMaterialMetadata: async (token) =>
+    apiClient.get('/api/outsourcing/edifyeight/study-materials/metadata', token, { ttlMs: ttl.slow }),
+  createEdifyEightStudyMaterial: async (token, formData) =>
+    requestForm('POST', '/api/outsourcing/edifyeight/study-materials', formData, token),
+  updateEdifyEightStudyMaterial: async (token, materialId, formData) =>
+    requestForm('PUT', `/api/outsourcing/edifyeight/study-materials/${encodeURIComponent(materialId)}`, formData, token),
+  deleteEdifyEightStudyMaterial: async (token, materialId) =>
+    apiClient.delete(`/api/outsourcing/edifyeight/study-materials/${encodeURIComponent(materialId)}`, token),
   getMyProjects: async (token) => apiClient.get('/api/my-projects', token, { ttlMs: ttl.fast }),
   getProjectPermissions: async (token) => apiClient.get('/api/project-permissions', token, { ttlMs: ttl.fast }),
   getProjectRoles: async (token) => apiClient.get('/api/project-roles', token, { ttlMs: ttl.fast }),

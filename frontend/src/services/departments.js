@@ -20,6 +20,8 @@ export const departmentApi = {
     formData.append('file', file);
     return apiClient.upload(`/api/dept/media/projects/${projectId}/logo`, formData, token);
   },
+  updateMediaProjectThemeColor: (token, projectId, themeColor) =>
+    apiClient.patch(`/api/dept/media/projects/${projectId}/theme-color`, { themeColor }, token),
   getMediaAssets: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/assets', params), token),
   getMediaAsset: (token, id) => apiClient.get(`/api/dept/media/assets/${id}`, token),
   createMediaAsset: (token, body) => apiClient.post('/api/dept/media/assets', body, token),

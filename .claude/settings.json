@@ -39,7 +39,19 @@
       "Bash(./node_modules/.bin/eslint src/components/media/MediaWorkspace.jsx)",
       "Bash(./frontend/node_modules/.bin/eslint frontend/src/components/media/MediaWorkspace.jsx)",
       "Bash(node --check modules/media/campaign.service.js)",
-      "Bash(node --check modules/media/campaign.validation.js)"
+      "Bash(node --check modules/media/campaign.validation.js)",
+      "Bash(node -c models/common/Project.js)",
+      "Bash(node -c modules/media/media.service.js)",
+      "Bash(node -c modules/media/media.controller.js)",
+      "Bash(node -c modules/media/media.validation.js)",
+      "Bash(node -c modules/media/media.routes.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/)",
+      "Bash(node -c modules/media/calendar.service.js)",
+      "Bash(cd \"e:/Super-Admin-Portal\" && rm backend/controllers/finance/index.js backend/controllers/finance/budget.controller.js backend/controllers/finance/compliance.controller.js backend/controllers/finance/expense.controller.js backend/controllers/finance/invoice.controller.js backend/controllers/finance/payment.controller.js backend/controllers/finance/payroll.controller.js backend/controllers/finance/vendor.controller.js && ls backend/controllers/finance/)"
+    ],
+    "additionalDirectories": [
+      "e:\\Super-Admin-Portal\\backend\\controllers\\finance"
     ]
   }
 }

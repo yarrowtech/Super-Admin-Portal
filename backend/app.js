@@ -53,12 +53,17 @@ connectDB().then(async () => {
 });
 
 app.set("trust proxy", 1);
+app.use(cors({
+  origin: corsConfig.origin,
+  credentials: corsConfig.credentials,
+  methods: corsConfig.methods,
+  allowedHeaders: corsConfig.allowedHeaders,
+}));
 app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: constants.REQUEST_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: constants.REQUEST_BODY_LIMIT }));
 app.use(mongoSanitize());
-app.use(cors({ origin: corsConfig.origin, credentials: corsConfig.credentials }));
 app.use(requestLogger);
 
 const isProd = env.IS_PRODUCTION;

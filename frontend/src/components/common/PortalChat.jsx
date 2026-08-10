@@ -24,7 +24,7 @@ const defaultTeamMembersExtractor = (res) => {
   return [];
 };
 
-const EmployeeChat = ({
+const PortalChat = ({
   homePath = '/employee/dashboard',
   headerTitle = 'Chat',
   storageKeyPrefix = 'employee',
@@ -1095,4 +1095,4 @@ const EmployeeChat = ({
   );
 };
 
-export default EmployeeChat;
+export default PortalChat;

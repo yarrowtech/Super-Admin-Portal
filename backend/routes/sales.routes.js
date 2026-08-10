@@ -6,8 +6,8 @@ const { uploadJpegImages } = require('../middlewares/upload.middleware');
 const { ROLES } = require('../config/roles');
 
 router.use(authenticate);
-router.use(authorize(ROLES.SALES, ROLES.ADMIN));
-router.use(authorizePortalAccess('sales'));
+router.use(authorize(ROLES.MEDIA_SALES, ROLES.ADMIN));
+router.use(authorizePortalAccess('media'));
 
 router.get('/dashboard', salesController.getDashboard);
 router.get('/queries', salesController.listQueries);

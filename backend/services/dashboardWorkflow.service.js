@@ -21,36 +21,6 @@ const roleWorkflows = {
       { key: 'notifications', endpoint: '/api/dept/ceo/notifications' },
     ],
   },
-  [ROLES.MANAGER]: {
-    role: ROLES.MANAGER,
-    dashboardEndpoint: '/api/dept/manager/dashboard',
-    modules: [
-      { key: 'admin', endpoint: '/api/dept/admin/dashboard' },
-      { key: 'hr', endpoint: '/api/dept/hr/dashboard' },
-      { key: 'it', endpoint: '/api/dept/it/dashboard' },
-      { key: 'law', endpoint: '/api/dept/law/dashboard' },
-      { key: 'employee', endpoint: '/api/employee/dashboard' },
-      { key: 'team', endpoint: '/api/dept/manager/team' },
-      { key: 'projects', endpoint: '/api/dept/manager/projects' },
-      { key: 'tasks', endpoint: '/api/dept/manager/tasks' },
-      { key: 'leave', endpoint: '/api/dept/manager/leave' },
-      { key: 'notifications', endpoint: '/api/dept/manager/notifications' },
-    ],
-  },
-  [ROLES.IT]: {
-    role: ROLES.IT,
-    dashboardEndpoint: '/api/dept/it/dashboard',
-    modules: [
-      { key: 'admin', endpoint: '/api/dept/admin/dashboard' },
-      { key: 'hr', endpoint: '/api/dept/hr/dashboard' },
-      { key: 'law', endpoint: '/api/dept/law/dashboard' },
-      { key: 'manager', endpoint: '/api/dept/manager/dashboard' },
-      { key: 'employee', endpoint: '/api/employee/dashboard' },
-      { key: 'overview', endpoint: '/api/dept/it/overview' },
-      { key: 'assets', endpoint: '/api/dept/it/module/assets' },
-      { key: 'tickets', endpoint: '/api/dept/it/module/tickets' },
-    ],
-  },
   [ROLES.HR]: {
     role: ROLES.HR,
     dashboardEndpoint: '/api/dept/hr/dashboard',
@@ -61,19 +31,42 @@ const roleWorkflows = {
       { key: 'work_reports', endpoint: '/api/dept/hr/work-reports' },
     ],
   },
-  [ROLES.EMPLOYEE]: {
-    role: ROLES.EMPLOYEE,
-    dashboardEndpoint: '/api/employee/dashboard',
+  [ROLES.IT_MANAGER]: {
+    role: ROLES.IT_MANAGER,
+    dashboardEndpoint: '/api/dept/it/dashboard',
     modules: [
-      { key: 'projects', endpoint: '/api/employee/projects' },
-      { key: 'tasks', endpoint: '/api/employee/tasks' },
-      { key: 'attendance', endpoint: '/api/dept/employee/attendance' },
-      { key: 'leave', endpoint: '/api/dept/employee/leave' },
-      { key: 'documents', endpoint: '/api/employee/documents' },
+      { key: 'admin', endpoint: '/api/dept/admin/dashboard' },
+      { key: 'hr', endpoint: '/api/dept/hr/dashboard' },
+      { key: 'law', endpoint: '/api/dept/law/dashboard' },
+      { key: 'overview', endpoint: '/api/dept/it/overview' },
+      { key: 'assets', endpoint: '/api/dept/it/module/assets' },
+      { key: 'tickets', endpoint: '/api/dept/it/module/tickets' },
     ],
   },
-  [ROLES.FINANCE]: {
-    role: ROLES.FINANCE,
+  [ROLES.IT_ADMIN]: {
+    role: ROLES.IT_ADMIN,
+    dashboardEndpoint: '/api/dept/it/dashboard',
+    modules: [
+      { key: 'assets', endpoint: '/api/dept/it/module/assets' },
+      { key: 'tickets', endpoint: '/api/dept/it/module/tickets' },
+    ],
+  },
+  [ROLES.IT_EMPLOYEE]: {
+    role: ROLES.IT_EMPLOYEE,
+    dashboardEndpoint: '/api/dept/it/dashboard',
+    modules: [
+      { key: 'tickets', endpoint: '/api/dept/it/module/tickets' },
+    ],
+  },
+  [ROLES.IT_HR]: {
+    role: ROLES.IT_HR,
+    dashboardEndpoint: '/api/dept/it/dashboard',
+    modules: [
+      { key: 'hr', endpoint: '/api/dept/hr/dashboard' },
+    ],
+  },
+  [ROLES.FINANCE_MANAGER]: {
+    role: ROLES.FINANCE_MANAGER,
     dashboardEndpoint: '/api/dept/finance/dashboard',
     modules: [
       { key: 'invoices', endpoint: '/api/dept/finance/invoices' },
@@ -83,6 +76,43 @@ const roleWorkflows = {
       { key: 'vendors', endpoint: '/api/dept/finance/vendors' },
       { key: 'compliance', endpoint: '/api/dept/finance/compliance' },
     ],
+  },
+  [ROLES.FINANCE_EMPLOYEE]: {
+    role: ROLES.FINANCE_EMPLOYEE,
+    dashboardEndpoint: '/api/dept/finance/dashboard',
+    modules: [
+      { key: 'invoices', endpoint: '/api/dept/finance/invoices' },
+      { key: 'expenses', endpoint: '/api/dept/finance/expenses' },
+    ],
+  },
+  [ROLES.LAW_HEAD]: {
+    role: ROLES.LAW_HEAD,
+    dashboardEndpoint: '/api/dept/law/dashboard',
+    modules: [
+      { key: 'contracts', endpoint: '/api/dept/law/module/contracts' },
+    ],
+  },
+  [ROLES.LAW_EMPLOYEE]: {
+    role: ROLES.LAW_EMPLOYEE,
+    dashboardEndpoint: '/api/dept/law/dashboard',
+    modules: [
+      { key: 'contracts', endpoint: '/api/dept/law/module/contracts' },
+    ],
+  },
+  [ROLES.MEDIA_HEAD]: {
+    role: ROLES.MEDIA_HEAD,
+    dashboardEndpoint: '/api/dept/media/dashboard',
+    modules: [],
+  },
+  [ROLES.MEDIA_SALES]: {
+    role: ROLES.MEDIA_SALES,
+    dashboardEndpoint: '/api/dept/sales/dashboard',
+    modules: [],
+  },
+  [ROLES.MEDIA_MARKETING]: {
+    role: ROLES.MEDIA_MARKETING,
+    dashboardEndpoint: '/api/dept/media/dashboard',
+    modules: [],
   },
 };
 

@@ -138,14 +138,19 @@ const monthRange = (year, month) => {
 };
 
 const HR_MANAGEABLE_ROLES = [
-  ROLES.MANAGER,
   ROLES.HR,
-  ROLES.FINANCE,
-  ROLES.IT,
-  ROLES.LAW,
-  ROLES.MEDIA,
-  ROLES.SALES,
-  ROLES.RESEARCH_OPERATOR,
+  ROLES.IT_MANAGER,
+  ROLES.IT_ADMIN,
+  ROLES.IT_EMPLOYEE,
+  ROLES.IT_HR,
+  ROLES.FINANCE_MANAGER,
+  ROLES.FINANCE_EMPLOYEE,
+  ROLES.LAW_HEAD,
+  ROLES.LAW_EMPLOYEE,
+  ROLES.MEDIA_HEAD,
+  ROLES.MEDIA_SALES,
+  ROLES.MEDIA_MARKETING,
+  ROLES.FREELANCER,
 ];
 
 const normalizeRoleValue = (role) => String(role || '').trim().toLowerCase();
@@ -225,8 +230,8 @@ exports.getDashboard = async (req, res) => {
     };
 
     const [totalEmployees, activeEmployees, pendingApplicants, pendingLeaves, todayAttendance, openComplaints] = await Promise.all([
-      User.countDocuments({ role: ROLES.EMPLOYEE }),
-      User.countDocuments({ role: ROLES.EMPLOYEE, isActive: true }),
+      User.countDocuments({ role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] } }),
+      User.countDocuments({ role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] }, isActive: true }),
       safeCount(() => Applicant.countDocuments({ status: 'pending' })),
       Leave.countDocuments({ status: 'pending' }),
       Attendance.countDocuments({ date: { $gte: dayStart, $lte: dayEnd } }),
@@ -1034,25 +1039,12 @@ exports.createNotice = async (req, res) => {
       all: [],
       admin: [ROLES.ADMIN, ROLES.SUPER_ADMIN],
       ceo: [ROLES.CEO],
-      employee: [ROLES.EMPLOYEE],
       freelancer: [ROLES.FREELANCER],
-      finance: [ROLES.FINANCE, ROLES.FINANCE_MANAGER, ROLES.ACCOUNTANT, ROLES.AUDITOR],
+      finance: [ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE],
       hr: [ROLES.HR],
-      it: [ROLES.IT, ROLES.IT_ADMIN, ROLES.SYSTEM_OPERATOR, ROLES.SECURITY_ANALYST, ROLES.DEVOPS_ENGINEER],
-      law: [ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.LSW],
-      manager: [ROLES.MANAGER, ROLES.PROJECT_MANAGER, ROLES.DEPARTMENT_HEAD],
-      media: [
-        ROLES.MEDIA,
-        ROLES.MARKETING_HEAD,
-        ROLES.MEDIA_MANAGER,
-        ROLES.CONTENT_WRITER,
-        ROLES.GRAPHIC_DESIGNER,
-        ROLES.VIDEO_EDITOR,
-        ROLES.SEO_SPECIALIST,
-        ROLES.SOCIAL_MEDIA_MANAGER
-      ],
-      research: [ROLES.RESEARCH_OPERATOR],
-      sales: [ROLES.SALES],
+      it: [ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR],
+      law: [ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE],
+      media: [ROLES.MEDIA_HEAD, ROLES.MEDIA_SALES, ROLES.MEDIA_MARKETING],
     };
 
     const audienceRoles = roleGroups[audience] || [audience];

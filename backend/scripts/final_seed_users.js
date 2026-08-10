@@ -7,43 +7,6 @@ const { ROLES } = require("../config/roles");
 
 const users = [
   {
-    email: "raphael@test.com",
-    password: "raphael@test.com",
-    role: ROLES.CEO,
-    firstName: "Raphael",
-    lastName: "CEO",
-    department: "Executive"
-  },
-  {
-    email: "sekhar@test.com",
-    password: "sekhar@test.com",
-    role: ROLES.MANAGER,
-    firstName: "Sekhar",
-    lastName: "Manager",
-    department: "Operations"
-  },
-  {
-    email: "santu@test.com",
-    password: "santu@test.com",
-    role: ROLES.EMPLOYEE,
-    firstName: "Santu",
-    lastName: "Employee",
-    department: "Operations"
-  },
-  {
-    email: "rajesh@test.com",
-    password: "rajesh@test.com",
-    role: ROLES.EMPLOYEE,
-    firstName: "Rajesh",
-    lastName: "Outsourcing",
-    department: "External Workforce",
-    metadata: {
-      outsourcingType: "freelancer",
-      workerClass: "external_contractor",
-      isInHouse: false
-    }
-  },
-  {
     email: "admin@test.com",
     password: "admin@test.com",
     role: ROLES.ADMIN,
@@ -52,12 +15,126 @@ const users = [
     department: "Administration"
   },
   {
+    email: "raphael@test.com",
+    password: "raphael@test.com",
+    role: ROLES.CEO,
+    firstName: "Raphael",
+    lastName: "CEO",
+    department: "Executive"
+  },
+  {
     email: "attreyee@test.com",
     password: "attreyee@test.com",
     role: ROLES.HR,
     firstName: "Attreyee",
     lastName: "HR",
     department: "Human Resources"
+  },
+  // IT department
+  {
+    email: "it.manager@test.com",
+    password: "it.manager@test.com",
+    role: ROLES.IT_MANAGER,
+    firstName: "IT",
+    lastName: "Manager",
+    department: "IT"
+  },
+  {
+    email: "it.admin@test.com",
+    password: "it.admin@test.com",
+    role: ROLES.IT_ADMIN,
+    firstName: "IT",
+    lastName: "Admin",
+    department: "IT"
+  },
+  {
+    email: "it.employee@test.com",
+    password: "it.employee@test.com",
+    role: ROLES.IT_EMPLOYEE,
+    firstName: "IT",
+    lastName: "Employee",
+    department: "IT"
+  },
+  {
+    email: "it.hr@test.com",
+    password: "it.hr@test.com",
+    role: ROLES.IT_HR,
+    firstName: "IT",
+    lastName: "HR",
+    department: "IT"
+  },
+  // Finance department
+  {
+    email: "finance.manager@test.com",
+    password: "finance.manager@test.com",
+    role: ROLES.FINANCE_MANAGER,
+    firstName: "Finance",
+    lastName: "Manager",
+    department: "Finance"
+  },
+  {
+    email: "finance.employee@test.com",
+    password: "finance.employee@test.com",
+    role: ROLES.FINANCE_EMPLOYEE,
+    firstName: "Finance",
+    lastName: "Employee",
+    department: "Finance"
+  },
+  // Media department
+  {
+    email: "media.head@test.com",
+    password: "media.head@test.com",
+    role: ROLES.MEDIA_HEAD,
+    firstName: "Media",
+    lastName: "Head",
+    department: "Media"
+  },
+  {
+    email: "media.sales@test.com",
+    password: "media.sales@test.com",
+    role: ROLES.MEDIA_SALES,
+    firstName: "Media",
+    lastName: "Sales",
+    department: "Media"
+  },
+  {
+    email: "media.marketing@test.com",
+    password: "media.marketing@test.com",
+    role: ROLES.MEDIA_MARKETING,
+    firstName: "Media",
+    lastName: "Marketing",
+    department: "Media"
+  },
+  // Law department
+  {
+    email: "law.head@test.com",
+    password: "law.head@test.com",
+    role: ROLES.LAW_HEAD,
+    firstName: "Law",
+    lastName: "Head",
+    department: "Law"
+  },
+  {
+    email: "law.employee@test.com",
+    password: "law.employee@test.com",
+    role: ROLES.LAW_EMPLOYEE,
+    firstName: "Law",
+    lastName: "Employee",
+    department: "Law"
+  },
+  // Outsourcing (unchanged)
+  {
+    email: "rajesh@test.com",
+    password: "rajesh@test.com",
+    role: ROLES.FREELANCER,
+    firstName: "Rajesh",
+    lastName: "Outsourcing",
+    department: "External Workforce",
+    metadata: {
+      outsourcingType: "freelancer",
+      workerClass: "external_contractor",
+      isInHouse: false
+    }
   }
 ];
 

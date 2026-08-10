@@ -24,7 +24,7 @@ const NavItem = memo(({ item, collapsed, isActive, onClick, suffix }) => {
       className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
         isActive
           ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-          : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+          : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
       } ${collapsed ? 'justify-center px-0' : ''}`}
       aria-label={collapsed ? item.label : undefined}
     >
@@ -61,7 +61,7 @@ const GroupButton = memo(({ item, collapsed, isActive, isOpen, onToggle }) => (
     className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
       isActive
         ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-        : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+        : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
     } ${collapsed ? 'justify-center px-0' : ''}`}
     aria-expanded={isOpen}
     aria-label={collapsed ? item.label : undefined}
@@ -105,7 +105,11 @@ const PortalSidebar = ({
 
   const footerItems = footerItemsProp ?? [];
 
-  const isPathActive  = (path) => Boolean(path) && (currentPath === path || currentPath.startsWith(path + '/'));
+  const isPathActive  = (path) => {
+    if (!path) return false;
+    const pathname = String(path).split('?')[0];
+    return currentPath === pathname || currentPath.startsWith(pathname + '/');
+  };
   const isGroupActive = (item) => Boolean(item?.children?.some((c) => isPathActive(c.path) || isGroupActive(c)));
 
   // Auto-open the active group on mount / path change
@@ -244,7 +248,7 @@ const PortalSidebar = ({
                             className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all ${
                               childActive
                                 ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
-                                : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                                : 'text-neutral-500 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                             }`}
                           >
                             <span className="material-symbols-outlined text-[15px]">folder_open</span>
@@ -264,7 +268,7 @@ const PortalSidebar = ({
                                     `block rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all ${
                                       a
                                         ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
-                                        : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                                        : 'text-neutral-500 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                                     }`
                                   }
                                 >
@@ -283,7 +287,7 @@ const PortalSidebar = ({
                             `block rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all ${
                               a
                                 ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
-                                : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                                : 'text-neutral-500 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                             }`
                           }
                         >
@@ -312,7 +316,7 @@ const PortalSidebar = ({
                 className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
                   isActive
                     ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                    : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
                 aria-label={collapsed ? item.label : undefined}
               >

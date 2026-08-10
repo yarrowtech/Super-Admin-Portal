@@ -1,18 +1,59 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-const roleOptions = [
-  { value: 'admin', label: 'Admin', icon: 'shield_person' },
-  { value: 'ceo', label: 'CEO', icon: 'business_center' },
-  { value: 'it', label: 'IT', icon: 'computer' },
-  { value: 'law', label: 'Law', icon: 'gavel' },
-  { value: 'hr', label: 'HR', icon: 'badge' },
-  { value: 'media', label: 'Media', icon: 'photo_camera' },
-  { value: 'finance', label: 'Finance', icon: 'payments' },
-  { value: 'manager', label: 'Manager', icon: 'supervisor_account' },
-  { value: 'freelancer', label: 'Freelancer', icon: 'person' },
-  { value: 'sales', label: 'Sales', icon: 'trending_up' },
-  { value: 'research_operator', label: 'Research', icon: 'science' },
+// Department-wise grouping, matching the SUPER ADMIN / CEO / HR / IT / FINANCE / MEDIA / LAW /
+// OUTSOURCING hierarchy. Single-role departments filter directly on click; multi-role
+// departments (IT, Finance, Media, Law) expand to let you filter by the whole department
+// (all its roles combined, via a comma-joined `role` query param) or by one sub-role.
+// Each department carries its own accent color so the list scans quickly at a glance.
+const departmentGroups = [
+  { key: 'admin', label: 'Super Admin', icon: 'shield_person', roles: ['admin'], badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+  { key: 'ceo', label: 'CEO', icon: 'business_center', roles: ['ceo'], badge: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  { key: 'hr', label: 'HR', icon: 'badge', roles: ['hr'], badge: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
+  {
+    key: 'it', label: 'IT', icon: 'computer', badge: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
+    subRoles: [
+      { value: 'it_manager', label: 'IT Manager' },
+      { value: 'it_admin', label: 'IT Admin' },
+      { value: 'it_employee', label: 'IT Employee' },
+      { value: 'it_hr', label: 'IT HR' },
+    ],
+  },
+  {
+    key: 'finance', label: 'Finance', icon: 'payments', badge: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+    subRoles: [
+      { value: 'finance_manager', label: 'Finance Manager' },
+      { value: 'finance_employee', label: 'Finance Employee' },
+    ],
+  },
+  {
+    key: 'media', label: 'Media', icon: 'photo_camera', badge: 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-400',
+    subRoles: [
+      { value: 'media_head', label: 'Media Head' },
+      { value: 'media_sales', label: 'Media Sales' },
+      { value: 'media_marketing', label: 'Media Marketing' },
+    ],
+  },
+  {
+    key: 'law', label: 'Law', icon: 'gavel', badge: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+    subRoles: [
+      { value: 'law_head', label: 'Law Head' },
+      { value: 'law_employee', label: 'Law Employee' },
+    ],
+  },
+  { key: 'outsourcing', label: 'Outsourcing', icon: 'handshake', roles: ['freelancer'], badge: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400' },
 ];
+
+const SectionCard = ({ icon, title, children }) => (
+  <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="mb-4 flex items-center gap-2.5">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <span className="material-symbols-outlined text-[18px]">{icon}</span>
+      </div>
+      <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">{title}</h3>
+    </div>
+    {children}
+  </div>
+);
 
 const filterButtonClass = (active, activeClass = 'bg-gradient-to-r from-primary to-primary/80 text-white font-semibold shadow-md') =>
   `flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-all ${
@@ -21,13 +62,25 @@ const filterButtonClass = (active, activeClass = 'bg-gradient-to-r from-primary 
       : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
   }`;
 
+const CountBadge = ({ active, children }) => (
+  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${active ? 'bg-white/20 text-white' : 'bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300'}`}>
+    {children}
+  </span>
+);
+
 const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
+  const [openGroups, setOpenGroups] = useState({});
+  const toggleGroup = (key) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  const groupCount = (roles) => roles.reduce((sum, role) => sum + (roleCounts[role] || 0), 0);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-xl border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:from-neutral-900 dark:to-neutral-800">
         <label className="block">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">search</span>
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <span className="material-symbols-outlined text-[18px]">search</span>
+            </div>
             <span className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Search Users</span>
           </div>
           <div className="group relative flex min-h-11 items-stretch overflow-hidden rounded-xl border-2 border-neutral-200 bg-white transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800">
@@ -55,48 +108,112 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
         </label>
       </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">badge</span>
-          <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Filter by Role</h3>
-        </div>
+      <SectionCard icon="apartment" title="Filter by Department">
         <div className="space-y-1.5">
           <button
             type="button"
             onClick={() => setFilters({ ...filters, role: '' })}
             className={filterButtonClass(filters.role === '')}
           >
-            <span className="font-medium">All Roles</span>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${filters.role === '' ? 'bg-white/20 text-white' : 'bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300'}`}>
-              {stats.totalUsers}
-            </span>
+            <span className="font-medium">All Departments</span>
+            <CountBadge active={filters.role === ''}>{stats.totalUsers}</CountBadge>
           </button>
-          {roleOptions.map((role) => (
-            <button
-              key={role.value}
-              type="button"
-              onClick={() => setFilters({ ...filters, role: role.value })}
-              className={filterButtonClass(filters.role === role.value)}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span className={`material-symbols-outlined text-lg ${filters.role === role.value ? 'text-white' : ''}`}>{role.icon}</span>
-                <span className="truncate font-medium capitalize">{role.label}</span>
-              </div>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${filters.role === role.value ? 'bg-white/20 text-white' : 'bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300'}`}>
-                {roleCounts[role.value] || 0}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">toggle_on</span>
-          <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Filter by Status</h3>
+          {departmentGroups.map((group) => {
+            if (!group.subRoles) {
+              const value = group.roles[0];
+              const active = filters.role === value;
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => setFilters({ ...filters, role: value })}
+                  className={filterButtonClass(active)}
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-white/20 text-white' : group.badge}`}>
+                      <span className="material-symbols-outlined text-[16px]">{group.icon}</span>
+                    </div>
+                    <span className="truncate font-medium">{group.label}</span>
+                  </div>
+                  <CountBadge active={active}>{roleCounts[value] || 0}</CountBadge>
+                </button>
+              );
+            }
+
+            const groupRoleValue = group.subRoles.map((r) => r.value).join(',');
+            const groupActive = filters.role === groupRoleValue;
+            const isOpen = openGroups[group.key] ?? false;
+
+            return (
+              <div key={group.key}>
+                <div className={`flex min-h-11 w-full items-stretch rounded-lg overflow-hidden transition-shadow ${
+                  groupActive ? 'shadow-md' : isOpen ? 'bg-neutral-50 dark:bg-neutral-800/50' : ''
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ ...filters, role: groupRoleValue })}
+                    className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-sm transition-all ${
+                      groupActive
+                        ? 'bg-gradient-to-r from-primary to-primary/80 text-white font-semibold'
+                        : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
+                    }`}
+                  >
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${groupActive ? 'bg-white/20 text-white' : group.badge}`}>
+                      <span className="material-symbols-outlined text-[16px]">{group.icon}</span>
+                    </div>
+                    <span className="truncate font-medium">{group.label}</span>
+                    <span className="ml-auto">
+                      <CountBadge active={groupActive}>{groupCount(group.subRoles.map((r) => r.value))}</CountBadge>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    aria-label={isOpen ? `Collapse ${group.label}` : `Expand ${group.label}`}
+                    className={`flex w-9 shrink-0 items-center justify-center transition-colors ${
+                      groupActive
+                        ? 'bg-primary/80 text-white hover:bg-primary'
+                        : 'text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-lg transition-transform ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                  </button>
+                </div>
+
+                {isOpen && (
+                  <div className="ml-3 mt-1 space-y-1 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
+                    {group.subRoles.map((sub) => {
+                      const active = filters.role === sub.value;
+                      return (
+                        <button
+                          key={sub.value}
+                          type="button"
+                          onClick={() => setFilters({ ...filters, role: sub.value })}
+                          className={`flex min-h-9 w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
+                            active
+                              ? 'bg-primary/10 text-primary font-semibold'
+                              : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                          }`}
+                        >
+                          <span className="truncate">{sub.label}</span>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? 'bg-primary/20 text-primary' : 'bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300'}`}>
+                            {roleCounts[sub.value] || 0}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
+      </SectionCard>
+
+      <SectionCard icon="toggle_on" title="Account Status">
         <div className="space-y-1.5">
-          <button type="button" onClick={() => setFilters({ ...filters, isActive: '' })} className={filterButtonClass(filters.isActive === '')}>
+          <button type="button" onClick={() => setFilters({ ...filters, isActive: '', accountStatus: '' })} className={filterButtonClass(filters.isActive === '' && !filters.accountStatus)}>
             <span className="font-medium">All Status</span>
           </button>
           <button
@@ -119,27 +236,24 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
               <span className="font-medium">Inactive Only</span>
             </div>
           </button>
-        </div>
-      </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">admin_panel_settings</span>
-          <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Account Control</h3>
+          <div className="pt-2">
+            <label className="mb-1.5 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Or pick an exact account state</label>
+            <select
+              value={filters.accountStatus || ''}
+              onChange={(e) => setFilters({ ...filters, accountStatus: e.target.value, isActive: '' })}
+              className="min-h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            >
+              <option value="">All account states</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+              <option value="blocked">Blocked</option>
+              <option value="pending_verification">Pending verification</option>
+            </select>
+          </div>
         </div>
-        <select
-          value={filters.accountStatus || ''}
-          onChange={(e) => setFilters({ ...filters, accountStatus: e.target.value, isActive: '' })}
-          className="min-h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-        >
-          <option value="">All account states</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="suspended">Suspended</option>
-          <option value="blocked">Blocked</option>
-          <option value="pending_verification">Pending verification</option>
-        </select>
-      </div>
+      </SectionCard>
     </div>
   );
 };

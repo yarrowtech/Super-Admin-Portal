@@ -43,11 +43,20 @@ export default function LawContractsPage() {
   const [formError, setFormError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedContract, setSelectedContract] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const canListFreelancers = ['admin', 'hr', 'manager'].includes(String(user?.role || '').toLowerCase());
 
   const formatPerson = (person) => (
     [person?.firstName, person?.lastName].filter(Boolean).join(' ').trim() || person?.email || 'Unknown freelancer'
   );
+
+  const getInitials = (person) => {
+    const name = formatPerson(person);
+    const parts = name.split(' ').filter(Boolean);
+    if (!parts.length) return '?';
+    return parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
 
   const formatDate = (value) => {
     if (!value) return 'No due date';
@@ -178,6 +187,23 @@ export default function LawContractsPage() {
   const pending = contracts.filter(c => c.lawStatus === 'pending');
   const validated = contracts.filter(c => c.lawStatus === 'validated');
   const rejected = contracts.filter(c => c.lawStatus === 'rejected');
+
+  const filterTabs = [
+    { id: 'all', label: 'All', count: contracts.length },
+    { id: 'pending', label: 'Pending Review', count: pending.length },
+    { id: 'validated', label: 'Validated', count: validated.length },
+    { id: 'rejected', label: 'Rejected', count: rejected.length },
+  ];
+
+  const visibleContracts = contracts.filter((c) => {
+    if (statusFilter !== 'all' && c.lawStatus !== statusFilter) return false;
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      (c.job?.title || '').toLowerCase().includes(q) ||
+      formatPerson(c.freelancer).toLowerCase().includes(q)
+    );
+  });
 
   const closeCreateForm = () => {
     setShowCreateForm(false);
@@ -415,14 +441,19 @@ export default function LawContractsPage() {
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 p-4 md:p-6">
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Outsourcing Contracts</h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">Create agreements and validate freelancer contracts</p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <span className="material-symbols-outlined text-[22px]">handshake</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Outsourcing Contracts</h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">Create agreements and validate freelancer contracts</p>
+          </div>
         </div>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors w-fit"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 hover:shadow-md transition-all w-fit"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
           New Contract
@@ -430,20 +461,62 @@ export default function LawContractsPage() {
       </div>
 
       {/* Stats */}
-      <div className="mb-6 grid grid-cols-3 gap-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[
-          { label: 'Pending Review', value: pending.length,   color: 'text-amber-600 dark:text-amber-400',  icon: 'pending' },
-          { label: 'Validated',      value: validated.length, color: 'text-green-600 dark:text-green-400',  icon: 'verified' },
-          { label: 'Rejected',       value: rejected.length,  color: 'text-rose-600 dark:text-rose-400',    icon: 'cancel' },
+          { id: 'pending',   label: 'Pending Review', value: pending.length,   badge: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400', icon: 'pending_actions' },
+          { id: 'validated', label: 'Validated',      value: validated.length, badge: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400', icon: 'verified' },
+          { id: 'rejected',  label: 'Rejected',       value: rejected.length,  badge: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',    icon: 'cancel' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`material-symbols-outlined text-[18px] ${s.color}`}>{s.icon}</span>
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{s.label}</span>
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setStatusFilter(statusFilter === s.id ? 'all' : s.id)}
+            className={`group flex items-center gap-4 rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-neutral-900 ${
+              statusFilter === s.id ? 'border-primary ring-2 ring-primary/20' : 'border-neutral-200 dark:border-neutral-800'
+            }`}
+          >
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${s.badge}`}>
+              <span className="material-symbols-outlined text-[22px]">{s.icon}</span>
             </div>
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-          </div>
+            <div>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 leading-none">{s.value}</p>
+              <p className="mt-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">{s.label}</p>
+            </div>
+          </button>
         ))}
+      </div>
+
+      {/* Filters */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          {filterTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setStatusFilter(tab.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                statusFilter === tab.id
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-100 dark:bg-neutral-900 dark:text-neutral-300 dark:border-neutral-800 dark:hover:bg-neutral-800'
+              }`}
+            >
+              {tab.label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${statusFilter === tab.id ? 'bg-white/20' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-neutral-400">search</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search job or freelancer..."
+            className="h-10 w-full rounded-lg border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100"
+          />
+        </div>
       </div>
 
       {/* Create Contract Modal */}
@@ -696,40 +769,69 @@ export default function LawContractsPage() {
 
       {/* Contract list */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-neutral-400">
-          <span className="material-symbols-outlined animate-spin text-3xl">progress_activity</span>
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white py-20 dark:border-neutral-800 dark:bg-neutral-900 text-neutral-400">
+          <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+          <p className="text-sm">Loading contracts...</p>
         </div>
       ) : contracts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-neutral-200 bg-white py-20 dark:border-neutral-800 dark:bg-neutral-900 text-neutral-400">
-          <span className="material-symbols-outlined text-4xl mb-2">contract</span>
-          <p className="text-sm">No contracts yet. Create the first one.</p>
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-neutral-300 bg-white py-20 dark:border-neutral-700 dark:bg-neutral-900">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <span className="material-symbols-outlined text-3xl">contract</span>
+          </div>
+          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">No contracts yet</p>
+          <p className="text-xs text-neutral-400">Create an agreement from an accepted outsourcing job.</p>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            New Contract
+          </button>
+        </div>
+      ) : visibleContracts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white py-16 dark:border-neutral-800 dark:bg-neutral-900 text-neutral-400">
+          <span className="material-symbols-outlined text-3xl">search_off</span>
+          <p className="text-sm">No contracts match your filters.</p>
+          <button
+            onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            Clear filters
+          </button>
         </div>
       ) : (
-        <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800">
             <h2 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">All Contracts</h2>
+            <span className="text-xs text-neutral-400">{visibleContracts.length} of {contracts.length}</span>
           </div>
           <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {contracts.map(c => (
+            {visibleContracts.map(c => (
               <div
                 key={c._id}
-                className="flex items-center justify-between p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                className="group flex items-center justify-between gap-4 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer"
                 onClick={() => setSelectedContract(c)}
               >
-                <div>
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{c.job?.title || 'Untitled Job'}</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                    {c.freelancer?.firstName} {c.freelancer?.lastName} - {c.paymentType} {c.currency || 'INR'} {c.rate?.toLocaleString('en-IN')}
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    {getInitials(c.freelancer)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{c.job?.title || 'Untitled Job'}</p>
+                    <p className="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">
+                      {formatPerson(c.freelancer)} <span className="mx-1 text-neutral-300 dark:text-neutral-600">•</span>
+                      <span className="capitalize">{c.paymentType}</span> · {c.currency || 'INR'} {Number(c.rate || 0).toLocaleString('en-IN')}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONTRACT_STATUS_STYLES[c.status] || CONTRACT_STATUS_STYLES.draft}`}>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium capitalize sm:inline-block ${CONTRACT_STATUS_STYLES[c.status] || CONTRACT_STATUS_STYLES.draft}`}>
                     {c.status}
                   </span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${LAW_STATUS_STYLES[c.lawStatus] || LAW_STATUS_STYLES.pending}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${LAW_STATUS_STYLES[c.lawStatus] || LAW_STATUS_STYLES.pending}`}>
                     {c.lawStatus === 'pending' ? 'Review Needed' : c.lawStatus}
                   </span>
-                  <span className="material-symbols-outlined text-[18px] text-neutral-400">chevron_right</span>
+                  <span className="material-symbols-outlined text-[18px] text-neutral-300 transition-transform group-hover:translate-x-0.5 group-hover:text-neutral-500 dark:text-neutral-600">chevron_right</span>
                 </div>
               </div>
             ))}

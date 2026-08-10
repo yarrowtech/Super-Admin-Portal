@@ -1,8 +1,8 @@
 import { apiClient } from './client';
 
 export const adminApi = {
-  getDashboard: async (token) => {
-    return apiClient.get('/api/dept/admin/dashboard', token);
+  getDashboard: async (token, options = {}) => {
+    return apiClient.get('/api/dept/admin/dashboard', token, options);
   },
 
   getAllUsers: async (token, params = {}) => {
@@ -19,7 +19,7 @@ export const adminApi = {
     const queryString = queryParams.toString();
     const url = `/api/dept/admin/users${queryString ? `?${queryString}` : ''}`;
 
-    return apiClient.get(url, token);
+    return apiClient.get(url, token, { cache: false });
   },
 
   getUserById: async (token, userId) => {

@@ -14,7 +14,7 @@ const run = async () => {
   const existing = await User.findOne({ email: SALES_EMAIL }).select('+password');
   const baseUser = {
     email: SALES_EMAIL,
-    role: ROLES.SALES,
+    role: ROLES.MEDIA_SALES,
     firstName: 'Sales',
     lastName: 'User',
     department: 'Media Sales',

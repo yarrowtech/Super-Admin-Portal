@@ -36,7 +36,12 @@ router.use(authenticate);
 router.use(async (req, res, next) => {
   try {
     if (req.user?.role === ROLES.ADMIN) return next();
-    if ([ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.FINANCE, ROLES.IT, ROLES.HR, ROLES.MANAGER].includes(req.user?.role)) return next();
+    if ([
+      ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE,
+      ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE,
+      ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR,
+      ROLES.HR,
+    ].includes(req.user?.role)) return next();
     const actor = await User.findById(req.user?._id).select('role department metadata');
     const type = normalizeOutsourcingType(actor?.metadata?.outsourcingType);
     const department = normalizeDepartment(actor?.department);
@@ -83,7 +88,7 @@ router.put('/jobs/:id/status', outsourcingController.updateJobStatus);
 router.get('/contracts', outsourcingController.listContracts);
 router.get('/contracts/:contractId/history', outsourcingController.getContractHistory);
 router.put('/contracts/:contractId/terms', outsourcingController.updateContractTerms);
-router.put('/contracts/:contractId/law-validate', authorize(ROLES.ADMIN, ROLES.LAW, ROLES.LEGAL_HEAD), outsourcingController.validateContractByLaw);
+router.put('/contracts/:contractId/law-validate', authorize(ROLES.ADMIN, ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE), outsourcingController.validateContractByLaw);
 router.post('/time-logs', outsourcingTimeLogValidation, validate, outsourcingController.logTime);
 router.put('/time-logs/:id', outsourcingController.updateMyTimeLog);
 router.get('/time-logs', outsourcingController.listTimeLogs);
@@ -96,33 +101,33 @@ router.get('/support/tickets', outsourcingController.getMyTickets);
 router.put('/preferences', outsourcingController.updateMyPreferences);
 
 // HR/Manager can view dashboard, freelancer list, create/assign jobs, manage milestones
-router.get('/dashboard', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.outsourcingDashboard);
-router.get('/efnbmms/admin-management', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.FREELANCER), efnbmmsAdminManagementController.listAdminManagement);
-router.get('/efnbmms/admin-management/summary', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementSummary);
-router.get('/efnbmms/admin-management/:adminId', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementDetail);
-router.get('/users', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.listFreelancers);
-router.post('/jobs', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingCreateJobValidation, validate, outsourcingController.createJob);
-router.put('/jobs/:id/assign', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.assignJobToFreelancer);
-router.post('/milestones', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingCreateMilestoneValidation, validate, outsourcingController.createMilestone);
-router.put('/milestones/:id/submit', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.submitMilestone);
-router.put('/milestones/:id/approve', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.approveMilestone);
+router.get('/dashboard', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.outsourcingDashboard);
+router.get('/efnbmms/admin-management', authorize(ROLES.ADMIN, ROLES.HR, ROLES.FREELANCER), efnbmmsAdminManagementController.listAdminManagement);
+router.get('/efnbmms/admin-management/summary', authorize(ROLES.ADMIN, ROLES.HR, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementSummary);
+router.get('/efnbmms/admin-management/:adminId', authorize(ROLES.ADMIN, ROLES.HR, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementDetail);
+router.get('/users', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.listFreelancers);
+router.post('/jobs', authorize(ROLES.ADMIN, ROLES.HR), outsourcingCreateJobValidation, validate, outsourcingController.createJob);
+router.put('/jobs/:id/assign', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.assignJobToFreelancer);
+router.post('/milestones', authorize(ROLES.ADMIN, ROLES.HR), outsourcingCreateMilestoneValidation, validate, outsourcingController.createMilestone);
+router.put('/milestones/:id/submit', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.submitMilestone);
+router.put('/milestones/:id/approve', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.approveMilestone);
 
 // Law creates and validates contracts
-router.post('/contracts', authorize(ROLES.ADMIN, ROLES.LAW, ROLES.LEGAL_HEAD), outsourcingCreateContractValidation, validate, outsourcingController.createContract);
+router.post('/contracts', authorize(ROLES.ADMIN, ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE), outsourcingCreateContractValidation, validate, outsourcingController.createContract);
 
 // Admin/HR/Manager: all support tickets
-router.get('/support/tickets/all', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.getAllSupportTickets);
-router.put('/support/tickets/:id', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.updateSupportTicket);
+router.get('/support/tickets/all', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.getAllSupportTickets);
+router.put('/support/tickets/:id', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.updateSupportTicket);
 
 // Admin-only: user creation, payments, lifecycle, escrow
 router.post('/users', authorize(ROLES.ADMIN), outsourcingCreateUserValidation, validate, outsourcingController.createOutsourcingUser);
 router.post('/payments/milestone', authorize(ROLES.ADMIN), outsourcingController.createMilestonePayment);
-router.put('/payments/milestone/:id/release', authorize(ROLES.ADMIN, ROLES.FINANCE), outsourcingController.releaseMilestonePayment);
+router.put('/payments/milestone/:id/release', authorize(ROLES.ADMIN, ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE), outsourcingController.releaseMilestonePayment);
 router.put('/freelancers/:id/complete', authorize(ROLES.ADMIN), outsourcingController.completeFreelancerLifecycle);
 router.post('/payments/escrow/create-order', authorize(ROLES.ADMIN), outsourcingController.createEscrowOrder);
 router.post('/payments/escrow/verify', authorize(ROLES.ADMIN), outsourcingController.verifyEscrowPayment);
-router.put('/time-logs/:id/verify', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.verifyTimeLog);
-router.put('/time-logs/:id/revision', authorize(ROLES.ADMIN, ROLES.HR, ROLES.MANAGER), outsourcingController.requestTimeLogRevision);
+router.put('/time-logs/:id/verify', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.verifyTimeLog);
+router.put('/time-logs/:id/revision', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.requestTimeLogRevision);
 router.put('/payments/escrow/:id/approve-release', authorize(ROLES.ADMIN), outsourcingController.approveEscrowRelease);
 
 module.exports = router;

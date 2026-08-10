@@ -7,7 +7,7 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 // sections, mirroring the Admin portal's sidebar pattern. Dashboard/Projects stay
 // standalone since they're always-visible landing sections, not workspace tools.
 const GROUPS = [
-  { id: 'creative', label: 'Asset Management', icon: 'perm_media', sectionIds: ['assets', 'brand', 'content', 'design', 'video', 'social'] },
+  { id: 'creative', label: 'Assets', icon: 'perm_media', sectionIds: ['assets', 'brand', 'content', 'design', 'video', 'social'] },
 ];
 const STANDALONE_IDS = new Set(['dashboard', 'projects']);
 

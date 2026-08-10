@@ -17,30 +17,25 @@ const paged = (query = {}) => {
 };
 
 const IT_MANAGEMENT_ROLES = new Set([
-  ROLES.IT,
+  ROLES.IT_MANAGER,
   ROLES.IT_ADMIN,
   ROLES.ADMIN,
   ROLES.SUPER_ADMIN,
-  ROLES.SYSTEM_OPERATOR,
-  ROLES.SECURITY_ANALYST,
-  ROLES.DEVOPS_ENGINEER,
 ]);
 
 const canManageIt = (req) => IT_MANAGEMENT_ROLES.has(String(req.user?.role || '').toLowerCase());
 const canUseItPortal = (req) =>
   Boolean(req.user) &&
   [
-    ROLES.IT,
+    ROLES.IT_MANAGER,
     ROLES.IT_ADMIN,
+    ROLES.IT_EMPLOYEE,
+    ROLES.IT_HR,
     ROLES.ADMIN,
     ROLES.SUPER_ADMIN,
-    ROLES.SYSTEM_OPERATOR,
-    ROLES.SECURITY_ANALYST,
-    ROLES.DEVOPS_ENGINEER,
     ROLES.HR,
-    ROLES.MANAGER,
-    ROLES.LAW,
-    ROLES.EMPLOYEE,
+    ROLES.LAW_HEAD,
+    ROLES.LAW_EMPLOYEE,
     ROLES.CEO,
   ].includes(req.user.role);
 const getCanonicalProjectFromPayload = (payload = {}) =>

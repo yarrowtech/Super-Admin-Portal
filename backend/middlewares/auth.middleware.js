@@ -9,9 +9,25 @@ const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
 const { getRolePermissions } = require('../config/roles');
 
-const DEFAULT_MANAGER_PORTALS = new Set(['manager', 'admin', 'hr', 'it', 'law', 'employee']);
-const DEFAULT_IT_PORTALS = new Set(['it', 'admin', 'hr', 'law', 'employee', 'manager']);
+const DEFAULT_IT_MANAGER_PORTALS = new Set(['it', 'admin', 'hr', 'law']);
 const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);
+
+// Department-scoped roles no longer share a literal string with their portal
+// (e.g. role 'it_manager' vs portal 'it'), unlike the old flat roles. This maps
+// each new role to the portal it belongs to, for the same-role/portal fallback below.
+const DEPARTMENT_ROLE_PORTAL = {
+  it_manager: 'it',
+  it_admin: 'it',
+  it_employee: 'it',
+  it_hr: 'it',
+  finance_manager: 'finance',
+  finance_employee: 'finance',
+  media_head: 'media',
+  media_sales: 'media',
+  media_marketing: 'media',
+  law_head: 'law',
+  law_employee: 'law',
+};
 
 const normalizeProjectAssignments = (metadata = {}) => {
   const raw = metadata?.projectAssignments ?? metadata?.assignedProjects ?? [];
@@ -223,10 +239,7 @@ const authorizePortalAccess = (portal) => {
       }).select('canAccess');
 
       if (!rule && req.user.role === 'admin') return next();
-      if (!rule && req.user.role === 'manager' && DEFAULT_MANAGER_PORTALS.has(portal)) {
-        return next();
-      }
-      if (!rule && req.user.role === 'it' && DEFAULT_IT_PORTALS.has(portal)) {
+      if (!rule && req.user.role === 'it_manager' && DEFAULT_IT_MANAGER_PORTALS.has(portal)) {
         return next();
       }
       if (!rule && req.user.role === 'ceo' && DEFAULT_CEO_PORTALS.has(portal)) {
@@ -238,6 +251,7 @@ const authorizePortalAccess = (portal) => {
       // Fail-open for first-party same-role portal access when rule seeding is missing.
       // Explicit stored deny rules still take precedence.
       if (!rule && req.user.role === portal) return next();
+      if (!rule && DEPARTMENT_ROLE_PORTAL[req.user.role] === portal) return next();
       if (!rule) {
         return res.status(403).json({
           success: false,

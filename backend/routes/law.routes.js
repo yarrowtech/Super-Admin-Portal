@@ -13,7 +13,7 @@ const STRICT_PROJECT_NAMES = CANONICAL_PROJECT_NAMES;
 
 // All routes require authentication and LAW role
 router.use(authenticate);
-router.use(authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.IT));
+router.use(authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT_MANAGER));
 router.use(authorizePortalAccess('law'));
 router.use(attachOptionalProjectContext);
 router.use('/module', modularLawRoutes);

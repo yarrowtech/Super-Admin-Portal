@@ -4,22 +4,18 @@ const { ROLES } = require('../config/roles');
 
 const ROLE_TO_PORTAL = {
   [ROLES.HR]: 'hr',
-  [ROLES.MANAGER]: 'manager',
-  [ROLES.EMPLOYEE]: 'employee',
-  user: 'employee',
-  [ROLES.IT]: 'it',
+  [ROLES.IT_MANAGER]: 'it',
   [ROLES.IT_ADMIN]: 'it',
+  [ROLES.IT_EMPLOYEE]: 'it',
+  [ROLES.IT_HR]: 'it',
   [ROLES.CEO]: 'ceo',
-  [ROLES.LAW]: 'law',
-  [ROLES.LEGAL_HEAD]: 'law',
-  [ROLES.LSW]: 'law',
-  [ROLES.FINANCE]: 'finance',
+  [ROLES.LAW_HEAD]: 'law',
+  [ROLES.LAW_EMPLOYEE]: 'law',
   [ROLES.FINANCE_MANAGER]: 'finance',
-  [ROLES.ACCOUNTANT]: 'finance',
-  [ROLES.MEDIA]: 'media',
-  [ROLES.MEDIA_MANAGER]: 'media',
-  [ROLES.SALES]: 'sales',
-  [ROLES.RESEARCH_OPERATOR]: 'research',
+  [ROLES.FINANCE_EMPLOYEE]: 'finance',
+  [ROLES.MEDIA_HEAD]: 'media',
+  [ROLES.MEDIA_SALES]: 'media',
+  [ROLES.MEDIA_MARKETING]: 'media',
   [ROLES.FREELANCER]: 'outsourcing',
   [ROLES.ADMIN]: 'other',
   [ROLES.SUPER_ADMIN]: 'other',
@@ -28,7 +24,7 @@ const ROLE_TO_PORTAL = {
 
 const resolvePortal = (role) => ROLE_TO_PORTAL[role] || 'other';
 
-const ADMIN_ROLES = [ROLES.ADMIN, 'super_admin', 'superadmin', ROLES.IT];
+const ADMIN_ROLES = [ROLES.ADMIN, ROLES.SUPER_ADMIN, 'superadmin', ROLES.IT_MANAGER];
 
 // POST /api/portal-support/tickets
 exports.createTicket = async (req, res) => {

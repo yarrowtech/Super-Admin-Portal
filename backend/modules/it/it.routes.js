@@ -11,12 +11,10 @@ const router = express.Router();
 router.use(authenticate);
 router.use(
   authorize(
-    ROLES.IT,
+    ROLES.IT_MANAGER,
     ROLES.IT_ADMIN,
-    ROLES.SYSTEM_OPERATOR,
-    ROLES.SECURITY_ANALYST,
-    ROLES.DEVOPS_ENGINEER,
-    ROLES.EMPLOYEE,
+    ROLES.IT_EMPLOYEE,
+    ROLES.IT_HR,
     ROLES.ADMIN,
     ROLES.SUPER_ADMIN
   )
@@ -26,7 +24,7 @@ router.use(attachOptionalProjectContext);
 
 const canManageIt = (req, res, next) => {
   const role = String(req.user?.role || "").toLowerCase();
-  if (["it_admin", "it", "admin", "super_admin", "system_operator", "security_analyst", "devops_engineer"].includes(role)) return next();
+  if (["it_manager", "it_admin", "admin", "super_admin"].includes(role)) return next();
   return res.status(403).json({ success: false, error: "Insufficient role for IT management action" });
 };
 

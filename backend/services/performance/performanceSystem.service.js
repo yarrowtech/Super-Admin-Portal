@@ -74,7 +74,7 @@ const buildDateRange = ({ periodType, startDate, endDate }) => {
 
 const getEmployeeQuery = ({ department, search, employeeId }) => {
   const query = {
-    role: ROLES.EMPLOYEE,
+    role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] },
     isActive: true,
   };
 

@@ -5,7 +5,7 @@ const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { ROLES } = require('../config/roles');
 
 const ADMIN_ROLES = [
-  ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT, ROLES.IT_ADMIN,
+  ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT_MANAGER, ROLES.IT_ADMIN,
 ];
 
 router.use(authenticate);

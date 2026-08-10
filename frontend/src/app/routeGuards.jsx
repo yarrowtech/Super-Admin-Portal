@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { canAccessPortal, MEDIA_PORTAL_ROLES } from '../utils/rbac';
+import { canAccessPortal, IT_PORTAL_ROLES, FINANCE_PORTAL_ROLES, MEDIA_PORTAL_ROLES, LAW_PORTAL_ROLES } from '../utils/rbac';
 
 const normalizeOutsourcingType = (value) =>
   String(value || '')
@@ -13,12 +13,6 @@ const normalizeDepartment = (value) =>
     .trim()
     .toLowerCase()
     .replace(/[\s&-]+/g, '_');
-
-const hasProjectAssignments = (user) => {
-  const metadata = user?.metadata || {};
-  const assigned = metadata.projectAssignments ?? metadata.assignedProjects ?? user?.assignedProjects ?? [];
-  return Array.isArray(assigned) && assigned.length > 0;
-};
 
 export const defaultRolePath = (user) => {
   const role = user?.role;
@@ -48,34 +42,22 @@ export const defaultRolePath = (user) => {
       return '/admin/super-admin';
     case 'admin':
       return '/admin/dashboard';
-    case 'manager':
-      return '/manager/dashboard';
-    case 'it':
+    case 'it_manager':
+    case 'it_admin':
+    case 'it_employee':
+    case 'it_hr':
       return '/it/dashboard';
-    case 'law':
+    case 'law_head':
+    case 'law_employee':
       return '/law/dashboard';
-    case 'finance':
+    case 'finance_manager':
+    case 'finance_employee':
       return '/finance/dashboard';
-    case 'media':
+    case 'media_head':
+    case 'media_marketing':
       return '/media/dashboard';
-    case 'marketing_head':
-    case 'media_manager':
-    case 'content_writer':
-    case 'graphic_designer':
-    case 'video_editor':
-    case 'seo_specialist':
-    case 'social_media_manager':
-    case 'ads_manager':
-    case 'project_manager':
-    case 'department_head':
-    case 'client_viewer':
-      return '/media/dashboard';
-    case 'sales':
+    case 'media_sales':
       return '/media/sales/dashboard';
-    case 'research_operator':
-      return '/research/dashboard';
-    case 'employee':
-      return hasProjectAssignments(user) ? '/employee/projects' : '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';
@@ -148,7 +130,16 @@ export const OutsourcingRoute = ({ children }) => {
   return children;
 };
 
-export const allowRoleWithAdmin = (role) =>
-  role === 'media'
-    ? [...MEDIA_PORTAL_ROLES, 'admin', 'super_admin', 'superadmin']
+const DEPARTMENT_ROLE_GROUPS = {
+  it: IT_PORTAL_ROLES,
+  finance: FINANCE_PORTAL_ROLES,
+  media: MEDIA_PORTAL_ROLES,
+  law: LAW_PORTAL_ROLES,
+};
+
+export const allowRoleWithAdmin = (role) => {
+  const group = DEPARTMENT_ROLE_GROUPS[role];
+  return group
+    ? [...group, 'admin', 'super_admin', 'superadmin']
     : [role, 'admin', 'super_admin', 'superadmin'];
+};

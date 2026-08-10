@@ -9,7 +9,7 @@ const v = require("./law.validation");
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize(ROLES.LAW, ROLES.LEGAL_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.EMPLOYEE, ROLES.AUDITOR, ROLES.FINANCE, ROLES.FINANCE_MANAGER));
+router.use(authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE));
 router.use(authorizePortalAccess("law"));
 router.use(attachOptionalProjectContext);
 

@@ -7,54 +7,31 @@ export const PORTALS = {
   LAW: 'law',
   MEDIA: 'media',
   FINANCE: 'finance',
-  SALES: 'sales',
-  RESEARCH: 'research',
-  MANAGER: 'manager',
-  EMPLOYEE: 'employee',
   OUTSOURCING: 'outsourcing',
 };
 
-export const MEDIA_PORTAL_ROLES = [
-  'media',
-  'marketing_head',
-  'media_manager',
-  'content_writer',
-  'graphic_designer',
-  'video_editor',
-  'seo_specialist',
-  'social_media_manager',
-  'ads_manager',
-  'project_manager',
-  'department_head',
-  'client_viewer',
-  'sales',
-];
+export const IT_PORTAL_ROLES = ['it_manager', 'it_admin', 'it_employee', 'it_hr'];
+export const FINANCE_PORTAL_ROLES = ['finance_manager', 'finance_employee'];
+export const MEDIA_PORTAL_ROLES = ['media_head', 'media_sales', 'media_marketing'];
+export const LAW_PORTAL_ROLES = ['law_head', 'law_employee'];
 
 const baseRoleAccess = {
-  admin: [PORTALS.ADMIN, PORTALS.CEO, PORTALS.HR, PORTALS.IT, PORTALS.LAW, PORTALS.MEDIA, PORTALS.FINANCE, PORTALS.MANAGER, PORTALS.EMPLOYEE, PORTALS.OUTSOURCING],
+  admin: [PORTALS.ADMIN, PORTALS.CEO, PORTALS.HR, PORTALS.IT, PORTALS.LAW, PORTALS.MEDIA, PORTALS.FINANCE, PORTALS.OUTSOURCING],
   super_admin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
   superadmin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
   ceo: [PORTALS.CEO],
   hr: [PORTALS.HR],
-  it: [PORTALS.IT],
-  law: [PORTALS.LAW],
-  media: [PORTALS.MEDIA],
-  marketing_head: [PORTALS.MEDIA],
-  media_manager: [PORTALS.MEDIA],
-  content_writer: [PORTALS.MEDIA],
-  graphic_designer: [PORTALS.MEDIA],
-  video_editor: [PORTALS.MEDIA],
-  seo_specialist: [PORTALS.MEDIA],
-  social_media_manager: [PORTALS.MEDIA],
-  ads_manager: [PORTALS.MEDIA],
-  project_manager: [PORTALS.MEDIA],
-  department_head: [PORTALS.MEDIA],
-  client_viewer: [PORTALS.MEDIA],
-  finance: [PORTALS.FINANCE],
-  sales: [PORTALS.MEDIA, PORTALS.SALES],
-  research_operator: [PORTALS.RESEARCH],
-  manager: [PORTALS.MANAGER],
-  employee: [PORTALS.EMPLOYEE],
+  it_manager: [PORTALS.IT],
+  it_admin: [PORTALS.IT],
+  it_employee: [PORTALS.IT],
+  it_hr: [PORTALS.IT],
+  finance_manager: [PORTALS.FINANCE],
+  finance_employee: [PORTALS.FINANCE],
+  law_head: [PORTALS.LAW],
+  law_employee: [PORTALS.LAW],
+  media_head: [PORTALS.MEDIA],
+  media_sales: [PORTALS.MEDIA],
+  media_marketing: [PORTALS.MEDIA],
 };
 
 const normalizeOutsourcingType = (value) =>
@@ -90,9 +67,6 @@ export const canAccessPortal = (user, portal) => {
       type === 'freelancer' ||
       type === 'freelaner'
     );
-  }
-  if (portal === PORTALS.MEDIA) {
-    return MEDIA_PORTAL_ROLES.includes(role);
   }
   return false;
 };

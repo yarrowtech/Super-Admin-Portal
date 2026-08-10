@@ -113,7 +113,7 @@ const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
                 className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
                   active
                     ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                    : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
                 aria-label={collapsed ? item.label : undefined}
               >
@@ -152,7 +152,7 @@ const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
                 className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
                   active
                     ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                    : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
                 aria-label={collapsed ? item.label : undefined}
               >

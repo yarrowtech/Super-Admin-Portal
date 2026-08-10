@@ -14,7 +14,7 @@ const normalizeScope = ({ selectedIds, search }) => {
 
 const buildEmployeeQuery = ({ search, selectedIds }) => {
   const query = {
-    role: ROLES.EMPLOYEE,
+    role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] },
   };
 
   if (Array.isArray(selectedIds) && selectedIds.length > 0) {

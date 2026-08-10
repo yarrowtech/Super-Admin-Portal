@@ -112,8 +112,8 @@ exports.getDashboard = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(5)
         .lean(),
-      User.countDocuments({ role: ROLES.EMPLOYEE }),
-      User.countDocuments({ role: ROLES.MANAGER }),
+      User.countDocuments({ role: { $in: [ROLES.IT_EMPLOYEE, ROLES.FINANCE_EMPLOYEE, ROLES.LAW_EMPLOYEE, ROLES.FREELANCER] } }),
+      User.countDocuments({ role: { $in: [ROLES.IT_MANAGER, ROLES.FINANCE_MANAGER, ROLES.MEDIA_HEAD, ROLES.LAW_HEAD] } }),
       OutsourcingJob.countDocuments({ status: { $in: ['pending', 'accepted', 'in_progress'] } }),
       OutsourcingContract.countDocuments({ status: 'active' }),
       OutsourcingTimeLog.countDocuments({ verificationStatus: 'pending' })

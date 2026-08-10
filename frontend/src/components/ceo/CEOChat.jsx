@@ -1,9 +1,15 @@
 import React, { useCallback } from 'react';
-import EmployeeChat from '../employee/EmployeeChat';
+import PortalChat from '../common/PortalChat';
 import { ceoApi } from '../../services/ceo';
 
 const ceoQuickReplies = ['Approve', 'Review needed', 'Schedule meeting', 'Noted'];
-const allowedRoles = new Set(['admin', 'hr', 'manager', 'law', 'finance', 'it', 'media', 'sales', 'research_operator']);
+const allowedRoles = new Set([
+  'admin', 'hr',
+  'it_manager', 'it_admin', 'it_employee', 'it_hr',
+  'finance_manager', 'finance_employee',
+  'law_head', 'law_employee',
+  'media_head', 'media_sales', 'media_marketing',
+]);
 
 const extractCeoTeamMembers = (res = {}) => {
   const base =
@@ -39,7 +45,7 @@ const CEOChat = () => {
   );
 
   return (
-    <EmployeeChat
+    <PortalChat
       homePath="/ceo/dashboard"
       headerTitle="Executive Chat"
       storageKeyPrefix="ceo"

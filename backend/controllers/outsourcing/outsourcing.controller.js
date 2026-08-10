@@ -29,7 +29,7 @@ const PAYMENT_TYPES = ['hourly', 'daily', 'weekly', 'fixed'];
 const JOB_STATUSES = ['pending', 'accepted', 'in_progress', 'completed', 'rejected'];
 
 const isAdmin = (user) => user?.role === ADMIN_ROLE;
-const isOutsourcingCoordinator = (user) => [ROLES.HR, ROLES.MANAGER].includes(user?.role);
+const isOutsourcingCoordinator = (user) => [ROLES.HR].includes(user?.role);
 
 const canManageJob = (user, job) =>
   isAdmin(user) || (isOutsourcingCoordinator(user) && String(job?.createdBy) === String(user?._id));

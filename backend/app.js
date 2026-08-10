@@ -17,11 +17,9 @@ const env = require("./config/env");
 const corsConfig = require("./config/cors");
 const socketConfig = require("./config/socket");
 const constants = require("./config/constants");
-const { ROLES } = require("./config/roles");
 const routes = require("./routes");
 const requestLogger = require("./logger/requestLogger");
 const { ensureSuperAdminDefaults } = require("./utils/bootstrapSuperAdminData");
-const { buildManagerSnapshot } = require("./services/dashboard.service");
 const { startLawExpiryTracker } = require("./modules/law/law.cron");
 const { startRenderKeepAlive } = require("./jobs/renderKeepAlive");
 const { User } = require("./models/auth");
@@ -144,10 +142,9 @@ app.use("/api/law", routes.lawRoutes);
 app.use("/api/dept/media", routes.mediaRoutes);
 app.use("/api/dept/project-overview", routes.projectOverviewRoutes);
 app.use("/api/dept/sales", routes.salesRoutes);
-app.use("/api/dept/research", routes.researchRoutes);
-app.use("/api/dept/manager", routes.managerRoutes);
-app.use("/api/dept/employee", routes.employeeDeptRoutes);
-app.use("/api/employee", routes.employeePortalRoutes);
+// Research, Manager, and generic Employee portals were retired by the role/department
+// restructuring (SUPER ADMIN/CEO/HR + IT/FINANCE/MEDIA/LAW/OUTSOURCING). Route files are
+// left in place (unreachable, harmless) rather than deleted, for reversibility.
 app.use("/api", routes.projectAccessRoutes);
 app.use("/api/sso", routes.ssoRoutes);
 app.use("/api/external-auth", routes.externalAuthRoutes);
@@ -220,32 +217,6 @@ io.on("connection", async (socket) => {
     onlineUsers.set(uid, socket.id);
     io.emit("user_presence", { userId: uid, online: true });
   }
-  const managerIntervals = new Map();
-
-  const clearManagerInterval = (key) => {
-    if (!key) return;
-    const intervalId = managerIntervals.get(key);
-    if (intervalId) {
-      clearInterval(intervalId);
-      managerIntervals.delete(key);
-    }
-  };
-
-  const emitManagerSnapshot = async (managerId) => {
-    if (!managerId) return;
-    try {
-      const manager = await User.findById(managerId);
-      if (!manager || manager.role !== ROLES.MANAGER) {
-        socket.emit("manager:dashboard:error", { message: "Manager not authorized" });
-        return;
-      }
-      const snapshot = await buildManagerSnapshot(manager);
-      socket.emit("manager:dashboard", snapshot);
-    } catch (err) {
-      socket.emit("manager:dashboard:error", { message: err.message || "Failed to refresh manager data" });
-    }
-  };
-
   socket.on("joinThread", (threadId) => {
     if (threadId) socket.join(threadId);
   });
@@ -316,35 +287,6 @@ io.on("connection", async (socket) => {
     io.emit("user_presence", { userId: uid, online: true });
   });
 
-  socket.on("manager:subscribe", async (payload = {}) => {
-    const managerId = payload?.managerId || payload?.managerID || payload?.id;
-    if (!managerId) {
-      socket.emit("manager:dashboard:error", { message: "managerId is required" });
-      return;
-    }
-    if (!socket.data.userId || socket.data.role !== ROLES.MANAGER || socket.data.userId !== managerId.toString()) {
-      socket.emit("manager:dashboard:error", { message: "Manager not authorized" });
-      logger.warn(
-        { socketId: socket.id, requestId, managerId, userId: socket.data.userId || null, role: socket.data.role || null },
-        "Rejected unauthorized manager:subscribe"
-      );
-      return;
-    }
-    const key = managerId.toString();
-    clearManagerInterval(key);
-    await emitManagerSnapshot(managerId);
-    const intervalId = setInterval(() => emitManagerSnapshot(managerId), 15000);
-    managerIntervals.set(key, intervalId);
-    socket.join(`manager:${key}`);
-  });
-
-  socket.on("manager:unsubscribe", (payload = {}) => {
-    const managerId = payload?.managerId || payload?.managerID || payload?.id;
-    const key = managerId?.toString?.() || managerId;
-    clearManagerInterval(key);
-    if (key) socket.leave(`manager:${key}`);
-  });
-
   socket.on("hr:subscribe", () => {
     socket.join("hr");
   });
@@ -357,7 +299,7 @@ io.on("connection", async (socket) => {
   socket.on("outsourcing:subscribe", (payload = {}) => {
     const userId = payload?.userId || socket.data.userId;
     if (userId) socket.join(`outsourcing:user:${userId}`);
-    const adminRoles = ["admin", "hr", "manager", "finance", "law", "legal_head"];
+    const adminRoles = ["admin", "hr", "finance_manager", "finance_employee", "law_head", "law_employee"];
     if (adminRoles.includes(socket.data.role)) socket.join("outsourcing:admins");
   });
 
@@ -375,8 +317,6 @@ io.on("connection", async (socket) => {
         io.emit("user_presence", { userId: uid, online: false });
       }
     }
-    managerIntervals.forEach((intervalId) => clearInterval(intervalId));
-    managerIntervals.clear();
     logger.info({ socketId: socket.id, requestId }, "Socket disconnected");
   });
 });

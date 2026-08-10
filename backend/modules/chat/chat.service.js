@@ -3,7 +3,7 @@ const Message = require('../../models/common/Message');
 const User = require('../../models/auth/User');
 const { ROLES } = require('../../config/roles');
 
-const CEO_ALLOWED_TARGETS = new Set([ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.FINANCE]);
+const CEO_ALLOWED_TARGETS = new Set([ROLES.ADMIN, ROLES.HR, ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE, ROLES.IT_MANAGER, ROLES.LAW_HEAD, ROLES.MEDIA_HEAD]);
 
 const toId = (v) => v?.toString?.() || String(v || '');
 

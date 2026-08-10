@@ -207,7 +207,10 @@ exports.getAllUsers = async (req, res) => {
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
     const safePage = Math.max(parseInt(page, 10) || 1, 1);
 
-    if (role) query.role = role;
+    if (role) {
+      const roleList = String(role).split(',').map((r) => r.trim()).filter(Boolean);
+      query.role = roleList.length > 1 ? { $in: roleList } : roleList[0];
+    }
     if (isActive !== undefined) query.isActive = isActive === 'true';
     if (accountStatus) query.accountStatus = accountStatus;
     if (department) query.department = { $regex: department, $options: 'i' };

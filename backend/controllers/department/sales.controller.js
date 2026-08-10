@@ -14,7 +14,7 @@ const invalidateSalesQueryCaches = () => Promise.all([
 ]);
 
 const isAdmin = (req) => req.user?.role === ROLES.ADMIN;
-const isSales = (req) => req.user?.role === ROLES.SALES;
+const isSales = (req) => req.user?.role === ROLES.MEDIA_SALES;
 const normalizeProjectCode = (value) => String(value || '').trim().toUpperCase();
 
 const DEFAULT_QUESTIONS = [

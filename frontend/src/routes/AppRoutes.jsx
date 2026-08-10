@@ -2,7 +2,6 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
   LoginPage,
-  ManagerLoginPage,
   NotFoundPage,
   AdminDashboardPage,
   SuperAdminControlCenterPage,
@@ -27,25 +26,6 @@ import {
   RecruitmentPage,
   PerformancePage,
   CommunicationPage,
-  ManagerDashboardPage,
-  ManagerProductsPage,
-  ManagerTeamPage,
-  ManagerReportsPage,
-  ManagerChatPage,
-  ManagerWorkBoardPage,
-  ManagerLeavePage,
-  ManagerTasksPage,
-  ManagerOutsourcingPage,
-  ManagerRecruitmentPage,
-  EmployeeDashboardPage,
-  EmployeeProjectsPage,
-  EmployeeTasksPage,
-  EmployeeLeavePage,
-  EmployeeDocumentsPage,
-  EmployeeTeamPage,
-  EmployeeChatPage,
-  EmployeeProfilePage,
-  EmployeeJobBoardPage,
   HRProfilesPage,
   OutsourcingDashboardPage,
   OutsourcingJobsPage,
@@ -103,10 +83,6 @@ import {
   FinanceSupportPage,
   HRSettingsPage,
   HRSupportPage,
-  ManagerSettingsPage,
-  ManagerSupportPage,
-  EmployeeSettingsPage,
-  EmployeeSupportPage,
   AdminSupportCenterPage,
   AdminSettingsPage,
   OutsourcingProjectsPage,
@@ -117,14 +93,11 @@ import {
 import {
   AdminLayout,
   CEOPortalLayout,
-  EmployeeLayout,
   FinanceLayout,
   HRLayout,
   ITLayout,
   LawLayout,
-  ManagerLayout,
   OutsourcingLayout,
-  ResearchLayout,
 } from '../layouts/portals';
 import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
@@ -233,17 +206,6 @@ export default function AppRoutes() {
             )
           }
         />
-        <Route
-          path="/manager/login"
-          element={
-            user ? (
-              <Navigate to={defaultRolePath(user)} replace />
-            ) : (
-              <ManagerLoginPage />
-            )
-          }
-        />
-
         <Route
           path="/hr"
           element={
@@ -399,7 +361,7 @@ export default function AppRoutes() {
         <Route
           path="/sales/dashboard"
           element={
-            <PrivateRoute roles={allow('sales')}>
+            <PrivateRoute roles={allow('media_sales')}>
               <Navigate to="/media/sales/dashboard" replace />
             </PrivateRoute>
           }
@@ -408,7 +370,7 @@ export default function AppRoutes() {
           path="/media/sales/dashboard"
           element={
             <PortalRoute portal={PORTALS.MEDIA}>
-              <PrivateRoute roles={allow('sales')}>
+              <PrivateRoute roles={allow('media_sales')}>
                 <SalesDashboardPage />
               </PrivateRoute>
             </PortalRoute>
@@ -418,7 +380,7 @@ export default function AppRoutes() {
           path="/media/sales/query"
           element={
             <PortalRoute portal={PORTALS.MEDIA}>
-              <PrivateRoute roles={allow('sales')}>
+              <PrivateRoute roles={allow('media_sales')}>
                 <SalesQueryPage />
               </PrivateRoute>
             </PortalRoute>
@@ -428,7 +390,7 @@ export default function AppRoutes() {
           path="/media/sales/submission"
           element={
             <PortalRoute portal={PORTALS.MEDIA}>
-              <PrivateRoute roles={allow('sales')}>
+              <PrivateRoute roles={allow('media_sales')}>
                 <SalesSubmissionPage />
               </PrivateRoute>
             </PortalRoute>
@@ -438,27 +400,8 @@ export default function AppRoutes() {
           path="/media/sales/project-overview"
           element={
             <PortalRoute portal={PORTALS.MEDIA}>
-              <PrivateRoute roles={allow('sales')}>
+              <PrivateRoute roles={allow('media_sales')}>
                 <SalesProjectOverviewPage />
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-
-        <Route
-          path="/research"
-          element={
-            <PrivateRoute roles={allow('research_operator')}>
-              <Navigate to="/research/dashboard" replace />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/research/*"
-          element={
-            <PortalRoute portal={PORTALS.RESEARCH}>
-              <PrivateRoute roles={allow('research_operator')}>
-                <ResearchLayout />
               </PrivateRoute>
             </PortalRoute>
           }
@@ -702,268 +645,6 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.CEO}>
               <PrivateRoute roles={allow('ceo')}>
                 <CEOPortalLayout />
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-
-        <Route
-          path="/manager/dashboard"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerDashboardPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/work-board"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerWorkBoardPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/project-overview"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {React.createElement(ManagerLayout, null, <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/products"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerProductsPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/tasks"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerTasksPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/team"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerTeamPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/reports"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerReportsPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/leave"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerLeavePage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/outsourcing"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerOutsourcingPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/recruitment"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerRecruitmentPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/chat"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerChatPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/settings"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerSettingsPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/support"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={allow('manager')}>
-                {withPortal(ManagerLayout, ManagerSupportPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-
-        <Route
-          path="/employee"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeDashboardPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/dashboard"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeDashboardPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/projects"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeProjectsPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/project-overview"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {React.createElement(EmployeeLayout, null, <ProjectOverviewPage portalKey="employee" portalName="Employee Portal" />)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/tasks"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeTasksPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/leave"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeLeavePage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/documents"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeDocumentsPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/team"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeTeamPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/chat"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeChatPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/profile"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeProfilePage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/jobs"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeJobBoardPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/settings"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeSettingsPage)}
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/employee/support"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={allow('employee')}>
-                {withPortal(EmployeeLayout, EmployeeSupportPage)}
               </PrivateRoute>
             </PortalRoute>
           }

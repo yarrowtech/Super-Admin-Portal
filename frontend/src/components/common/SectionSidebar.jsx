@@ -141,7 +141,7 @@ const SectionSidebar = ({
                       ? 'bg-[var(--portal-accent)] text-white shadow-sm'
                     : hasChildren && isOpen
                       ? 'border border-[var(--portal-accent)]/20 bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
-                      : 'border border-transparent text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                      : 'border border-transparent text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                   } ${collapsed ? 'justify-center px-0' : ''}`}
                   aria-label={collapsed ? item.label : undefined}
                   aria-expanded={hasChildren ? isOpen : undefined}
@@ -207,7 +207,7 @@ const SectionSidebar = ({
                               className={`relative flex w-full items-center gap-2 rounded-lg py-2 pl-2.5 pr-2 text-[13px] font-medium transition-all ${
                                 childActive
                                   ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                                  : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/70'
+                                  : 'text-neutral-500 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                               }`}
                             >
                               {childActive && (

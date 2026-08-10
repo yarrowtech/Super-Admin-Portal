@@ -8,13 +8,13 @@ const modularFinanceRoutes = require('../modules/finance/finance.routes');
 
 // All routes require authentication and finance/admin role
 router.use(authenticate);
-router.use(authorize(ROLES.FINANCE, ROLES.ADMIN, ROLES.CEO, ROLES.HR, 'super_admin', 'finance_manager', 'accountant', 'auditor'));
+router.use(authorize(ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO, ROLES.HR));
 router.use(authorizePortalAccess('finance'));
 router.use('/module', modularFinanceRoutes);
 
 const canWriteFinance = (req, res, next) => {
   const role = String(req.user?.role || '').toLowerCase();
-  const readonly = new Set(['auditor', ROLES.CEO]);
+  const readonly = new Set([ROLES.CEO]);
   if (readonly.has(role)) {
     return res.status(403).json({ success: false, error: 'Read-only role for finance operations' });
   }

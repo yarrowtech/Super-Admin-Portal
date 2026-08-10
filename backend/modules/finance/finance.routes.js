@@ -7,22 +7,14 @@ const controller = require("./finance.controller");
 const v = require("./finance.validation");
 
 const router = express.Router();
-const canWriteFinance = (req, res, next) => {
-  const role = String(req.user?.role || "").toLowerCase();
-  if (["auditor", "employee"].includes(role)) return res.status(403).json({ success: false, error: "Read-only role for this finance action" });
-  return next();
-};
+const canWriteFinance = (req, res, next) => next();
 
 router.use(authenticate);
 router.use(
   authorize(
-    ROLES.FINANCE,
     ROLES.FINANCE_MANAGER,
-    ROLES.ACCOUNTANT,
-    ROLES.AUDITOR,
-    ROLES.EMPLOYEE,
+    ROLES.FINANCE_EMPLOYEE,
     ROLES.HR,
-    ROLES.MANAGER,
     ROLES.ADMIN,
     ROLES.SUPER_ADMIN,
     ROLES.CEO
@@ -34,7 +26,7 @@ router.use(attachOptionalProjectContext);
 router.get("/overview", requireProjectContext, controller.getOverview);
 const canDecideFinance = (req, res, next) => {
   const role = String(req.user?.role || "").toLowerCase();
-  if (["manager", "finance_manager", "admin", "super_admin"].includes(role)) return next();
+  if (["finance_manager", "admin", "super_admin"].includes(role)) return next();
   return res.status(403).json({ success: false, error: "Role cannot decide finance approvals" });
 };
 const canTriggerPayroll = (req, res, next) => {

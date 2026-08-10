@@ -42,22 +42,44 @@ const UserDataTable = ({
     return aVal.toString().localeCompare(bVal.toString()) * modifier;
   }), [sortBy, sortOrder, users]);
 
-  const getRoleIcon = (role) => {
-    const iconMap = {
-      admin: 'shield_person',
-      ceo: 'business_center',
-      it: 'computer',
-      law: 'gavel',
-      hr: 'badge',
-      media: 'photo_camera',
-      finance: 'payments',
-      manager: 'supervisor_account',
-      sales: 'trending_up',
-      research_operator: 'science',
-      employee: 'person',
-    };
-    return iconMap[role] || 'person';
+  const ROLE_ICONS = {
+    admin: 'shield_person',
+    ceo: 'business_center',
+    hr: 'badge',
+    it_manager: 'computer',
+    it_admin: 'admin_panel_settings',
+    it_employee: 'computer',
+    it_hr: 'badge',
+    finance_manager: 'payments',
+    finance_employee: 'payments',
+    media_head: 'photo_camera',
+    media_sales: 'trending_up',
+    media_marketing: 'campaign',
+    law_head: 'gavel',
+    law_employee: 'gavel',
+    freelancer: 'person',
+    employee: 'person',
   };
+  const getRoleIcon = (role) => ROLE_ICONS[role] || 'person';
+
+  const ROLE_LABELS = {
+    admin: 'Super Admin',
+    ceo: 'CEO',
+    hr: 'HR',
+    it_manager: 'IT Manager',
+    it_admin: 'IT Admin',
+    it_employee: 'IT Employee',
+    it_hr: 'IT HR',
+    finance_manager: 'Finance Manager',
+    finance_employee: 'Finance Employee',
+    media_head: 'Media Head',
+    media_sales: 'Media Sales',
+    media_marketing: 'Media Marketing',
+    law_head: 'Law Head',
+    law_employee: 'Law Employee',
+    freelancer: 'Freelancer',
+  };
+  const getRoleLabel = (role) => ROLE_LABELS[role] || role?.replace(/_/g, ' ') || 'N/A';
 
   const isLegacyEmployee = (role) => String(role || '').trim().toLowerCase() === 'employee';
 
@@ -235,8 +257,8 @@ const UserDataTable = ({
                         <span className="material-symbols-outlined text-lg text-neutral-500">
                           {getRoleIcon(user.role)}
                         </span>
-                        <span className={`capitalize font-medium ${legacyEmployee ? 'text-amber-700 dark:text-amber-300' : 'text-neutral-700 dark:text-neutral-300'}`}>
-                          {legacyEmployee ? 'Legacy Employee' : (user.role?.replace('_', ' ') || 'N/A')}
+                        <span className={`font-medium ${legacyEmployee ? 'text-amber-700 dark:text-amber-300' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                          {legacyEmployee ? 'Legacy Employee' : getRoleLabel(user.role)}
                         </span>
                       </div>
                     </td>
@@ -380,9 +402,9 @@ const UserDataTable = ({
                       </div>
                       <p className="text-sm text-neutral-500 dark:text-neutral-400 truncate mb-2">{user.email}</p>
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-xs font-semibold capitalize">
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-xs font-semibold">
                           <span className="material-symbols-outlined text-sm">{getRoleIcon(user.role)}</span>
-                          {legacyEmployee ? 'Legacy Employee' : (user.role?.replace('_', ' ') || 'N/A')}
+                          {legacyEmployee ? 'Legacy Employee' : getRoleLabel(user.role)}
                         </span>
                         {user.department && (
                           <span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">

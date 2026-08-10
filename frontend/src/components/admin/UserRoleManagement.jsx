@@ -29,6 +29,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, inactiveUsers: 0 });
+  const [usersByRole, setUsersByRole] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState({ search: '', role: '', isActive: '', accountStatus: '' });
@@ -56,7 +57,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
           accountStatus: filters.accountStatus || undefined,
           search: filters.search || undefined,
         }),
-        userApi.getDashboard(token),
+        userApi.getDashboard(token, { forceRefresh: true }),
       ]);
 
       if (usersResult.status === 'rejected') {
@@ -75,6 +76,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
         activeUsers: dashboard.activeUsers ?? fetchedUsers.filter((u) => u.isActive).length,
         inactiveUsers: dashboard.inactiveUsers ?? fetchedUsers.filter((u) => !u.isActive).length,
       });
+      setUsersByRole(Array.isArray(dashboard.usersByRole) ? dashboard.usersByRole : []);
       setTotalPages(payload.totalPages || 1);
 
       if (fetchedUsers.length > 0) {
@@ -105,12 +107,11 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
   }, [filters.search, filters.role, filters.isActive, filters.accountStatus]);
 
   const roleCounts = useMemo(() => {
-    return users.reduce((acc, user) => {
-      const role = user.role || 'unknown';
-      acc[role] = (acc[role] || 0) + 1;
+    return usersByRole.reduce((acc, entry) => {
+      if (entry?._id) acc[entry._id] = entry.count || 0;
       return acc;
     }, {});
-  }, [users]);
+  }, [usersByRole]);
 
   const hasLegacyEmployeeUsers = useMemo(
     () => users.some((user) => String(user?.role || '').toLowerCase() === 'employee'),
@@ -138,7 +139,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       lastName: targetUser.lastName || '',
       email: targetUser.email || '',
       password: '',
-      role: targetUser.role || 'employee',
+      role: targetUser.role || '',
       department: targetUser.department || '',
       phone: targetUser.phone || '',
       accountStatus: targetUser.accountStatus || (targetUser.isActive ? 'active' : 'inactive'),
@@ -229,7 +230,13 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       }
 
       closeModal();
-      fetchUsers();
+      // Clear filters so the just-saved user (whatever its role/status) is
+      // guaranteed to be visible instead of silently hidden by whatever
+      // filter happened to be active before the save. This also triggers a
+      // fresh fetchUsers() via the filters-driven effect below — no need to
+      // call it explicitly, since doing so here would still use the stale
+      // (pre-update) filters closure.
+      setFilters({ search: '', role: '', isActive: '', accountStatus: '' });
     } catch (err) {
       setFormError(err.message || 'Unable to save user');
     } finally {

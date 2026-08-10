@@ -7,7 +7,7 @@ const controller = require('../controllers/outsourcing/edifyEightTeacher.control
 const materialController = require('../controllers/outsourcing/edifyEightStudyMaterial.controller');
 
 const router = express.Router();
-const allowedRoles = [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.FREELANCER];
+const allowedRoles = [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.HR, ROLES.FREELANCER];
 
 router.use(authenticate);
 router.use(authorize(...allowedRoles));

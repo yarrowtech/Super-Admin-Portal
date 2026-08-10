@@ -7,7 +7,15 @@ const { updateProfileValidation, validate } = require('../middlewares/validate.m
 const { ROLES } = require('../config/roles');
 
 router.use(authenticate);
-router.use(authorize(ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.FINANCE, ROLES.IT, ROLES.LAW, ROLES.MEDIA, ROLES.SALES, ROLES.RESEARCH_OPERATOR, ROLES.ADMIN, ROLES.CEO));
+router.use(authorize(
+  ROLES.HR,
+  ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR,
+  ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE,
+  ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE,
+  ROLES.MEDIA_HEAD, ROLES.MEDIA_SALES, ROLES.MEDIA_MARKETING,
+  ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO,
+  ROLES.FREELANCER
+));
 
 router.get('/me', authController.getMe);
 router.patch('/update', updateProfileValidation, validate, authController.updateProfile);

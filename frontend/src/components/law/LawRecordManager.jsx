@@ -98,134 +98,193 @@ const LawRecordManager = ({
     }));
   };
 
+  const fieldClass = 'h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100';
+  const labelClass = 'mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300';
+
   return (
     <section className={`grid grid-cols-1 gap-6 ${compact ? '' : 'lg:grid-cols-[380px,1fr]'}`}>
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"
+        className="h-fit rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
       >
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-bold text-neutral-900 dark:text-white">
-            {editingId ? 'Edit Record' : 'Add Record'}
-          </h2>
+        <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <span className="material-symbols-outlined text-[18px]">{editingId ? 'edit_note' : 'add_circle'}</span>
+            </div>
+            <h2 className="font-bold text-neutral-900 dark:text-white">
+              {editingId ? 'Edit Record' : 'Add Record'}
+            </h2>
+          </div>
           {editingId && (
-            <button type="button" onClick={resetForm} className="text-sm font-semibold text-primary">
+            <button type="button" onClick={resetForm} className="text-sm font-semibold text-primary hover:underline">
               New
             </button>
           )}
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="space-y-4 p-5">
           {recordTypes.length > 0 && (
-            <select
-              value={form.recordType}
-              onChange={(event) => setForm((prev) => ({ ...prev, recordType: event.target.value }))}
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-              required
-            >
-              <option value="">{labels.recordType || 'Select legal work type'}</option>
-              {recordTypes.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-          )}
-          <input
-            required
-            value={form.title}
-            onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-            placeholder={labels.title || 'Record title'}
-          />
-          <textarea
-            value={form.description}
-            onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-            placeholder={labels.description || 'Description'}
-            rows={3}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={form.status}
-              onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
-              className="rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-            >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-            <select
-              value={form.priority}
-              onChange={(event) => setForm((prev) => ({ ...prev, priority: event.target.value }))}
-              className="rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-            >
-              {priorityOptions.map((priority) => (
-                <option key={priority} value={priority}>{priority}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={form.owner}
-              onChange={(event) => setForm((prev) => ({ ...prev, owner: event.target.value }))}
-              className="rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-              placeholder={labels.owner || 'Owner'}
-            />
-            <input
-              type="date"
-              value={form.dueDate}
-              onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))}
-              className="rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-            />
-          </div>
-          <input
-            value={form.referenceNumber}
-            onChange={(event) => setForm((prev) => ({ ...prev, referenceNumber: event.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-            placeholder={labels.referenceNumber || 'Reference number'}
-          />
-          {metadataFields.length > 0 && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {metadataFields.map((field) => (
-                <input
-                  key={field.name}
-                  type={field.type || 'text'}
-                  value={form.metadata?.[field.name] || ''}
-                  onChange={(event) => updateMetadata(field.name, event.target.value)}
-                  className="rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-                  placeholder={field.placeholder || field.label}
-                />
-              ))}
+            <div>
+              <label className={labelClass}>{labels.recordType || 'Record type'} <span className="text-rose-500">*</span></label>
+              <select
+                value={form.recordType}
+                onChange={(event) => setForm((prev) => ({ ...prev, recordType: event.target.value }))}
+                className={fieldClass}
+                required
+              >
+                <option value="">Select {(labels.recordType || 'type').toLowerCase()}</option>
+                {recordTypes.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
             </div>
           )}
+
           <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-              Reference PDFs {editingId ? '(optional on edit)' : '(required)'}
-            </label>
+            <label className={labelClass}>{labels.title || 'Title'} <span className="text-rose-500">*</span></label>
             <input
-              type="file"
-              accept="application/pdf"
-              multiple
-              onChange={(event) => setReferenceFiles(Array.from(event.target.files || []))}
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-              required={!editingId}
+              required
+              value={form.title}
+              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+              className={fieldClass}
+              placeholder={labels.title || 'Record title'}
             />
-            {referenceFiles.length > 0 && (
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{referenceFiles.length} file(s) selected</p>
-            )}
           </div>
-          <textarea
-            value={form.notes}
-            onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-            placeholder={labels.notes || 'Notes'}
-            rows={2}
-          />
-          {submitError ? <p className="text-xs text-red-600 dark:text-red-300">{submitError}</p> : null}
+
+          <div>
+            <label className={labelClass}>{labels.description || 'Description'}</label>
+            <textarea
+              value={form.description}
+              onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+              className={`${fieldClass} h-auto resize-none py-2.5`}
+              placeholder={labels.description || 'Description'}
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Status</label>
+              <select
+                value={form.status}
+                onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
+                className={fieldClass}
+              >
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Priority</label>
+              <select
+                value={form.priority}
+                onChange={(event) => setForm((prev) => ({ ...prev, priority: event.target.value }))}
+                className={fieldClass}
+              >
+                {priorityOptions.map((priority) => (
+                  <option key={priority} value={priority}>{priority}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>{labels.owner || 'Owner'}</label>
+              <input
+                value={form.owner}
+                onChange={(event) => setForm((prev) => ({ ...prev, owner: event.target.value }))}
+                className={fieldClass}
+                placeholder={labels.owner || 'Owner'}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Due date</label>
+              <input
+                type="date"
+                value={form.dueDate}
+                onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>{labels.referenceNumber || 'Reference number'}</label>
+            <input
+              value={form.referenceNumber}
+              onChange={(event) => setForm((prev) => ({ ...prev, referenceNumber: event.target.value }))}
+              className={fieldClass}
+              placeholder={labels.referenceNumber || 'Reference number'}
+            />
+          </div>
+
+          {metadataFields.length > 0 && (
+            <div className="border-t border-neutral-100 pt-4 dark:border-neutral-800">
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">Additional details</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {metadataFields.map((field) => (
+                  <div key={field.name}>
+                    <label className={labelClass}>{field.label}</label>
+                    <input
+                      type={field.type || 'text'}
+                      value={form.metadata?.[field.name] || ''}
+                      onChange={(event) => updateMetadata(field.name, event.target.value)}
+                      className={fieldClass}
+                      placeholder={field.placeholder || field.label}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className={labelClass}>
+              Reference PDFs {editingId ? '(optional on edit)' : <span className="text-rose-500">*</span>}
+            </label>
+            <label className="relative flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 px-4 py-5 text-center transition hover:border-primary/50 hover:bg-primary/5 dark:border-neutral-700 dark:bg-neutral-950">
+              <input
+                type="file"
+                accept="application/pdf"
+                multiple
+                onChange={(event) => setReferenceFiles(Array.from(event.target.files || []))}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                required={!editingId}
+              />
+              <span className="material-symbols-outlined text-[22px] text-neutral-400">upload_file</span>
+              <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                {referenceFiles.length > 0 ? `${referenceFiles.length} file(s) selected` : 'Click to upload PDF(s)'}
+              </span>
+              <span className="text-[11px] text-neutral-400">PDF only, multiple files allowed</span>
+            </label>
+          </div>
+
+          <div>
+            <label className={labelClass}>{labels.notes || 'Notes'}</label>
+            <textarea
+              value={form.notes}
+              onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
+              className={`${fieldClass} h-auto resize-none py-2.5`}
+              placeholder={labels.notes || 'Notes'}
+              rows={2}
+            />
+          </div>
+
+          {submitError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-200">
+              {submitError}
+            </div>
+          ) : null}
+
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
+            {saving && <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>}
             {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create Record'}
           </button>
         </div>

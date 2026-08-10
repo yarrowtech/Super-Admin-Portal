@@ -394,7 +394,7 @@ exports.register = async (req, res) => {
 
     // Update last login
     user.lastLogin = new Date();
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     await writeAuthActivity(req, 'auth.registered', user);
 
     res.status(201).json({
@@ -451,7 +451,7 @@ exports.login = async (req, res) => {
 
     // Update last login
   user.lastLogin = new Date();
-  await user.save();
+  await user.save({ validateModifiedOnly: true });
 
   // Generate tokens
   const sessionJti = crypto.randomUUID();
@@ -550,7 +550,7 @@ exports.outsourcingLogin = async (req, res) => {
     }
 
     user.lastLogin = new Date();
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     const sessionJti = crypto.randomUUID();
     const token = generateToken(user, { jti: sessionJti });
@@ -841,7 +841,7 @@ exports.updateProfile = async (req, res) => {
       };
     }
 
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     await setCache(getProfileCacheKey(req.user.id), null, 1);
     await writeAuthActivity(req, 'auth.profile_updated', user, {
       updatedFields: Object.keys(req.body || {})
@@ -929,7 +929,7 @@ exports.uploadResume = async (req, res) => {
         viewsCount: Number(metadata?.profileMeta?.viewsCount || 0),
       },
     };
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     await setCache(getProfileCacheKey(req.user.id), null, 1);
 
     return res.status(200).json({
@@ -981,7 +981,7 @@ exports.uploadAvatar = async (req, res) => {
         viewsCount: Number(metadata?.profileMeta?.viewsCount || 0),
       }
     };
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     await setCache(getProfileCacheKey(req.user.id), null, 1);
 
     return res.status(200).json({

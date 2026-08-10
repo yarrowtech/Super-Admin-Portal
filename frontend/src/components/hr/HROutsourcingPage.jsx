@@ -11,13 +11,21 @@ const STATUS_STYLES = {
   cancelled:   'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
 };
 
-const LAW_STATUS_STYLES = {
+const PRIORITY_STYLES = {
+  low:    'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  medium: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+  high:   'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
+};
+
+const CONTRACT_STATUS_STYLES = {
   pending:   'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
   validated: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200',
   rejected:  'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
 };
 
-const TABS = ['Overview', 'Jobs', 'Freelancers', 'Time Logs'];
+const TABS = ['Assign Work', 'Track Progress'];
+
+const emptyJob = { title: '', description: '', priority: 'medium', dueDate: '', budgetAmount: '', assignedFreelancer: '' };
 
 export default function HROutsourcingPage() {
   const { token } = useAuth();
@@ -28,13 +36,16 @@ export default function HROutsourcingPage() {
   const [freelancers, setFreelancers] = useState([]);
   const [timeLogs, setTimeLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyJob);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  const safeFetch = useCallback(async (url) => {
+  const safeFetch = useCallback(async (url, options) => {
     try {
-      const res = await apiClient.get(url, token);
+      const res = await apiClient.get(url, token, options);
       return res;
     } catch (err) {
-      // Silently ignore 403 — backend may need a restart to pick up new role permissions
       if (err?.status === 403 || err?.message?.toLowerCase().includes('access denied') || err?.message?.toLowerCase().includes('forbidden')) {
         return null;
       }
@@ -48,7 +59,7 @@ export default function HROutsourcingPage() {
     try {
       const [jobsRes, freelancersRes, logsRes] = await Promise.all([
         safeFetch('/api/outsourcing/jobs'),
-        safeFetch('/api/outsourcing/users'),
+        safeFetch('/api/outsourcing/users', { forceRefresh: true }),
         safeFetch('/api/outsourcing/time-logs'),
       ]);
       setJobs(jobsRes?.data?.jobs || jobsRes?.data || []);
@@ -63,44 +74,91 @@ export default function HROutsourcingPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleVerifyTimeLog = async (logId) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    if (!form.title.trim()) { setFormError('Title is required'); return; }
+    if (!form.description.trim()) { setFormError('Description is required'); return; }
+    if (!form.dueDate) { setFormError('Due date is required'); return; }
+    setSaving(true);
     try {
-      await apiClient.put(`/api/outsourcing/time-logs/${logId}/verify`, {}, token);
-      toast?.success?.('Time log verified');
+      await apiClient.post('/api/outsourcing/jobs', {
+        title: form.title,
+        description: form.description,
+        priority: form.priority,
+        dueDate: form.dueDate,
+        budgetAmount: Number(form.budgetAmount) || 0,
+        assignedFreelancerId: form.assignedFreelancer || undefined,
+      }, token);
+      toast?.success?.('Job created successfully');
+      setForm(emptyJob);
+      setShowForm(false);
       loadData();
     } catch (err) {
-      toast?.error?.(err?.message || 'Failed to verify time log');
+      setFormError(err?.message || 'Failed to create job');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssign = async (jobId, freelancerId) => {
+    if (!freelancerId) return;
+    try {
+      await apiClient.put(`/api/outsourcing/jobs/${jobId}/assign`, { freelancerId }, token);
+      toast?.success?.('Freelancer assigned');
+      loadData();
+    } catch (err) {
+      toast?.error?.(err?.message || 'Failed to assign freelancer');
+    }
+  };
+
+  const handleVerifyTimeLog = async (logId, status) => {
+    try {
+      await apiClient.put(`/api/outsourcing/time-logs/${logId}/verify`, { status }, token);
+      toast?.success?.(status === 'approved' ? 'Time log approved' : 'Time log rejected');
+      loadData();
+    } catch (err) {
+      toast?.error?.(err?.message || 'Failed to review time log');
     }
   };
 
   const stats = {
-    totalFreelancers: freelancers.length,
-    activeJobs: jobs.filter(j => ['accepted', 'in_progress'].includes(j.status)).length,
-    completedJobs: jobs.filter(j => j.status === 'completed').length,
-    pendingContracts: jobs.filter(j => j.contract?.lawStatus === 'pending').length,
-    unverifiedLogs: timeLogs.filter(l => !l.verified).length,
+    total: jobs.length,
+    inProgress: jobs.filter(j => j.status === 'in_progress').length,
+    completed: jobs.filter(j => j.status === 'completed').length,
+    pending: jobs.filter(j => j.status === 'pending').length,
   };
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 p-4 md:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Outsourcing Tracking</h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">Monitor freelancer assignments, contracts, and work logs</p>
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">HR Outsourcing</h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Assign freelancer work and track your assignments</p>
+        </div>
+        {tab === 0 && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            Assign New Work
+          </button>
+        )}
       </div>
 
       {/* KPI strip */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: 'Freelancers', value: stats.totalFreelancers,  icon: 'person',          color: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Active Jobs', value: stats.activeJobs,        icon: 'pending_actions', color: 'text-amber-600 dark:text-amber-400' },
-          { label: 'Completed',   value: stats.completedJobs,     icon: 'task_alt',        color: 'text-green-600 dark:text-green-400' },
-          { label: 'Law Pending', value: stats.pendingContracts,  icon: 'gavel',           color: 'text-rose-600 dark:text-rose-400' },
-          { label: 'Unverified Logs', value: stats.unverifiedLogs, icon: 'timer',          color: 'text-violet-600 dark:text-violet-400' },
+          { label: 'Total Jobs', value: stats.total, icon: 'work', color: 'text-blue-600 dark:text-blue-400' },
+          { label: 'In Progress', value: stats.inProgress, icon: 'pending_actions', color: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Completed', value: stats.completed, icon: 'task_alt', color: 'text-green-600 dark:text-green-400' },
+          { label: 'Pending', value: stats.pending, icon: 'schedule', color: 'text-slate-600 dark:text-slate-400' },
         ].map(s => (
           <div key={s.label} className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`material-symbols-outlined text-[18px] ${s.color}`}>{s.icon}</span>
+              <span className={`material-symbols-outlined text-[20px] ${s.color}`}>{s.icon}</span>
               <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{s.label}</span>
             </div>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -109,12 +167,12 @@ export default function HROutsourcingPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900 w-fit">
+      <div className="mb-4 flex gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900 w-fit">
         {TABS.map((t, i) => (
           <button
             key={t}
             onClick={() => setTab(i)}
-            className={`shrink-0 rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === i
                 ? 'bg-primary text-white shadow-sm'
                 : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
@@ -125,205 +183,297 @@ export default function HROutsourcingPage() {
         ))}
       </div>
 
+      {/* Create Job Modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Assign New Work</h2>
+              <button onClick={() => { setShowForm(false); setFormError(''); }} className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Job Title *</label>
+                <input
+                  className="w-full rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="e.g. Design landing page"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Description *</label>
+                <textarea
+                  rows={3}
+                  className="w-full rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Detailed description of the work..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Priority</label>
+                  <select
+                    className="w-full rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                    value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Budget (₹)</label>
+                  <input
+                    type="number" min="0"
+                    className="w-full rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                    value={form.budgetAmount} onChange={e => setForm(f => ({ ...f, budgetAmount: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Freelancer</label>
+                <select
+                  className="w-full rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  value={form.assignedFreelancer}
+                  onChange={e => setForm(f => ({ ...f, assignedFreelancer: e.target.value }))}
+                >
+                  <option value="">Create unassigned</option>
+                  {freelancers.length === 0 && <option value="" disabled>No freelancers available</option>}
+                  {freelancers.map(f => (
+                    <option key={f._id} value={f.user?._id || f._id}>
+                      {f.user?.firstName || f.firstName} {f.user?.lastName || f.lastName} ({f.user?.email || f.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Due Date *</label>
+                <input
+                  type="date"
+                  className="w-full rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                />
+              </div>
+              {formError && <p className="text-xs text-rose-600">{formError}</p>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => { setShowForm(false); setFormError(''); }}
+                  className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60">
+                  {saving ? 'Creating...' : 'Create Job'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tab content */}
       {loading ? (
         <div className="flex items-center justify-center py-20 text-neutral-400">
           <span className="material-symbols-outlined animate-spin text-3xl">progress_activity</span>
         </div>
+      ) : tab === 0 ? (
+        /* ── ASSIGN WORK TAB ── */
+        <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+            <h2 className="font-semibold text-neutral-900 dark:text-neutral-100 text-sm">All Jobs</h2>
+          </div>
+          {jobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
+              <span className="material-symbols-outlined text-4xl mb-2">work_off</span>
+              <p className="text-sm">No jobs yet. Create one to assign work.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {jobs.map(job => (
+                <div key={job._id} className="p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-neutral-900 dark:text-neutral-100 text-sm truncate">{job.title}</p>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[job.status] || STATUS_STYLES.pending}`}>
+                          {job.status?.replace('_', ' ')}
+                        </span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${PRIORITY_STYLES[job.priority] || PRIORITY_STYLES.medium}`}>
+                          {job.priority}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{job.description}</p>
+                      <div className="mt-2 flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+                        {job.dueDate && <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">calendar_today</span>{new Date(job.dueDate).toLocaleDateString('en-IN')}</span>}
+                        {job.budgetAmount > 0 && <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">currency_rupee</span>{job.budgetAmount.toLocaleString('en-IN')}</span>}
+                      </div>
+                    </div>
+                    {/* Assign freelancer */}
+                    {!job.assignedFreelancer && job.status === 'pending' && (
+                      <div className="shrink-0 mt-2 sm:mt-0">
+                        <select
+                          onChange={e => handleAssign(job._id, e.target.value)}
+                          defaultValue=""
+                          className="rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-xs focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                        >
+                          <option value="" disabled>Assign Freelancer</option>
+                          {freelancers.length === 0 && <option value="" disabled>No freelancers available</option>}
+                          {freelancers.map(f => (
+                            <option key={f._id} value={f.user?._id || f._id}>
+                              {f.user?.firstName || f.firstName} {f.user?.lastName || f.lastName} ({f.user?.email || f.email})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {job.assignedFreelancer && (
+                      <div className="shrink-0 mt-2 sm:mt-0 text-right">
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">Assigned to</p>
+                        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                          {job.assignedFreelancer?.firstName || job.assignedFreelancer?.user?.firstName || '—'}{' '}
+                          {job.assignedFreelancer?.lastName || job.assignedFreelancer?.user?.lastName || ''}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
-        <>
-          {/* OVERVIEW */}
-          {tab === 0 && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-                <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-                  <h2 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">Workflow Status</h2>
-                </div>
-                <div className="p-4 space-y-3">
-                  {/* Step-by-step flow */}
-                  {[
-                    { step: 1, role: 'HR / Manager', action: 'Assigns work to freelancer', icon: 'assignment_ind', count: jobs.filter(j => j.status === 'pending').length, label: 'pending jobs' },
-                    { step: 2, role: 'Law',           action: 'Creates & validates contract', icon: 'gavel',        count: stats.pendingContracts, label: 'awaiting law validation' },
-                    { step: 3, role: 'Freelancer',    action: 'Accepts job & starts work',   icon: 'work',         count: jobs.filter(j => j.acceptanceStatus === 'pending').length, label: 'awaiting acceptance' },
-                    { step: 4, role: 'HR / Manager',  action: 'Reviews task completion',     icon: 'fact_check',   count: stats.unverifiedLogs, label: 'time logs to verify' },
-                    { step: 5, role: 'Admin',         action: 'Full oversight & payments',   icon: 'admin_panel_settings', count: null, label: '' },
-                    { step: 6, role: 'CEO',           action: 'Analytics & progress view',   icon: 'analytics',    count: null, label: '' },
-                  ].map((s, idx, arr) => (
-                    <div key={s.step} className="flex items-start gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                          <span className="material-symbols-outlined text-[18px]">{s.icon}</span>
-                        </div>
-                        {idx < arr.length - 1 && <div className="mt-1 w-0.5 h-6 bg-neutral-200 dark:bg-neutral-700" />}
-                      </div>
-                      <div className="pb-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-primary">Step {s.step} — {s.role}</span>
-                          {s.count !== null && s.count > 0 && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                              {s.count} {s.label}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{s.action}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+        /* ── TRACK PROGRESS TAB ── */
+        <div className="space-y-4">
+          {/* Active jobs progress */}
+          <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+              <h2 className="font-semibold text-neutral-900 dark:text-neutral-100 text-sm">Job Progress</h2>
             </div>
-          )}
-
-          {/* JOBS */}
-          {tab === 1 && (
-            <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-                <h2 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">All Outsourcing Jobs</h2>
+            {jobs.filter(j => ['accepted', 'in_progress'].includes(j.status)).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
+                <span className="material-symbols-outlined text-4xl mb-2">pending_actions</span>
+                <p className="text-sm">No active jobs in progress.</p>
               </div>
-              {jobs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
-                  <span className="material-symbols-outlined text-4xl mb-2">work_off</span>
-                  <p className="text-sm">No jobs yet.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                  {jobs.map(job => (
-                    <div key={job._id} className="p-4">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{job.title}</p>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[job.status] || STATUS_STYLES.pending}`}>
-                              {job.status?.replace('_', ' ')}
-                            </span>
-                          </div>
-                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                            Freelancer: {job.assignedFreelancer?.firstName || job.assignedFreelancer?.user?.firstName || 'Unassigned'}
-                            {' '}{job.assignedFreelancer?.lastName || job.assignedFreelancer?.user?.lastName || ''}
-                          </p>
-                        </div>
-                        {/* Contract law status badge */}
-                        <div className="flex items-center gap-2 mt-1 sm:mt-0">
-                          <span className="text-xs text-neutral-500 dark:text-neutral-400">Agreement:</span>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${LAW_STATUS_STYLES[job.contract?.lawStatus] || LAW_STATUS_STYLES.pending}`}>
-                            {job.contract?.lawStatus ? `Law ${job.contract.lawStatus}` : 'No contract'}
+            ) : (
+              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {jobs.filter(j => ['accepted', 'in_progress'].includes(j.status)).map(job => (
+                  <div key={job._id} className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-neutral-900 dark:text-neutral-100 text-sm">{job.title}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                          Freelancer: {job.assignedFreelancer?.firstName || job.assignedFreelancer?.user?.firstName || 'Unassigned'}
+                          {' '}{job.assignedFreelancer?.lastName || job.assignedFreelancer?.user?.lastName || ''}
+                        </p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[job.status]}`}>
+                        {job.status?.replace('_', ' ')}
+                      </span>
+                    </div>
+                    {/* Contract law status */}
+                    {job.contract && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-xs text-neutral-500 dark:text-neutral-400">Agreement:</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONTRACT_STATUS_STYLES[job.contract?.lawStatus] || CONTRACT_STATUS_STYLES.pending}`}>
+                          Law {job.contract?.lawStatus || 'pending'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent time logs */}
+          <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+              <h2 className="font-semibold text-neutral-900 dark:text-neutral-100 text-sm">Recent Time Logs</h2>
+            </div>
+            {timeLogs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
+                <span className="material-symbols-outlined text-4xl mb-2">timer_off</span>
+                <p className="text-sm">No time logs recorded yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-100 dark:border-neutral-800">
+                      <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Freelancer</th>
+                      <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Job</th>
+                      <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hours</th>
+                      <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Date</th>
+                      <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Status</th>
+                      <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {timeLogs.slice(0, 20).map(log => (
+                      <tr key={log._id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                        <td className="p-3 text-neutral-700 dark:text-neutral-300">
+                          {log.freelancer?.firstName || '—'} {log.freelancer?.lastName || ''}
+                        </td>
+                        <td className="p-3 text-neutral-700 dark:text-neutral-300">{log.job?.title || '—'}</td>
+                        <td className="p-3 font-medium text-neutral-900 dark:text-neutral-100">{log.hours ?? '—'}h</td>
+                        <td className="p-3 text-neutral-500 dark:text-neutral-400">
+                          {log.logDate ? new Date(log.logDate).toLocaleDateString('en-IN') : '—'}
+                        </td>
+                        <td className="p-3">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            log.verificationStatus === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : log.verificationStatus === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          }`}>
+                            {log.verificationStatus || 'pending'}
                           </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* FREELANCERS */}
-          {tab === 2 && (
-            <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-                <h2 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">Registered Freelancers</h2>
-              </div>
-              {freelancers.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
-                  <span className="material-symbols-outlined text-4xl mb-2">person_off</span>
-                  <p className="text-sm">No freelancers registered.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                  {freelancers.map(f => (
-                    <div key={f._id} className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                          {(f.user?.firstName || f.firstName || '?')[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                            {f.user?.firstName || f.firstName} {f.user?.lastName || f.lastName}
-                          </p>
-                          <p className="text-xs text-neutral-500 dark:text-neutral-400">{f.user?.email || f.contactEmail || '—'}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          f.lawValidated
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                        }`}>
-                          {f.lawValidated ? 'Law Validated' : 'Law Pending'}
-                        </span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[f.status] || STATUS_STYLES.pending}`}>
-                          {f.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TIME LOGS */}
-          {tab === 3 && (
-            <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-                <h2 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">Time Logs</h2>
-              </div>
-              {timeLogs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
-                  <span className="material-symbols-outlined text-4xl mb-2">timer_off</span>
-                  <p className="text-sm">No time logs recorded.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-neutral-100 dark:border-neutral-800">
-                        <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Freelancer</th>
-                        <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Job</th>
-                        <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hours</th>
-                        <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Date</th>
-                        <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Status</th>
-                        <th className="p-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400">Action</th>
+                        </td>
+                        <td className="p-3">
+                          {(log.verificationStatus || 'pending') === 'pending' && (
+                            <div className="flex gap-2">
+                              <button onClick={() => handleVerifyTimeLog(log._id, 'approved')} className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700">Approve</button>
+                              <button onClick={() => handleVerifyTimeLog(log._id, 'rejected')} className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/30">Reject</button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                      {timeLogs.map(log => (
-                        <tr key={log._id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                          <td className="p-3 text-neutral-700 dark:text-neutral-300">
-                            {log.freelancer?.firstName || '—'} {log.freelancer?.lastName || ''}
-                          </td>
-                          <td className="p-3 text-neutral-700 dark:text-neutral-300">{log.job?.title || '—'}</td>
-                          <td className="p-3 font-medium text-neutral-900 dark:text-neutral-100">{log.hours ?? '—'}h</td>
-                          <td className="p-3 text-neutral-500 dark:text-neutral-400">
-                            {log.date ? new Date(log.date).toLocaleDateString('en-IN') : '—'}
-                          </td>
-                          <td className="p-3">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              log.verified
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                            }`}>
-                              {log.verified ? 'Verified' : 'Pending'}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            {!log.verified && (
-                              <button
-                                onClick={() => handleVerifyTimeLog(log._id)}
-                                className="rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 transition-colors"
-                              >
-                                Verify
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Completed jobs */}
+          <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+              <h2 className="font-semibold text-neutral-900 dark:text-neutral-100 text-sm">Completed Work</h2>
             </div>
-          )}
-        </>
+            {jobs.filter(j => j.status === 'completed').length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-neutral-400">
+                <span className="material-symbols-outlined text-4xl mb-2">task_alt</span>
+                <p className="text-sm">No completed jobs yet.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {jobs.filter(j => j.status === 'completed').map(job => (
+                  <div key={job._id} className="flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{job.title}</p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        {job.assignedFreelancer?.firstName || job.assignedFreelancer?.user?.firstName || '—'}
+                        {' '}{job.assignedFreelancer?.lastName || job.assignedFreelancer?.user?.lastName || ''}
+                      </p>
+                    </div>
+                    <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                      Completed
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

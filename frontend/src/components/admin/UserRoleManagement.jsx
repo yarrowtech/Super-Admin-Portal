@@ -6,6 +6,7 @@ import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
 import StatsCard from '../common/StatsCard';
+import FilterDrawer from '../common/FilterDrawer';
 import UserFilterSidebar from './users/UserFilterSidebar';
 import UserFormModal from './users/UserFormModal';
 import UserDataTable from './users/UserDataTable';
@@ -535,40 +536,20 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
           </div>
       </div>
 
-      {filtersOpen && (
-        <div className="fixed inset-0 z-40 min-[1200px]:hidden" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setFiltersOpen(false)}
-            aria-label="Close filters"
-          />
-          <div className="absolute inset-y-0 right-0 flex w-[min(24rem,90vw)] flex-col border-l border-neutral-200 bg-neutral-50 shadow-2xl dark:border-neutral-800 dark:bg-neutral-950">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-              <div>
-                <p className="text-base font-bold text-neutral-900 dark:text-neutral-100">Filters</p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Refine user directory</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-600 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                aria-label="Close filters"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3">
-              <UserFilterSidebar
-                filters={filters}
-                setFilters={setFilters}
-                stats={stats}
-                roleCounts={roleCounts}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filters"
+        subtitle="Refine user directory"
+        hiddenAbove="min-[1200px]:hidden"
+      >
+        <UserFilterSidebar
+          filters={filters}
+          setFilters={setFilters}
+          stats={stats}
+          roleCounts={roleCounts}
+        />
+      </FilterDrawer>
 
       {/* Form Modal */}
       <UserFormModal

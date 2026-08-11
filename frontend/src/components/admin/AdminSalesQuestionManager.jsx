@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { departmentApi } from '../../services/departments';
 import { CANONICAL_PROJECTS } from '../../config/projectNames';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 
 const emptyDraft = () => ({ question: '', options: ['', ''] });
 
@@ -75,6 +76,7 @@ const QuestionEditor = ({ initial, onSave, onCancel, saving }) => {
 };
 
 const AdminSalesQuestionManager = ({ token }) => {
+  const { confirm } = useConfirmDialog();
   const [activeProject, setActiveProject] = useState(CANONICAL_PROJECTS[0]);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +143,13 @@ const AdminSalesQuestionManager = ({ token }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this question? Existing submissions keep their recorded answer.')) return;
+    const shouldProceed = await confirm({
+      title: 'Delete question?',
+      message: 'Existing submissions keep their recorded answer.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!shouldProceed) return;
     setDeletingId(id);
     try {
       await departmentApi.deleteSalesQuestion(token, id);

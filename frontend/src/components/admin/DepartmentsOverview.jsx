@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/admin';
+import PortalHeader from '../common/PortalHeader';
+import Button from '../common/Button';
 
 const departments = [
   {
@@ -92,47 +94,49 @@ const DepartmentsOverview = () => {
   }, [query, rows]);
 
   return (
-    <main className="flex-1 overflow-y-auto p-4 md:p-5">
-      <div className="mx-auto w-full max-w-[1500px]">
-        <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-black leading-tight tracking-[-0.02em] text-neutral-800 dark:text-neutral-100 lg:text-4xl">
-              Departments Overview
-            </h1>
-            <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-              Manage all company departments from this central hub.
-            </p>
+    <main className="portal-page">
+      <div className="portal-page-inner">
+        <PortalHeader
+          title="Departments Overview"
+          subtitle="Manage all company departments from this central hub"
+          icon="corporate_fare"
+          showSearch={false}
+          showNotifications={false}
+          showThemeToggle={false}
+        >
+          <div className="relative w-full min-[560px]:w-72">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-neutral-400">search</span>
+            <input
+              className="app-input pl-10 pr-9"
+              placeholder="Search departments..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-red-600 dark:hover:bg-neutral-700"
+                aria-label="Clear search"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            )}
           </div>
-          <div className="flex flex-grow items-center justify-end gap-3 md:flex-grow-0">
-            <div className="w-full max-w-sm">
-              <label className="flex h-12 flex-col">
-                <div className="flex h-full items-stretch rounded-xl">
-                  <div className="flex items-center justify-center rounded-l-xl border border-r-0 border-neutral-200 bg-white pl-4 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
-                    <span className="material-symbols-outlined">search</span>
-                  </div>
-                  <input
-                    className="flex w-full flex-1 rounded-r-xl border border-l-0 border-neutral-200 bg-white px-4 text-sm text-neutral-800 placeholder:text-neutral-500 focus:border-primary focus:outline-0 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100"
-                    placeholder="Search departments..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
-                </div>
-              </label>
-            </div>
-            <button className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-primary"></span>
-            </button>
-            <div
-              className="h-12 w-12 rounded-xl bg-cover bg-center"
-              style={{
-                backgroundImage:
-                  'url("https://lh3.googleusercontent.com/aida-public/AB6AXuDVludAUrmd8sd8fXodvEVKKlS_rxSh9WQfkfNba-0OlGwx8KvAgXeCL0TXiPbQ3hm98HdSKwBJv2zyIsnXSth4L_q4IK2rr2JDEoY7pFMJlHzKe6rZlXhBdw5IwvLlqnekZkv4mYGqlg26WMdVo8VkbjXyHRqNv6MDeyxFAb6Zs_OXXd8U6pr-IpgWmJe5qqWLgCfxPEFKaLQGO3Tj2sEtgt-UIsHh1LaaCd6AJKUecI7kABzmneS_sN-hkod2T3q2fKv8LytplLIB")',
-              }}
-            ></div>
-          </div>
-        </header>
+        </PortalHeader>
 
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-neutral-200 bg-white py-20 text-center dark:border-neutral-800 dark:bg-neutral-900">
+            <span className="material-symbols-outlined mb-3 text-5xl text-neutral-300 dark:text-neutral-600">corporate_fare</span>
+            <h3 className="mb-1 text-base font-semibold text-neutral-700 dark:text-neutral-300">No departments found</h3>
+            <p className="mb-4 max-w-xs text-sm text-neutral-500 dark:text-neutral-400">
+              Try a different search term.
+            </p>
+            <Button variant="secondary" size="sm" onClick={() => setQuery('')} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
+              Clear search
+            </Button>
+          </div>
+        ) : (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((department) => (
             <button
@@ -180,6 +184,7 @@ const DepartmentsOverview = () => {
             </button>
           ))}
         </section>
+        )}
       </div>
     </main>
   );

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Button from '../../common/Button';
+import IconButton from '../../common/IconButton';
+import StatusBadge from '../../common/StatusBadge';
 import { getRoleIcon, getRoleLabel } from './userDirectoryMeta';
 
 const UserDataTable = ({
@@ -260,16 +262,16 @@ const UserDataTable = ({
                       </div>
                     </td>
                     <td className="p-3">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        user.accountStatus === 'active'
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : user.accountStatus === 'blocked' || user.accountStatus === 'suspended'
-                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                            : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                      }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${user.accountStatus === 'active' ? 'bg-green-600' : 'bg-orange-600'}`}></span>
-                        {(user.accountStatus || (user.isActive ? 'active' : 'inactive')).replace('_', ' ')}
-                      </span>
+                      <StatusBadge
+                        tone={
+                          user.accountStatus === 'active'
+                            ? 'success'
+                            : user.accountStatus === 'blocked' || user.accountStatus === 'suspended'
+                              ? 'danger'
+                              : 'warning'
+                        }
+                        label={(user.accountStatus || (user.isActive ? 'active' : 'inactive')).replace(/_/g, ' ')}
+                      />
                     </td>
                     <td className="p-3">
                       <span className="text-neutral-700 dark:text-neutral-300">
@@ -283,76 +285,48 @@ const UserDataTable = ({
                     </td>
                     <td className="p-3">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
+                        <IconButton
+                          icon="edit"
+                          tone="primary"
+                          tooltip="Edit user"
+                          disabled={legacyEmployee}
                           onClick={(e) => {
                             e.stopPropagation();
                             onEditUser(user);
                           }}
-                          disabled={legacyEmployee}
-                          className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                          title="Edit user"
-                        >
-                          <span className="material-symbols-outlined text-lg">edit</span>
-                        </button>
-                        <button
-                          type="button"
+                        />
+                        <IconButton
+                          icon={user.accountStatus === 'blocked' ? 'lock_open' : 'block'}
+                          tone="danger"
+                          tooltip={user.accountStatus === 'blocked' ? 'Unblock user' : 'Block user'}
+                          disabled={legacyEmployee || actionState.togglingId === userId}
                           onClick={(e) => {
                             e.stopPropagation();
                             onSetStatus?.(user, user.accountStatus === 'blocked' ? 'active' : 'blocked');
                           }}
+                        />
+                        <IconButton
+                          icon={user.isActive ? 'pause_circle' : 'play_circle'}
+                          tone={user.isActive ? 'warning' : 'success'}
+                          tooltip={user.isActive ? 'Deactivate user' : 'Activate user'}
                           disabled={legacyEmployee || actionState.togglingId === userId}
-                          className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
-                          title={user.accountStatus === 'blocked' ? 'Unblock user' : 'Block user'}
-                        >
-                          <span className="material-symbols-outlined text-lg">
-                            {user.accountStatus === 'blocked' ? 'lock_open' : 'block'}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
+                          loading={actionState.togglingId === userId}
                           onClick={(e) => {
                             e.stopPropagation();
                             onToggleStatus(user);
                           }}
-                          disabled={legacyEmployee || actionState.togglingId === userId}
-                          className={`flex h-11 w-11 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${
-                            user.isActive
-                              ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/30'
-                              : 'text-green-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/30'
-                          } disabled:opacity-50`}
-                          title={user.isActive ? 'Deactivate user' : 'Activate user'}
-                        >
-                          {actionState.togglingId === userId ? (
-                            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="currentColor">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                              <path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                            </svg>
-                          ) : (
-                            <span className="material-symbols-outlined text-lg">
-                              {user.isActive ? 'pause_circle' : 'play_circle'}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          type="button"
+                        />
+                        <IconButton
+                          icon="delete"
+                          tone="danger"
+                          tooltip="Delete user"
+                          disabled={legacyEmployee || actionState.deletingId === userId}
+                          loading={actionState.deletingId === userId}
                           onClick={(e) => {
                             e.stopPropagation();
                             onDeleteUser(user);
                           }}
-                          disabled={legacyEmployee || actionState.deletingId === userId}
-                          className="flex h-11 w-11 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
-                          title="Delete user"
-                        >
-                          {actionState.deletingId === userId ? (
-                            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="currentColor">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                              <path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                            </svg>
-                          ) : (
-                            <span className="material-symbols-outlined text-lg">delete</span>
-                          )}
-                        </button>
+                        />
                       </div>
                     </td>
                   </tr>
@@ -414,80 +388,48 @@ const UserDataTable = ({
                   
                   {/* Quick Actions */}
                   <div className="mt-3 flex items-center justify-end gap-1 border-t border-neutral-100 pt-3 dark:border-neutral-800 md:absolute md:right-3 md:top-3 md:mt-0 md:border-0 md:pt-0 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
-                    <button
-                      type="button"
+                    <IconButton
+                      icon="edit"
+                      tone="primary"
+                      tooltip={`Edit ${fullName}`}
+                      disabled={legacyEmployee}
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditUser(user);
                       }}
-                      disabled={legacyEmployee}
-                      className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 dark:hover:bg-blue-900/30"
-                      title="Edit user"
-                      aria-label={`Edit ${fullName}`}
-                    >
-                      <span className="material-symbols-outlined text-lg">edit</span>
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <IconButton
+                      icon={user.accountStatus === 'blocked' ? 'lock_open' : 'block'}
+                      tone="danger"
+                      tooltip={user.accountStatus === 'blocked' ? `Unblock ${fullName}` : `Block ${fullName}`}
+                      disabled={legacyEmployee || actionState.togglingId === userId}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSetStatus?.(user, user.accountStatus === 'blocked' ? 'active' : 'blocked');
                       }}
+                    />
+                    <IconButton
+                      icon={user.isActive ? 'pause_circle' : 'play_circle'}
+                      tone={user.isActive ? 'warning' : 'success'}
+                      tooltip={user.isActive ? `Deactivate ${fullName}` : `Activate ${fullName}`}
                       disabled={legacyEmployee || actionState.togglingId === userId}
-                      className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
-                      title={user.accountStatus === 'blocked' ? 'Unblock user' : 'Block user'}
-                      aria-label={user.accountStatus === 'blocked' ? `Unblock ${fullName}` : `Block ${fullName}`}
-                    >
-                      <span className="material-symbols-outlined text-lg">
-                        {user.accountStatus === 'blocked' ? 'lock_open' : 'block'}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
+                      loading={actionState.togglingId === userId}
                       onClick={(e) => {
                         e.stopPropagation();
                         onToggleStatus(user);
                       }}
-                      disabled={legacyEmployee || actionState.togglingId === userId}
-                      className={`flex h-11 w-11 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 ${
-                        user.isActive
-                          ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/30'
-                          : 'text-green-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/30'
-                      }`}
-                      title={user.isActive ? 'Deactivate user' : 'Activate user'}
-                      aria-label={user.isActive ? `Deactivate ${fullName}` : `Activate ${fullName}`}
-                    >
-                      {actionState.togglingId === userId ? (
-                        <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="currentColor">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                          <path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                      ) : (
-                        <span className="material-symbols-outlined text-lg">
-                          {user.isActive ? 'pause_circle' : 'play_circle'}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <IconButton
+                      icon="delete"
+                      tone="danger"
+                      tooltip={`Delete ${fullName}`}
+                      disabled={legacyEmployee || actionState.deletingId === userId}
+                      loading={actionState.deletingId === userId}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteUser(user);
                       }}
-                      disabled={legacyEmployee || actionState.deletingId === userId}
-                      className="flex h-11 w-11 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
-                      title="Delete user"
-                      aria-label={`Delete ${fullName}`}
-                    >
-                      {actionState.deletingId === userId ? (
-                        <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="currentColor">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                          <path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                      ) : (
-                        <span className="material-symbols-outlined text-lg">delete</span>
-                      )}
-                    </button>
+                    />
                   </div>
                 </div>
               );

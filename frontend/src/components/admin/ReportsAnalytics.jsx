@@ -1,60 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/admin';
+import { useToast } from '../../context/ToastContext';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import Button from '../common/Button';
 
-// ─── Design Tokens ────────────────────────────────────────────────────────────
-const Card = ({ children, className = '' }) => (
-  <section className={`rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 ${className}`}>
-    {children}
-  </section>
-);
-
-const Inner = ({ children, className = '' }) => (
-  <div className={`p-5 lg:p-6 ${className}`}>{children}</div>
-);
-
-const PageHdr = ({ title, subtitle, icon, action }) => (
-  <header className="mb-6 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-    <div className="h-1 w-full bg-indigo-600" />
-    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 shadow-sm">
-          <span className="material-symbols-outlined text-[20px] text-white">{icon}</span>
-        </div>
-        <div>
-          <h1 className="text-[17px] font-black leading-tight text-neutral-900 dark:text-neutral-100">{title}</h1>
-          {subtitle && <p className="text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
-        </div>
-      </div>
-      {action && <div className="shrink-0 flex items-center gap-2">{action}</div>}
-    </div>
-  </header>
-);
-
-const StatCard = ({ icon, label, value, sub, color = 'bg-indigo-600' }) => (
-  <Card>
-    <Inner className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{label}</p>
-        <span className={`material-symbols-outlined rounded-xl p-2 text-[18px] text-white ${color}`}>{icon}</span>
-      </div>
-      <p className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">{value}</p>
-      {sub && <span className="text-xs text-neutral-400">{sub}</span>}
-    </Inner>
-  </Card>
-);
-
-const statusStyle = {
-  Completed:  'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700',
-  Processing: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-700',
-  Failed:     'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-700',
-};
-
-const StatusPill = ({ status }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${statusStyle[status] || statusStyle.Processing}`}>
-    {status}
-  </span>
-);
+const STATUS_TONE = { Completed: 'success', Processing: 'warning', Failed: 'danger' };
 
 const formatDate = (d) =>
   d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -143,8 +96,8 @@ const GenerateReportModal = ({ form, setForm, departmentOptions, reportTypeOptio
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
     <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-neutral-900">
       <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
-        <h2 className="text-sm font-black text-neutral-900 dark:text-neutral-100">Generate Report</h2>
-        <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Generate Report</h2>
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Close">
           <span className="material-symbols-outlined text-neutral-400">close</span>
         </button>
       </div>
@@ -157,7 +110,7 @@ const GenerateReportModal = ({ form, setForm, departmentOptions, reportTypeOptio
             value={form.name}
             onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
             placeholder="e.g. Q2 Financial Summary"
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+            className="app-input"
           />
         </div>
 
@@ -166,7 +119,7 @@ const GenerateReportModal = ({ form, setForm, departmentOptions, reportTypeOptio
           <select
             value={form.reportType}
             onChange={(e) => setForm((prev) => ({ ...prev, reportType: e.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+            className="app-input"
           >
             {reportTypeOptions.map((t) => <option key={t}>{t}</option>)}
           </select>
@@ -177,7 +130,7 @@ const GenerateReportModal = ({ form, setForm, departmentOptions, reportTypeOptio
           <select
             value={form.department}
             onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+            className="app-input"
           >
             {departmentOptions.map((d) => <option key={d}>{d}</option>)}
           </select>
@@ -188,31 +141,26 @@ const GenerateReportModal = ({ form, setForm, departmentOptions, reportTypeOptio
           <select
             value={form.status}
             onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-950"
+            className="app-input"
           >
             {['Processing', 'Completed', 'Failed'].map((s) => <option key={s}>{s}</option>)}
           </select>
         </div>
 
         {error && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/10 dark:text-rose-300">
             {error}
           </div>
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-neutral-200 px-5 py-3 dark:border-neutral-800">
-        <button type="button" onClick={onClose} className="rounded-lg border border-neutral-200 px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300">
+      <div className="grid grid-cols-2 gap-3 border-t border-neutral-200 px-5 py-3 dark:border-neutral-800">
+        <Button variant="secondary" size="md" fullWidth onClick={onClose} disabled={saving}>
           Cancel
-        </button>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={onSave}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? 'Generating...' : 'Generate'}
-        </button>
+        </Button>
+        <Button variant="primary" size="md" fullWidth loading={saving} onClick={onSave}>
+          Generate
+        </Button>
       </div>
     </div>
   </div>
@@ -220,6 +168,7 @@ const GenerateReportModal = ({ form, setForm, departmentOptions, reportTypeOptio
 
 const ReportsAnalytics = () => {
   const { token } = useAuth();
+  const toast = useToast();
 
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
@@ -297,11 +246,13 @@ const ReportsAnalytics = () => {
   const handleExportAll = () => {
     if (customReports.length === 0) return;
     downloadCsv(buildReportsCsv(customReports), `reports-${new Date().toISOString().slice(0, 10)}.csv`);
+    toast.success('Reports exported.');
   };
 
   const handleDownloadOne = (r) => {
     const safeName = (r.name || 'report').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     downloadCsv(buildReportsCsv([r]), `${safeName}.csv`);
+    toast.success(`"${r.name}" downloaded.`);
   };
 
   const openGenerateModal = (prefillType) => {
@@ -321,6 +272,7 @@ const ReportsAnalytics = () => {
       await adminApi.createCustomReport(token, generateForm);
       setGenerateOpen(false);
       fetchReports(appliedFilters);
+      toast.success(`"${generateForm.name}" report generated.`);
     } catch (err) {
       setGenerateError(err?.message || 'Failed to generate report.');
     } finally {
@@ -333,51 +285,41 @@ const ReportsAnalytics = () => {
   const completionRate = stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0;
 
   return (
-    <main className="flex-1 overflow-y-auto bg-neutral-50 p-4 dark:bg-neutral-950 md:p-6">
-      <div className="mx-auto w-full max-w-350">
+    <main className="portal-page">
+      <div className="portal-page-inner">
 
-        <PageHdr
-          icon="bar_chart_4_bars"
+        <PortalHeader
           title="Reports & Analytics"
-          subtitle="Generate, schedule, and download reports across all departments."
-          action={
-            <>
-              <button
-                onClick={handleExportAll}
-                disabled={customReports.length === 0}
-                className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50 transition disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
-              >
-                <span className="material-symbols-outlined text-[16px]">download</span>
-                Export
-              </button>
-              <button
-                onClick={() => openGenerateModal()}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition"
-              >
-                <span className="material-symbols-outlined text-[16px]">add</span>
-                Generate Report
-              </button>
-            </>
-          }
-        />
+          subtitle="Generate, schedule, and download reports across all departments"
+          icon="bar_chart_4_bars"
+          showSearch={false}
+          showNotifications={false}
+          showThemeToggle={false}
+        >
+          <Button variant="secondary" size="md" className="min-h-11" onClick={handleExportAll} disabled={customReports.length === 0} icon={<span className="material-symbols-outlined text-lg">download</span>}>
+            Export
+          </Button>
+          <Button variant="primary" size="md" className="min-h-11" onClick={() => openGenerateModal()} icon={<span className="material-symbols-outlined text-lg">add</span>}>
+            Generate Report
+          </Button>
+        </PortalHeader>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
             {error}
           </div>
         )}
 
         {/* KPI Row */}
-        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard icon="description"   label="Total Reports"    value={stats.totalCount}      sub="Matching current filters" color="bg-indigo-600" />
-          <StatCard icon="schedule_send" label="Generated Today"  value={stats.generatedToday}  sub="Since midnight"           color="bg-violet-600" />
-          <StatCard icon="check_circle"  label="Completed"        value={stats.completedCount}  sub={`${completionRate}% completion rate`} color="bg-emerald-600" />
-          <StatCard icon="hourglass_top" label="Processing"       value={stats.processingCount} sub="Currently generating"     color="bg-amber-500" />
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <KPICard title="Total Reports" value={stats.totalCount} subtitle="Matching current filters" icon="description" compact />
+          <KPICard title="Generated Today" value={stats.generatedToday} subtitle="Since midnight" icon="schedule_send" compact />
+          <KPICard title="Completed" value={stats.completedCount} subtitle={`${completionRate}% completion rate`} icon="check_circle" compact />
+          <KPICard title="Processing" value={stats.processingCount} subtitle="Currently generating" icon="hourglass_top" compact />
         </div>
 
         {/* Filter Bar */}
-        <Card className="mb-6">
-          <Inner>
+        <div className="mb-5 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
             <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Filters</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <div className="lg:col-span-1">
@@ -385,7 +327,7 @@ const ReportsAnalytics = () => {
                 <select
                   value={filters.reportType}
                   onChange={(e) => setFilters((prev) => ({ ...prev, reportType: e.target.value }))}
-                  className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                  className="app-input"
                 >
                   {reportTypeOptions.map((t) => <option key={t}>{t}</option>)}
                 </select>
@@ -397,7 +339,7 @@ const ReportsAnalytics = () => {
                   type="date"
                   value={filters.dateFrom}
                   onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-                  className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                  className="app-input"
                 />
               </div>
 
@@ -407,7 +349,7 @@ const ReportsAnalytics = () => {
                   type="date"
                   value={filters.dateTo}
                   onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-                  className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                  className="app-input"
                 />
               </div>
 
@@ -416,24 +358,19 @@ const ReportsAnalytics = () => {
                 <select
                   value={filters.department}
                   onChange={(e) => setFilters((prev) => ({ ...prev, department: e.target.value }))}
-                  className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                  className="app-input"
                 >
                   {departmentOptions.map((d) => <option key={d}>{d}</option>)}
                 </select>
               </div>
 
               <div className="flex items-end">
-                <button
-                  onClick={handleApplyFilters}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition"
-                >
-                  <span className="material-symbols-outlined text-[16px]">filter_alt</span>
+                <Button variant="primary" size="md" fullWidth onClick={handleApplyFilters} icon={<span className="material-symbols-outlined text-lg">filter_alt</span>}>
                   Apply Filters
-                </button>
+                </Button>
               </div>
             </div>
-          </Inner>
-        </Card>
+        </div>
 
         {/* Predefined Reports */}
         <div className="mb-6">
@@ -466,8 +403,7 @@ const ReportsAnalytics = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
 
           {/* Chart */}
-          <Card className="lg:col-span-3">
-            <Inner>
+          <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-3 lg:p-5">
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Reports Generated</p>
@@ -520,12 +456,10 @@ const ReportsAnalytics = () => {
                   </div>
                 ))}
               </div>
-            </Inner>
-          </Card>
+          </div>
 
           {/* Recent Custom Reports */}
-          <Card className="lg:col-span-2">
-            <Inner>
+          <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-2 lg:p-5">
               <div className="mb-4 flex items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Recent Reports</p>
                 <select
@@ -565,11 +499,12 @@ const ReportsAnalytics = () => {
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1.5">
-                        <StatusPill status={r.status} />
+                        <StatusBadge tone={STATUS_TONE[r.status]} label={r.status} />
                         {r.status === 'Completed' ? (
                           <button
+                            type="button"
                             onClick={() => handleDownloadOne(r)}
-                            className="text-[11px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                            className="text-[11px] font-semibold text-primary hover:underline"
                           >
                             Download
                           </button>
@@ -581,8 +516,7 @@ const ReportsAnalytics = () => {
                   ))}
                 </div>
               )}
-            </Inner>
-          </Card>
+          </div>
 
         </div>
       </div>

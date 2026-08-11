@@ -167,6 +167,7 @@ const SkeletonBlock = () => (
 
 export const FinanceOverviewPage = () => {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const { loading, error, data } = useAsync(async () => {
     const [dashboardRes, invoicesRes, expensesRes, profitLossRes, balanceSheetRes] = await Promise.allSettled([
       financeApi.getDashboard(token),
@@ -258,25 +259,122 @@ export const FinanceOverviewPage = () => {
     return { totalAmount, verifiedAmount, verifiedCount, pendingCount, pendingAmount };
   }, [expenses]);
 
-  const kpis = useMemo(() => {
+  const financeSummary = useMemo(() => {
     const revenue = Number(profitLoss?.revenue || 0);
     const totalExpenses = Number(profitLoss?.expenses || expenseSummary.totalAmount || 0);
     const net = Number(profitLoss?.netIncome || 0);
-    const pendingPayments = Number(invoiceMetrics.outstandingAmount || 0);
     const burnRate = revenue > 0 ? (totalExpenses / revenue) * 100 : 0;
-    return [
-      { label: 'Revenue', icon: 'trending_up', value: formatCurrency(revenue), subtitle: `${invoices.length} invoices` },
-      { label: 'Expenses', icon: 'request_quote', value: formatCurrency(totalExpenses), subtitle: `${expenseSummary.pendingCount} pending items` },
-      { label: 'Profit / Loss', icon: 'account_balance_wallet', value: formatCurrency(net), subtitle: net >= 0 ? 'Profit' : 'Loss' },
-      { label: 'Pending Payments', icon: 'pending_actions', value: formatCurrency(pendingPayments), subtitle: `${invoiceMetrics.overdueCount} overdue invoices` },
-      { label: 'Burn Rate', icon: 'percent', value: `${burnRate.toFixed(1)}%`, subtitle: formatCurrency(expenseSummary.pendingAmount) },
-    ];
-  }, [expenseSummary, invoices.length, invoiceMetrics, profitLoss]);
+    const margin = revenue > 0 ? (net / revenue) * 100 : 0;
+    const assets = Number(balanceSheet?.assets || 0);
+    const liabilities = Number(balanceSheet?.liabilities || 0);
+    const equity = Number(balanceSheet?.equity || 0);
+    const liquidity = liabilities > 0 ? assets / liabilities : assets > 0 ? 1 : 0;
+    return {
+      revenue,
+      totalExpenses,
+      net,
+      burnRate,
+      margin,
+      assets,
+      liabilities,
+      equity,
+      liquidity,
+    };
+  }, [balanceSheet, expenseSummary.totalAmount, profitLoss]);
+
+  const kpis = useMemo(() => ([
+    {
+      label: 'Revenue',
+      icon: 'trending_up',
+      value: formatCurrency(financeSummary.revenue),
+      subtitle: `${invoices.length} invoices`,
+      trend: financeSummary.revenue > 0 ? { direction: 'up', value: 'Booked' } : undefined,
+    },
+    {
+      label: 'Expenses',
+      icon: 'request_quote',
+      value: formatCurrency(financeSummary.totalExpenses),
+      subtitle: `${expenseSummary.pendingCount} pending`,
+    },
+    {
+      label: 'Net Income',
+      icon: 'account_balance_wallet',
+      value: formatCurrency(financeSummary.net),
+      subtitle: `${financeSummary.margin.toFixed(1)}% margin`,
+      trend: financeSummary.net >= 0 ? { direction: 'up', value: 'Profit' } : { direction: 'down', value: 'Loss' },
+    },
+    {
+      label: 'Receivables',
+      icon: 'pending_actions',
+      value: formatCurrency(invoiceMetrics.outstandingAmount),
+      subtitle: `${invoiceMetrics.overdueCount} overdue`,
+      trend: invoiceMetrics.overdueAmount > 0 ? { direction: 'down', value: 'Risk' } : undefined,
+    },
+  ]), [expenseSummary.pendingCount, financeSummary, invoiceMetrics, invoices.length]);
+
+  const maxAgingAmount = useMemo(
+    () => Math.max(...agingBuckets.map((bucket) => Number(bucket.amount || 0)), 1),
+    [agingBuckets]
+  );
+
+  const recentInvoices = useMemo(
+    () => [...invoices]
+      .sort((a, b) => new Date(b.createdAt || b.issueDate || 0) - new Date(a.createdAt || a.issueDate || 0))
+      .slice(0, 5),
+    [invoices]
+  );
+
+  const topExpenses = useMemo(
+    () => [...expenses]
+      .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
+      .slice(0, 5),
+    [expenses]
+  );
+
+  const controlItems = [
+    {
+      label: 'Overdue AR',
+      value: formatCurrency(invoiceMetrics.overdueAmount),
+      detail: `${invoiceMetrics.overdueCount} invoices need follow-up`,
+      icon: 'warning',
+      tone: invoiceMetrics.overdueAmount > 0 ? 'text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/50' : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/50',
+    },
+    {
+      label: 'Pending Expense Review',
+      value: formatCurrency(expenseSummary.pendingAmount),
+      detail: `${expenseSummary.pendingCount} submissions waiting`,
+      icon: 'rate_review',
+      tone: expenseSummary.pendingCount > 0 ? 'text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/50' : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/50',
+    },
+    {
+      label: 'Liquidity Ratio',
+      value: financeSummary.liquidity.toFixed(2),
+      detail: `${formatCurrency(financeSummary.assets)} assets`,
+      icon: 'waterfall_chart',
+      tone: financeSummary.liquidity >= 1 ? 'text-sky-700 bg-sky-50 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900/50' : 'text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/50',
+    },
+  ];
 
   return (
-    <main className="portal-page">
-      <div className="portal-page-inner space-y-4">
-        <Header title="Finance Overview" subtitle="Revenue, expenses and receivables at a glance" icon="account_balance" user={user} crumbs={['Finance']} />
+    <main className="portal-page bg-[linear-gradient(180deg,#f8fafc_0%,#eef7f1_42%,#f8fafc_100%)] dark:bg-background-dark">
+      <div className="portal-page-inner max-w-[1500px] space-y-5">
+        <Header
+          title="Finance Command Center"
+          subtitle="Cash, receivables, spend, compliance, and approvals in one workspace"
+          icon="account_balance"
+          user={user}
+          crumbs={['Finance', 'Live Operations']}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard/reports')}>
+                Reports
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => navigate('/finance/dashboard/invoices')}>
+                New Invoice
+              </Button>
+            </div>
+          }
+        />
 
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
 
@@ -286,57 +384,161 @@ export const FinanceOverviewPage = () => {
           <>
             <section className="portal-kpi-grid">
               {kpis.map((item) => (
-                <KPICard key={item.label} title={item.label} value={item.value} icon={item.icon} subtitle={item.subtitle} />
+                <KPICard key={item.label} title={item.label} value={item.value} icon={item.icon} subtitle={item.subtitle} trend={item.trend} />
               ))}
             </section>
 
-            <section className="portal-kpi-grid">
-              <KPICard icon="trending_up" title="Revenue" value={formatCurrency(profitLoss.revenue)} subtitle="Profit & loss" compact />
-              <KPICard icon="request_quote" title="Expenses" value={formatCurrency(profitLoss.expenses)} subtitle="Operational spend" compact />
-              <KPICard
-                icon="account_balance_wallet"
-                title="Net Income"
-                value={formatCurrency(profitLoss.netIncome)}
-                subtitle="After expenses"
-                compact
-                trend={profitLoss.netIncome >= 0 ? { direction: 'up', value: 'Profit' } : { direction: 'down', value: 'Loss' }}
-              />
-              <KPICard icon="savings" title="Equity" value={formatCurrency(balanceSheet.equity)} subtitle="Balance sheet" compact />
-            </section>
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.9fr]">
+              <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+                <div className="border-b border-neutral-100 p-5 dark:border-neutral-800 lg:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Cash Position</p>
+                      <h2 className="mt-1 text-2xl font-black tracking-tight text-neutral-950 dark:text-neutral-100">{formatCurrency(financeSummary.assets - financeSummary.liabilities)}</h2>
+                      <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Assets less liabilities, backed by current balance sheet data.</p>
+                    </div>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+                      <span className="material-symbols-outlined text-[16px]">verified</span>
+                      Finance live
+                    </span>
+                  </div>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr,1fr]">
-              <section className={card}>
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {[
+                      { label: 'Assets', value: financeSummary.assets, icon: 'account_balance' },
+                      { label: 'Liabilities', value: financeSummary.liabilities, icon: 'receipt' },
+                      { label: 'Equity', value: financeSummary.equity, icon: 'savings' },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/70">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{item.label}</p>
+                          <span className="material-symbols-outlined text-[18px] text-emerald-700 dark:text-emerald-300">{item.icon}</span>
+                        </div>
+                        <p className="mt-2 truncate text-lg font-black text-neutral-950 dark:text-neutral-100">{formatCurrency(item.value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className={inner}>
-                  <SectionHdr title="Receivables aging" subtitle="Open invoice balances by overdue band" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{outstandingInvoices.length} open</p>} />
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                  <SectionHdr title="Receivables aging" subtitle="Open invoice balances by overdue band" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{outstandingInvoices.length} open invoices</p>} />
+                  <div className="space-y-3">
                     {agingBuckets.map((bucket) => (
-                      <div key={bucket.label} className="rounded-lg border border-neutral-200 px-3 py-2 dark:border-neutral-700">
-                        <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{bucket.label} days</p>
-                        <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{formatCurrency(bucket.amount)}</p>
-                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{bucket.count} invoices</p>
+                      <div key={bucket.label} className="grid grid-cols-[72px_1fr_auto] items-center gap-3">
+                        <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400">{bucket.label}d</p>
+                        <div className="h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                          <div
+                            className={`h-full rounded-full ${bucket.label === '90+' || bucket.label === '61-90' ? 'bg-rose-500' : bucket.label === '31-60' ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.max((Number(bucket.amount || 0) / maxAgingAmount) * 100, bucket.amount > 0 ? 8 : 0)}%` }}
+                          />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(bucket.amount)}</p>
+                          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{bucket.count} rows</p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               </section>
+
+              <section className="space-y-4">
+                <div className={card}>
+                  <div className={inner}>
+                    <SectionHdr title="Controls that need attention" subtitle="Operational finance exceptions" />
+                    <div className="space-y-3">
+                      {controlItems.map((item) => (
+                        <div key={item.label} className={`rounded-xl border p-4 ${item.tone}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-black uppercase tracking-wide opacity-80">{item.label}</p>
+                              <p className="mt-1 truncate text-xl font-black">{item.value}</p>
+                              <p className="mt-1 text-xs opacity-80">{item.detail}</p>
+                            </div>
+                            <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={card}>
+                  <div className={inner}>
+                    <SectionHdr title="Quick actions" subtitle="Jump into daily finance work" />
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'Billing', icon: 'receipt_long', path: '/finance/dashboard/invoices' },
+                        { label: 'Payments', icon: 'payments', path: '/finance/dashboard/payments' },
+                        { label: 'Expenses', icon: 'request_quote', path: '/finance/dashboard/expenses' },
+                        { label: 'Reports', icon: 'bar_chart', path: '/finance/dashboard/reports' },
+                      ].map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => navigate(item.path)}
+                          className="flex min-h-[76px] items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/30"
+                        >
+                          <span className="material-symbols-outlined flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[20px] text-emerald-700 shadow-sm dark:bg-neutral-950 dark:text-emerald-300">{item.icon}</span>
+                          <span className="text-sm font-black text-neutral-800 dark:text-neutral-100">{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
               <section className={card}>
                 <div className={inner}>
-                  <SectionHdr title="Expense snapshot" subtitle="Verified vs pending expenses" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{expenses.length} entries</p>} />
+                  <SectionHdr title="Recent invoices" subtitle="Latest billing activity" action={<Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard/invoices')}>Open Billing</Button>} />
+                  {recentInvoices.length === 0 ? <EmptyState icon="receipt_long" title="No invoices yet" /> : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[620px] text-left">
+                        <thead>
+                          <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+                            <th className="py-2 pr-3">Client</th>
+                            <th className="px-3 py-2">Due</th>
+                            <th className="px-3 py-2">Status</th>
+                            <th className="py-2 pl-3 text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentInvoices.map((invoice) => (
+                            <tr key={invoice._id || invoice.id || invoice.invoiceNumber} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
+                              <td className="py-3 pr-3">
+                                <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{invoice.clientName || invoice.customerName || 'Client'}</p>
+                                <p className="text-xs text-neutral-500 dark:text-neutral-400">{invoice.invoiceNumber || invoice.reference || 'Invoice'}</p>
+                              </td>
+                              <td className="px-3 py-3 text-sm text-neutral-600 dark:text-neutral-300">{fmtDateOnly(invoice.dueDate)}</td>
+                              <td className="px-3 py-3"><Pill value={invoiceStatusLabel(invoice)} /></td>
+                              <td className="py-3 pl-3 text-right text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(getInvoiceTotal(invoice))}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className={card}>
+                <div className={inner}>
+                  <SectionHdr title="Expense control" subtitle="Largest expenses and review status" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{expenses.length} entries</p>} />
                   <div className="space-y-3">
-                    <div className="rounded-lg border border-neutral-200 px-3 py-2 dark:border-neutral-700">
-                      <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Total submitted</p>
-                      <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{formatCurrency(expenseSummary.totalAmount)}</p>
-                    </div>
-                    <div className="rounded-lg border border-neutral-200 px-3 py-2 dark:border-neutral-700">
-                      <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Verified</p>
-                      <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{formatCurrency(expenseSummary.verifiedAmount)}</p>
-                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{expenseSummary.verifiedCount} items</p>
-                    </div>
-                    <div className="rounded-lg border border-neutral-200 px-3 py-2 dark:border-neutral-700">
-                      <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Pending review</p>
-                      <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{formatCurrency(expenseSummary.pendingAmount)}</p>
-                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{expenseSummary.pendingCount} items</p>
-                    </div>
+                    {topExpenses.length === 0 ? <EmptyState icon="request_quote" title="No expenses recorded" /> : topExpenses.map((expense) => (
+                      <div key={expense._id || expense.id || expense.title} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{expense.title || expense.category || 'Expense'}</p>
+                          <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{expense.department || 'Finance'} - {fmtDateOnly(expense.createdAt || expense.date)}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(expense.amount)}</p>
+                          <Pill value={expense.status || 'submitted'} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </section>

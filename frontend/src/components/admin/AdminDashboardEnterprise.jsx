@@ -31,12 +31,12 @@ const moduleCards = [
 ];
 
 const toneClasses = {
-  blue: 'bg-blue-500/10 text-blue-200 border-blue-500/20',
-  green: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20',
-  red: 'bg-rose-500/10 text-rose-200 border-rose-500/20',
-  purple: 'bg-violet-500/10 text-violet-200 border-violet-500/20',
-  indigo: 'bg-indigo-500/10 text-indigo-200 border-indigo-500/20',
-  orange: 'bg-amber-500/10 text-amber-200 border-amber-500/20',
+  blue: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20',
+  green: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20',
+  red: 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20',
+  purple: 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:border-violet-500/20',
+  indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20',
+  orange: 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
 };
 
 const roleLabels = {
@@ -250,18 +250,9 @@ const AdminDashboard = () => {
         </section>
 
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Employees</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-neutral-100">{metrics.employeeCount}</p>
-          </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Managers</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-neutral-100">{metrics.managerCount}</p>
-          </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Outsourcing Open Jobs</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-neutral-100">{metrics.outsourcingOpenJobs}</p>
-          </div>
+          <KPICard title="Employees" value={metrics.employeeCount} icon="badge" compact />
+          <KPICard title="Managers" value={metrics.managerCount} icon="supervisor_account" compact />
+          <KPICard title="Outsourcing Open Jobs" value={metrics.outsourcingOpenJobs} icon="work" compact />
         </section>
 
         <section className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">

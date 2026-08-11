@@ -1,9 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { departmentApi } from '../../services/departments';
 import { CANONICAL_PROJECTS } from '../../config/projectNames';
 import AdminSalesQuestionManager from './AdminSalesQuestionManager';
 import { PRODUCT_CATEGORY_GROUPS, formatProductCategorySelection } from '../media/productCategoryOptions';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
+import IconButton from '../common/IconButton';
+import Button from '../common/Button';
+import Tabs from '../common/Tabs';
 
 const formatDate = (d) =>
   d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -85,9 +92,7 @@ const SubmissionModal = ({ item, onClose }) => {
               {[projectDisplay(item), item.buyerCategory].filter(Boolean).join(' - ')} - by {submitterName(item)}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <span className="material-symbols-outlined text-neutral-400">close</span>
-          </button>
+          <IconButton icon="close" tooltip="Close" onClick={onClose} />
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -238,9 +243,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
       <div className="flex w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-neutral-900" style={{ maxHeight: '90vh' }}>
         <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
           <h2 className="text-sm font-black text-neutral-900 dark:text-neutral-100">Edit submission</h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <span className="material-symbols-outlined text-neutral-400">close</span>
-          </button>
+          <IconButton icon="close" tooltip="Close" onClick={onClose} />
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -256,7 +259,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                     onClick={() => toggleProject(project)}
                     className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                       active
-                        ? 'border-transparent bg-teal-600 text-white'
+                        ? 'border-transparent bg-primary text-white'
                         : 'border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300'
                     }`}
                   >
@@ -278,7 +281,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                       maxLength={10}
                       value={p}
                       onChange={(e) => setPhone(i, e.target.value)}
-                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 dark:border-neutral-700 dark:bg-neutral-950"
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-700 dark:bg-neutral-950"
                     />
                     {phones.length > 1 && (
                       <button type="button" onClick={() => removePhone(i)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-rose-500 dark:hover:bg-neutral-800">
@@ -287,7 +290,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                     )}
                   </div>
                 ))}
-                <button type="button" onClick={addPhone} className="text-xs font-bold text-teal-600 hover:underline dark:text-teal-400">
+                <button type="button" onClick={addPhone} className="text-xs font-bold text-primary hover:underline text-primary">
                   + Add another number
                 </button>
               </div>
@@ -303,7 +306,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                         type="text"
                         value={b}
                         onChange={(e) => setBrandName(i, e.target.value)}
-                        className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 dark:border-neutral-700 dark:bg-neutral-950"
+                        className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-700 dark:bg-neutral-950"
                       />
                       {brandNames.length > 1 && (
                         <button type="button" onClick={() => removeBrandName(i)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-rose-500 dark:hover:bg-neutral-800">
@@ -312,7 +315,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                       )}
                     </div>
                   ))}
-                  <button type="button" onClick={addBrandName} className="text-xs font-bold text-teal-600 hover:underline dark:text-teal-400">
+                  <button type="button" onClick={addBrandName} className="text-xs font-bold text-primary hover:underline text-primary">
                     + Add another brand
                   </button>
                 </div>
@@ -326,7 +329,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                   type="text"
                   value={form[key]}
                   onChange={(e) => setField(key, e.target.value)}
-                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </div>
             ))}
@@ -339,7 +342,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                 max={5}
                 value={form.qualityRating}
                 onChange={(e) => setField('qualityRating', Number(e.target.value))}
-                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 dark:border-neutral-700 dark:bg-neutral-950"
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-700 dark:bg-neutral-950"
               />
             </div>
             )}
@@ -379,7 +382,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                                 onClick={() => toggleProductCategory(group.label, sub)}
                                 className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                                   active
-                                    ? 'border-transparent bg-teal-600 text-white'
+                                    ? 'border-transparent bg-primary text-white'
                                     : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
                                 }`}
                               >
@@ -396,7 +399,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
               {productCategories.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {productCategories.map((cat) => (
-                    <span key={cat} className="rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-700 dark:bg-teal-900/30 dark:text-teal-200">
+                    <span key={cat} className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary dark:bg-primary/20 text-primary">
                       {cat}
                     </span>
                   ))}
@@ -411,7 +414,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
               rows={3}
               value={form.notes}
               onChange={(e) => setField('notes', e.target.value)}
-              className="w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 dark:border-neutral-700 dark:bg-neutral-950"
+              className="w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-700 dark:bg-neutral-950"
             />
           </div>
 
@@ -425,7 +428,7 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
                     type="text"
                     value={a.answer}
                     onChange={(e) => setAnswer(i, e.target.value)}
-                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-teal-400 dark:border-neutral-700 dark:bg-neutral-950"
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-primary dark:border-neutral-700 dark:bg-neutral-950"
                   />
                 </div>
               ))}
@@ -433,18 +436,19 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-neutral-200 px-5 py-3 dark:border-neutral-700">
-          <button type="button" onClick={onClose} className="rounded-lg border border-neutral-200 px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+        <div className="grid grid-cols-2 gap-3 border-t border-neutral-200 px-5 py-3 dark:border-neutral-700">
+          <Button variant="secondary" size="md" fullWidth onClick={onClose} disabled={saving}>
             Cancel
-          </button>
-          <button
-            type="button"
-            disabled={saving}
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            fullWidth
+            loading={saving}
             onClick={() => onSave({ ...form, phones: phones.map((p) => p.trim()).filter(Boolean), productCategories, brandNames: brandNames.map((b) => b.trim()).filter(Boolean), answers })}
-            className="rounded-lg bg-teal-600 px-4 py-2 text-xs font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? 'Saving...' : 'Save changes'}
-          </button>
+            Save changes
+          </Button>
         </div>
       </div>
     </div>
@@ -453,6 +457,8 @@ const EditSubmissionModal = ({ item, onClose, onSave, saving }) => {
 
 const AdminSalesSubmissions = () => {
   const { token } = useAuth();
+  const toast = useToast();
+  const { confirm } = useConfirmDialog();
   const [activeTab, setActiveTab] = useState('responses');
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -515,6 +521,7 @@ const AdminSalesSubmissions = () => {
     if (filtered.length === 0) return;
     const csv = buildCsv(filtered);
     downloadCsv(csv, `sales-submissions-${new Date().toISOString().slice(0, 10)}.csv`);
+    toast.success('Submissions exported.');
   };
 
   const handleSaveEdit = async (patch) => {
@@ -527,108 +534,104 @@ const AdminSalesSubmissions = () => {
         setSubmissions((prev) => prev.map((s) => (s._id === updated._id ? updated : s)));
       }
       setEditItem(null);
+      toast.success('Submission updated.');
     } catch (err) {
-      setError(err?.message || 'Failed to save submission changes.');
+      const message = err?.message || 'Failed to save submission changes.';
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (item) => {
-    if (!window.confirm(`Delete the submission from "${item.businessName || item.buyerName || 'this buyer'}"? This cannot be undone.`)) return;
+    const label = item.businessName || item.buyerName || 'this buyer';
+    const shouldProceed = await confirm({
+      title: 'Delete submission?',
+      message: `This will permanently delete the submission from "${label}". This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!shouldProceed) return;
+
     setDeletingId(item._id);
     try {
       await departmentApi.deleteSalesQuery(token, item._id);
       setSubmissions((prev) => prev.filter((s) => s._id !== item._id));
+      toast.success(`Submission from "${label}" deleted.`);
     } catch (err) {
-      setError(err?.message || 'Failed to delete submission.');
+      const message = err?.message || 'Failed to delete submission.';
+      setError(message);
+      toast.error(message);
     } finally {
       setDeletingId(null);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <div className="border-b border-neutral-200 bg-white px-6 py-5 dark:border-neutral-700 dark:bg-neutral-900">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold text-neutral-900 dark:text-neutral-100">
-              <span className="material-symbols-outlined text-teal-500">fact_check</span>
-              Sales Submissions
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={fetchSubmissions}
-              className="flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
-            >
-              <span className="material-symbols-outlined text-sm">refresh</span>
-              Refresh
-            </button>
-            {activeTab === 'responses' && (
-              <button
-                onClick={handleExport}
-                disabled={filtered.length === 0}
-                className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-sm">download</span>
-                Export CSV
-              </button>
-            )}
-          </div>
-        </div>
+    <main className="portal-page">
+      <div className="portal-page-inner">
+        <PortalHeader
+          title="Sales Submissions"
+          subtitle="Manage vendor and buyer questionnaire responses"
+          icon="fact_check"
+          showSearch={false}
+          showNotifications={false}
+          showThemeToggle={false}
+        >
+          <Button variant="secondary" size="md" className="min-h-11" onClick={fetchSubmissions} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
+            Refresh
+          </Button>
+          {activeTab === 'responses' && (
+            <Button variant="primary" size="md" className="min-h-11" onClick={handleExport} disabled={filtered.length === 0} icon={<span className="material-symbols-outlined text-lg">download</span>}>
+              Export CSV
+            </Button>
+          )}
+        </PortalHeader>
 
-        <div className="mb-4 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('responses')}
-            className={`rounded-full px-4 py-2 text-xs font-bold transition ${
-              activeTab === 'responses'
-                ? 'bg-teal-600 text-white'
-                : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
-            }`}
-          >
-            Responses
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('questions')}
-            className={`rounded-full px-4 py-2 text-xs font-bold transition ${
-              activeTab === 'questions'
-                ? 'bg-teal-600 text-white'
-                : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
-            }`}
-          >
-            Manage Questions
-          </button>
-        </div>
+        <Tabs
+          className="mb-5"
+          items={[
+            { key: 'responses', label: 'Responses' },
+            { key: 'questions', label: 'Manage Questions' },
+          ]}
+          activeKey={activeTab}
+          onChange={setActiveTab}
+        />
 
         {activeTab === 'responses' && (
           <>
-            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {stats.map(({ label, count }) => (
-                <div key={label} className="rounded-xl bg-teal-50 px-4 py-3 dark:bg-teal-900/20">
-                  <p className="mb-1 text-xs font-medium text-teal-700 dark:text-teal-300">{label}</p>
-                  <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{count}</p>
-                </div>
+                <KPICard key={label} title={label} value={count} icon="fact_check" compact />
               ))}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative max-w-xs flex-1">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">search</span>
+            <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="relative min-w-50 flex-1">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-neutral-400">search</span>
                 <input
                   type="text"
                   placeholder="Search by name, phone, email, location…"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-200 bg-neutral-50 pl-9 pr-3 py-2 text-sm text-neutral-700 outline-none focus:border-teal-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                  className="app-input pl-10 pr-9"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-red-600 dark:hover:bg-neutral-700"
+                    aria-label="Clear search"
+                  >
+                    <span className="material-symbols-outlined text-lg">close</span>
+                  </button>
+                )}
               </div>
               <select
                 value={filterProject}
                 onChange={(e) => setFilterProject(e.target.value)}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                className="min-h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
               >
                 <option value="">All Product Names</option>
                 {projectOptions.map((p) => <option key={p}>{p}</option>)}
@@ -636,7 +639,7 @@ const AdminSalesSubmissions = () => {
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                className="min-h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
               >
                 <option value="">All Categories</option>
                 {categoryOptions.map((c) => <option key={c}>{c}</option>)}
@@ -691,7 +694,7 @@ const AdminSalesSubmissions = () => {
                       </td>
                       <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{projectDisplay(item) || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-bold capitalize text-teal-700 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-300">
+                        <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-bold capitalize text-primary">
                           {item.buyerCategory || 'Uncategorized'}
                         </span>
                       </td>

@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import IconButton from '../common/IconButton';
+import Button from '../common/Button';
+import FilterDrawer from '../common/FilterDrawer';
 import {
   getAllDocuments,
   getLegalDocumentById,
@@ -7,12 +15,8 @@ import {
   getLegalDocumentPdf,
 } from '../../api/legalDocument';
 
-const STATUS_STYLES = {
-  Draft:    { bg: 'bg-neutral-100 dark:bg-neutral-800',    text: 'text-neutral-600 dark:text-neutral-400',  dot: 'bg-neutral-400' },
-  Pending:  { bg: 'bg-amber-100 dark:bg-amber-900/30',     text: 'text-amber-700 dark:text-amber-400',      dot: 'bg-amber-500' },
-  Approved: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400',  dot: 'bg-emerald-500' },
-  Rejected: { bg: 'bg-red-100 dark:bg-red-900/30',         text: 'text-red-700 dark:text-red-400',          dot: 'bg-red-500' },
-};
+const STATUS_TONE = { Draft: 'neutral', Pending: 'warning', Approved: 'success', Rejected: 'danger' };
+const STATUS_ICON = { Draft: 'edit_note', Pending: 'hourglass_empty', Approved: 'verified', Rejected: 'cancel' };
 
 const TYPE_ICON = {
   Contract: 'contract', Agreement: 'handshake', Policy: 'policy',
@@ -21,6 +25,7 @@ const TYPE_ICON = {
 };
 
 const DOC_TYPES = ['Contract', 'Agreement', 'Policy', 'NDA', 'Compliance', 'IP', 'Dispute', 'Other'];
+const STATUS_OPTIONS = ['Draft', 'Pending', 'Approved', 'Rejected'];
 
 const formatDate = (d) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -36,25 +41,15 @@ const downloadBlob = (blob, filename) => {
   window.URL.revokeObjectURL(url);
 };
 
-const StatusBadge = ({ status }) => {
-  const s = STATUS_STYLES[status] || STATUS_STYLES.Draft;
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.bg} ${s.text}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-      {status}
-    </span>
-  );
-};
-
 // ── Document View Modal ────────────────────────────────────────────────────────
-const DocViewModal = ({ doc, token, onClose }) => {
+const DocViewModal = ({ doc, token, onClose, toast }) => {
   const handleDownloadPdf = async () => {
     if (!doc?._id) return;
     try {
       const { blob, filename } = await getLegalDocumentPdf(token, doc._id);
       downloadBlob(blob, filename);
     } catch (err) {
-      alert(err.message || 'PDF download failed');
+      toast.error(err.message || 'PDF download failed');
     }
   };
 
@@ -63,22 +58,19 @@ const DocViewModal = ({ doc, token, onClose }) => {
       <div className="flex w-full max-w-5xl flex-col rounded-2xl bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden" style={{ maxHeight: '95vh' }}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 px-5 py-4">
-          <div>
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{doc.title}</h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <StatusBadge status={doc.status} />
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{doc.title}</h2>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <StatusBadge tone={STATUS_TONE[doc.status]} label={doc.status} />
               <span className="text-xs text-neutral-400">{doc.type} • {doc.currentVersion}</span>
               {doc.projectName && <span className="text-xs text-neutral-400">• {doc.projectName}</span>}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={handleDownloadPdf} className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">
-              <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
-              Download PDF
-            </button>
-            <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-              <span className="material-symbols-outlined text-neutral-400">close</span>
-            </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="danger" size="sm" onClick={handleDownloadPdf} icon={<span className="material-symbols-outlined text-sm">picture_as_pdf</span>}>
+              <span className="hidden sm:inline">Download PDF</span>
+            </Button>
+            <IconButton icon="close" tooltip="Close" onClick={onClose} />
           </div>
         </div>
 
@@ -132,9 +124,53 @@ const DocViewModal = ({ doc, token, onClose }) => {
   );
 };
 
+// ── Filters (shared content between inline row and mobile drawer) ──────────────
+const RegistryFilters = ({ searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterType, setFilterType }) => (
+  <div className="flex flex-1 flex-col gap-3 min-[900px]:flex-row min-[900px]:flex-wrap min-[900px]:items-center">
+    <div className="relative min-w-0 flex-1 min-[900px]:max-w-xs">
+      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-neutral-400">search</span>
+      <input
+        type="text"
+        placeholder="Search documents…"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="app-input pl-10 pr-9"
+      />
+      {searchTerm && (
+        <button
+          type="button"
+          onClick={() => setSearchTerm('')}
+          className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-red-600 dark:hover:bg-neutral-700"
+          aria-label="Clear search"
+        >
+          <span className="material-symbols-outlined text-lg">close</span>
+        </button>
+      )}
+    </div>
+    <select
+      value={filterStatus}
+      onChange={(e) => setFilterStatus(e.target.value)}
+      className="app-input min-[900px]:w-44"
+    >
+      <option value="">All Status</option>
+      {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+    </select>
+    <select
+      value={filterType}
+      onChange={(e) => setFilterType(e.target.value)}
+      className="app-input min-[900px]:w-44"
+    >
+      <option value="">All Types</option>
+      {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
+    </select>
+  </div>
+);
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 const AdminLegalRegistry = () => {
   const { token } = useAuth();
+  const toast = useToast();
+  const { confirm } = useConfirmDialog();
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -142,12 +178,7 @@ const AdminLegalRegistry = () => {
   const [filterType, setFilterType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewDoc, setViewDoc] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const fetchDocs = useCallback(async () => {
     setLoading(true);
@@ -172,18 +203,25 @@ const AdminLegalRegistry = () => {
       const res = await getLegalDocumentById(token, id);
       setViewDoc(res.data?.data || res.data);
     } catch (err) {
-      showToast(err.message || 'Failed to load document', 'error');
+      toast.error(err.message || 'Failed to load document');
     }
   };
 
   const handleDelete = async (doc) => {
-    if (!window.confirm(`Delete "${doc.title}"? This cannot be undone.`)) return;
+    const shouldProceed = await confirm({
+      title: 'Delete document?',
+      message: `This will permanently delete "${doc.title}". This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!shouldProceed) return;
+
     try {
       await deleteLegalDocument(token, doc._id);
       setDocs((prev) => prev.filter((d) => d._id !== doc._id));
-      showToast('Document deleted', 'success');
+      toast.success('Document deleted.');
     } catch (err) {
-      showToast(err.message || 'Delete failed', 'error');
+      toast.error(err.message || 'Delete failed');
     }
   };
 
@@ -192,79 +230,62 @@ const AdminLegalRegistry = () => {
   );
 
   // Stats
-  const stats = ['Draft', 'Pending', 'Approved', 'Rejected'].map((s) => ({
+  const stats = STATUS_OPTIONS.map((s) => ({
     label: s, count: docs.filter((d) => d.status === s).length,
   }));
 
+  const filterProps = { searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterType, setFilterType };
+
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-[100] rounded-xl px-4 py-3 text-sm font-medium text-white shadow-xl ${
-          toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-        }`}>
-          {toast.msg}
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-6 py-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-              <span className="material-symbols-outlined text-rose-500">folder_open</span>
-              Legal Document Registry
-            </h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              All legal documents across the organization — {docs.length} total
-            </p>
-          </div>
-          <button onClick={fetchDocs} className="flex items-center gap-1.5 rounded-lg border border-neutral-300 dark:border-neutral-600 px-3 py-1.5 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <span className="material-symbols-outlined text-sm">refresh</span>
+    <main className="portal-page">
+      <div className="portal-page-inner">
+        <PortalHeader
+          title="Legal Document Registry"
+          subtitle="Manage organization-wide legal documents"
+          icon="folder_open"
+          showSearch={false}
+          showNotifications={false}
+          showThemeToggle={false}
+        >
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => setFiltersOpen(true)}
+            className="min-h-11 min-[900px]:hidden"
+            icon={<span className="material-symbols-outlined text-lg">tune</span>}
+          >
+            Filters
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={fetchDocs}
+            className="min-h-11"
+            icon={<span className="material-symbols-outlined text-lg">refresh</span>}
+          >
             Refresh
-          </button>
-        </div>
+          </Button>
+        </PortalHeader>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          {stats.map(({ label, count }) => {
-            const s = STATUS_STYLES[label];
-            return (
-              <div key={label} className={`rounded-xl ${s.bg} px-4 py-3`}>
-                <p className={`text-xs font-medium ${s.text} mb-1`}>{label}</p>
-                <p className={`text-2xl font-bold ${s.text}`}>{count}</p>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Filters */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-xs">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">search</span>
-            <input
-              type="text"
-              placeholder="Search documents…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 pl-9 pr-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 outline-none focus:border-rose-400"
+        {/* Stats */}
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {stats.map(({ label, count }) => (
+            <KPICard
+              key={label}
+              title={label}
+              value={count}
+              icon={STATUS_ICON[label]}
+              compact
             />
-          </div>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-            className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 outline-none">
-            <option value="">All Status</option>
-            {['Draft', 'Pending', 'Approved', 'Rejected'].map((s) => <option key={s}>{s}</option>)}
-          </select>
-          <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-            className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 outline-none">
-            <option value="">All Types</option>
-            {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
-          </select>
+          ))}
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
+        {/* Filters (inline, desktop/tablet ≥900px) */}
+        <div className="mb-5 hidden rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 min-[900px]:flex">
+          <RegistryFilters {...filterProps} />
+        </div>
+
+        {/* Table / Cards */}
         {loading && (
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -273,80 +294,122 @@ const AdminLegalRegistry = () => {
           </div>
         )}
         {!loading && error && (
-          <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-4 text-sm text-red-600 dark:text-red-400">{error}</div>
-        )}
-        {!loading && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-neutral-400">
-            <span className="material-symbols-outlined text-5xl mb-3">folder_open</span>
-            <p className="text-sm">No documents found</p>
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-400">
+            {error}
           </div>
         )}
-        {!loading && filtered.length > 0 && (
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-700 overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Document</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Created By</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Version</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {filtered.map((doc) => (
-                  <tr key={doc._id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-rose-400 text-base">
-                          {TYPE_ICON[doc.type] || 'description'}
-                        </span>
-                        <div>
-                          <p className="font-medium text-neutral-900 dark:text-neutral-100 line-clamp-1">{doc.title}</p>
-                          {doc.projectName && (
-                            <p className="text-xs text-neutral-400 dark:text-neutral-500">{doc.projectName}</p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{doc.type}</td>
-                    <td className="px-4 py-3"><StatusBadge status={doc.status} /></td>
-                    <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{doc.createdByName || '—'}</td>
-                    <td className="px-4 py-3 text-xs font-mono text-neutral-500">{doc.currentVersion}</td>
-                    <td className="px-4 py-3 text-xs text-neutral-500">{formatDate(doc.updatedAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => handleView(doc._id)}
-                          title="View Document"
-                          className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                        >
-                          <span className="material-symbols-outlined text-sm text-neutral-500">visibility</span>
-                        </button>
-                        {!doc.isLocked && (
-                          <button
-                            onClick={() => handleDelete(doc)}
-                            title="Delete Document"
-                            className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                          >
-                            <span className="material-symbols-outlined text-sm text-red-500">delete</span>
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {!loading && !error && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-neutral-200 bg-white py-20 text-center dark:border-neutral-800 dark:bg-neutral-900">
+            <span className="material-symbols-outlined mb-3 text-5xl text-neutral-300 dark:text-neutral-600">folder_open</span>
+            <h3 className="mb-1 text-base font-semibold text-neutral-700 dark:text-neutral-300">No documents found</h3>
+            <p className="mb-4 max-w-xs text-sm text-neutral-500 dark:text-neutral-400">
+              Try adjusting your search or filters, or check back after new documents are registered.
+            </p>
+            <Button variant="secondary" size="sm" onClick={fetchDocs} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
+              Refresh
+            </Button>
           </div>
+        )}
+        {!loading && !error && filtered.length > 0 && (
+          <>
+            {/* Desktop/tablet table */}
+            <div className="hidden overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Document</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Created By</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Version</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Date</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {filtered.map((doc) => (
+                      <tr key={doc._id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-lg text-neutral-400">
+                              {TYPE_ICON[doc.type] || 'description'}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="line-clamp-1 font-medium text-neutral-900 dark:text-neutral-100">{doc.title}</p>
+                              {doc.projectName && (
+                                <p className="text-xs text-neutral-400 dark:text-neutral-500">{doc.projectName}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{doc.type}</td>
+                        <td className="px-4 py-3"><StatusBadge tone={STATUS_TONE[doc.status]} label={doc.status} /></td>
+                        <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{doc.createdByName || '—'}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-neutral-500">{doc.currentVersion}</td>
+                        <td className="px-4 py-3 text-xs text-neutral-500">{formatDate(doc.updatedAt)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <IconButton icon="visibility" tooltip="View document" size="sm" onClick={() => handleView(doc._id)} />
+                            {!doc.isLocked && (
+                              <IconButton icon="delete" tone="danger" tooltip="Delete document" size="sm" onClick={() => handleDelete(doc)} />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {filtered.map((doc) => (
+                <div key={doc._id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 material-symbols-outlined text-xl text-neutral-400">
+                      {TYPE_ICON[doc.type] || 'description'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-neutral-900 dark:text-neutral-100">{doc.title}</p>
+                      {doc.projectName && <p className="truncate text-xs text-neutral-400">{doc.projectName}</p>}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <StatusBadge tone={STATUS_TONE[doc.status]} label={doc.status} />
+                        <span className="text-xs text-neutral-500 dark:text-neutral-400">{doc.type}</span>
+                        <span className="text-xs text-neutral-400">v{doc.currentVersion}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-neutral-400">
+                        By {doc.createdByName || '—'} · {formatDate(doc.updatedAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+                    <IconButton icon="visibility" tooltip="View document" onClick={() => handleView(doc._id)} />
+                    {!doc.isLocked && (
+                      <IconButton icon="delete" tone="danger" tooltip="Delete document" onClick={() => handleDelete(doc)} />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filters"
+        subtitle="Refine the document registry"
+        hiddenAbove="min-[900px]:hidden"
+      >
+        <RegistryFilters {...filterProps} />
+      </FilterDrawer>
+
       {/* View Modal */}
-      {viewDoc && <DocViewModal doc={viewDoc} token={token} onClose={() => setViewDoc(null)} />}
-    </div>
+      {viewDoc && <DocViewModal doc={viewDoc} token={token} onClose={() => setViewDoc(null)} toast={toast} />}
+    </main>
   );
 };
 

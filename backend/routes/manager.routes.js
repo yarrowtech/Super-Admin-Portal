@@ -6,9 +6,9 @@ const managerExportController = require('../controllers/manager/exportSystem.con
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { ROLES } = require('../config/roles');
 
-// All routes require authentication and MANAGER role
+// All routes require authentication and manager-capable role
 router.use(authenticate);
-router.use(authorize(ROLES.MANAGER, ROLES.ADMIN, ROLES.IT));
+router.use(authorize(ROLES.IT_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN));
 router.use(authorizePortalAccess('manager'));
 
 // Manager specific routes

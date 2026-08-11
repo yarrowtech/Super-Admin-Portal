@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'sap_sidebar_collapsed';
 
@@ -29,14 +29,6 @@ export const SidebarProvider = ({ children }) => {
 
   const expand  = useCallback(() => { setCollapsed(false); try { localStorage.setItem(STORAGE_KEY, 'false'); } catch {} }, []);
   const collapse = useCallback(() => { setCollapsed(true);  try { localStorage.setItem(STORAGE_KEY, 'true');  } catch {} }, []);
-
-  // Auto-collapse on small screens
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1023px)');
-    const handler = (e) => { if (e.matches) collapse(); };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [collapse]);
 
   const value = useMemo(() => ({ collapsed, toggle, expand, collapse }), [collapsed, toggle, expand, collapse]);
 

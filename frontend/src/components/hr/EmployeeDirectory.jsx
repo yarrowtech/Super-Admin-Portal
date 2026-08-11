@@ -21,14 +21,18 @@ const initialForm = {
 
 const hrRoleOptions = [
   { value: 'freelancer', label: 'Freelancer' },
-  { value: 'manager', label: 'Manager' },
   { value: 'hr', label: 'Human Resources' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'it', label: 'IT' },
-  { value: 'law', label: 'Law' },
-  { value: 'media', label: 'Media' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'research_operator', label: 'Research Operator' },
+  { value: 'it_manager', label: 'IT Manager' },
+  { value: 'it_admin', label: 'IT Admin' },
+  { value: 'it_employee', label: 'IT Employee' },
+  { value: 'it_hr', label: 'IT HR' },
+  { value: 'finance_manager', label: 'Finance Manager' },
+  { value: 'finance_employee', label: 'Finance Employee' },
+  { value: 'law_head', label: 'Law Head' },
+  { value: 'law_employee', label: 'Law Employee' },
+  { value: 'media_head', label: 'Media Head' },
+  { value: 'media_sales', label: 'Media Sales' },
+  { value: 'media_marketing', label: 'Media Marketing' },
 ];
 
 const hrDepartmentOptions = [

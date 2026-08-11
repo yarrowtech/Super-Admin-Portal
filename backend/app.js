@@ -142,9 +142,10 @@ app.use("/api/law", routes.lawRoutes);
 app.use("/api/dept/media", routes.mediaRoutes);
 app.use("/api/dept/project-overview", routes.projectOverviewRoutes);
 app.use("/api/dept/sales", routes.salesRoutes);
-// Research, Manager, and generic Employee portals were retired by the role/department
-// restructuring (SUPER ADMIN/CEO/HR + IT/FINANCE/MEDIA/LAW/OUTSOURCING). Route files are
-// left in place (unreachable, harmless) rather than deleted, for reversibility.
+app.use("/api/dept/manager", routes.managerRoutes);
+app.use("/api/dept/employee", routes.employeeDeptRoutes);
+app.use("/api/employee", routes.employeePortalRoutes);
+// Research portal was retired by the role/department restructuring.
 app.use("/api", routes.projectAccessRoutes);
 app.use("/api/sso", routes.ssoRoutes);
 app.use("/api/external-auth", routes.externalAuthRoutes);

@@ -43,10 +43,13 @@ export const defaultRolePath = (user) => {
     case 'admin':
       return '/admin/dashboard';
     case 'it_manager':
+      return '/manager/dashboard';
     case 'it_admin':
-    case 'it_employee':
-    case 'it_hr':
       return '/it/dashboard';
+    case 'it_employee':
+      return '/employee/dashboard';
+    case 'it_hr':
+      return '/hr/dashboard';
     case 'law_head':
     case 'law_employee':
       return '/law/dashboard';

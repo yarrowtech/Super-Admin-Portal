@@ -6,9 +6,9 @@ const employeeLeaveController = require('../controllers/employee/employeeLeave.c
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { ROLES } = require('../config/roles');
 
-// All routes require authentication and Employee role
+// All routes require authentication and employee-capable role
 router.use(authenticate);
-router.use(authorize(ROLES.EMPLOYEE, ROLES.ADMIN, ROLES.MANAGER, ROLES.IT));
+router.use(authorize(ROLES.IT_EMPLOYEE, ROLES.IT_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN));
 
 // Dashboard
 router.get('/dashboard', employeeController.getDashboard);

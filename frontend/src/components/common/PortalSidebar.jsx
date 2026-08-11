@@ -21,22 +21,25 @@ const NavItem = memo(({ item, collapsed, isActive, onClick, suffix }) => {
     <NavLink
       to={item.path}
       onClick={onClick}
-      className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+      className={`group relative flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
         isActive
           ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-          : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+          : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
       } ${collapsed ? 'justify-center px-0' : ''}`}
       aria-label={collapsed ? item.label : undefined}
     >
-      <span className={`relative shrink-0 ${collapsed ? 'mx-auto' : ''}`}>
+      {isActive && !collapsed && (
+        <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-white/70" aria-hidden="true" />
+      )}
+      <span className={`relative flex h-5 w-5 shrink-0 items-center justify-center ${collapsed ? 'mx-auto' : ''}`}>
         <span
-          className="material-symbols-outlined text-[20px] transition-none"
+          className="material-symbols-outlined text-[20px] leading-none transition-none"
           style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
         >
           {item.icon}
         </span>
         {collapsed && badge > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-0.5 text-[8px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
+          <span className="absolute -right-1.5 -top-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-0.5 text-[8px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
             {badgeLabel}
           </span>
         )}
@@ -58,19 +61,24 @@ const GroupButton = memo(({ item, collapsed, isActive, isOpen, onToggle }) => (
   <button
     type="button"
     onClick={onToggle}
-    className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+    className={`group relative flex w-full items-center gap-3 rounded-xl py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
       isActive
         ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-        : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+        : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
     } ${collapsed ? 'justify-center px-0' : ''}`}
     aria-expanded={isOpen}
     aria-label={collapsed ? item.label : undefined}
   >
-    <span
-      className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}
-      style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
-    >
-      {item.icon}
+    {isActive && !collapsed && (
+      <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-white/70" aria-hidden="true" />
+    )}
+    <span className={`flex h-5 w-5 shrink-0 items-center justify-center ${collapsed ? 'mx-auto' : ''}`}>
+      <span
+        className="material-symbols-outlined text-[20px] leading-none"
+        style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+      >
+        {item.icon}
+      </span>
     </span>
     {!collapsed && (
       <>
@@ -98,8 +106,11 @@ const PortalSidebar = ({
   onLogout,
   onNavigate,
   footerItems: footerItemsProp,
+  forceExpanded = false,
+  onClose,
 }) => {
-  const { collapsed, toggle } = useSidebar();
+  const { collapsed: collapsedState, toggle } = useSidebar();
+  const collapsed = forceExpanded ? false : collapsedState;
   const [openGroups, setOpenGroups] = useState({});
   const resolvedNavItems = useMemo(() => navItems, [navItems]);
 
@@ -135,30 +146,42 @@ const PortalSidebar = ({
       className={`flex h-screen shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-white shadow-sidebar transition-[width] duration-300 ease-out-expo dark:border-neutral-800 dark:bg-neutral-950 ${sidebarW}`}
     >
       {/* ── Branding / Collapse toggle ── */}
-      <div className={`flex shrink-0 items-center border-b border-neutral-100 dark:border-neutral-800 ${collapsed ? 'justify-center py-3.5' : 'gap-3 px-4 py-3.5'}`}>
+      <div className={`flex h-16 shrink-0 items-center border-b border-neutral-100 dark:border-neutral-800 ${collapsed ? 'justify-center py-3.5' : 'gap-3 px-4 py-3.5'}`}>
         {showBranding && !collapsed && (
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--portal-accent)] to-[var(--portal-accent)]/70 text-white shadow-md">
               <span className="material-symbols-outlined text-[20px]">{brandingIcon}</span>
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{brandingTitle}</p>
-              <p className="truncate text-[11px] text-neutral-400 dark:text-neutral-500">{brandingSubtitle}</p>
+              <p className="truncate text-sm font-bold leading-tight text-neutral-900 dark:text-neutral-100">{brandingTitle}</p>
+              <p className="truncate text-[11px] leading-tight text-neutral-400 dark:text-neutral-500">{brandingSubtitle}</p>
             </div>
           </div>
         )}
-        {/* Collapse toggle button */}
-        <button
-          type="button"
-          onClick={toggle}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 ${collapsed ? '' : 'ml-auto'}`}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <span className="material-symbols-outlined text-[18px]">
-            {collapsed ? 'menu_open' : 'menu'}
-          </span>
-        </button>
+        {/* Collapse toggle (desktop) / Close (mobile off-canvas) */}
+        {forceExpanded ? (
+          <button
+            type="button"
+            onClick={onClose}
+            title="Close navigation"
+            className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+            aria-label="Close navigation"
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={toggle}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 ${collapsed ? '' : 'ml-auto'}`}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              {collapsed ? 'menu_open' : 'menu'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── User Info ── */}
@@ -313,20 +336,25 @@ const PortalSidebar = ({
                 key={item.path}
                 to={item.path}
                 onClick={onNavigate}
-                className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                className={`group relative flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
                   isActive
                     ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+                    : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
                 aria-label={collapsed ? item.label : undefined}
               >
-                <span
-                  className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}
-                  style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
-                >
-                  {item.icon}
+                {isActive && !collapsed && (
+                  <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-white/70" aria-hidden="true" />
+                )}
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center ${collapsed ? 'mx-auto' : ''}`}>
+                  <span
+                    className="material-symbols-outlined text-[20px] leading-none"
+                    style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+                  >
+                    {item.icon}
+                  </span>
                 </span>
-                {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                {!collapsed && <span className="flex-1 truncate leading-none">{item.label}</span>}
                 {collapsed && <MiniTooltip label={item.label} />}
               </NavLink>
             );
@@ -335,11 +363,13 @@ const PortalSidebar = ({
           <button
             type="button"
             onClick={onLogout}
-            className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition-all duration-150 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 ${collapsed ? 'justify-center px-0' : ''}`}
+            className={`group relative flex w-full items-center gap-3 rounded-xl py-2.5 pl-3 pr-3 text-sm font-medium text-rose-600 transition-all duration-150 hover:translate-x-0.5 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 ${collapsed ? 'justify-center px-0' : ''}`}
             aria-label={collapsed ? 'Logout' : undefined}
           >
-            <span className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}>logout</span>
-            {!collapsed && <span className="flex-1 text-left">Logout</span>}
+            <span className={`flex h-5 w-5 shrink-0 items-center justify-center ${collapsed ? 'mx-auto' : ''}`}>
+              <span className="material-symbols-outlined text-[20px] leading-none">logout</span>
+            </span>
+            {!collapsed && <span className="flex-1 text-left leading-none">Logout</span>}
             {collapsed && <MiniTooltip label="Logout" />}
           </button>
         </div>

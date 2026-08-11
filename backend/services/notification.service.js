@@ -127,7 +127,7 @@ const markAllNotificationsRead = async (managerUser) => {
 
 const findTargetManagers = async (department) => {
   const query = {
-    role: ROLES.MANAGER,
+    role: { $in: [ROLES.IT_MANAGER, 'manager'] },
     isActive: true,
   };
   if (department) {
@@ -136,7 +136,7 @@ const findTargetManagers = async (department) => {
 
   const [managersByDept, fallbackManagers, ceoUsers] = await Promise.all([
     User.find(query).select('firstName lastName email department'),
-    User.find({ role: ROLES.MANAGER, isActive: true }).select(
+    User.find({ role: { $in: [ROLES.IT_MANAGER, 'manager'] }, isActive: true }).select(
       'firstName lastName email department'
     ),
     User.find({ role: ROLES.CEO, isActive: true }).select('firstName lastName email department'),

@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Button from '../../common/Button';
+import { getRoleIcon, getRoleLabel } from './userDirectoryMeta';
 
 const UserDataTable = ({
   users,
@@ -19,12 +20,22 @@ const UserDataTable = ({
 }) => {
   const [sortBy, setSortBy] = useState('firstName');
   const [sortOrder, setSortOrder] = useState('asc');
-  const [viewMode, setViewMode] = useState(() => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-      return 'grid';
-    }
-    return 'table';
-  }); // 'table' | 'grid'
+  // Below 768px the directory always renders as cards — a table can't fit that
+  // narrow without truncating every column, so there's no toggle back to it there.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  );
+  const [viewMode, setViewMode] = useState(() => (isMobile ? 'grid' : 'table')); // 'table' | 'grid'
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const effectiveViewMode = isMobile ? 'grid' : viewMode;
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -35,51 +46,24 @@ const UserDataTable = ({
     }
   };
 
-  const sortedUsers = useMemo(() => [...users].sort((a, b) => {
-    const aVal = a[sortBy] || '';
-    const bVal = b[sortBy] || '';
-    const modifier = sortOrder === 'asc' ? 1 : -1;
-    return aVal.toString().localeCompare(bVal.toString()) * modifier;
-  }), [sortBy, sortOrder, users]);
+  const joinedWithinDays = filters?.joinedWithin ? Number(filters.joinedWithin) : 0;
 
-  const ROLE_ICONS = {
-    admin: 'shield_person',
-    ceo: 'business_center',
-    hr: 'badge',
-    it_manager: 'computer',
-    it_admin: 'admin_panel_settings',
-    it_employee: 'computer',
-    it_hr: 'badge',
-    finance_manager: 'payments',
-    finance_employee: 'payments',
-    media_head: 'photo_camera',
-    media_sales: 'trending_up',
-    media_marketing: 'campaign',
-    law_head: 'gavel',
-    law_employee: 'gavel',
-    freelancer: 'person',
-    employee: 'person',
-  };
-  const getRoleIcon = (role) => ROLE_ICONS[role] || 'person';
+  const sortedUsers = useMemo(() => {
+    const filtered = joinedWithinDays
+      ? users.filter((u) => {
+          if (!u.createdAt) return false;
+          const ageMs = Date.now() - new Date(u.createdAt).getTime();
+          return ageMs >= 0 && ageMs <= joinedWithinDays * 24 * 60 * 60 * 1000;
+        })
+      : users;
 
-  const ROLE_LABELS = {
-    admin: 'Super Admin',
-    ceo: 'CEO',
-    hr: 'HR',
-    it_manager: 'IT Manager',
-    it_admin: 'IT Admin',
-    it_employee: 'IT Employee',
-    it_hr: 'IT HR',
-    finance_manager: 'Finance Manager',
-    finance_employee: 'Finance Employee',
-    media_head: 'Media Head',
-    media_sales: 'Media Sales',
-    media_marketing: 'Media Marketing',
-    law_head: 'Law Head',
-    law_employee: 'Law Employee',
-    freelancer: 'Freelancer',
-  };
-  const getRoleLabel = (role) => ROLE_LABELS[role] || role?.replace(/_/g, ' ') || 'N/A';
+    return [...filtered].sort((a, b) => {
+      const aVal = a[sortBy] || '';
+      const bVal = b[sortBy] || '';
+      const modifier = sortOrder === 'asc' ? 1 : -1;
+      return aVal.toString().localeCompare(bVal.toString()) * modifier;
+    });
+  }, [sortBy, sortOrder, users, joinedWithinDays]);
 
   const isLegacyEmployee = (role) => String(role || '').trim().toLowerCase() === 'employee';
 
@@ -102,7 +86,8 @@ const UserDataTable = ({
               User Directory
             </h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              {users.length} {users.length === 1 ? 'user' : 'users'} found
+              {sortedUsers.length} {sortedUsers.length === 1 ? 'user' : 'users'} found
+              {joinedWithinDays ? ` · filtered from ${users.length} on this page` : ''}
             </p>
           </div>
           <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:w-auto lg:flex lg:flex-wrap lg:items-center">
@@ -113,34 +98,46 @@ const UserDataTable = ({
                 placeholder="Search users..."
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="min-h-11 w-full rounded-lg border border-neutral-200 bg-white py-2 pl-10 pr-4 text-sm text-neutral-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 lg:w-72"
+                className="min-h-11 w-full rounded-lg border border-neutral-200 bg-white py-2 pl-10 pr-9 text-sm text-neutral-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 lg:w-72"
               />
-              <span className="absolute left-3 top-2.5 material-symbols-outlined text-neutral-400">search</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-neutral-400">search</span>
+              {filters.search && (
+                <button
+                  type="button"
+                  onClick={() => setFilters({ ...filters, search: '' })}
+                  className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-primary/30 dark:hover:bg-neutral-700 dark:hover:text-red-400"
+                  aria-label="Clear search"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              )}
             </div>
-            
-            {/* View Toggle */}
-            <div className="flex overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
+
+            {/* View Toggle (desktop/tablet only — mobile always shows cards) */}
+            <div className="hidden overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700 md:flex">
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`flex min-h-11 flex-1 items-center justify-center px-3 py-2 text-sm font-medium transition-colors sm:flex-none ${
-                  viewMode === 'table' 
-                    ? 'bg-primary text-white' 
+                className={`flex min-h-11 flex-1 items-center justify-center px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-none ${
+                  viewMode === 'table'
+                    ? 'bg-primary text-white'
                     : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700'
                 }`}
                 aria-label="Table view"
+                aria-pressed={viewMode === 'table'}
               >
                 <span className="material-symbols-outlined text-lg">table_rows</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
-                className={`flex min-h-11 flex-1 items-center justify-center px-3 py-2 text-sm font-medium transition-colors sm:flex-none ${
-                  viewMode === 'grid' 
-                    ? 'bg-primary text-white' 
+                className={`flex min-h-11 flex-1 items-center justify-center px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-none ${
+                  viewMode === 'grid'
+                    ? 'bg-primary text-white'
                     : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700'
                 }`}
                 aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
               >
                 <span className="material-symbols-outlined text-lg">grid_view</span>
               </button>
@@ -159,7 +156,7 @@ const UserDataTable = ({
         </div>
       </div>
 
-      {users.length === 0 ? (
+      {sortedUsers.length === 0 ? (
         <div className="px-4 py-16 text-center">
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-neutral-100 to-neutral-200 dark:from-neutral-800 dark:to-neutral-700">
             <span className="material-symbols-outlined text-4xl text-neutral-400">group_off</span>
@@ -171,49 +168,49 @@ const UserDataTable = ({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setFilters({ search: '', role: '', isActive: '', accountStatus: '' })}
+            onClick={() => setFilters({ search: '', role: '', isActive: '', accountStatus: '', joinedWithin: '' })}
             icon={<span className="material-symbols-outlined">refresh</span>}
           >
             Clear all filters
           </Button>
         </div>
-      ) : viewMode === 'table' ? (
+      ) : effectiveViewMode === 'table' ? (
         /* Table View */
         <div className="max-h-[70vh] overflow-auto lg:max-h-none">
           <table className="w-full min-w-[860px]">
             <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-800/95">
               <tr>
-                <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+                <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300" aria-sort={sortBy === 'firstName' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   <button
                     onClick={() => handleSort('firstName')}
-                    className="flex min-h-10 items-center gap-1 transition-colors hover:text-primary"
+                    className="flex min-h-10 items-center gap-1 rounded-md px-1 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
                     User
-                    <span className="material-symbols-outlined text-lg">
+                    <span className={`material-symbols-outlined text-lg ${sortBy === 'firstName' ? 'text-primary' : 'text-neutral-400'}`}>
                       {sortBy === 'firstName' ? (sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
                     </span>
                   </button>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+                <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300" aria-sort={sortBy === 'role' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   <button
                     onClick={() => handleSort('role')}
-                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                    className="flex min-h-10 items-center gap-1 rounded-md px-1 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
                     Role
-                    <span className="material-symbols-outlined text-lg">
+                    <span className={`material-symbols-outlined text-lg ${sortBy === 'role' ? 'text-primary' : 'text-neutral-400'}`}>
                       {sortBy === 'role' ? (sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
                     </span>
                   </button>
                 </th>
                 <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">Status</th>
                 <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">Department</th>
-                <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+                <th className="p-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300" aria-sort={sortBy === 'createdAt' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   <button
                     onClick={() => handleSort('createdAt')}
-                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                    className="flex min-h-10 items-center gap-1 rounded-md px-1 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
                     Joined
-                    <span className="material-symbols-outlined text-lg">
+                    <span className={`material-symbols-outlined text-lg ${sortBy === 'createdAt' ? 'text-primary' : 'text-neutral-400'}`}>
                       {sortBy === 'createdAt' ? (sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
                     </span>
                   </button>
@@ -293,7 +290,7 @@ const UserDataTable = ({
                             onEditUser(user);
                           }}
                           disabled={legacyEmployee}
-                          className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
                           title="Edit user"
                         >
                           <span className="material-symbols-outlined text-lg">edit</span>
@@ -305,7 +302,7 @@ const UserDataTable = ({
                             onSetStatus?.(user, user.accountStatus === 'blocked' ? 'active' : 'blocked');
                           }}
                           disabled={legacyEmployee || actionState.togglingId === userId}
-                          className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
                           title={user.accountStatus === 'blocked' ? 'Unblock user' : 'Block user'}
                         >
                           <span className="material-symbols-outlined text-lg">
@@ -319,7 +316,7 @@ const UserDataTable = ({
                             onToggleStatus(user);
                           }}
                           disabled={legacyEmployee || actionState.togglingId === userId}
-                          className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${
+                          className={`flex h-11 w-11 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${
                             user.isActive
                               ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/30'
                               : 'text-green-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/30'
@@ -344,7 +341,7 @@ const UserDataTable = ({
                             onDeleteUser(user);
                           }}
                           disabled={legacyEmployee || actionState.deletingId === userId}
-                          className="flex h-10 w-10 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
                           title="Delete user"
                         >
                           {actionState.deletingId === userId ? (
@@ -385,7 +382,7 @@ const UserDataTable = ({
                       : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-primary/50'
                   }`}
                 >
-                  <div className="flex items-start gap-3 pr-16 sm:pr-10">
+                  <div className="flex items-start gap-3 md:pr-24">
                     <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-sm font-bold ${
                       isSelected 
                         ? 'bg-primary text-white' 
@@ -416,7 +413,7 @@ const UserDataTable = ({
                   </div>
                   
                   {/* Quick Actions */}
-                  <div className="absolute right-3 top-3 flex gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-neutral-100 pt-3 dark:border-neutral-800 md:absolute md:right-3 md:top-3 md:mt-0 md:border-0 md:pt-0 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -424,10 +421,72 @@ const UserDataTable = ({
                         onEditUser(user);
                       }}
                       disabled={legacyEmployee}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:hover:bg-blue-900/30"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 dark:hover:bg-blue-900/30"
+                      title="Edit user"
                       aria-label={`Edit ${fullName}`}
                     >
                       <span className="material-symbols-outlined text-lg">edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSetStatus?.(user, user.accountStatus === 'blocked' ? 'active' : 'blocked');
+                      }}
+                      disabled={legacyEmployee || actionState.togglingId === userId}
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
+                      title={user.accountStatus === 'blocked' ? 'Unblock user' : 'Block user'}
+                      aria-label={user.accountStatus === 'blocked' ? `Unblock ${fullName}` : `Block ${fullName}`}
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        {user.accountStatus === 'blocked' ? 'lock_open' : 'block'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleStatus(user);
+                      }}
+                      disabled={legacyEmployee || actionState.togglingId === userId}
+                      className={`flex h-11 w-11 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 ${
+                        user.isActive
+                          ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/30'
+                          : 'text-green-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/30'
+                      }`}
+                      title={user.isActive ? 'Deactivate user' : 'Activate user'}
+                      aria-label={user.isActive ? `Deactivate ${fullName}` : `Activate ${fullName}`}
+                    >
+                      {actionState.togglingId === userId ? (
+                        <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="currentColor">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                          <path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                      ) : (
+                        <span className="material-symbols-outlined text-lg">
+                          {user.isActive ? 'pause_circle' : 'play_circle'}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteUser(user);
+                      }}
+                      disabled={legacyEmployee || actionState.deletingId === userId}
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 dark:hover:bg-red-900/30"
+                      title="Delete user"
+                      aria-label={`Delete ${fullName}`}
+                    >
+                      {actionState.deletingId === userId ? (
+                        <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="currentColor">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                          <path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                      ) : (
+                        <span className="material-symbols-outlined text-lg">delete</span>
+                      )}
                     </button>
                   </div>
                 </div>

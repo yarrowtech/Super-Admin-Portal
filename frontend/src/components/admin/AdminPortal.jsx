@@ -11,8 +11,8 @@ const AdminPortal = ({ children }) => {
     >
       <AdminSidebar />
       <div
-        className={`portal-content flex-1 overflow-x-hidden pt-16 transition-[margin] duration-300 ease-out-expo md:pt-0 ${
-          collapsed ? 'md:ml-16' : 'md:ml-[250px]'
+        className={`portal-content flex-1 overflow-x-hidden pt-16 transition-[margin] duration-300 ease-out-expo lg:pt-0 ${
+          collapsed ? 'lg:ml-16' : 'lg:ml-[250px]'
         }`}
       >
         {children}

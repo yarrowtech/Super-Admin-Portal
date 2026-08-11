@@ -254,7 +254,7 @@ const buildManagerSnapshot = async (manager = {}) => {
   const managerId =
     toObjectId(manager._id) || toObjectId(manager.id) || toObjectId(manager?.userId);
   const department = manager.department || manager.metadata?.department || null;
-  const scopedDepartment = [ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(manager.role)
+  const scopedDepartment = [ROLES.IT_MANAGER, 'manager', ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(manager.role)
     ? null
     : department;
   const projectFilter = managerId ? { projectManager: managerId } : {};

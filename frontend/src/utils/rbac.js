@@ -3,6 +3,8 @@ export const PORTALS = {
   SUPER_ADMIN: 'super-admin',
   CEO: 'ceo',
   HR: 'hr',
+  MANAGER: 'manager',
+  EMPLOYEE: 'employee',
   IT: 'it',
   LAW: 'law',
   MEDIA: 'media',
@@ -16,15 +18,15 @@ export const MEDIA_PORTAL_ROLES = ['media_head', 'media_sales', 'media_marketing
 export const LAW_PORTAL_ROLES = ['law_head', 'law_employee'];
 
 const baseRoleAccess = {
-  admin: [PORTALS.ADMIN, PORTALS.CEO, PORTALS.HR, PORTALS.IT, PORTALS.LAW, PORTALS.MEDIA, PORTALS.FINANCE, PORTALS.OUTSOURCING],
+  admin: [PORTALS.ADMIN, PORTALS.CEO, PORTALS.HR, PORTALS.MANAGER, PORTALS.EMPLOYEE, PORTALS.IT, PORTALS.LAW, PORTALS.MEDIA, PORTALS.FINANCE, PORTALS.OUTSOURCING],
   super_admin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
   superadmin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
   ceo: [PORTALS.CEO],
   hr: [PORTALS.HR],
-  it_manager: [PORTALS.IT],
+  it_manager: [PORTALS.IT, PORTALS.MANAGER],
   it_admin: [PORTALS.IT],
-  it_employee: [PORTALS.IT],
-  it_hr: [PORTALS.IT],
+  it_employee: [PORTALS.IT, PORTALS.EMPLOYEE],
+  it_hr: [PORTALS.IT, PORTALS.HR],
   finance_manager: [PORTALS.FINANCE],
   finance_employee: [PORTALS.FINANCE],
   law_head: [PORTALS.LAW],

@@ -162,30 +162,30 @@ const AdminSidebar = () => {
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/95 px-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 md:hidden">
+      <div className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/95 px-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 lg:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:text-neutral-200 dark:hover:bg-neutral-800"
           aria-label="Open navigation"
         >
           <span className="material-symbols-outlined">menu</span>
         </button>
         <div className="min-w-0 text-center">
-          <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">Admin Portal</p>
-          <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{user?.firstName} {user?.lastName}</p>
+          <p className="truncate text-sm font-bold leading-tight text-neutral-900 dark:text-neutral-100">Admin Portal</p>
+          <p className="truncate text-xs leading-tight text-neutral-500 dark:text-neutral-400">{user?.firstName} {user?.lastName}</p>
         </div>
         <button
           type="button"
           onClick={handleLogout}
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/20"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-red-600 transition-colors hover:bg-red-50 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/20"
           aria-label="Logout"
         >
           <span className="material-symbols-outlined">logout</span>
         </button>
       </div>
 
-      <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
+      <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg lg:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
         <PortalSidebar
           showBranding={false}
           brandingTitle=""
@@ -202,14 +202,14 @@ const AdminSidebar = () => {
       </div>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
           <button
             type="button"
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/50 animate-in fade-in duration-200"
             onClick={() => setMobileOpen(false)}
             aria-label="Close navigation overlay"
           />
-          <div className="relative h-full w-[min(250px,86vw)] shadow-2xl transition-transform duration-300 ease-out">
+          <div className="animate-in slide-in-from-left relative h-full w-[min(280px,86vw)] shadow-2xl duration-300 ease-out">
             <PortalSidebar
               brandingTitle="Admin Portal"
               brandingSubtitle="Enterprise controls"
@@ -219,6 +219,8 @@ const AdminSidebar = () => {
               currentPath={location.pathname}
               onLogout={handleLogout}
               onNavigate={closeMobile}
+              forceExpanded
+              onClose={closeMobile}
               footerItems={[
                 { path: '/admin/settings', label: 'Settings', icon: 'settings' },
               ]}

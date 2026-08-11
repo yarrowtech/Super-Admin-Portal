@@ -1,47 +1,5 @@
 import React, { useState } from 'react';
-
-// Department-wise grouping, matching the SUPER ADMIN / CEO / HR / IT / FINANCE / MEDIA / LAW /
-// OUTSOURCING hierarchy. Single-role departments filter directly on click; multi-role
-// departments (IT, Finance, Media, Law) expand to let you filter by the whole department
-// (all its roles combined, via a comma-joined `role` query param) or by one sub-role.
-// Each department carries its own accent color so the list scans quickly at a glance.
-const departmentGroups = [
-  { key: 'admin', label: 'Super Admin', icon: 'shield_person', roles: ['admin'], badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
-  { key: 'ceo', label: 'CEO', icon: 'business_center', roles: ['ceo'], badge: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' },
-  { key: 'hr', label: 'HR', icon: 'badge', roles: ['hr'], badge: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
-  {
-    key: 'it', label: 'IT', icon: 'computer', badge: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
-    subRoles: [
-      { value: 'it_manager', label: 'IT Manager' },
-      { value: 'it_admin', label: 'IT Admin' },
-      { value: 'it_employee', label: 'IT Employee' },
-      { value: 'it_hr', label: 'IT HR' },
-    ],
-  },
-  {
-    key: 'finance', label: 'Finance', icon: 'payments', badge: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-    subRoles: [
-      { value: 'finance_manager', label: 'Finance Manager' },
-      { value: 'finance_employee', label: 'Finance Employee' },
-    ],
-  },
-  {
-    key: 'media', label: 'Media', icon: 'photo_camera', badge: 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-400',
-    subRoles: [
-      { value: 'media_head', label: 'Media Head' },
-      { value: 'media_sales', label: 'Media Sales' },
-      { value: 'media_marketing', label: 'Media Marketing' },
-    ],
-  },
-  {
-    key: 'law', label: 'Law', icon: 'gavel', badge: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
-    subRoles: [
-      { value: 'law_head', label: 'Law Head' },
-      { value: 'law_employee', label: 'Law Employee' },
-    ],
-  },
-  { key: 'outsourcing', label: 'Outsourcing', icon: 'handshake', roles: ['freelancer'], badge: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400' },
-];
+import { departmentGroups, JOINED_WITHIN_OPTIONS } from './userDirectoryMeta';
 
 const SectionCard = ({ icon, title, children }) => (
   <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -253,6 +211,31 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
             </select>
           </div>
         </div>
+      </SectionCard>
+
+      <SectionCard icon="event" title="Joined Date">
+        <div className="grid grid-cols-2 gap-1.5">
+          {JOINED_WITHIN_OPTIONS.map((option) => {
+            const active = (filters.joinedWithin || '') === option.value;
+            return (
+              <button
+                key={option.value || 'any'}
+                type="button"
+                onClick={() => setFilters({ ...filters, joinedWithin: option.value })}
+                className={`min-h-11 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+                  active
+                    ? 'bg-gradient-to-r from-primary to-primary/80 text-white shadow-md'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[11px] leading-4 text-neutral-400 dark:text-neutral-500">
+          Applies to the users currently loaded on this page.
+        </p>
       </SectionCard>
     </div>
   );

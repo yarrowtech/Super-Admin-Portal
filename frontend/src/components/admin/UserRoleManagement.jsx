@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../../services/admin';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
 import StatsCard from '../common/StatsCard';
 import UserFilterSidebar from './users/UserFilterSidebar';
 import UserFormModal from './users/UserFormModal';
 import UserDataTable from './users/UserDataTable';
+import { getDepartmentChipLabel, getJoinedWithinLabel } from './users/userDirectoryMeta';
+
+const emptyFilters = { search: '', role: '', isActive: '', accountStatus: '', joinedWithin: '' };
 
 const initialForm = {
   firstName: '',
@@ -26,13 +31,15 @@ const isProjectContextError = (error) => /project\s*id required/i.test(error?.me
 const UserRoleManagement = ({ api = adminApi } = {}) => {
   const userApi = api || adminApi;
   const { token } = useAuth();
+  const toast = useToast();
+  const { confirm } = useConfirmDialog();
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, inactiveUsers: 0 });
   const [usersByRole, setUsersByRole] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [filters, setFilters] = useState({ search: '', role: '', isActive: '', accountStatus: '' });
+  const [filters, setFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionState, setActionState] = useState({ saving: false, deletingId: null, togglingId: null });
@@ -117,6 +124,38 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     () => users.some((user) => String(user?.role || '').toLowerCase() === 'employee'),
     [users]
   );
+
+  const activeFilterChips = useMemo(() => {
+    const chips = [];
+    if (filters.search) {
+      chips.push({ key: 'search', label: `Search: "${filters.search}"`, onRemove: () => setFilters((f) => ({ ...f, search: '' })) });
+    }
+    if (filters.role) {
+      chips.push({ key: 'role', label: getDepartmentChipLabel(filters.role), onRemove: () => setFilters((f) => ({ ...f, role: '' })) });
+    }
+    if (filters.isActive) {
+      chips.push({
+        key: 'isActive',
+        label: filters.isActive === 'true' ? 'Active only' : 'Inactive only',
+        onRemove: () => setFilters((f) => ({ ...f, isActive: '' })),
+      });
+    }
+    if (filters.accountStatus) {
+      chips.push({
+        key: 'accountStatus',
+        label: `Status: ${filters.accountStatus.replace(/_/g, ' ')}`,
+        onRemove: () => setFilters((f) => ({ ...f, accountStatus: '' })),
+      });
+    }
+    if (filters.joinedWithin) {
+      chips.push({
+        key: 'joinedWithin',
+        label: `Joined: ${getJoinedWithinLabel(filters.joinedWithin)}`,
+        onRemove: () => setFilters((f) => ({ ...f, joinedWithin: '' })),
+      });
+    }
+    return chips;
+  }, [filters]);
 
   const openCreateModal = () => {
     setEditingUser(null);
@@ -230,13 +269,14 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       }
 
       closeModal();
+      toast.success(editingUser ? 'User updated successfully.' : 'User created successfully.');
       // Clear filters so the just-saved user (whatever its role/status) is
       // guaranteed to be visible instead of silently hidden by whatever
       // filter happened to be active before the save. This also triggers a
       // fresh fetchUsers() via the filters-driven effect below — no need to
       // call it explicitly, since doing so here would still use the stale
       // (pre-update) filters closure.
-      setFilters({ search: '', role: '', isActive: '', accountStatus: '' });
+      setFilters(emptyFilters);
     } catch (err) {
       setFormError(err.message || 'Unable to save user');
     } finally {
@@ -246,14 +286,28 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
   const handleToggleStatus = async (targetUser = selectedUser) => {
     if (!targetUser || !token) return;
+    const fullName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
+    const shouldProceed = await confirm({
+      title: targetUser.isActive ? 'Deactivate user?' : 'Activate user?',
+      message: targetUser.isActive
+        ? `${fullName} will lose access to the platform until reactivated.`
+        : `${fullName} will regain access to the platform.`,
+      confirmLabel: targetUser.isActive ? 'Deactivate' : 'Activate',
+      tone: targetUser.isActive ? 'danger' : 'warning',
+    });
+    if (!shouldProceed) return;
+
     const userId = targetUser._id || targetUser.id;
     setActionState((prev) => ({ ...prev, togglingId: userId }));
 
     try {
       await userApi.toggleUserStatus(token, userId);
+      toast.success(targetUser.isActive ? `${fullName} deactivated.` : `${fullName} activated.`);
       fetchUsers();
     } catch (err) {
-      setError(err.message || 'Failed to update status');
+      const message = err.message || 'Failed to update status';
+      setError(message);
+      toast.error(message);
     } finally {
       setActionState((prev) => ({ ...prev, togglingId: null }));
     }
@@ -261,14 +315,29 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
   const handleSetStatus = async (targetUser, accountStatus) => {
     if (!targetUser || !token) return;
+    const fullName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
+    const blocking = accountStatus === 'blocked';
+    const shouldProceed = await confirm({
+      title: blocking ? 'Block user?' : 'Unblock user?',
+      message: blocking
+        ? `${fullName} will be immediately signed out and blocked from logging in.`
+        : `${fullName} will be able to log in again.`,
+      confirmLabel: blocking ? 'Block' : 'Unblock',
+      tone: blocking ? 'danger' : 'warning',
+    });
+    if (!shouldProceed) return;
+
     const userId = targetUser._id || targetUser.id;
     setActionState((prev) => ({ ...prev, togglingId: userId }));
 
     try {
       await userApi.setUserStatus(token, userId, accountStatus);
+      toast.success(blocking ? `${fullName} blocked.` : `${fullName} unblocked.`);
       fetchUsers();
     } catch (err) {
-      setError(err.message || 'Failed to update account status');
+      const message = err.message || 'Failed to update account status';
+      setError(message);
+      toast.error(message);
     } finally {
       setActionState((prev) => ({ ...prev, togglingId: null }));
     }
@@ -286,25 +355,36 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      toast.success('User directory exported.');
     } catch (err) {
-      setError(err.message || 'Failed to export users');
+      const message = err.message || 'Failed to export users';
+      setError(message);
+      toast.error(message);
     }
   };
 
   const handleDelete = async (targetUser = selectedUser) => {
     if (!targetUser || !token) return;
-    if (!window.confirm(`Are you sure you want to delete ${targetUser.firstName} ${targetUser.lastName}?`)) {
-      return;
-    }
+    const fullName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
+    const shouldProceed = await confirm({
+      title: 'Delete user?',
+      message: `This will permanently delete ${fullName}. This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!shouldProceed) return;
 
     const userId = targetUser._id || targetUser.id;
     setActionState((prev) => ({ ...prev, deletingId: userId }));
 
     try {
       await userApi.deleteUser(token, userId);
+      toast.success(`${fullName} deleted.`);
       fetchUsers();
     } catch (err) {
-      setError(err.message || 'Failed to delete user');
+      const message = err.message || 'Failed to delete user';
+      setError(message);
+      toast.error(message);
     } finally {
       setActionState((prev) => ({ ...prev, deletingId: null }));
     }
@@ -315,12 +395,12 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       <main className="portal-page">
         <div className="portal-page-inner">
           <div className="mb-4 h-32 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-            <div className="hidden space-y-3 xl:col-span-3 xl:block">
+          <div className="grid grid-cols-1 gap-4 min-[1200px]:grid-cols-12">
+            <div className="hidden space-y-3 min-[1200px]:col-span-3 min-[1200px]:block">
               <div className="h-28 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
               <div className="h-80 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
             </div>
-            <div className="xl:col-span-9">
+            <div className="min-[1200px]:col-span-9">
               <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
                 <div className="h-20 animate-pulse border-b border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800" />
                 <div className="space-y-2 p-3">
@@ -356,7 +436,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
                 variant="secondary"
                 size="md"
                 onClick={() => setFiltersOpen(true)}
-                className="min-h-11 xl:hidden"
+                className="min-h-11 min-[1200px]:hidden"
                 icon={<span className="material-symbols-outlined text-lg">tune</span>}
               >
                 Filters
@@ -394,10 +474,37 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
             </div>
           )}
 
+          {/* Active Filter Chips */}
+          {activeFilterChips.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                Active filters
+              </span>
+              {activeFilterChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={chip.onRemove}
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 pl-3 pr-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-primary/30 dark:bg-primary/15"
+                >
+                  <span className="max-w-[16rem] truncate">{chip.label}</span>
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setFilters(emptyFilters)}
+                className="text-xs font-semibold text-neutral-500 underline-offset-2 hover:text-red-600 hover:underline dark:text-neutral-400 dark:hover:text-red-400"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12 2xl:gap-6">
+          <div className="grid grid-cols-1 gap-4 min-[1200px]:grid-cols-12 min-[1200px]:items-start 2xl:gap-6">
             {/* Left Sidebar - Filters */}
-            <div className="hidden xl:col-span-3 xl:block">
+            <div className="hidden min-[1200px]:sticky min-[1200px]:top-4 min-[1200px]:col-span-3 min-[1200px]:block min-[1200px]:max-h-[calc(100vh-2rem)] min-[1200px]:overflow-y-auto">
               <UserFilterSidebar
                 filters={filters}
                 setFilters={setFilters}
@@ -407,7 +514,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
             </div>
 
             {/* Main Content Area */}
-            <div className="xl:col-span-9">
+            <div className="min-[1200px]:col-span-9">
               <UserDataTable
                 users={users}
                 loading={loading}
@@ -429,7 +536,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       </div>
 
       {filtersOpen && (
-        <div className="fixed inset-0 z-40 xl:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-40 min-[1200px]:hidden" role="dialog" aria-modal="true">
           <button
             type="button"
             className="absolute inset-0 bg-black/50"

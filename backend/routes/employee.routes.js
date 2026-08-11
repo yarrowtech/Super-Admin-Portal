@@ -12,7 +12,7 @@ const { ROLES } = require('../config/roles');
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize(ROLES.EMPLOYEE, ROLES.ADMIN, ROLES.MANAGER, ROLES.CEO, ROLES.IT));
+router.use(authorize(ROLES.IT_EMPLOYEE, ROLES.IT_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO));
 router.use(authorizePortalAccess('employee'));
 
 // ── Job Board (employees browse open jobs and apply) ─────────────────────────

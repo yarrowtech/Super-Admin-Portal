@@ -105,6 +105,8 @@ import { dashboardWorkflowApi } from '../services/dashboardWorkflow';
 import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, PrivateRoute } from './routeGuards';
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
+const managerRoles = ['it_manager', ...adminRoles];
+const employeeRoles = ['it_employee', 'it_manager', ...adminRoles];
 
 const PortalRoute = ({ portal, children }) => {
   const { user, token, loading } = useAuth();
@@ -261,6 +263,58 @@ export default function AppRoutes() {
           <Route path="settings"    element={<ITSettingsPage />} />
           <Route path="support-center" element={<ITSupportCenterPage />} />
         </Route>
+
+        <Route
+          path="/manager"
+          element={
+            <PortalRoute portal={PORTALS.MANAGER}>
+              <PrivateRoute roles={managerRoles}>
+                <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/manager/dashboard"
+          element={
+            <PortalRoute portal={PORTALS.MANAGER}>
+              <PrivateRoute roles={managerRoles}>
+                <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/manager/project-overview"
+          element={
+            <PortalRoute portal={PORTALS.MANAGER}>
+              <PrivateRoute roles={managerRoles}>
+                <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/employee"
+          element={
+            <PortalRoute portal={PORTALS.EMPLOYEE}>
+              <PrivateRoute roles={employeeRoles}>
+                <ProjectOverviewPage portalKey="employee" portalName="Employee Portal" />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/employee/dashboard"
+          element={
+            <PortalRoute portal={PORTALS.EMPLOYEE}>
+              <PrivateRoute roles={employeeRoles}>
+                <ProjectOverviewPage portalKey="employee" portalName="Employee Portal" />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route path="/employee/projects" element={<Navigate to="/employee/dashboard" replace />} />
 
         <Route
           path="/law"

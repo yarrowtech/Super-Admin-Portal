@@ -4,10 +4,10 @@ const { ROLES } = require('../config/roles');
 
 const ROLE_TO_PORTAL = {
   [ROLES.HR]: 'hr',
-  [ROLES.IT_MANAGER]: 'it',
+  [ROLES.IT_MANAGER]: 'manager',
   [ROLES.IT_ADMIN]: 'it',
-  [ROLES.IT_EMPLOYEE]: 'it',
-  [ROLES.IT_HR]: 'it',
+  [ROLES.IT_EMPLOYEE]: 'employee',
+  [ROLES.IT_HR]: 'hr',
   [ROLES.CEO]: 'ceo',
   [ROLES.LAW_HEAD]: 'law',
   [ROLES.LAW_EMPLOYEE]: 'law',

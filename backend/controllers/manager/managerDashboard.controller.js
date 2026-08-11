@@ -23,8 +23,10 @@ const { CANONICAL_PROJECT_NAMES, findProjectByCode } = require('../../utils/proj
 const STRICT_PROJECT_NAMES = CANONICAL_PROJECT_NAMES;
 const getStrictProject = (value) => findProjectByCode(value);
 const isStrictProjectName = (value) => Boolean(getStrictProject(value));
+const MANAGER_ROLES = [ROLES.IT_MANAGER, 'manager'];
+const EMPLOYEE_ROLES = [ROLES.IT_EMPLOYEE, 'employee'];
 const hasGlobalManagerAccess = (user) =>
-  [ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(user?.role);
+  [...MANAGER_ROLES, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(user?.role);
 const shouldScopeByDepartment = (user) => Boolean(user?.department) && !hasGlobalManagerAccess(user);
 
 const sanitizeQueryValue = (value) => {
@@ -218,7 +220,7 @@ exports.createProjectTeam = async (req, res) => {
 
     const employees = await User.find({
       _id: { $in: normalizedMemberIds },
-      role: ROLES.EMPLOYEE,
+      role: { $in: EMPLOYEE_ROLES },
       isActive: true
     }).select('firstName lastName email department role');
 
@@ -709,7 +711,7 @@ exports.getCompletedTasks = async (req, res) => {
     const limitNum = parsePositiveInt(req.query.limit, 10);
     const teamUsers = shouldScopeByDepartment(req.user)
       ? await User.find({ department: req.user.department, isActive: true }).select('_id')
-      : await User.find({ role: ROLES.EMPLOYEE, isActive: true }).select('_id');
+      : await User.find({ role: { $in: EMPLOYEE_ROLES }, isActive: true }).select('_id');
 
     const teamUserIds = teamUsers.map((user) => user._id);
     const query = {

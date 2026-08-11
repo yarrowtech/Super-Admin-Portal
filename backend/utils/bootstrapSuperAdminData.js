@@ -24,6 +24,8 @@ const ensureSuperAdminDefaults = async () => {
     { role: 'admin', portal: 'super-admin', canAccess: true },
     { role: 'admin', portal: 'ceo', canAccess: true },
     { role: 'admin', portal: 'hr', canAccess: true },
+    { role: 'admin', portal: 'manager', canAccess: true },
+    { role: 'admin', portal: 'employee', canAccess: true },
     { role: 'admin', portal: 'it', canAccess: true },
     { role: 'admin', portal: 'law', canAccess: true },
     { role: 'admin', portal: 'media', canAccess: true },
@@ -35,11 +37,14 @@ const ensureSuperAdminDefaults = async () => {
     // IT department
     { role: 'it_manager', portal: 'it', canAccess: true },
     { role: 'it_manager', portal: 'admin', canAccess: true },
+    { role: 'it_manager', portal: 'manager', canAccess: true },
     { role: 'it_manager', portal: 'hr', canAccess: true },
     { role: 'it_manager', portal: 'law', canAccess: true },
     { role: 'it_admin', portal: 'it', canAccess: true },
     { role: 'it_employee', portal: 'it', canAccess: true },
+    { role: 'it_employee', portal: 'employee', canAccess: true },
     { role: 'it_hr', portal: 'it', canAccess: true },
+    { role: 'it_hr', portal: 'hr', canAccess: true },
     // Finance department
     { role: 'finance_manager', portal: 'finance', canAccess: true },
     { role: 'finance_employee', portal: 'finance', canAccess: true },

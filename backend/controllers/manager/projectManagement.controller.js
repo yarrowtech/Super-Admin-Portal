@@ -198,7 +198,7 @@ exports.createProjectTeam = async (req, res) => {
 
     const employees = await User.find({
       _id: { $in: normalizedMemberIds },
-      role: ROLES.EMPLOYEE,
+      role: { $in: [ROLES.IT_EMPLOYEE, 'employee'] },
       isActive: true
     }).select('firstName lastName email department role');
 

@@ -10,16 +10,18 @@ const constants = require('../config/constants');
 const { getRolePermissions } = require('../config/roles');
 
 const DEFAULT_IT_MANAGER_PORTALS = new Set(['it', 'admin', 'hr', 'law']);
+const DEFAULT_IT_EMPLOYEE_PORTALS = new Set(['employee']);
+const DEFAULT_IT_HR_PORTALS = new Set(['hr']);
 const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);
 
 // Department-scoped roles no longer share a literal string with their portal
 // (e.g. role 'it_manager' vs portal 'it'), unlike the old flat roles. This maps
 // each new role to the portal it belongs to, for the same-role/portal fallback below.
 const DEPARTMENT_ROLE_PORTAL = {
-  it_manager: 'it',
+  it_manager: 'manager',
   it_admin: 'it',
-  it_employee: 'it',
-  it_hr: 'it',
+  it_employee: 'employee',
+  it_hr: 'hr',
   finance_manager: 'finance',
   finance_employee: 'finance',
   media_head: 'media',
@@ -240,6 +242,12 @@ const authorizePortalAccess = (portal) => {
 
       if (!rule && req.user.role === 'admin') return next();
       if (!rule && req.user.role === 'it_manager' && DEFAULT_IT_MANAGER_PORTALS.has(portal)) {
+        return next();
+      }
+      if (!rule && req.user.role === 'it_employee' && DEFAULT_IT_EMPLOYEE_PORTALS.has(portal)) {
+        return next();
+      }
+      if (!rule && req.user.role === 'it_hr' && DEFAULT_IT_HR_PORTALS.has(portal)) {
         return next();
       }
       if (!rule && req.user.role === 'ceo' && DEFAULT_CEO_PORTALS.has(portal)) {

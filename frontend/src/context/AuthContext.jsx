@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../services/client';
-import { createLogger } from '../utils/logger';
+import { createLogger, emitFrontendEvent } from '../utils/logger';
 import { clearAuthSession, readAuthSession, subscribeAuthSession, writeAuthSession } from '../lib/authSession';
 
 const authLogger = createLogger({ module: 'auth' });
@@ -87,9 +87,24 @@ export const AuthProvider = ({ children }) => {
       setRefreshToken(authRefresh || null);
       setAuthMode(mode);
       writeAuthSession({ token: authToken, refreshToken: authRefresh || null, authMode: mode });
+      emitFrontendEvent('info', {
+        eventType: 'auth',
+        module: 'authentication',
+        action: 'login',
+        status: 'success',
+        userId: authedUser?._id || authedUser?.id || null,
+        role: authedUser?.role || null,
+      }, 'Frontend login succeeded');
       return authedUser;
     } catch (err) {
       authLogger.error({ err, mode }, 'Login failed');
+      emitFrontendEvent('warn', {
+        eventType: 'auth',
+        module: 'authentication',
+        action: 'login',
+        status: 'failed',
+        error: err?.message || 'Login failed',
+      }, 'Frontend login failed');
       setError(err.message || 'Login failed');
       throw err;
     }
@@ -108,6 +123,12 @@ export const AuthProvider = ({ children }) => {
     } finally {
       clearAuth();
       setAuthMode('default');
+      emitFrontendEvent('info', {
+        eventType: 'auth',
+        module: 'authentication',
+        action: 'logout',
+        status: 'success',
+      }, 'Frontend logout completed');
     }
   };
 

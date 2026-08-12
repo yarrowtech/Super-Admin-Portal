@@ -38,6 +38,7 @@ import {
   OutsourcingSupportPage,
   MediaDashboardPage,
   MediaProjectDetailPage,
+  MediaHeadDashboardPage,
   ProjectOverviewPage,
   SalesDashboardPage,
   SalesQueryPage,
@@ -104,6 +105,7 @@ import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
 import { dashboardWorkflowApi } from '../services/dashboardWorkflow';
 import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, PrivateRoute } from './routeGuards';
+import { emitFrontendEvent } from '../utils/logger';
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
 const managerRoles = ['it_manager', ...adminRoles];
@@ -185,11 +187,28 @@ const PortalRoute = ({ portal, children }) => {
 const withPortal = (PortalComponent, PageComponent) =>
   React.createElement(PortalComponent, null, React.createElement(PageComponent));
 
+const NavigationLogger = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    emitFrontendEvent('info', {
+      eventType: 'navigation',
+      module: 'router',
+      action: 'navigation',
+      status: 'success',
+      route: `${location.pathname}${location.search}`,
+    }, 'Frontend navigation');
+  }, [location.pathname, location.search]);
+
+  return null;
+};
+
 export default function AppRoutes() {
   const { user } = useAuth();
 
   return (
     <Router>
+      <NavigationLogger />
       <Suspense fallback={
         <div className="flex h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950">
           <div className="flex flex-col items-center gap-3">
@@ -398,6 +417,16 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.MEDIA}>
               <PrivateRoute roles={allow('media')}>
                 <MediaDashboardPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/head/:view?"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_head')}>
+                <MediaHeadDashboardPage />
               </PrivateRoute>
             </PortalRoute>
           }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { createLogger } from '../../utils/logger';
+import { createLogger, emitFrontendEvent } from '../../utils/logger';
 
 const errorBoundaryLogger = createLogger({ module: 'app-error-boundary' });
 
@@ -16,6 +16,14 @@ export default class AppErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     // Keep a persistent trace for debugging blank-screen issues in production.
     errorBoundaryLogger.error({ err: error, errorInfo }, 'AppErrorBoundary caught an error');
+    emitFrontendEvent('error', {
+      eventType: 'error',
+      module: 'app-error-boundary',
+      action: 'render',
+      status: 'error',
+      error: error?.message || 'Unexpected UI error',
+      route: window.location.pathname,
+    }, 'Frontend application error');
   }
 
   render() {

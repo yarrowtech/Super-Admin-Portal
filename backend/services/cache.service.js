@@ -8,6 +8,16 @@ let redisClient = null;
 let redisReady = false;
 let redisInitialized = false;
 
+const logCacheEvent = (action, metadata = {}) => {
+  if (process.env.LOG_CACHE_EVENTS !== 'true') return;
+  logger.info({
+    module: 'redis',
+    action,
+    status: metadata.status || 'success',
+    key: metadata.key ? String(metadata.key).slice(0, 120) : undefined,
+  }, 'Redis cache event');
+};
+
 const initRedis = async () => {
   if (redisInitialized || redisClient || redisReady) return;
   try {
@@ -74,6 +84,7 @@ const getCache = async (key) => {
   await initRedis();
   if (redisReady && redisClient) {
     const raw = await redisClient.get(key);
+    logCacheEvent(raw ? 'cache_hit' : 'cache_miss', { key, status: raw ? 'hit' : 'miss' });
     return raw ? JSON.parse(raw) : null;
   }
   return getMemory(key);
@@ -83,6 +94,7 @@ const setCache = async (key, value, ttlSeconds = DEFAULT_TTL_SECONDS) => {
   await initRedis();
   if (redisReady && redisClient) {
     await redisClient.setEx(key, ttlSeconds, JSON.stringify(value));
+    logCacheEvent('cache_set', { key });
     return;
   }
   setMemory(key, value, ttlSeconds);
@@ -92,6 +104,7 @@ const deleteCache = async (key) => {
   await initRedis();
   if (redisReady && redisClient) {
     await redisClient.del(key);
+    logCacheEvent('cache_delete', { key });
     return;
   }
   deleteMemory(key);
@@ -102,6 +115,7 @@ const deleteCachePrefix = async (prefix) => {
   if (redisReady && redisClient) {
     const keys = await redisClient.keys(`${prefix}*`);
     if (keys.length) await redisClient.del(keys);
+    logCacheEvent('cache_delete_prefix', { key: prefix });
     return;
   }
   deleteMemoryPrefix(prefix);

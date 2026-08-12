@@ -57,6 +57,7 @@ export const OutsourcingEdifyEightTeachersPage = lazy(() => import('../component
 export const MediaDashboardPage = lazy(() => import('../components/media/MediaPortal'));
 export const MediaPortalPage    = MediaDashboardPage;
 export const MediaProjectDetailPage = lazy(() => import('../components/media/MediaProjectDetail'));
+export const MediaHeadDashboardPage = lazy(() => import('../components/media/head/MediaHeadPortal'));
 export const ProjectOverviewPage = lazy(() => import('../components/shared/ProjectOverviewPage'));
 
 // ── Department portals ────────────────────────────────────────────────────────

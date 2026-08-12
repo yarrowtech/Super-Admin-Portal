@@ -50,6 +50,86 @@ exports.getProjects = async (req, res) => {
   }
 };
 
+exports.getMediaHeadDashboard = async (req, res) => {
+  try {
+    const data = await mediaService.getMediaHeadDashboard(req.query || {});
+    getMediaRequestLogger(req, { action: 'getMediaHeadDashboard' }).info(
+      { query: req.query || {} },
+      'Media Head dashboard loaded'
+    );
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head dashboard', 'Media Head dashboard error');
+  }
+};
+
+exports.getMediaHeadProjects = async (req, res) => {
+  try {
+    const data = await mediaService.listMediaHeadProjects(req.query || {});
+    getMediaRequestLogger(req, { action: 'getMediaHeadProjects' }).info(
+      { query: req.query || {} },
+      'Media Head projects listed'
+    );
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head projects', 'Media Head projects error');
+  }
+};
+
+exports.getMediaHeadSalesSummary = async (req, res) => {
+  try {
+    const data = await mediaService.getSalesSummary(req.query || {});
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head sales summary', 'Media Head sales summary error');
+  }
+};
+
+exports.getMediaHeadMarketingSummary = async (req, res) => {
+  try {
+    const data = await mediaService.getMarketingSummary(req.query || {});
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head marketing summary', 'Media Head marketing summary error');
+  }
+};
+
+exports.getMediaHeadRevenue = async (req, res) => {
+  try {
+    const data = await mediaService.getRevenueSummary(req.query || {});
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head revenue summary', 'Media Head revenue error');
+  }
+};
+
+exports.getMediaHeadAttention = async (req, res) => {
+  try {
+    const data = await mediaService.getNeedsAttention(req.query || {});
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head attention items', 'Media Head attention error');
+  }
+};
+
+exports.getMediaHeadTeam = async (req, res) => {
+  try {
+    const data = await mediaService.getTeamOverview();
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head team overview', 'Media Head team error');
+  }
+};
+
+exports.getMediaHeadDeadlines = async (req, res) => {
+  try {
+    const data = await mediaService.getDeadlineCenter();
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head deadline center', 'Media Head deadlines error');
+  }
+};
+
 exports.getAssets = async (req, res) => {
   try {
     const data = await mediaService.listMedia(req.query || {}, req.projectId, 'asset');
@@ -60,6 +140,19 @@ exports.getAssets = async (req, res) => {
     res.status(200).json({ success: true, data });
   } catch (err) {
     handleError(res, err, 'Failed to fetch media assets', 'Media module getAssets error');
+  }
+};
+
+exports.getCampaigns = async (req, res) => {
+  try {
+    const data = await mediaService.listMedia(req.query || {}, req.projectId, 'campaign');
+    getMediaRequestLogger(req, { action: 'getCampaigns' }).info(
+      { projectId: req.projectId || null, query: req.query || {} },
+      'Media campaigns listed'
+    );
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to fetch media campaigns', 'Media module getCampaigns error');
   }
 };
 
@@ -339,5 +432,38 @@ exports.getModuleDataByProject = async (req, res) => {
     res.status(200).json({ success: true, data });
   } catch (err) {
     handleError(res, err, 'Failed to fetch project media data', 'Media module getModuleDataByProject error');
+  }
+};
+
+exports.listApprovals = async (req, res) => {
+  try {
+    const data = await mediaService.listApprovals(req.query || {});
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to load approvals', 'Media module listApprovals error');
+  }
+};
+
+exports.decideMediaApproval = async (req, res) => {
+  try {
+    const data = await mediaService.decideMediaApproval({
+      workflowId: req.params.workflowId,
+      actorId: req.user?.id || req.user?._id,
+      actorRole: req.user?.role,
+      decision: req.body?.decision,
+      remarks: req.body?.remarks || '',
+    });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to decide approval request', 'Media module decideMediaApproval error');
+  }
+};
+
+exports.getActivity = async (req, res) => {
+  try {
+    const data = await mediaService.getActivity();
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to load activity feed', 'Media module getActivity error');
   }
 };

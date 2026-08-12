@@ -19,6 +19,8 @@ const socketConfig = require("./config/socket");
 const constants = require("./config/constants");
 const routes = require("./routes");
 const requestLogger = require("./logger/requestLogger");
+const { requestContextMiddleware } = require("./middlewares/requestContext.middleware");
+const auditMiddleware = require("./middlewares/audit.middleware");
 const { ensureSuperAdminDefaults } = require("./utils/bootstrapSuperAdminData");
 const { startLawExpiryTracker } = require("./modules/law/law.cron");
 const { startRenderKeepAlive } = require("./jobs/renderKeepAlive");
@@ -38,6 +40,15 @@ const io = new Server(server, ioOptions);
 app.set("io", io);
 const onlineUsers = new Map();
 require("./services/socketRegistry").registerSocket(io, onlineUsers);
+
+const countExpressRoutes = (expressApp) => {
+  const walk = (stack = []) => stack.reduce((count, layer) => {
+    if (layer.route) return count + Object.keys(layer.route.methods || {}).length;
+    if (layer.name === "router" && layer.handle?.stack) return count + walk(layer.handle.stack);
+    return count;
+  }, 0);
+  return walk(expressApp?._router?.stack || []);
+};
 
 connectDB().then(async () => {
   try {
@@ -62,7 +73,38 @@ app.use(compression());
 app.use(express.json({ limit: constants.REQUEST_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: constants.REQUEST_BODY_LIMIT }));
 app.use(mongoSanitize());
+
+if (!env.IS_PRODUCTION) {
+  app.post("/__dev/frontend-log", (req, res) => {
+    const payload = req.body && typeof req.body === "object" ? req.body : {};
+    logger[payload.level === "error" ? "error" : payload.level === "warn" ? "warn" : "info"](
+      {
+        source: "frontend",
+        eventType: payload.eventType || "event",
+        direction: payload.direction || null,
+        method: payload.method || null,
+        path: payload.path || null,
+        statusCode: payload.statusCode || null,
+        durationMs: payload.durationMs || null,
+        requestId: payload.requestId || req.headers["x-request-id"] || null,
+        userId: payload.userId || null,
+        role: payload.role || null,
+        module: payload.module || "frontend",
+        action: payload.action || null,
+        status: payload.status || null,
+        route: payload.route || null,
+        error: payload.error || null,
+        message: payload.message || null,
+      },
+      "Frontend activity"
+    );
+    res.status(204).end();
+  });
+}
+
 app.use(requestLogger);
+app.use(requestContextMiddleware);
+app.use(auditMiddleware);
 
 const isProd = env.IS_PRODUCTION;
 const apiLimiter = rateLimit({
@@ -163,6 +205,8 @@ app.use("/api/profile", routes.profileRoutes);
 app.use("/api/hr", routes.hrProfileRoutes);
 app.use("/api/legal", routes.legalDocRoutes);
 app.use("/api/portal-support", routes.portalSupportRoutes);
+
+logger.info({ routeCount: countExpressRoutes(app) }, "Routes loaded");
 
 app.use((req, res) => {
   res.status(404).json({

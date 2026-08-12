@@ -2,6 +2,7 @@ const logger = require('../utils/logger');
 const mongoose = require("mongoose");
 const env = require("./env");
 const constants = require("./constants");
+const { installMongooseInstrumentation } = require("../logger/dbInstrumentation");
 
 const connectDB = async () => {
   if (!env.MONGO_URI) {
@@ -10,6 +11,10 @@ const connectDB = async () => {
   }
 
   try {
+    if (!env.IS_PRODUCTION) {
+      installMongooseInstrumentation(mongoose);
+    }
+
     const options = {
       serverSelectionTimeoutMS: constants.MONGO_SERVER_SELECTION_TIMEOUT_MS,
       socketTimeoutMS: constants.MONGO_SOCKET_TIMEOUT_MS,

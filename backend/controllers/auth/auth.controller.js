@@ -97,9 +97,31 @@ const writeAuthActivity = async (req, action, user, metadata = {}) => {
       ipAddress: req.ip,
       userAgent: req.get('user-agent')
     });
+    logger.info({
+      requestId: req.id || req.headers['x-request-id'] || null,
+      module: 'authentication',
+      action,
+      status: 'success',
+      userId: user?._id || null,
+      role: user?.role || metadata.role || null,
+      ip: req.ip,
+    }, 'Authentication activity recorded');
   } catch (error) {
     logger.warn({ err: error, action }, 'Failed to write auth activity log');
   }
+};
+
+const logAuthFailure = (req, action, reason, extra = {}) => {
+  logger.warn({
+    requestId: req.id || req.headers['x-request-id'] || null,
+    module: 'authentication',
+    action,
+    status: 'failed',
+    userId: extra.userId || null,
+    role: extra.role || null,
+    reason,
+    ip: req.ip,
+  }, 'Authentication activity failed');
 };
 
 const sanitizeStringArray = (input) => {
@@ -483,9 +505,8 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error({ err: error }, 'Login error');
-
     if (error.message === 'Invalid credentials') {
+      logAuthFailure(req, 'auth.login', 'invalid_credentials');
       return res.status(401).json({
         success: false,
         error: 'Invalid email or password',
@@ -494,6 +515,7 @@ exports.login = async (req, res) => {
     }
 
     if (error.message === 'Account is deactivated') {
+      logAuthFailure(req, 'auth.login', 'account_deactivated');
       return res.status(403).json({
         success: false,
         error: 'Your account has been deactivated. Contact administrator.',
@@ -502,6 +524,7 @@ exports.login = async (req, res) => {
     }
 
     if (error.message === 'Account is suspended' || error.message === 'Account is blocked') {
+      logAuthFailure(req, 'auth.login', 'account_restricted');
       return res.status(403).json({
         success: false,
         error: `Your account has been ${error.message.split(' ').pop()}. Contact administrator.`,
@@ -509,6 +532,8 @@ exports.login = async (req, res) => {
       });
     }
 
+    logAuthFailure(req, 'auth.login', 'login_error');
+    logger.error({ err: error }, 'Login error');
     res.status(500).json({
       success: false,
       error: 'Login failed. Please try again.',
@@ -614,6 +639,7 @@ exports.refreshAccessToken = async (req, res) => {
     const refreshToken = req.body.refreshToken || parseCookie(req, 'refreshToken');
 
     if (!refreshToken) {
+      logAuthFailure(req, 'auth.refresh', 'refresh_token_required');
       return res.status(400).json({
         success: false,
         error: 'Refresh token required',
@@ -625,6 +651,7 @@ exports.refreshAccessToken = async (req, res) => {
     const decoded = jwt.verify(refreshToken, jwtConfig.refreshSecret);
 
     if (decoded.type !== 'refresh') {
+      logAuthFailure(req, 'auth.refresh', 'invalid_refresh_token_type');
       return res.status(401).json({
         success: false,
         error: 'Invalid refresh token',
@@ -636,6 +663,7 @@ exports.refreshAccessToken = async (req, res) => {
     const user = await User.findById(decoded.userId);
 
     if (!user || !user.isActive) {
+      logAuthFailure(req, 'auth.refresh', 'user_invalid', { userId: decoded.userId || null });
       return res.status(401).json({
         success: false,
         error: 'User not found or inactive',
@@ -654,6 +682,7 @@ exports.refreshAccessToken = async (req, res) => {
     });
 
     if (!session) {
+      logAuthFailure(req, 'auth.refresh', 'session_invalid', { userId: user._id, role: user.role });
       return res.status(401).json({
         success: false,
         error: 'Refresh session is invalid or expired',
@@ -684,9 +713,8 @@ exports.refreshAccessToken = async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error({ err: error }, 'Refresh token error');
-
     if (error.name === 'TokenExpiredError') {
+      logAuthFailure(req, 'auth.refresh', 'refresh_token_expired');
       return res.status(401).json({
         success: false,
         error: 'Refresh token expired. Please login again.',
@@ -694,6 +722,8 @@ exports.refreshAccessToken = async (req, res) => {
       });
     }
 
+    logAuthFailure(req, 'auth.refresh', 'invalid_refresh_token');
+    logger.error({ err: error }, 'Refresh token error');
     res.status(401).json({
       success: false,
       error: 'Invalid refresh token',

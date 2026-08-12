@@ -1,4 +1,5 @@
 const logger = require('../utils/logger');
+const { setRequestContext } = require('../logger/context');
 // backend/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -65,6 +66,22 @@ const normalizeProjectAssignments = (metadata = {}) => {
     .slice(0, 100);
 };
 
+const logAuthEvent = (req, level, status, message, extra = {}) => {
+  const payload = {
+    requestId: req.id || req.headers['x-request-id'] || null,
+    module: 'authentication',
+    action: 'authenticate',
+    status,
+    userId: req.user?.id || extra.userId || null,
+    role: req.user?.role || extra.role || null,
+    path: req.originalUrl,
+    method: req.method,
+    ...extra,
+  };
+  const targetLogger = req.log || logger;
+  targetLogger[level]?.(payload, message);
+};
+
 /**
  * Universal JWT Authentication Middleware
  * Verifies JWT token and attaches user to request
@@ -81,6 +98,7 @@ const authenticate = async (req, res, next) => {
 
     // Check if token exists
     if (!token) {
+      logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: missing token');
       return res.status(401).json({
         success: false,
         error: 'Access denied. No token provided. Please login.'
@@ -93,6 +111,7 @@ const authenticate = async (req, res, next) => {
       decoded = jwt.verify(token, jwtConfig.accessSecret);
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
+        logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: token expired');
         return res.status(401).json({
           success: false,
           error: 'Token expired. Please login again.',
@@ -100,6 +119,7 @@ const authenticate = async (req, res, next) => {
         });
       }
       if (err.name === 'JsonWebTokenError') {
+        logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: invalid token');
         return res.status(401).json({
           success: false,
           error: 'Invalid token. Please login again.',
@@ -113,6 +133,7 @@ const authenticate = async (req, res, next) => {
     const user = await User.findById(decoded.userId).select('-password');
 
     if (!user) {
+      logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: user not found', { userId: decoded.userId || null });
       return res.status(401).json({
         success: false,
         error: 'User not found. Token invalid.',
@@ -122,6 +143,7 @@ const authenticate = async (req, res, next) => {
 
     // 4. Check if user is active
     if (!user.isActive) {
+      logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: inactive account', { userId: user._id, role: user.role });
       return res.status(403).json({
         success: false,
         error: 'Account is deactivated. Contact administrator.',
@@ -130,6 +152,11 @@ const authenticate = async (req, res, next) => {
     }
 
     if (['suspended', 'blocked'].includes(user.accountStatus)) {
+      logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: restricted account', {
+        userId: user._id,
+        role: user.role,
+        accountStatus: user.accountStatus,
+      });
       return res.status(403).json({
         success: false,
         error: `Account is ${user.accountStatus}. Contact administrator.`,
@@ -138,6 +165,7 @@ const authenticate = async (req, res, next) => {
     }
 
     if (!decoded.jti) {
+      logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: missing session id', { userId: user._id, role: user.role });
       return res.status(401).json({
         success: false,
         error: 'Invalid session. Please login again.',
@@ -153,6 +181,7 @@ const authenticate = async (req, res, next) => {
     }).select('_id jti');
 
     if (!session) {
+      logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: invalid session', { userId: user._id, role: user.role });
       return res.status(401).json({
         success: false,
         error: 'Session expired or logged out. Please login again.',
@@ -181,9 +210,28 @@ const authenticate = async (req, res, next) => {
       assignedProjects: normalizeProjectAssignments(user.metadata || {})
     };
 
+    setRequestContext({
+      userId: req.user.id,
+      role: req.user.role,
+      module: req.logContext?.module || 'authentication',
+      status: 'authenticated',
+    });
+    if (req.log?.child) {
+      req.log = req.log.child({ userId: req.user.id, role: req.user.role });
+    }
+    logAuthEvent(req, 'info', 'success', 'Authentication succeeded');
+
     next();
   } catch (error) {
-    logger.error({ err: error }, 'Authentication error');
+    logger.error({
+      err: error,
+      requestId: req.id || req.headers['x-request-id'] || null,
+      module: 'authentication',
+      action: 'authenticate',
+      status: 'error',
+      path: req.originalUrl,
+      method: req.method,
+    }, 'Authentication error');
     return res.status(500).json({
       success: false,
       error: 'Authentication failed. Please try again.',
@@ -199,6 +247,15 @@ const authenticate = async (req, res, next) => {
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
+      logger.warn({
+        requestId: req.id || req.headers['x-request-id'] || null,
+        module: 'authorization',
+        action: 'role_check',
+        status: 'failed',
+        path: req.originalUrl,
+        method: req.method,
+        requiredRoles: roles,
+      }, 'Authorization rejected: unauthenticated request');
       return res.status(401).json({
         success: false,
         error: 'Authentication required',
@@ -207,6 +264,17 @@ const authorize = (...roles) => {
     }
 
     if (!roles.includes(req.user.role)) {
+      logger.warn({
+        requestId: req.id || req.headers['x-request-id'] || null,
+        module: 'authorization',
+        action: 'role_check',
+        status: 'failed',
+        userId: req.user.id,
+        role: req.user.role,
+        requiredRoles: roles,
+        path: req.originalUrl,
+        method: req.method,
+      }, 'Authorization rejected: role mismatch');
       return res.status(403).json({
         success: false,
         error: `Access denied. Required roles: ${roles.join(', ')}`,
@@ -216,6 +284,15 @@ const authorize = (...roles) => {
       });
     }
 
+    logger.debug({
+      requestId: req.id || req.headers['x-request-id'] || null,
+      module: 'authorization',
+      action: 'role_check',
+      status: 'success',
+      userId: req.user.id,
+      role: req.user.role,
+      requiredRoles: roles,
+    }, 'Authorization role check passed');
     next();
   };
 };
@@ -228,6 +305,15 @@ const authorizePortalAccess = (portal) => {
   return async (req, res, next) => {
     try {
       if (!req.user) {
+        logger.warn({
+          requestId: req.id || req.headers['x-request-id'] || null,
+          module: 'authorization',
+          action: 'portal_access',
+          status: 'failed',
+          portal,
+          path: req.originalUrl,
+          method: req.method,
+        }, 'Portal access rejected: unauthenticated request');
         return res.status(401).json({
           success: false,
           error: 'Authentication required',
@@ -261,6 +347,15 @@ const authorizePortalAccess = (portal) => {
       if (!rule && req.user.role === portal) return next();
       if (!rule && DEPARTMENT_ROLE_PORTAL[req.user.role] === portal) return next();
       if (!rule) {
+        logger.warn({
+          requestId: req.id || req.headers['x-request-id'] || null,
+          module: 'authorization',
+          action: 'portal_access',
+          status: 'failed',
+          userId: req.user.id,
+          role: req.user.role,
+          portal,
+        }, 'Portal access rejected: rule missing');
         return res.status(403).json({
           success: false,
           error: `No portal access rule found for role '${req.user.role}' and portal '${portal}'`,
@@ -269,6 +364,15 @@ const authorizePortalAccess = (portal) => {
       }
 
       if (!rule.canAccess) {
+        logger.warn({
+          requestId: req.id || req.headers['x-request-id'] || null,
+          module: 'authorization',
+          action: 'portal_access',
+          status: 'failed',
+          userId: req.user.id,
+          role: req.user.role,
+          portal,
+        }, 'Portal access rejected: denied by rule');
         return res.status(403).json({
           success: false,
           error: `Access denied for portal '${portal}'`,
@@ -278,7 +382,16 @@ const authorizePortalAccess = (portal) => {
 
       return next();
     } catch (error) {
-      logger.error({ err: error, portal }, 'Portal access authorization error');
+      logger.error({
+        err: error,
+        requestId: req.id || req.headers['x-request-id'] || null,
+        module: 'authorization',
+        action: 'portal_access',
+        status: 'error',
+        userId: req.user?.id || null,
+        role: req.user?.role || null,
+        portal,
+      }, 'Portal access authorization error');
       return res.status(500).json({
         success: false,
         error: 'Portal access verification failed',

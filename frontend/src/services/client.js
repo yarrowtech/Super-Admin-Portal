@@ -1,8 +1,7 @@
-import { createLogger } from '../utils/logger';
+import { createRequestId } from '../utils/logger';
 import { clearAuthSession, readAuthSession, writeAuthSession } from '../lib/authSession';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const httpLogger = createLogger({ module: 'http-client' });
 const CACHE_PREFIX = 'sap_http_cache_v1:';
 const DEFAULT_TTL_MS = 30 * 1000;
 const inflight = new Map();
@@ -16,13 +15,6 @@ const getStoredProjectId = () => {
   } catch {
     return '';
   }
-};
-
-const createRequestId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `req_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 };
 
 // Endpoint-aware TTL strategy:
@@ -116,13 +108,6 @@ const getDefaultHeaders = (token, requestId = createRequestId()) => {
 const parseResponse = async (res, requestId) => {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    httpLogger.error({
-      requestId,
-      status: res.status,
-      statusText: res.statusText,
-      url: res.url,
-      data,
-    }, 'API request failed');
     // express-validator's `validate` middleware returns a flat "Validation failed"
     // top-level message plus a per-field `errors` array — surface the actual
     // field-level reason instead of the generic banner text wherever it exists.
@@ -211,6 +196,7 @@ const request = async ({ method, path, body, token, cache = false, cacheKey, ttl
       headers: getDefaultHeaders(requestToken, requestId),
       body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'include',
+      cache: 'no-store',
     });
     const parsed = await parseResponse(res, requestId);
     persistResponseToken(res);
@@ -308,6 +294,7 @@ export const apiClient = {
       headers,
       body: formData,
       credentials: 'include',
+      cache: 'no-store',
     });
     const parsed = await parseResponse(res, requestId);
     clearApiCache();

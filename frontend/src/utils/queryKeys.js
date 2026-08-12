@@ -246,6 +246,7 @@ export const QK = {
     content:        (params = {})         => ['media', 'content', params],
     brandAssets:    (params = {})         => ['media', 'brandAssets', params],
     approvals:      (params = {})         => ['media', 'approvals', params],
+    activity:       (params = {})         => ['media', 'activity', params],
     reporting:      (params = {})         => ['media', 'reporting', params],
     design:         (params = {})         => ['media', 'design', params],
     video:          (params = {})         => ['media', 'video', params],
@@ -255,6 +256,20 @@ export const QK = {
     website:        (params = {})         => ['media', 'website', params],
     testimonials:   (params = {})         => ['media', 'testimonials', params],
     caseStudies:    (params = {})         => ['media', 'caseStudies', params],
+  },
+
+  mediaHead: {
+    root:             ()                  => ['mediaHead'],
+    dashboard:        (params = {})       => ['mediaHead', 'dashboard', params],
+    projects:         (params = {})       => ['mediaHead', 'projects', params],
+    sales:            (params = {})       => ['mediaHead', 'sales', params],
+    marketing:        (params = {})       => ['mediaHead', 'marketing', params],
+    approvals:        (params = {})       => ['mediaHead', 'approvals', params],
+    activity:         (params = {})       => ['mediaHead', 'activity', params],
+    attention:        (params = {})       => ['mediaHead', 'attention', params],
+    revenue:          (params = {})       => ['mediaHead', 'revenue', params],
+    team:             (params = {})       => ['mediaHead', 'team', params],
+    deadlines:        (params = {})       => ['mediaHead', 'deadlines', params],
   },
 };
 

@@ -5,7 +5,7 @@ const { validate } = require('../../middlewares/validate.middleware');
 const { ROLES } = require('../../config/roles');
 const controller = require('./media.controller');
 const v = require('./media.validation');
-const { canManageMedia } = require('./media.middleware');
+const { canManageMedia, canViewMediaHead, canDecideApproval } = require('./media.middleware');
 const { uploadMediaFile } = require('./media.upload.middleware');
 const marketingPlanRoutes = require('./marketingPlan.routes');
 
@@ -35,10 +35,26 @@ router.use((req, res, next) => {
 router.get('/dashboard', controller.getDashboard);
 router.get('/overview', controller.getOverview);
 router.get('/projects', v.listValidation, validate, controller.getProjects);
+
+router.get('/head/dashboard', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadDashboard);
+router.get('/head/overview', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadDashboard);
+router.get('/head/kpis', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadDashboard);
+router.get('/head/attention', canViewMediaHead, controller.getMediaHeadAttention);
+router.get('/head/team', canViewMediaHead, controller.getMediaHeadTeam);
+router.get('/head/deadlines', canViewMediaHead, controller.getMediaHeadDeadlines);
+router.get('/head/projects', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadProjects);
+router.get('/head/sales-summary', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadSalesSummary);
+router.get('/head/marketing-summary', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadMarketingSummary);
+router.get('/head/revenue', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadRevenue);
+router.get('/head/approvals', canViewMediaHead, controller.listApprovals);
+router.get('/head/activity', canViewMediaHead, controller.getActivity);
+router.get('/head/reports', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadDashboard);
+
 router.post('/projects/:id/logo', canManageMedia, v.mediaIdValidation, validate, uploadMediaFile(), controller.uploadProjectLogo);
 router.patch('/projects/:id/theme-color', canManageMedia, v.themeColorValidation, validate, controller.updateProjectThemeColor);
 
 router.get('/assets', v.listValidation, validate, controller.getAssets);
+router.get('/campaigns', v.listValidation, validate, controller.getCampaigns);
 router.post('/assets', requireProjectContext, canManageMedia, v.mediaRecordValidation, validate, controller.createAsset);
 router.get('/assets/:id', v.mediaIdValidation, validate, controller.getAssetById);
 router.put('/assets/:id', canManageMedia, v.mediaIdValidation, v.mediaRecordValidation, validate, controller.updateAsset);
@@ -83,6 +99,10 @@ router.get('/social/:id', v.mediaIdValidation, validate, controller.social.getBy
 router.put('/social/:id', canManageMedia, v.mediaIdValidation, v.mediaRecordValidation, validate, controller.social.update);
 router.delete('/social/:id', canManageMedia, v.mediaIdValidation, validate, controller.social.remove);
 router.post('/social/:id/approval-request', setMediaSection('social'), canManageMedia, v.mediaIdValidation, validate, controller.requestApproval);
+
+router.get('/approvals', controller.listApprovals);
+router.patch('/approvals/:workflowId/decision', canDecideApproval, controller.decideMediaApproval);
+router.get('/activity', controller.getActivity);
 
 router.get('/:moduleKey/project/:projectId', requireProjectContext, v.moduleProjectValidation, validate, controller.getModuleDataByProject);
 

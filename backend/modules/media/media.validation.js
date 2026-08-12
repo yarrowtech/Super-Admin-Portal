@@ -19,6 +19,18 @@ const listValidation = [
   query('search').optional().trim().isLength({ max: 200 }),
 ];
 
+const mediaHeadListValidation = [
+  query('page').optional().isInt({ min: 1 }).withMessage('page must be >= 1'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit must be between 1 and 100'),
+  query('status').optional().trim().isLength({ min: 1, max: 50 }),
+  query('health').optional().trim().isIn(['COMPLETED', 'BLOCKED', 'AT_RISK', 'ATTENTION', 'ON_TRACK']),
+  query('search').optional().trim().isLength({ max: 200 }),
+  query('sortBy').optional().trim().isIn(['createdAt', 'updatedAt', 'name', 'status', 'priority', 'deadline', 'progress']),
+  query('order').optional().trim().isIn(['asc', 'desc']),
+  query('dateFrom').optional().isISO8601().withMessage('dateFrom must be an ISO date'),
+  query('dateTo').optional().isISO8601().withMessage('dateTo must be an ISO date'),
+];
+
 const mediaIdValidation = [param('id').isMongoId().withMessage('Invalid media id')];
 
 const mediaRecordValidation = [
@@ -75,6 +87,7 @@ const moduleProjectValidation = [
 
 module.exports = {
   listValidation,
+  mediaHeadListValidation,
   mediaIdValidation,
   mediaRecordValidation,
   themeColorValidation,

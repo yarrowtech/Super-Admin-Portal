@@ -56,6 +56,12 @@ export const getDefaultRoute = (user) => {
     research_operator: '/research/dashboard',
   };
 
+  if (role === 'media_head') {
+    return '/media/head/dashboard';
+  }
+  if (role === 'media_sales') {
+    return '/media/sales/dashboard';
+  }
   if (MEDIA_PORTAL_ROLES.includes(role)) {
     return '/media/dashboard';
   }

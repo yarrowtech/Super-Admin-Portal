@@ -22,6 +22,7 @@ const serializeRes = (res) => {
 
 const requestLogger = pinoHttp({
   logger,
+  autoLogging: false,
   serializers: {
     req: serializeReq,
     res: serializeRes,
@@ -34,6 +35,9 @@ const requestLogger = pinoHttp({
   },
   customProps: (req) => ({
     requestId: req.id,
+    module: req.logContext?.module || null,
+    action: req.logContext?.action || null,
+    status: "completed",
     route: req.route?.path || req.path,
     userId: req.user?.id || null,
     role: req.user?.role || null,

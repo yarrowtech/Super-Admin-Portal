@@ -1,11 +1,19 @@
 const { v2: cloudinary } = require('cloudinary');
 const { mediaLogger: logger } = require('./media.logger');
 const Media = require('../../models/department/Media');
+const SalesQuery = require('../../models/department/SalesQuery');
 const Project = require('../../models/common/Project');
-const { createApprovalRequest } = require('../../services/approvalEngine.service');
+const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
+const { getCache, setCache } = require('../../services/cache.service');
+const { createApprovalRequest, decideApprovalRequest } = require('../../services/approvalEngine.service');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
 const { notifyApprovalPending } = require('../../services/notificationTrigger.service');
 const { PROJECT_REGISTRY } = require('../../utils/projectAccess');
+
+// Roles empowered to decide any pending media approval step regardless of
+// which role the step itself is assigned to — kept in sync with
+// media.middleware.js's canDecideApproval.
+const MEDIA_APPROVAL_OVERRIDE_ROLES = ['media_head', 'ceo', 'admin', 'super_admin'];
 
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
   cloudinary.config({
@@ -413,6 +421,530 @@ const listProjects = async (query = {}) => {
   };
 };
 
+const parseDateRange = (query = {}) => {
+  const range = {};
+  if (query.dateFrom) {
+    const from = new Date(query.dateFrom);
+    if (!Number.isNaN(from.getTime())) range.$gte = from;
+  }
+  if (query.dateTo) {
+    const to = new Date(query.dateTo);
+    if (!Number.isNaN(to.getTime())) {
+      to.setHours(23, 59, 59, 999);
+      range.$lte = to;
+    }
+  }
+  return Object.keys(range).length ? range : null;
+};
+
+const computeProjectHealth = (project = {}, now = new Date()) => {
+  const status = String(project.status || '').toLowerCase();
+  if (status === 'completed') return 'COMPLETED';
+  if (status === 'cancelled') return 'BLOCKED';
+  if (status === 'on-hold') return 'BLOCKED';
+
+  const deadline = project.deadline || project.endDate;
+  if (deadline) {
+    const deadlineDate = new Date(deadline);
+    if (!Number.isNaN(deadlineDate.getTime())) {
+      const diffMs = deadlineDate.getTime() - now.getTime();
+      const daysToDeadline = diffMs / (1000 * 60 * 60 * 24);
+      const progress = Number(project.progress) || 0;
+      if (daysToDeadline < 0 && progress < 100) return 'AT_RISK';
+      if (daysToDeadline <= 7 && progress < 60) return 'ATTENTION';
+    }
+  }
+
+  return 'ON_TRACK';
+};
+
+const mapProjectForHead = (project = {}, related = {}, now = new Date()) => {
+  const campaignCount = Number(related.campaignCount || 0);
+  const deliverableCount = Number(related.deliverableCount || 0);
+  const pendingApprovalCount = Number(related.pendingApprovalCount || 0);
+  const health = computeProjectHealth(project, now);
+  const manager = project.projectManager;
+
+  return {
+    id: String(project._id),
+    _id: project._id,
+    name: project.name,
+    projectCode: project.projectCode,
+    client: project.client || null,
+    salesOwner: related.salesOwner || null,
+    marketingOwner: manager && typeof manager === 'object'
+      ? {
+          id: manager._id ? String(manager._id) : undefined,
+          name: [manager.firstName, manager.lastName].filter(Boolean).join(' ') || manager.email || '',
+          email: manager.email || '',
+        }
+      : null,
+    progress: Number(project.progress) || 0,
+    status: project.status,
+    priority: project.priority,
+    health,
+    deadline: project.deadline || project.endDate || null,
+    campaignSummary: { total: campaignCount },
+    deliverableSummary: { total: deliverableCount },
+    approvalSummary: { pending: pendingApprovalCount },
+    updatedAt: project.updatedAt,
+    createdAt: project.createdAt,
+  };
+};
+
+const getSalesSummary = async (query = {}) => {
+  const createdAt = parseDateRange(query);
+  const filter = createdAt ? { createdAt } : {};
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [totalLeads, newThisWeek, leadsByCategory, leadsByProject, recentLeads] = await Promise.all([
+    SalesQuery.countDocuments(filter),
+    SalesQuery.countDocuments({ ...filter, createdAt: { ...(filter.createdAt || {}), $gte: oneWeekAgo } }),
+    SalesQuery.aggregate([
+      { $match: filter },
+      { $group: { _id: { $ifNull: ['$buyerCategory', 'Uncategorized'] }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]),
+    SalesQuery.aggregate([
+      { $match: filter },
+      { $group: { _id: { $ifNull: ['$project.name', 'Unspecified'] }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]),
+    SalesQuery.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(8)
+      .select('buyerName businessName email phone buyerCategory project createdAt submittedBy')
+      .populate('submittedBy', 'firstName lastName email')
+      .lean(),
+  ]);
+
+  return {
+    totalLeads,
+    newThisWeek,
+    qualifiedLeads: 0,
+    opportunities: 0,
+    deals: 0,
+    pipeline: 0,
+    revenue: 0,
+    leadsByCategory,
+    leadsByProject,
+    recentLeads,
+  };
+};
+
+const getMarketingSummary = async (query = {}) => {
+  const createdAt = parseDateRange(query);
+  const mediaFilter = createdAt ? { createdAt } : {};
+  const now = new Date();
+  const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const [activeCampaigns, contentItems, assets, pendingApprovals, upcomingDeadlines, statusRows] = await Promise.all([
+    Media.countDocuments({ ...mediaFilter, section: 'campaign', status: { $nin: ['Archived', 'Rejected'] } }),
+    Media.countDocuments({ ...mediaFilter, section: 'content' }),
+    Media.countDocuments({ ...mediaFilter, section: { $in: ['asset', 'brand', 'design', 'video', 'social'] } }),
+    Media.countDocuments({ ...mediaFilter, approvalStatus: 'pending' }),
+    Media.countDocuments({ ...mediaFilter, publishAt: { $gte: now, $lte: soon } }),
+    Media.aggregate([
+      { $match: mediaFilter },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]),
+  ]);
+
+  return {
+    activeCampaigns,
+    contentItems,
+    assets,
+    pendingApprovals,
+    upcomingDeadlines,
+    statusBreakdown: statusRows,
+  };
+};
+
+const getRevenueSummary = async (query = {}) => {
+  const sales = await getSalesSummary(query);
+  const filter = buildAllowedProjectFilter();
+
+  const [budgetAgg, spendAgg] = await Promise.all([
+    Project.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          estimated: { $sum: { $ifNull: ['$budget.estimated', 0] } },
+          actual: { $sum: { $ifNull: ['$budget.actual', 0] } },
+          projectCount: { $sum: 1 },
+        },
+      },
+    ]),
+    Media.aggregate([
+      { $match: { section: 'campaign' } },
+      {
+        $group: {
+          _id: null,
+          totalSpend: { $sum: { $ifNull: ['$budgetImpact.spend', 0] } },
+          avgRoi: { $avg: '$budgetImpact.roiAtSnapshot' },
+        },
+      },
+    ]),
+  ]);
+
+  const budgetRow = budgetAgg[0] || { estimated: 0, actual: 0, projectCount: 0 };
+  const spendRow = spendAgg[0] || { totalSpend: 0, avgRoi: null };
+
+  return {
+    // Sales revenue/pipeline/deals — no Deal/Opportunity data model exists yet
+    // (SalesQuery has no monetary field). Left at zero rather than fabricated;
+    // revenueTracked=false tells the frontend to render this as "not tracked yet".
+    revenue: 0,
+    pipeline: sales.pipeline,
+    wonDeals: 0,
+    target: 0,
+    outstanding: 0,
+    revenueTracked: false,
+    // Real, schema-backed figures from Project.budget and Media.budgetImpact.
+    budget: {
+      estimated: budgetRow.estimated,
+      actual: budgetRow.actual,
+      remaining: budgetRow.estimated - budgetRow.actual,
+      projectCount: budgetRow.projectCount,
+    },
+    mediaSpend: {
+      total: spendRow.totalSpend,
+      avgRoi: spendRow.avgRoi === null || Number.isNaN(spendRow.avgRoi) ? null : Number(spendRow.avgRoi.toFixed(2)),
+    },
+  };
+};
+
+const buildHeadProjectRelated = async (projectIds = []) => {
+  const [campaigns, deliverables, approvals, salesOwners] = await Promise.all([
+    Media.aggregate([
+      { $match: { projectId: { $in: projectIds }, section: 'campaign' } },
+      { $group: { _id: '$projectId', count: { $sum: 1 } } },
+    ]),
+    Media.aggregate([
+      { $match: { projectId: { $in: projectIds }, section: { $in: ['asset', 'content', 'brand', 'design', 'video', 'social'] } } },
+      { $group: { _id: '$projectId', count: { $sum: 1 } } },
+    ]),
+    Media.aggregate([
+      { $match: { projectId: { $in: projectIds }, approvalStatus: 'pending' } },
+      { $group: { _id: '$projectId', count: { $sum: 1 } } },
+    ]),
+    SalesQuery.aggregate([
+      { $match: { 'project.code': { $exists: true, $ne: '' } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: '$project.code', ownerId: { $first: '$submittedBy' }, ownerName: { $first: '$department' } } },
+    ]),
+  ]);
+
+  const campaignMap = new Map(campaigns.map((row) => [String(row._id), row.count]));
+  const deliverableMap = new Map(deliverables.map((row) => [String(row._id), row.count]));
+  const approvalMap = new Map(approvals.map((row) => [String(row._id), row.count]));
+  const salesOwnerMap = new Map(salesOwners.map((row) => [String(row._id || '').toUpperCase(), row]));
+
+  return { campaignMap, deliverableMap, approvalMap, salesOwnerMap };
+};
+
+const listMediaHeadProjects = async (query = {}) => {
+  const { page, limit, skip } = withPagination({ ...query, limit: Math.min(Number(query.limit) || 20, 100) });
+  const clauses = [buildAllowedProjectFilter()];
+  if (query.status && String(query.status).toLowerCase() !== 'all') clauses.push({ status: query.status });
+  if (query.search) {
+    const q = new RegExp(escapeRegex(query.search), 'i');
+    clauses.push({ $or: [{ name: q }, { description: q }, { projectCode: q }, { 'client.name': q }, { 'client.company': q }] });
+  }
+  const dateRange = parseDateRange(query);
+  if (dateRange) clauses.push({ createdAt: dateRange });
+  const filter = clauses.length > 1 ? { $and: clauses } : clauses[0];
+  const allowedSortFields = new Set(['createdAt', 'updatedAt', 'name', 'status', 'priority', 'deadline', 'progress']);
+  const sortBy = allowedSortFields.has(String(query.sortBy || 'updatedAt')) ? String(query.sortBy || 'updatedAt') : 'updatedAt';
+  const order = String(query.order || 'desc').toLowerCase() === 'asc' ? 1 : -1;
+
+  const [rawProjects, total] = await Promise.all([
+    Project.find(filter)
+      .sort({ [sortBy]: order })
+      .skip(skip)
+      .limit(limit)
+      .populate('projectManager', 'firstName lastName email')
+      .lean(),
+    Project.countDocuments(filter),
+  ]);
+
+  const projectIds = rawProjects.map((project) => project._id);
+  const related = await buildHeadProjectRelated(projectIds);
+  const now = new Date();
+  let items = rawProjects.map((project) => mapProjectForHead(project, {
+    campaignCount: related.campaignMap.get(String(project._id)) || 0,
+    deliverableCount: related.deliverableMap.get(String(project._id)) || 0,
+    pendingApprovalCount: related.approvalMap.get(String(project._id)) || 0,
+    salesOwner: related.salesOwnerMap.get(String(project.projectCode || '').toUpperCase()) || null,
+  }, now));
+
+  if (query.health) {
+    items = items.filter((project) => project.health === query.health);
+  }
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
+  };
+};
+
+const getNeedsAttention = async () => {
+  const [projectsResult, approvals] = await Promise.all([
+    listMediaHeadProjects({ limit: 100, sortBy: 'deadline', order: 'asc' }),
+    listApprovals({ status: 'pending' }),
+  ]);
+
+  const projectItems = projectsResult.items || [];
+  const projectAlerts = projectItems
+    .filter((project) => ['AT_RISK', 'BLOCKED', 'ATTENTION'].includes(project.health))
+    .slice(0, 8)
+    .map((project) => ({
+      id: `project-${project.id}`,
+      type: project.health === 'AT_RISK' ? 'OVERDUE_PROJECT' : project.health === 'BLOCKED' ? 'BLOCKED_PROJECT' : 'UPCOMING_DEADLINE',
+      department: 'MEDIA_MARKETING',
+      priority: project.health === 'AT_RISK' || project.health === 'BLOCKED' ? 'HIGH' : 'MEDIUM',
+      title: project.name,
+      description: project.health === 'AT_RISK'
+        ? 'Project deadline has passed and the project is not complete.'
+        : project.health === 'BLOCKED'
+          ? 'Project is on hold or cancelled.'
+          : 'Project deadline is near and progress is below the expected threshold.',
+      entityId: project.id,
+      entityType: 'Project',
+      owner: project.marketingOwner,
+      dueDate: project.deadline,
+      action: 'VIEW_PROJECT',
+    }));
+
+  const approvalAlerts = approvals.slice(0, 5).map((workflow) => ({
+    id: `approval-${workflow._id}`,
+    type: 'PENDING_APPROVAL',
+    department: 'MEDIA_MARKETING',
+    priority: 'MEDIUM',
+    title: workflow.media?.title || 'Approval pending',
+    description: 'A media approval request is waiting for a decision.',
+    entityId: workflow._id,
+    entityType: 'ApprovalWorkflow',
+    owner: workflow.requestedBy || null,
+    dueDate: workflow.createdAt,
+    action: 'REVIEW_APPROVAL',
+  }));
+
+  return [...projectAlerts, ...approvalAlerts].slice(0, 12);
+};
+
+const ownerLabel = (person) => {
+  if (!person || typeof person !== 'object') return null;
+  return {
+    id: person._id ? String(person._id) : undefined,
+    name: [person.firstName, person.lastName].filter(Boolean).join(' ') || person.email || 'Unknown',
+    email: person.email || '',
+  };
+};
+
+const getTeamOverview = async () => {
+  const filter = buildAllowedProjectFilter();
+  const projects = await Project.find(filter)
+    .select('name projectCode status priority progress deadline endDate projectManager teamMembers')
+    .populate('projectManager', 'firstName lastName email')
+    .populate('teamMembers.employee', 'firstName lastName email')
+    .lean();
+
+  const now = new Date();
+  const memberMap = new Map();
+
+  const addMember = (employee, role, project, isManager) => {
+    const owner = ownerLabel(employee);
+    if (!owner?.id) return;
+    if (!memberMap.has(owner.id)) {
+      memberMap.set(owner.id, { id: owner.id, name: owner.name, email: owner.email, roles: new Set(), projects: [] });
+    }
+    const entry = memberMap.get(owner.id);
+    const roleLabel = isManager ? 'Project Manager' : (role || 'Team Member');
+    entry.roles.add(roleLabel);
+    entry.projects.push({
+      id: String(project._id),
+      name: project.name,
+      projectCode: project.projectCode,
+      status: project.status,
+      health: computeProjectHealth(project, now),
+      role: roleLabel,
+    });
+  };
+
+  for (const project of projects) {
+    addMember(project.projectManager, 'Project Manager', project, true);
+    for (const tm of project.teamMembers || []) {
+      addMember(tm.employee, tm.role, project, false);
+    }
+  }
+
+  const members = Array.from(memberMap.values())
+    .map((m) => {
+      const activeProjects = m.projects.filter((p) => !['completed', 'cancelled'].includes(String(p.status || '').toLowerCase()));
+      const atRiskProjects = m.projects.filter((p) => ['AT_RISK', 'BLOCKED', 'ATTENTION'].includes(p.health));
+      return {
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        roles: Array.from(m.roles),
+        totalProjects: m.projects.length,
+        activeProjects: activeProjects.length,
+        atRiskProjects: atRiskProjects.length,
+        projects: m.projects,
+      };
+    })
+    .sort((a, b) => b.activeProjects - a.activeProjects);
+
+  return {
+    members,
+    totalMembers: members.length,
+    overloaded: members.filter((m) => m.activeProjects >= 3 || m.atRiskProjects >= 1),
+  };
+};
+
+const bucketForDueDate = (dueDate, now) => {
+  const d = new Date(dueDate);
+  if (Number.isNaN(d.getTime())) return 'later';
+  const diffDays = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays < 0) return 'overdue';
+  if (diffDays < 1) return 'today';
+  if (diffDays <= 7) return 'thisWeek';
+  return 'later';
+};
+
+const getDeadlineCenter = async () => {
+  const filter = buildAllowedProjectFilter();
+  const projects = await Project.find({ $and: [filter, { status: { $nin: ['completed', 'cancelled'] } }] })
+    .select('name projectCode status priority progress deadline endDate milestones projectManager')
+    .populate('projectManager', 'firstName lastName email')
+    .lean();
+
+  const now = new Date();
+  const items = [];
+
+  for (const project of projects) {
+    const owner = ownerLabel(project.projectManager);
+    const deadline = project.deadline || project.endDate;
+    if (deadline) {
+      items.push({
+        id: `project-${project._id}`,
+        type: 'project',
+        title: project.name,
+        projectId: String(project._id),
+        projectName: project.name,
+        projectCode: project.projectCode,
+        owner,
+        dueDate: deadline,
+        health: computeProjectHealth(project, now),
+        status: project.status,
+      });
+    }
+
+    for (const milestone of project.milestones || []) {
+      if (!milestone.deadline || milestone.status === 'completed') continue;
+      const overdue = new Date(milestone.deadline).getTime() < now.getTime();
+      items.push({
+        id: `milestone-${project._id}-${milestone._id}`,
+        type: 'milestone',
+        title: milestone.title || 'Untitled milestone',
+        projectId: String(project._id),
+        projectName: project.name,
+        projectCode: project.projectCode,
+        owner,
+        dueDate: milestone.deadline,
+        health: overdue ? 'AT_RISK' : 'ON_TRACK',
+        status: milestone.status,
+      });
+    }
+  }
+
+  items.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  const buckets = { overdue: [], today: [], thisWeek: [], later: [] };
+  for (const item of items) {
+    buckets[bucketForDueDate(item.dueDate, now)].push(item);
+  }
+
+  return {
+    items,
+    buckets,
+    counts: {
+      overdue: buckets.overdue.length,
+      today: buckets.today.length,
+      thisWeek: buckets.thisWeek.length,
+      later: buckets.later.length,
+      total: items.length,
+    },
+  };
+};
+
+const getMediaHeadDashboard = async (query = {}) => {
+  const cacheKey = `media:head:dashboard:${JSON.stringify(query || {})}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const [projects, sales, marketing, approvals, activity, team] = await Promise.all([
+    listMediaHeadProjects({ limit: 8, sortBy: 'updatedAt', order: 'desc' }),
+    getSalesSummary(query),
+    getMarketingSummary(query),
+    listApprovals({ status: 'pending' }),
+    getActivity(),
+    getTeamOverview(),
+  ]);
+
+  const allProjectStats = await listMediaHeadProjects({ limit: 100 });
+  const projectItems = allProjectStats.items || [];
+  const activeProjects = projectItems.filter((project) => !['completed', 'cancelled'].includes(String(project.status || '').toLowerCase())).length;
+  const atRiskProjects = projectItems.filter((project) => ['AT_RISK', 'BLOCKED', 'ATTENTION'].includes(project.health)).length;
+  const activeClients = new Set(projectItems.map((project) => project.client?.email || project.client?.name || project.client?.company).filter(Boolean)).size;
+  const attention = await getNeedsAttention();
+
+  const data = {
+    kpis: {
+      totalRevenue: 0,
+      activeClients,
+      activeProjects,
+      salesPipeline: sales.pipeline,
+      activeCampaigns: marketing.activeCampaigns,
+      atRiskProjects,
+      pendingApprovals: approvals.length,
+      overdueItems: attention.filter((item) => item.type === 'OVERDUE_PROJECT').length,
+    },
+    attention,
+    sales,
+    marketing,
+    projects,
+    revenue: {
+      revenue: 0,
+      pipeline: sales.pipeline,
+      wonDeals: 0,
+      target: 0,
+      outstanding: 0,
+    },
+    team: {
+      members: team.members.slice(0, 8),
+      overloaded: team.overloaded,
+      totalMembers: team.totalMembers,
+    },
+    approvals,
+    deadlines: attention.filter((item) => item.type === 'UPCOMING_DEADLINE'),
+    activity: activity.slice(0, 10),
+  };
+
+  await setCache(cacheKey, data, 45);
+  return data;
+};
+
 const createMediaRecord = async (payload = {}, actorId, projectId, defaults = {}) => {
   const doc = await Media.create({
     ...normalizeMediaPayload(payload),
@@ -618,6 +1150,109 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps
   return workflow;
 };
 
+const listApprovals = async (query = {}) => {
+  const filter = { module: 'media' };
+  if (query.status) filter.status = query.status;
+
+  const workflows = await ApprovalWorkflow.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .populate('requestedBy', 'firstName lastName email')
+    .lean();
+
+  const mediaIds = workflows.map((w) => w.entityId).filter(Boolean);
+  const mediaRecords = await Media.find({ _id: { $in: mediaIds } })
+    .select('title section projectId')
+    .lean();
+  const mediaById = new Map(mediaRecords.map((record) => [String(record._id), record]));
+
+  return workflows.map((workflow) => ({
+    ...workflow,
+    media: mediaById.get(String(workflow.entityId)) || null,
+  }));
+};
+
+const decideMediaApproval = async ({ workflowId, actorId, actorRole, decision, remarks }) => {
+  const workflow = await decideApprovalRequest({
+    workflowId,
+    role: actorRole,
+    userId: actorId,
+    decision,
+    remarks,
+    overrideRoles: MEDIA_APPROVAL_OVERRIDE_ROLES,
+  });
+
+  if (workflow.entityType === 'media') {
+    const approvalStatus = workflow.status === 'approved' ? 'approved' : workflow.status === 'rejected' ? 'rejected' : 'pending';
+    const status = workflow.status === 'approved' ? 'Approved' : workflow.status === 'rejected' ? 'Rejected' : 'In Review';
+    await Media.findByIdAndUpdate(workflow.entityId, {
+      approvalStatus,
+      status,
+      approvalSteps: workflow.steps.map((step) => ({
+        role: step.role,
+        status: step.status,
+        optional: Boolean(step.optional),
+        decidedBy: step.decidedBy,
+        decidedAt: step.decidedAt,
+        remarks: step.remarks || '',
+      })),
+      updatedBy: actorId,
+    });
+  }
+
+  await writeAuditTrail({
+    userId: actorId,
+    role: actorRole,
+    module: 'media',
+    action: 'media_approval_decided',
+    targetType: 'ApprovalWorkflow',
+    targetId: workflow._id,
+    metadata: { decision, remarks, status: workflow.status },
+  });
+
+  return workflow;
+};
+
+const getActivity = async () => {
+  const workflows = await ApprovalWorkflow.find({ module: 'media' })
+    .sort({ updatedAt: -1 })
+    .limit(20)
+    .populate('requestedBy', 'firstName lastName')
+    .lean();
+
+  const mediaIds = workflows.map((w) => w.entityId).filter(Boolean);
+  const mediaRecords = await Media.find({ _id: { $in: mediaIds } })
+    .select('title section')
+    .lean();
+  const mediaById = new Map(mediaRecords.map((record) => [String(record._id), record]));
+
+  return workflows.map((workflow) => {
+    const media = mediaById.get(String(workflow.entityId));
+    const requester = workflow.requestedBy
+      ? [workflow.requestedBy.firstName, workflow.requestedBy.lastName].filter(Boolean).join(' ')
+      : 'Someone';
+    const title = media?.title || 'a media item';
+    const decidedStep = [...(workflow.steps || [])].reverse().find((step) => step.status !== 'pending');
+
+    let text;
+    if (workflow.status === 'approved' && decidedStep) {
+      text = `${requester}'s "${title}" was approved`;
+    } else if (workflow.status === 'rejected' && decidedStep) {
+      text = `${requester}'s "${title}" was rejected`;
+    } else {
+      text = `${requester} requested approval for "${title}"`;
+    }
+
+    return {
+      id: workflow._id,
+      text,
+      status: workflow.status,
+      section: media?.section || '',
+      time: workflow.updatedAt,
+    };
+  });
+};
+
 const resolveResourceType = (mimetype = '') => {
   if (mimetype.startsWith('image/')) return 'image';
   if (mimetype.startsWith('video/')) return 'video';
@@ -755,7 +1390,18 @@ module.exports = {
   deleteMediaRecord,
   getModuleDataByProject,
   requestApproval,
+  listApprovals,
+  decideMediaApproval,
+  getActivity,
   uploadMediaFile,
   setProjectLogo,
   setProjectThemeColor,
+  getMediaHeadDashboard,
+  listMediaHeadProjects,
+  getSalesSummary,
+  getMarketingSummary,
+  getRevenueSummary,
+  getNeedsAttention,
+  getTeamOverview,
+  getDeadlineCenter,
 };

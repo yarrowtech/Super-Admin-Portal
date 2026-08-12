@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
 import { projectAccessApi } from '../../services/projectAccess';
 import { CANONICAL_PROJECTS, findCanonicalProject } from '../../config/projectNames';
+import ThemeToggleButton from '../common/ThemeToggleButton';
 
 const PORTAL_DEFAULTS = {
   law: { name: 'Law Portal', icon: 'gavel', accent: '#991b1b' },
@@ -303,6 +304,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
                 <span className="material-symbols-outlined text-[16px]">visibility</span>
                 View only
               </span>
+              <ThemeToggleButton />
             </div>
           </div>
         </header>

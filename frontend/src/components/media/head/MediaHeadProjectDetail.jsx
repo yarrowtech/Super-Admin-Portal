@@ -7,6 +7,7 @@ import { QK } from '../../../utils/queryKeys';
 import StatusBadge from '../../common/StatusBadge';
 import Tabs from '../../common/Tabs';
 import Button from '../../common/Button';
+import ThemeToggleButton from '../../common/ThemeToggleButton';
 
 // Kept as its own theme constant, matching MediaHeadPortal.jsx — this page is
 // reachable only from the Media Head portal and stays fully decoupled from
@@ -92,10 +93,13 @@ const MediaHeadProjectDetail = () => {
       style={MEDIA_THEME}
     >
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/media/head/projects')} className="mb-4">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Back to Projects
-        </Button>
+        <div className="mb-4 flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/media/head/projects')}>
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            Back to Projects
+          </Button>
+          <ThemeToggleButton />
+        </div>
 
         {isLoading ? (
           <div className="space-y-3">

@@ -78,7 +78,7 @@ const SecurityMonitoring = () => {
           icon="security"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <Button variant="primary" size="md" className="min-h-11" icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
             Run Scan

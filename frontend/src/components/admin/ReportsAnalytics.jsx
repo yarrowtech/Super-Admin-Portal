@@ -294,7 +294,7 @@ const ReportsAnalytics = () => {
           icon="bar_chart_4_bars"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <Button variant="secondary" size="md" className="min-h-11" onClick={handleExportAll} disabled={customReports.length === 0} icon={<span className="material-symbols-outlined text-lg">download</span>}>
             Export

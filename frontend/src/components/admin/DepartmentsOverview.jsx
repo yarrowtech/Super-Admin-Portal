@@ -102,7 +102,7 @@ const DepartmentsOverview = () => {
           icon="corporate_fare"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <div className="relative w-full min-[560px]:w-72">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-neutral-400">search</span>

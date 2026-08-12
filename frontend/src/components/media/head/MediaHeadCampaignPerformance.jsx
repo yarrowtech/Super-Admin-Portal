@@ -38,7 +38,7 @@ const MediaHeadCampaignPerformance = () => {
           title="Campaign Performance"
           subtitle="Monitoring view — detailed campaign editing stays inside Media Marketing"
           icon="ads_click"
-          showThemeToggle={false}
+          showThemeToggle
         />
 
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">

@@ -4,6 +4,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { itApi } from '../../services/it';
 import { useAuth } from '../../context/AuthContext';
 import { QK } from '../../utils/queryKeys';
+import ThemeToggleButton from '../common/ThemeToggleButton';
 
 // ─── Design System — IT amber theme (mirrors Law portal indigo style) ─────────
 
@@ -52,7 +53,10 @@ const PageHdr = ({ title, subtitle, action }) => (
           {subtitle && <p className="text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
         </div>
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      <div className="flex shrink-0 items-center gap-2">
+        {action}
+        <ThemeToggleButton />
+      </div>
     </div>
   </header>
 );

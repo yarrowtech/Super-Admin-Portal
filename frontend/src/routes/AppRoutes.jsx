@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Loader from '../components/common/Loader';
 import {
   LoginPage,
   NotFoundPage,
@@ -110,8 +111,8 @@ import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, Private
 import { emitFrontendEvent } from '../utils/logger';
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
-const managerRoles = ['it_manager', ...adminRoles];
-const employeeRoles = ['it_employee', 'it_manager', ...adminRoles];
+const managerRoles = ['manager', 'it_manager', ...adminRoles];
+const employeeRoles = ['employee', 'finance_employee', 'law_employee', ...adminRoles];
 
 const PortalRoute = ({ portal, children }) => {
   const { user, token, loading } = useAuth();
@@ -214,7 +215,7 @@ export default function AppRoutes() {
       <Suspense fallback={
         <div className="flex h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950">
           <div className="flex flex-col items-center gap-3">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-neutral-200 border-t-primary" />
+            <Loader />
             <p className="text-sm font-medium text-neutral-500">Loading...</p>
           </div>
         </div>

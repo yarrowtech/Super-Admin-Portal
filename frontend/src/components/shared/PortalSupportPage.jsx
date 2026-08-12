@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import { portalSupportApi } from '../../services/portalSupportApi';
+import ThemeToggleButton from '../common/ThemeToggleButton';
 
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -245,14 +246,17 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
       {/* Page header */}
       <header className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
         <div className="h-1 w-full" style={{ background: accentColor }} />
-        <div className="flex items-center gap-3 px-5 py-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: accentColor }}>
-            <span className="material-symbols-outlined text-[20px] text-white">support_agent</span>
+        <div className="flex items-center justify-between gap-3 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: accentColor }}>
+              <span className="material-symbols-outlined text-[20px] text-white">support_agent</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-neutral-900 dark:text-white">{portalLabel} Support</h1>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Get help, report issues, and find answers</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-neutral-900 dark:text-white">{portalLabel} Support</h1>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">Get help, report issues, and find answers</p>
-          </div>
+          <ThemeToggleButton />
         </div>
       </header>
 

@@ -120,7 +120,7 @@ export default function AdminProjectsPage() {
         icon="folder_open"
         showSearch={false}
         showNotifications={false}
-        showThemeToggle={false}
+        showThemeToggle
       >
         <Button variant="secondary" size="md" className="min-h-11" onClick={load} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
           Refresh

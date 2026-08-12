@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../services/client';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../ui/Button';
+import ThemeToggleButton from '../common/ThemeToggleButton';
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -69,9 +70,12 @@ const SystemLogsPage = () => {
           <h1 className="mt-1 text-2xl font-black text-neutral-950 dark:text-neutral-50">MongoDB Atlas Activity</h1>
           <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Last 7 days are retained automatically by MongoDB TTL.</p>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => setRefreshTick((current) => current + 1)} disabled={loading}>
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setRefreshTick((current) => current + 1)} disabled={loading}>
+            Refresh
+          </Button>
+          <ThemeToggleButton />
+        </div>
       </div>
 
       <div className="mb-4 grid gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 md:grid-cols-6">

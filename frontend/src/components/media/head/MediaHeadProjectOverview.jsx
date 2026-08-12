@@ -69,7 +69,7 @@ const MediaHeadProjectOverview = () => {
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
       <div className="portal-page-inner">
-        <PortalHeader title="Project Overview" subtitle="Department-wide project health, ownership, and deadlines" icon="folder_open" showThemeToggle={false} />
+        <PortalHeader title="Project Overview" subtitle="Department-wide project health, ownership, and deadlines" icon="folder_open" />
 
         <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
           <button type="button" onClick={() => setStatusFilter('')} className="text-left">

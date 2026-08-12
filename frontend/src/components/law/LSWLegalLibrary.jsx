@@ -255,7 +255,7 @@ const LSWLegalLibrary = () => {
           icon="library_books"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700">
             <span className="material-symbols-outlined text-sm">verified</span>

@@ -427,7 +427,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
             icon="group"
             showSearch={false}
             showNotifications={false}
-            showThemeToggle={false}
+            showThemeToggle
           >
             <StatsCard label="Total" value={stats.totalUsers} icon="groups" colorScheme="blue" />
             <StatsCard label="Active" value={stats.activeUsers} icon="check_circle" colorScheme="green" />

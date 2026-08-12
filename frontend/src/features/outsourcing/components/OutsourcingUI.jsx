@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import ThemeToggleButton from '../../../components/common/ThemeToggleButton';
 
 const statusTone = {
   pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
@@ -36,7 +37,10 @@ export const OutsourcingPageHeader = memo(({ title, subtitle, icon = 'dashboard'
           {subtitle && <p className="text-[12px] text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
         </div>
       </div>
-      {(right || action) && <div className="shrink-0">{right || action}</div>}
+      <div className="flex shrink-0 items-center gap-2">
+        {right || action}
+        <ThemeToggleButton />
+      </div>
     </div>
   </header>
 ));

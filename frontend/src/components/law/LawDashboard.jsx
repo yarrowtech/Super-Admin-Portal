@@ -10,6 +10,7 @@ import LegalDocManagement from './LegalDocManagement';
 import LSWLegalLibrary from './LSWLegalLibrary';
 import LawOpsPage from './pages/LawOpsPage';
 import LawContractsPage from './LawContractsPage';
+import ThemeToggleButton from '../common/ThemeToggleButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design System
@@ -55,7 +56,10 @@ const PageHdr = ({ title, subtitle, icon = 'gavel', action }) => (
           {subtitle && <p className="text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
         </div>
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      <div className="flex shrink-0 items-center gap-2">
+        {action}
+        <ThemeToggleButton />
+      </div>
     </div>
   </header>
 );

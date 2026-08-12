@@ -354,7 +354,7 @@ export default function SuperAdminDashboard() {
           icon="admin_panel_settings"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <StatsCard label="Active Sessions" value={activeSessionCount} icon="schedule" colorScheme="green" />
           <StatsCard label="Users" value={usersTotal} icon="group" colorScheme="blue" />

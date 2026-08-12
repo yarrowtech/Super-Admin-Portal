@@ -577,7 +577,7 @@ const AdminSalesSubmissions = () => {
           icon="fact_check"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <Button variant="secondary" size="md" className="min-h-11" onClick={fetchSubmissions} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
             Refresh

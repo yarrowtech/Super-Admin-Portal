@@ -282,6 +282,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         if (!value) return null;
 
         const canonicalProject = findCanonicalProject(project);
+        if (!canonicalProject) return null;
         const code = canonicalProject?.code || project?.projectCode || project?.code || '';
         const name = canonicalProject?.name || project?.name || project?.projectCode || 'Untitled project';
         const description = canonicalProject?.description || project?.description || 'Project workspace';

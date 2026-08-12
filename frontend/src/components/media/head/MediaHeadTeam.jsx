@@ -39,7 +39,7 @@ const MediaHeadTeam = () => {
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
       <div className="portal-page-inner">
-        <PortalHeader title="Team" subtitle="Everyone assigned across department projects, by workload" icon="groups" showThemeToggle={false} />
+        <PortalHeader title="Team" subtitle="Everyone assigned across department projects, by workload" icon="groups" />
 
         <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <KPICard title="Team Members" value={totalMembers} icon="groups" compact />

@@ -38,6 +38,10 @@ const defaultRolePath = (role, userMeta = {}, department = '') => {
     case 'it_admin':
       return '/it/dashboard';
     case 'it_employee':
+      return '/it/dashboard';
+    case 'finance_employee':
+    case 'law_employee':
+    case 'employee':
       return Array.isArray(assignedProjects) && assignedProjects.length > 0 ? '/employee/projects' : '/employee/dashboard';
     case 'it_hr':
       return '/hr/dashboard';
@@ -62,8 +66,6 @@ const defaultRolePath = (role, userMeta = {}, department = '') => {
     case 'sales':
     case 'media_sales':
       return '/media/sales/dashboard';
-    case 'employee':
-      return Array.isArray(assignedProjects) && assignedProjects.length > 0 ? '/employee/projects' : '/employee/dashboard';
     case 'hr':
     default:
       return '/hr/dashboard';

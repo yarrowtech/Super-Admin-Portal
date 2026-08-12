@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import LawRecordManager from '../LawRecordManager';
 import { LAW_FORM_CONFIG, getLawSection } from '../lawModuleConfig';
+import ThemeToggleButton from '../../common/ThemeToggleButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design System
@@ -46,7 +47,10 @@ const PageHdr = ({ title, subtitle, icon = 'description', action }) => (
           {subtitle && <p className="text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
         </div>
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      <div className="flex shrink-0 items-center gap-2">
+        {action}
+        <ThemeToggleButton />
+      </div>
     </div>
   </header>
 );

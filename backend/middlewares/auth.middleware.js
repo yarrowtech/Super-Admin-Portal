@@ -12,9 +12,10 @@ const constants = require('../config/constants');
 const { getRolePermissions } = require('../config/roles');
 
 const DEFAULT_IT_MANAGER_PORTALS = new Set(['it', 'admin', 'hr', 'law']);
-const DEFAULT_IT_EMPLOYEE_PORTALS = new Set(['employee']);
+const DEFAULT_IT_EMPLOYEE_PORTALS = new Set(['it']);
 const DEFAULT_IT_HR_PORTALS = new Set(['hr']);
 const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);
+const DEFAULT_EMPLOYEE_PORTAL_ROLES = new Set(['employee', 'finance_employee', 'law_employee']);
 
 // Department-scoped roles no longer share a literal string with their portal
 // (e.g. role 'it_manager' vs portal 'it'), unlike the old flat roles. This maps
@@ -22,7 +23,7 @@ const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);
 const DEPARTMENT_ROLE_PORTAL = {
   it_manager: 'manager',
   it_admin: 'it',
-  it_employee: 'employee',
+  it_employee: 'it',
   it_hr: 'hr',
   finance_manager: 'finance',
   finance_employee: 'finance',
@@ -412,6 +413,9 @@ const authorizePortalAccess = (portal) => {
         return next();
       }
       if (!rule && req.user.role === 'it_employee' && DEFAULT_IT_EMPLOYEE_PORTALS.has(portal)) {
+        return next();
+      }
+      if (!rule && portal === 'employee' && DEFAULT_EMPLOYEE_PORTAL_ROLES.has(req.user.role)) {
         return next();
       }
       if (!rule && req.user.role === 'it_hr' && DEFAULT_IT_HR_PORTALS.has(portal)) {

@@ -1,4 +1,4 @@
-import { MEDIA_PORTAL_ROLES } from '../utils/rbac';
+import { EMPLOYEE_PORTAL_ROLES, MEDIA_PORTAL_ROLES } from '../utils/rbac';
 
 export const getDefaultRoute = (user) => {
   const role = user?.role;
@@ -36,11 +36,14 @@ export const getDefaultRoute = (user) => {
     it: '/it/dashboard',
     it_manager: '/manager/dashboard',
     it_admin: '/it/dashboard',
-    it_employee: '/employee/dashboard',
+    it_employee: '/it/dashboard',
     it_hr: '/hr/dashboard',
     law: '/law/dashboard',
+    law_employee: '/employee/dashboard',
     finance: '/finance/dashboard',
+    finance_employee: '/employee/dashboard',
     media: '/media/dashboard',
+    media_marketing: '/media/dashboard',
     marketing_head: '/media/dashboard',
     media_manager: '/media/dashboard',
     content_writer: '/media/dashboard',
@@ -61,6 +64,9 @@ export const getDefaultRoute = (user) => {
   }
   if (role === 'media_sales') {
     return '/media/sales/dashboard';
+  }
+  if (EMPLOYEE_PORTAL_ROLES.includes(role)) {
+    return '/employee/dashboard';
   }
   if (MEDIA_PORTAL_ROLES.includes(role)) {
     return '/media/dashboard';

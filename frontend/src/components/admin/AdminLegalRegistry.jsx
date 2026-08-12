@@ -245,7 +245,7 @@ const AdminLegalRegistry = () => {
           icon="folder_open"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <Button
             variant="secondary"

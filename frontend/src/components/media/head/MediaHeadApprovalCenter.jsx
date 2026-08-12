@@ -57,7 +57,7 @@ const MediaHeadApprovalCenter = () => {
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
       <div className="portal-page-inner">
-        <PortalHeader title="Approval Center" subtitle="Review and decide pending media approval requests" icon="fact_check" showThemeToggle={false} />
+        <PortalHeader title="Approval Center" subtitle="Review and decide pending media approval requests" icon="fact_check" />
 
         <div className="mb-5 flex flex-wrap items-center gap-2">
           {['pending', 'approved', 'rejected', ''].map((status) => (

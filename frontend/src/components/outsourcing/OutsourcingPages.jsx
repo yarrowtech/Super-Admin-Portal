@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
 import { useOutsourcingSocket } from '../../hooks/useOutsourcingSocket';
 import FreelancerDashboard from './FreelancerDashboard';
+import ThemeToggleButton from '../common/ThemeToggleButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design System
@@ -64,7 +65,10 @@ const OutsourcingPageHdr = ({ title, subtitle, icon = 'dashboard', accent = '#63
           {subtitle && <p className="text-[12px] text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
         </div>
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      <div className="flex shrink-0 items-center gap-2">
+        {action}
+        <ThemeToggleButton />
+      </div>
     </div>
   </header>
 );

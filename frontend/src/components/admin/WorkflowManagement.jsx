@@ -97,7 +97,7 @@ const WorkflowManagement = () => {
           icon="account_tree"
           showSearch={false}
           showNotifications={false}
-          showThemeToggle={false}
+          showThemeToggle
         >
           <Button variant="primary" size="md" className="min-h-11" onClick={addWorkflow} icon={<span className="material-symbols-outlined text-lg">add</span>}>
             Create Workflow

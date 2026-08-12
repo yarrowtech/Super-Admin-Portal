@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { canAccessPortal, IT_PORTAL_ROLES, FINANCE_PORTAL_ROLES, MEDIA_PORTAL_ROLES, LAW_PORTAL_ROLES } from '../utils/rbac';
+import { canAccessPortal, IT_PORTAL_ROLES, FINANCE_PORTAL_ROLES, MEDIA_PORTAL_ROLES, LAW_PORTAL_ROLES, EMPLOYEE_PORTAL_ROLES } from '../utils/rbac';
+import Loader from '../components/common/Loader';
 
 const normalizeOutsourcingType = (value) =>
   String(value || '')
@@ -42,19 +43,22 @@ export const defaultRolePath = (user) => {
       return '/admin/super-admin';
     case 'admin':
       return '/admin/dashboard';
+    case 'manager':
     case 'it_manager':
       return '/manager/dashboard';
     case 'it_admin':
       return '/it/dashboard';
     case 'it_employee':
+      return '/it/dashboard';
+    case 'finance_employee':
+    case 'law_employee':
+    case 'employee':
       return '/employee/dashboard';
     case 'it_hr':
       return '/hr/dashboard';
     case 'law_head':
-    case 'law_employee':
       return '/law/dashboard';
     case 'finance_manager':
-    case 'finance_employee':
       return '/finance/dashboard';
     case 'media_marketing':
       return '/media/dashboard';
@@ -69,8 +73,9 @@ export const defaultRolePath = (user) => {
 };
 
 export const LoadingScreen = ({ label = 'Loading...' }) => (
-  <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-6 text-center text-sm font-semibold text-neutral-700 dark:bg-neutral-950 dark:text-neutral-200">
-    {label}
+  <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-neutral-50 px-6 text-center dark:bg-neutral-950">
+    <Loader />
+    <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{label}</p>
   </div>
 );
 
@@ -139,6 +144,7 @@ const DEPARTMENT_ROLE_GROUPS = {
   finance: FINANCE_PORTAL_ROLES,
   media: MEDIA_PORTAL_ROLES,
   law: LAW_PORTAL_ROLES,
+  employee: EMPLOYEE_PORTAL_ROLES,
 };
 
 export const allowRoleWithAdmin = (role) => {

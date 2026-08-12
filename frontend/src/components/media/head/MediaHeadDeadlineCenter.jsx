@@ -42,7 +42,7 @@ const MediaHeadDeadlineCenter = () => {
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
       <div className="portal-page-inner">
-        <PortalHeader title="Deadline Center" subtitle="Every project and milestone deadline across the department, sorted by urgency" icon="event_upcoming" showThemeToggle={false} />
+        <PortalHeader title="Deadline Center" subtitle="Every project and milestone deadline across the department, sorted by urgency" icon="event_upcoming" />
 
         <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <button type="button" onClick={() => setBucketFilter(bucketFilter === 'overdue' ? '' : 'overdue')} className="text-left">

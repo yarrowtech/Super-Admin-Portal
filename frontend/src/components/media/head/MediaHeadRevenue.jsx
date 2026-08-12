@@ -24,7 +24,7 @@ const MediaHeadRevenue = () => {
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
       <div className="portal-page-inner">
-        <PortalHeader title="Revenue & Budget" subtitle="Project budgets and campaign spend across the department" icon="payments" showThemeToggle={false} />
+        <PortalHeader title="Revenue & Budget" subtitle="Project budgets and campaign spend across the department" icon="payments" />
 
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

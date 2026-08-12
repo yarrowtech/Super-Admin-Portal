@@ -41,7 +41,7 @@ const MediaHeadActivityFeed = () => {
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
       <div className="portal-page-inner">
-        <PortalHeader title="Department Activity" subtitle="Recent approval requests and decisions across Media" icon="history" showThemeToggle={false} />
+        <PortalHeader title="Department Activity" subtitle="Recent approval requests and decisions across Media" icon="history" />
 
         <div className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
           {isLoading ? (

@@ -14,6 +14,22 @@ const JournalEntry = require('../../models/finance/JournalEntry');
 const AuditLog = require('../../models/finance/AuditLog');
 const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
 
+const FINANCE_DEPARTMENTS = ['IT', 'HR', 'Media', 'Law', 'Executive', 'Outsourcing'];
+const FINANCE_HEAD_ROLES = new Set(['finance_manager', 'admin', 'super_admin']);
+const FINANCE_EMPLOYEE_ROLES = new Set(['finance_employee']);
+const FINANCE_OPERATOR_ROLES = new Set(['finance_employee', 'finance_manager', 'admin', 'super_admin']);
+const FINANCE_REQUEST_ACTIONS = {
+  review: { from: ['submitted', 'pending'], to: 'under_review', roles: FINANCE_OPERATOR_ROLES },
+  request_information: { from: ['submitted', 'pending', 'under_review', 'verified', 'pending_approval'], to: 'needs_information', roles: FINANCE_OPERATOR_ROLES },
+  verify: { from: ['submitted', 'pending', 'under_review', 'needs_information'], to: 'verified', roles: FINANCE_OPERATOR_ROLES },
+  send_for_approval: { from: ['verified'], to: 'pending_approval', roles: FINANCE_OPERATOR_ROLES },
+  approve: { from: ['verified', 'pending_approval'], to: 'approved', roles: FINANCE_HEAD_ROLES },
+  reject: { from: ['submitted', 'under_review', 'needs_information', 'verified', 'pending_approval'], to: 'rejected', roles: FINANCE_HEAD_ROLES },
+  process: { from: ['approved'], to: 'processing', roles: FINANCE_OPERATOR_ROLES },
+  complete: { from: ['processing'], to: 'completed', roles: FINANCE_OPERATOR_ROLES },
+  cancel: { from: ['draft', 'submitted', 'under_review', 'needs_information'], to: 'cancelled', roles: FINANCE_HEAD_ROLES },
+};
+
 const buildInvoiceNumber = () => {
   const now = new Date();
   const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -170,6 +186,226 @@ const calculateJournalTotals = (lines = []) => {
   );
 };
 
+const getAmountFromInvoice = (invoice) => Number(invoice.total ?? invoice.amount ?? invoice.totalAmount ?? 0) || 0;
+const getBalanceFromInvoice = (invoice) => {
+  const explicit = Number(invoice.balanceDue);
+  if (!Number.isNaN(explicit) && explicit >= 0) return explicit;
+  return Math.max(getAmountFromInvoice(invoice) - (Number(invoice.amountPaid) || 0), 0);
+};
+
+const percentChange = (current, previous) => {
+  const now = Number(current) || 0;
+  const before = Number(previous) || 0;
+  if (!before && !now) return 0;
+  if (!before) return 100;
+  return ((now - before) / Math.abs(before)) * 100;
+};
+
+const buildKpi = (label, value, previousValue, drillDown) => ({
+  label,
+  value,
+  previousValue,
+  changePercent: Number(percentChange(value, previousValue).toFixed(1)),
+  trend: value >= previousValue ? 'up' : 'down',
+  drillDown,
+});
+
+const getItemDepartment = (item) => {
+  const raw = item?.department || item?.costCenter || item?.meta?.department || '';
+  const found = FINANCE_DEPARTMENTS.find((dept) => dept.toLowerCase() === String(raw).toLowerCase());
+  return found || 'Finance';
+};
+
+const getCurrentAndPreviousRanges = () => {
+  const now = new Date();
+  const currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const previousStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { currentStart, previousStart, previousEnd };
+};
+
+const buildDepartmentFinancials = ({ invoices = [], expenses = [], payments = [], budgets = [] }) =>
+  FINANCE_DEPARTMENTS.map((department) => {
+    const departmentBudgets = budgets.filter((item) => getItemDepartment(item) === department);
+    const departmentExpenses = expenses.filter((item) => getItemDepartment(item) === department);
+    const departmentInvoices = invoices.filter((item) => getItemDepartment(item) === department);
+    const allocated = departmentBudgets.reduce((sum, item) => sum + (Number(item.allocated) || 0), 0);
+    const spent = departmentExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const budgetSpent = departmentBudgets.reduce((sum, item) => sum + (Number(item.spent) || 0), 0);
+    const used = Math.max(spent, budgetSpent);
+    const reserved = departmentExpenses
+      .filter((item) => ['submitted', 'verified'].includes(String(item.status || '').toLowerCase()))
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const remaining = allocated - used - reserved;
+    const utilization = allocated > 0 ? (used / allocated) * 100 : 0;
+    const status = remaining < 0 ? 'over-budget' : utilization >= 80 ? 'warning' : utilization >= 60 ? 'attention' : 'healthy';
+    return {
+      department,
+      budget: allocated,
+      spent: used,
+      reserved,
+      remaining,
+      utilization: Number(utilization.toFixed(1)),
+      pendingRequests: departmentExpenses.filter((item) => ['submitted', 'pending'].includes(String(item.status || '').toLowerCase())).length,
+      pendingInvoices: departmentInvoices.filter((item) => ['draft', 'sent', 'overdue'].includes(String(item.status || '').toLowerCase())).length,
+      pendingPayments: payments.filter((item) => getItemDepartment(item) === department && item.status !== 'reconciled').length,
+      status,
+    };
+  });
+
+const buildFinanceRequests = ({ expenses = [], approvals = [] }) => {
+  const approvalByEntity = new Map(
+    approvals.map((approval) => [`${approval.entityType}:${approval.entityId}`, approval])
+  );
+  return expenses.map((item) => {
+    const amount = Number(item.amount) || 0;
+    const approval = approvalByEntity.get(`expense:${String(item._id)}`);
+    const status = approval?.status === 'pending' && item.status === 'verified' ? 'pending_approval' : item.status;
+    return {
+      id: String(item._id),
+      requestId: `REQ-${String(item._id).slice(-6).toUpperCase()}`,
+      source: 'department',
+      department: getItemDepartment(item),
+      requester: item.submittedBy || 'Department user',
+      employeeId: '',
+      type: item.category === 'reimbursement' ? 'Reimbursement' : 'Expense',
+      amount,
+      tax: 0,
+      total: amount,
+      category: item.category || 'Operations',
+      priority: amount >= 500000 ? 'Critical' : amount >= 50000 ? 'High' : 'Normal',
+      submittedDate: item.createdAt,
+      dueDate: item.incurredDate,
+      status,
+      assignedEmployee: item.verifiedBy ? 'Finance Operations' : 'Unassigned',
+      approvalRequired: amount >= 10000,
+      approvalId: approval?._id ? String(approval._id) : '',
+      documents: item.documents || [],
+      budgetCategory: item.category || 'Operations',
+      availableBudget: 0,
+      reservedAmount: ['submitted', 'verified'].includes(String(item.status || '').toLowerCase()) ? amount : 0,
+    };
+  });
+};
+
+const ensureFinanceRequestActionAllowed = ({ action, status, role }) => {
+  const rule = FINANCE_REQUEST_ACTIONS[action];
+  if (!rule) {
+    const err = new Error('Invalid finance request action');
+    err.statusCode = 400;
+    throw err;
+  }
+  const normalizedRole = String(role || '').toLowerCase();
+  if (!rule.roles.has(normalizedRole)) {
+    const err = new Error('Role cannot perform this finance request action');
+    err.statusCode = 403;
+    throw err;
+  }
+  if (!rule.from.includes(String(status || '').toLowerCase())) {
+    const err = new Error(`Invalid transition from ${status} using ${action}`);
+    err.statusCode = 409;
+    throw err;
+  }
+  return rule;
+};
+
+const findOrCreateFinanceApproval = async ({ expense, requestedBy }) => {
+  const existing = await ApprovalWorkflow.findOne({
+    module: 'finance',
+    entityType: 'expense',
+    entityId: String(expense._id),
+    status: 'pending',
+  });
+  if (existing) return existing;
+  return ApprovalWorkflow.create({
+    module: 'finance',
+    entityType: 'expense',
+    entityId: String(expense._id),
+    requestedBy,
+    status: 'pending',
+    steps: [{ level: 1, role: 'finance_manager', status: 'pending', optional: false }],
+  });
+};
+
+const transitionFinanceRequest = async ({ req, requestId, action, comment = '' }) => {
+  const expense = await Expense.findById(requestId);
+  if (!expense) {
+    const err = new Error('Finance request not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const previousStatus = String(expense.status || 'submitted').toLowerCase();
+  const role = String(req.user?.role || '').toLowerCase();
+  const rule = ensureFinanceRequestActionAllowed({ action, status: previousStatus, role });
+
+  if (action === 'send_for_approval' && Number(expense.amount || 0) < 10000) {
+    const err = new Error('Approval is not required below the configured threshold');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  if (action === 'approve') {
+    const workflow = await ApprovalWorkflow.findOne({
+      module: 'finance',
+      entityType: 'expense',
+      entityId: String(expense._id),
+      status: 'pending',
+    });
+    if (workflow) {
+      const pendingStep = workflow.steps.find((step) => step.status === 'pending' && ['finance_manager', 'admin', 'super_admin'].includes(String(step.role || '').toLowerCase()));
+      if (pendingStep) {
+        pendingStep.status = 'approved';
+        pendingStep.decidedBy = req.user?.id;
+        pendingStep.decidedAt = new Date();
+        pendingStep.remarks = comment;
+      }
+      workflow.status = workflow.steps.some((step) => step.status === 'pending' && !step.optional) ? 'pending' : 'approved';
+      await workflow.save();
+    }
+  }
+
+  if (action === 'reject') {
+    await ApprovalWorkflow.updateMany(
+      { module: 'finance', entityType: 'expense', entityId: String(expense._id), status: 'pending' },
+      { $set: { status: 'rejected' } }
+    );
+  }
+
+  expense.status = rule.to;
+  if (action === 'review') expense.reviewedBy = req.user?.id;
+  if (action === 'verify') expense.verifiedBy = req.user?.id;
+  if (action === 'approve') expense.approvedBy = req.user?.id;
+  if (action === 'process' || action === 'complete') expense.processedBy = req.user?.id;
+  if (action === 'request_information') expense.requestedInfo = comment;
+  expense.statusHistory.push({
+    from: previousStatus,
+    to: rule.to,
+    action,
+    comment,
+    actor: req.user?.id,
+    actorRole: req.user?.role || '',
+    at: new Date(),
+  });
+
+  let workflow = null;
+  if (action === 'send_for_approval') {
+    workflow = await findOrCreateFinanceApproval({ expense, requestedBy: req.user?.id });
+  }
+
+  await expense.save();
+  await logAudit({
+    req,
+    action: `finance_request_${action}`,
+    resourceType: 'finance_request',
+    resourceId: expense._id,
+    meta: { from: previousStatus, to: rule.to, department: expense.department, amount: expense.amount, comment, workflowId: workflow?._id },
+    riskFlag: ['approve', 'reject', 'cancel'].includes(action) ? 'medium' : 'none',
+  });
+
+  return { request: expense, workflow };
+};
+
 const fetchPostedLines = async () => {
   const entries = await JournalEntry.find({ status: 'posted' }).populate(
     'lines.account',
@@ -191,44 +427,149 @@ const fetchPostedLines = async () => {
  */
 exports.getDashboard = async (req, res) => {
   try {
+    const role = String(req.user?.role || '').toLowerCase();
+    const isFinanceHead = FINANCE_HEAD_ROLES.has(role);
+    const isFinanceEmployee = FINANCE_EMPLOYEE_ROLES.has(role);
+    const { currentStart, previousStart, previousEnd } = getCurrentAndPreviousRanges();
+
     const [
-      invoiceCount,
-      overdueInvoices,
-      paymentCount,
-      pendingExpenses,
-      budgetCount,
+      invoices,
+      expenses,
+      payments,
+      budgets,
       payrollCount,
       accountCount,
-      journalCount
+      journalCount,
+      pendingApprovals,
+      auditLogs
     ] = await Promise.all([
-      Invoice.countDocuments(),
-      Invoice.countDocuments({ status: 'overdue' }),
-      Payment.countDocuments(),
-      Expense.countDocuments({ status: 'submitted' }),
-      Budget.countDocuments(),
+      Invoice.find().sort({ createdAt: -1 }).lean(),
+      Expense.find().sort({ createdAt: -1 }).lean(),
+      Payment.find().sort({ paymentDate: -1 }).lean(),
+      Budget.find().sort({ createdAt: -1 }).lean(),
       Payroll.countDocuments(),
       Account.countDocuments(),
-      JournalEntry.countDocuments()
+      JournalEntry.countDocuments(),
+      ApprovalWorkflow.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(10).lean(),
+      AuditLog.find().sort({ createdAt: -1 }).limit(10).lean(),
     ]);
 
-    const recentInvoices = await Invoice.find().sort({ createdAt: -1 }).limit(5);
-    const recentPayments = await Payment.find().sort({ paymentDate: -1 }).limit(5);
+    const currentInvoices = invoices.filter((item) => new Date(item.createdAt || item.issueDate || 0) >= currentStart);
+    const previousInvoices = invoices.filter((item) => {
+      const createdAt = new Date(item.createdAt || item.issueDate || 0);
+      return createdAt >= previousStart && createdAt < previousEnd;
+    });
+    const currentExpenses = expenses.filter((item) => new Date(item.createdAt || item.incurredDate || 0) >= currentStart);
+    const previousExpenses = expenses.filter((item) => {
+      const createdAt = new Date(item.createdAt || item.incurredDate || 0);
+      return createdAt >= previousStart && createdAt < previousEnd;
+    });
+
+    const totalReceivables = invoices.reduce((sum, item) => sum + getBalanceFromInvoice(item), 0);
+    const totalExpenses = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalBudget = budgets.reduce((sum, item) => sum + (Number(item.allocated) || 0), 0);
+    const usedBudget = budgets.reduce((sum, item) => sum + (Number(item.spent) || 0), 0);
+    const pendingExpenseAmount = expenses
+      .filter((item) => ['submitted', 'pending', 'under_review'].includes(String(item.status || '').toLowerCase()))
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const pendingPaymentAmount = payments
+      .filter((item) => ['recorded', 'pending', 'verification', 'scheduled', 'processing'].includes(String(item.status || '').toLowerCase()))
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const currentRevenue = currentInvoices.reduce((sum, item) => sum + getAmountFromInvoice(item), 0);
+    const previousRevenue = previousInvoices.reduce((sum, item) => sum + getAmountFromInvoice(item), 0);
+    const currentSpend = currentExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const previousSpend = previousExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+    const departmentFinancials = buildDepartmentFinancials({ invoices, expenses, payments, budgets });
+
+    const financeRequests = buildFinanceRequests({ expenses, approvals: pendingApprovals });
+    const pendingRequests = financeRequests
+      .filter((item) => ['submitted', 'pending', 'verified', 'pending_approval'].includes(String(item.status || '').toLowerCase()))
+      .slice(0, 8)
+      .map((item) => ({ ...item, assignedTo: isFinanceEmployee ? 'My queue' : 'Finance Operations' }));
+
+    const approvalQueue = pendingApprovals.map((item) => ({
+      id: String(item._id),
+      requestId: `${String(item.entityType || 'REQ').toUpperCase()}-${String(item.entityId || item._id).slice(-6).toUpperCase()}`,
+      department: item.department || 'Finance',
+      amount: Number(item.amount || item.meta?.amount || 0),
+      type: item.entityType,
+      risk: Number(item.amount || item.meta?.amount || 0) >= 500000 ? 'High' : 'Medium',
+      budgetImpact: item.meta?.budgetImpact || 'Reservation required',
+      submittedAt: item.createdAt,
+      waitingSince: item.updatedAt || item.createdAt,
+      canApprove: isFinanceHead,
+    }));
+
+    const paymentQueue = payments
+      .filter((item) => item.status !== 'reconciled')
+      .slice(0, 8)
+      .map((item) => ({
+        id: String(item._id),
+        paymentId: `PAY-${String(item._id).slice(-6).toUpperCase()}`,
+        payee: item.customerName || 'Counterparty',
+        amount: Number(item.amount) || 0,
+        method: item.method,
+        status: item.status,
+        reference: item.reference || '',
+        accountMasked: item.accountMasked || '****4821',
+      }));
+
+    const invoiceAging = [
+      { label: '0-30', min: 0, max: 30 },
+      { label: '31-60', min: 31, max: 60 },
+      { label: '61-90', min: 61, max: 90 },
+      { label: '90+', min: 91, max: Infinity },
+    ].map((bucket) => {
+      const rows = invoices.filter((invoice) => {
+        const balance = getBalanceFromInvoice(invoice);
+        if (balance <= 0 || !invoice.dueDate) return false;
+        const age = Math.max(Math.floor((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000), 0);
+        return age >= bucket.min && age <= bucket.max;
+      });
+      return {
+        label: bucket.label,
+        count: rows.length,
+        amount: rows.reduce((sum, item) => sum + getBalanceFromInvoice(item), 0),
+      };
+    });
 
     res.status(200).json({
       success: true,
       data: {
+        roleExperience: isFinanceHead ? 'head' : isFinanceEmployee ? 'employee' : 'viewer',
+        kpis: [
+          buildKpi('Total Cash', currentRevenue - currentSpend - pendingPaymentAmount, previousRevenue - previousSpend, '/finance/dashboard/payments'),
+          buildKpi('Total Budget', totalBudget, totalBudget - usedBudget, '/finance/dashboard/budgets'),
+          buildKpi('Total Expenses', totalExpenses, previousSpend, '/finance/dashboard/expenses'),
+          buildKpi('Pending Requests', pendingRequests.length, 0, '/finance/dashboard/activity'),
+          buildKpi('Pending Approvals', pendingApprovals.length, 0, '/finance/dashboard/approvals'),
+          buildKpi('Pending Payments', pendingPaymentAmount, 0, '/finance/dashboard/payments'),
+          buildKpi('Outstanding Receivables', totalReceivables, 0, '/finance/dashboard/invoices'),
+          buildKpi('Outstanding Payables', pendingExpenseAmount + pendingPaymentAmount, 0, '/finance/dashboard/payments'),
+        ],
+        departmentFinancials,
+        pendingRequests,
+        approvalQueue,
+        paymentQueue,
+        invoiceAging,
+        recentAuditActivity: auditLogs,
         totals: {
-          invoices: invoiceCount,
-          overdueInvoices,
-          payments: paymentCount,
-          pendingExpenses,
-          budgets: budgetCount,
+          invoices: invoices.length,
+          overdueInvoices: invoices.filter((item) => item.status === 'overdue').length,
+          payments: payments.length,
+          pendingExpenses: pendingRequests.length,
+          budgets: budgets.length,
           payrolls: payrollCount,
           accounts: accountCount,
-          journalEntries: journalCount
+          journalEntries: journalCount,
+          totalBudget,
+          totalExpenses,
+          totalReceivables,
+          pendingApprovals: pendingApprovals.length,
         },
-        recentInvoices,
-        recentPayments
+        recentInvoices: invoices.slice(0, 5),
+        recentPayments: payments.slice(0, 5)
       }
     });
   } catch (err) {
@@ -652,7 +993,23 @@ exports.createExpense = async (req, res) => {
     const payload = normalizeExpensePayload(req.body || {});
     const expense = await Expense.create({
       ...payload,
-      submittedBy: req.user?.id
+      submittedBy: req.user?.id,
+      statusHistory: [{
+        from: '',
+        to: 'submitted',
+        action: 'submit',
+        comment: payload.notes || '',
+        actor: req.user?.id,
+        actorRole: req.user?.role || '',
+        at: new Date(),
+      }]
+    });
+    await logAudit({
+      req,
+      action: 'finance_request_submitted',
+      resourceType: 'finance_request',
+      resourceId: expense._id,
+      meta: { department: expense.department, amount: expense.amount, category: expense.category },
     });
     res.status(201).json({ success: true, data: expense });
   } catch (err) {
@@ -662,10 +1019,12 @@ exports.createExpense = async (req, res) => {
 
 exports.updateExpense = async (req, res) => {
   try {
-    const payload = { ...normalizeExpensePayload(req.body || {}), ...req.body };
-    if (payload.status === 'verified') {
-      payload.verifiedBy = req.user?.id;
+    const existing = await Expense.findById(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Expense not found' });
+    if (req.body?.status && String(req.body.status).toLowerCase() !== String(existing.status || '').toLowerCase()) {
+      return res.status(409).json({ success: false, error: 'Use finance request lifecycle actions to change status' });
     }
+    const payload = { ...normalizeExpensePayload(req.body || {}), ...req.body };
     const expense = await Expense.findByIdAndUpdate(req.params.id, payload, { new: true });
     res.status(200).json({ success: true, data: expense });
   } catch (err) {
@@ -886,18 +1245,177 @@ exports.createVendor = async (req, res) => {
 
 exports.deleteInvoice = async (req, res) => {
   try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    if (['paid', 'overdue'].includes(String(invoice.status || '').toLowerCase())) {
+      return res.status(409).json({ success: false, error: 'Posted or completed invoices cannot be deleted' });
+    }
     const deleted = await Invoice.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    await logAudit({
+      req,
+      action: 'invoice_deleted',
+      resourceType: 'invoice',
+      resourceId: deleted._id,
+      meta: { invoiceNumber: deleted.invoiceNumber, status: deleted.status },
+      riskFlag: 'medium',
+    });
     res.status(200).json({ success: true, data: deleted });
   } catch (err) {
     sendError(res, err, 'Failed to delete invoice');
   }
 };
 
+exports.getDepartmentFinancials = async (req, res) => {
+  try {
+    const [invoices, expenses, payments, budgets] = await Promise.all([
+      Invoice.find().sort({ createdAt: -1 }).lean(),
+      Expense.find().sort({ createdAt: -1 }).lean(),
+      Payment.find().sort({ paymentDate: -1 }).lean(),
+      Budget.find().sort({ createdAt: -1 }).lean(),
+    ]);
+    const rows = buildDepartmentFinancials({ invoices, expenses, payments, budgets });
+    res.status(200).json({ success: true, data: rows });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch department financials');
+  }
+};
+
+exports.getDepartmentFinancialProfile = async (req, res) => {
+  try {
+    const departmentParam = String(req.params.departmentId || '').trim();
+    const department = FINANCE_DEPARTMENTS.find((item) => item.toLowerCase() === departmentParam.toLowerCase());
+    if (!department) return res.status(404).json({ success: false, error: 'Department not found' });
+
+    const [invoices, expenses, payments, budgets, approvals, auditLogs] = await Promise.all([
+      Invoice.find().sort({ createdAt: -1 }).lean(),
+      Expense.find({ department }).sort({ createdAt: -1 }).lean(),
+      Payment.find().sort({ paymentDate: -1 }).lean(),
+      Budget.find({ department }).sort({ createdAt: -1 }).lean(),
+      ApprovalWorkflow.find({ module: 'finance' }).sort({ createdAt: -1 }).lean(),
+      AuditLog.find().sort({ createdAt: -1 }).limit(50).lean(),
+    ]);
+
+    const departmentInvoices = invoices.filter((item) => getItemDepartment(item) === department);
+    const departmentPayments = payments.filter((item) => getItemDepartment(item) === department);
+    const profile = buildDepartmentFinancials({ invoices, expenses, payments, budgets }).find((row) => row.department === department);
+    const requests = buildFinanceRequests({ expenses, approvals });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        profile,
+        requests,
+        expenses,
+        invoices: departmentInvoices,
+        budgets,
+        payments: departmentPayments,
+        transactions: [
+          ...departmentInvoices.map((item) => ({ id: String(item._id), type: 'invoice', reference: item.invoiceNumber, amount: getAmountFromInvoice(item), status: item.status, createdAt: item.createdAt })),
+          ...expenses.map((item) => ({ id: String(item._id), type: 'expense', reference: item.title, amount: Number(item.amount) || 0, status: item.status, createdAt: item.createdAt })),
+          ...departmentPayments.map((item) => ({ id: String(item._id), type: 'payment', reference: item.reference, amount: Number(item.amount) || 0, status: item.status, createdAt: item.createdAt })),
+        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        documents: expenses.flatMap((item) => (item.documents || []).map((doc) => ({ ...doc, requestId: `REQ-${String(item._id).slice(-6).toUpperCase()}` }))),
+        activity: auditLogs.filter((item) => JSON.stringify(item.meta || {}).toLowerCase().includes(department.toLowerCase())),
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch department financial profile');
+  }
+};
+
+exports.getFinanceRequests = async (req, res) => {
+  try {
+    const { page, limit, skip } = withPagination(req.query);
+    const { search, department, status, requestType, priority, assignedEmployee } = req.query;
+    const [expenses, approvals] = await Promise.all([
+      Expense.find().sort({ createdAt: -1 }).lean(),
+      ApprovalWorkflow.find({ module: 'finance' }).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    let rows = buildFinanceRequests({ expenses, approvals });
+    if (department) rows = rows.filter((item) => item.department === department);
+    if (status) rows = rows.filter((item) => String(item.status || '').toLowerCase() === String(status).toLowerCase());
+    if (requestType) rows = rows.filter((item) => String(item.type || '').toLowerCase() === String(requestType).toLowerCase());
+    if (priority) rows = rows.filter((item) => String(item.priority || '').toLowerCase() === String(priority).toLowerCase());
+    if (assignedEmployee) rows = rows.filter((item) => String(item.assignedEmployee || '').toLowerCase().includes(String(assignedEmployee).toLowerCase()));
+    if (search) {
+      const q = String(search).toLowerCase();
+      rows = rows.filter((item) =>
+        [item.requestId, item.department, item.requester, item.type, item.category, item.status, item.assignedEmployee]
+          .some((value) => String(value || '').toLowerCase().includes(q))
+      );
+    }
+
+    const total = rows.length;
+    res.status(200).json({
+      success: true,
+      data: {
+        items: rows.slice(skip, skip + limit),
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch finance requests');
+  }
+};
+
+exports.getFinanceRequestDetail = async (req, res) => {
+  try {
+    const [expense, approvals, auditLogs] = await Promise.all([
+      Expense.findById(req.params.id).lean(),
+      ApprovalWorkflow.find({ module: 'finance', entityType: 'expense', entityId: String(req.params.id) }).sort({ createdAt: -1 }).lean(),
+      AuditLog.find({ resourceType: 'finance_request', resourceId: String(req.params.id) }).sort({ createdAt: -1 }).lean(),
+    ]);
+    if (!expense) return res.status(404).json({ success: false, error: 'Finance request not found' });
+    const request = buildFinanceRequests({ expenses: [expense], approvals })[0];
+    res.status(200).json({
+      success: true,
+      data: {
+        ...request,
+        statusHistory: expense.statusHistory || [],
+        approvals,
+        auditLogs,
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch finance request detail');
+  }
+};
+
+exports.updateFinanceRequestAction = async (req, res) => {
+  try {
+    const data = await transitionFinanceRequest({
+      req,
+      requestId: req.params.id,
+      action: req.params.action,
+      comment: req.body?.comment || req.body?.remarks || '',
+    });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({
+      success: false,
+      error: err.statusCode ? err.message : 'Failed to update finance request',
+      details: err.message,
+    });
+  }
+};
+
 exports.deleteExpense = async (req, res) => {
   try {
+    const expense = await Expense.findById(req.params.id);
+    if (!expense) return res.status(404).json({ success: false, error: 'Expense not found' });
+    if (String(expense.status || '').toLowerCase() === 'paid') {
+      return res.status(409).json({ success: false, error: 'Paid expenses cannot be deleted' });
+    }
     const deleted = await Expense.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ success: false, error: 'Expense not found' });
+    await logAudit({
+      req,
+      action: 'expense_deleted',
+      resourceType: 'expense',
+      resourceId: deleted._id,
+      meta: { title: deleted.title, status: deleted.status },
+      riskFlag: 'medium',
+    });
     res.status(200).json({ success: true, data: deleted });
   } catch (err) {
     sendError(res, err, 'Failed to delete expense');
@@ -1125,7 +1643,9 @@ exports.updateApprovalWorkflowDecision = async (req, res) => {
     if (!workflow) return res.status(404).json({ success: false, error: 'Workflow not found' });
 
     const role = String(req.user?.role || '').toLowerCase();
-    const pendingStep = workflow.steps.find((step) => step.status === 'pending' && String(step.role || '').toLowerCase() === role);
+    const canOverride = FINANCE_HEAD_ROLES.has(role);
+    const pendingStep = workflow.steps.find((step) => step.status === 'pending' && String(step.role || '').toLowerCase() === role)
+      || (canOverride ? workflow.steps.find((step) => step.status === 'pending' && !step.optional) : null);
     if (!pendingStep) {
       return res.status(403).json({ success: false, error: 'No pending step for your role' });
     }
@@ -1143,6 +1663,25 @@ exports.updateApprovalWorkflowDecision = async (req, res) => {
     }
 
     await workflow.save();
+    if (workflow.module === 'finance' && workflow.entityType === 'expense') {
+      const nextStatus = workflow.status === 'approved' ? 'approved' : workflow.status === 'rejected' ? 'rejected' : 'pending_approval';
+      const expense = await Expense.findById(workflow.entityId);
+      if (expense && String(expense.status || '').toLowerCase() !== nextStatus) {
+        const previousStatus = expense.status;
+        expense.status = nextStatus;
+        if (nextStatus === 'approved') expense.approvedBy = req.user?.id;
+        expense.statusHistory.push({
+          from: previousStatus,
+          to: nextStatus,
+          action: `approval_${pendingStep.status}`,
+          comment: remarks,
+          actor: req.user?.id,
+          actorRole: req.user?.role || '',
+          at: new Date(),
+        });
+        await expense.save();
+      }
+    }
     await logAudit({
       req,
       action: 'approval_workflow_decision',

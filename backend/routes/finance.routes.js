@@ -21,8 +21,19 @@ const canWriteFinance = (req, res, next) => {
   return next();
 };
 
+const canControlFinance = (req, res, next) => {
+  const role = String(req.user?.role || '').toLowerCase();
+  if ([ROLES.FINANCE_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(role)) return next();
+  return res.status(403).json({ success: false, error: 'Finance Head permission required' });
+};
+
 // Finance dashboard
 router.get('/dashboard', financeController.getDashboard);
+router.get('/departments', financeController.getDepartmentFinancials);
+router.get('/requests', financeController.getFinanceRequests);
+router.get('/requests/:id', financeController.getFinanceRequestDetail);
+router.patch('/requests/:id/:action', canWriteFinance, financeController.updateFinanceRequestAction);
+router.get('/departments/:departmentId', financeController.getDepartmentFinancialProfile);
 
 // ERP Chart of Accounts
 router.get('/accounts', financeController.getAccounts);
@@ -39,7 +50,7 @@ router.post('/journals/:id/post', financeController.postJournalEntry);
 router.get('/invoices', financeController.getInvoices);
 router.post('/invoices', canWriteFinance, financeController.createInvoice);
 router.put('/invoices/:id', canWriteFinance, financeController.updateInvoice);
-router.delete('/invoices/:id', canWriteFinance, financeController.deleteInvoice);
+router.delete('/invoices/:id', canControlFinance, financeController.deleteInvoice);
 router.post('/invoices/:id/notes', canWriteFinance, financeController.createInvoiceNote);
 router.get('/invoice-notes', financeController.getInvoiceNotes);
 
@@ -52,7 +63,7 @@ router.put('/payments/:id', canWriteFinance, financeController.updatePayment);
 router.get('/expenses', financeController.getExpenses);
 router.post('/expenses', canWriteFinance, financeController.createExpense);
 router.put('/expenses/:id', canWriteFinance, financeController.updateExpense);
-router.delete('/expenses/:id', canWriteFinance, financeController.deleteExpense);
+router.delete('/expenses/:id', canControlFinance, financeController.deleteExpense);
 
 // Budget and Cost Control
 router.get('/budgets', financeController.getBudgets);
@@ -94,7 +105,7 @@ router.get('/transactions', financeController.getTransactions);
 router.get('/audit-logs', financeController.getAuditLogs);
 router.get('/approvals', financeController.getApprovalWorkflows);
 router.post('/approvals', canWriteFinance, financeController.createApprovalWorkflow);
-router.patch('/approvals/:id/decision', canWriteFinance, financeController.updateApprovalWorkflowDecision);
+router.patch('/approvals/:id/decision', canControlFinance, financeController.updateApprovalWorkflowDecision);
 router.post('/integrations/hr/payroll-sync', canWriteFinance, financeController.syncPayrollFromHr);
 router.post('/integrations/law/compliance-link', canWriteFinance, financeController.linkComplianceWithLaw);
 router.get('/integrations/snapshot', financeController.getIntegrationSnapshot);

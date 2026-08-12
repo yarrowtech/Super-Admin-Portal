@@ -647,94 +647,107 @@ const AdminSalesSubmissions = () => {
             </div>
           </>
         )}
-      </div>
-
       {activeTab === 'questions' && <AdminSalesQuestionManager token={token} />}
 
       {activeTab === 'responses' && (
-      <div className="flex-1 overflow-auto p-6">
-        {loading && (
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
-            ))}
-          </div>
-        )}
-        {!loading && error && (
-          <div className="rounded-xl bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</div>
-        )}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-neutral-400">
-            <span className="material-symbols-outlined mb-3 text-5xl">fact_check</span>
-            <p className="text-sm">No submissions found</p>
-          </div>
-        )}
-        {!loading && !error && filtered.length > 0 && (
-          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Business / Buyer</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Product Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Contact</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Submitted By</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Date</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                  {filtered.map((item) => (
-                    <tr key={item._id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                      <td className="px-4 py-3">
-                        <p className="line-clamp-1 font-medium text-neutral-900 dark:text-neutral-100">
+        <>
+          {loading && (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-16 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+              ))}
+            </div>
+          )}
+          {!loading && error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-400">{error}</div>
+          )}
+          {!loading && !error && filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-neutral-200 bg-white py-20 text-center dark:border-neutral-800 dark:bg-neutral-900">
+              <span className="material-symbols-outlined mb-3 text-5xl text-neutral-300 dark:text-neutral-600">fact_check</span>
+              <h3 className="mb-1 text-base font-semibold text-neutral-700 dark:text-neutral-300">No submissions found</h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">Try adjusting your search or filters.</p>
+            </div>
+          )}
+          {!loading && !error && filtered.length > 0 && (
+            <>
+              {/* Desktop/tablet table */}
+              <div className="hidden overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 md:block">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800">
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Business / Buyer</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Product Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Category</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Contact</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Submitted By</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Date</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                      {filtered.map((item) => (
+                        <tr key={item._id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3">
+                            <p className="line-clamp-1 font-medium text-neutral-900 dark:text-neutral-100">
+                              {item.businessName || item.buyerName || 'Unnamed'}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{projectDisplay(item) || '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-bold capitalize text-primary">
+                              {item.buyerCategory || 'Uncategorized'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{phoneDisplay(item) || item.email || '—'}</td>
+                          <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{submitterName(item)}</td>
+                          <td className="px-4 py-3 text-xs text-neutral-500">{formatDate(item.createdAt)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <IconButton icon="visibility" tooltip="View submission" size="sm" onClick={() => setViewItem(item)} />
+                              <IconButton icon="edit" tone="primary" tooltip="Edit submission" size="sm" onClick={() => setEditItem(item)} />
+                              <IconButton icon="delete" tone="danger" tooltip="Delete submission" size="sm" loading={deletingId === item._id} onClick={() => handleDelete(item)} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="grid grid-cols-1 gap-3 md:hidden">
+                {filtered.map((item) => (
+                  <div key={item._id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-neutral-900 dark:text-neutral-100">
                           {item.businessName || item.buyerName || 'Unnamed'}
                         </p>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{projectDisplay(item) || '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-bold capitalize text-primary">
-                          {item.buyerCategory || 'Uncategorized'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{phoneDisplay(item) || item.email || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">{submitterName(item)}</td>
-                      <td className="px-4 py-3 text-xs text-neutral-500">{formatDate(item.createdAt)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => setViewItem(item)}
-                            title="View submission"
-                            className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                          >
-                            <span className="material-symbols-outlined text-sm text-neutral-500">visibility</span>
-                          </button>
-                          <button
-                            onClick={() => setEditItem(item)}
-                            title="Edit submission"
-                            className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                          >
-                            <span className="material-symbols-outlined text-sm text-neutral-500">edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(item)}
-                            disabled={deletingId === item._id}
-                            title="Delete submission"
-                            className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-rose-50 disabled:opacity-40 dark:hover:bg-rose-900/20"
-                          >
-                            <span className="material-symbols-outlined text-sm text-rose-500">delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
+                        <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{projectDisplay(item) || '—'}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-bold capitalize text-primary">
+                        {item.buyerCategory || 'Uncategorized'}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                      {phoneDisplay(item) || item.email || '—'}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-400">
+                      By {submitterName(item)} · {formatDate(item.createdAt)}
+                    </p>
+                    <div className="mt-3 flex items-center justify-end gap-1 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+                      <IconButton icon="visibility" tooltip="View submission" onClick={() => setViewItem(item)} />
+                      <IconButton icon="edit" tone="primary" tooltip="Edit submission" onClick={() => setEditItem(item)} />
+                      <IconButton icon="delete" tone="danger" tooltip="Delete submission" loading={deletingId === item._id} onClick={() => handleDelete(item)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       <SubmissionModal item={viewItem} onClose={() => setViewItem(null)} />
@@ -746,7 +759,8 @@ const AdminSalesSubmissions = () => {
           onSave={handleSaveEdit}
         />
       )}
-    </div>
+      </div>
+    </main>
   );
 };
 

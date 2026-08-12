@@ -67,6 +67,7 @@ import {
   ITSettingsPage,
   ITSupportCenterPage,
   FinanceOverviewPage,
+  FinanceDepartmentProfilesPage,
   FinanceInvoicesPage,
   FinanceInvoiceDetailPage,
   FinancePaymentsPage,
@@ -354,7 +355,7 @@ export default function AppRoutes() {
           }
         >
           <Route index element={<FinanceOverviewPage />} />
-          <Route path="project-overview" element={<ProjectOverviewPage portalKey="finance" portalName="Finance Portal" />} />
+          <Route path="project-overview" element={<FinanceDepartmentProfilesPage />} />
           <Route path="invoices" element={<FinanceInvoicesPage />} />
           <Route path="invoices/:invoiceId" element={<FinanceInvoiceDetailPage />} />
           <Route path="payments" element={<FinancePaymentsPage />} />

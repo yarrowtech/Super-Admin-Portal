@@ -95,6 +95,7 @@ export const ITSupportCenterPage   = lazy(() => import('../components/admin/Admi
 
 // ── Finance portal ───────────────────────────────────────────────────────────
 export const FinanceOverviewPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceOverviewPage })));
+export const FinanceDepartmentProfilesPage = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceDepartmentProfilesPage })));
 export const FinanceInvoicesPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceInvoicesPage })));
 export const FinanceInvoiceDetailPage   = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceInvoiceDetailPage })));
 export const FinancePaymentsPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinancePaymentsPage })));

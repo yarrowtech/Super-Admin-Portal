@@ -9,8 +9,8 @@ const FinanceSidebar = ({ activeSection, onSelect, sections = [] }) => {
 
   return (
     <SectionSidebar
-      title="Finance Admin"
-      subtitle="Finance Department"
+      title="Finance Portal"
+      subtitle={String(user?.role || '').toLowerCase() === 'finance_employee' ? 'Operations Queue' : 'Financial Control'}
       icon="account_balance"
       items={sections}
       activeId={activeSection}

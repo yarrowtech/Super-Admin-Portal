@@ -60,10 +60,12 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/law/legal-library)",
       "Bash(grep -iE '^\\(admin|hr|employee|manager|ceo|law|outsourcing|finance|it|media\\)$')",
       "Bash(grep -rohE \"role\\\\s*\\(===|!==\\)\\\\s*['\\\\\"][a-zA-Z_]+['\\\\\"]|['\\\\\"][a-zA-Z_]+['\\\\\"]\\\\s*\\(===|!==\\)\\\\s*.{0,20}\\\\.role\" routes controllers middlewares)",
-      "Bash(node -e \"require\\('./backend/app.js'\\)\")"
+      "Bash(node -e \"require\\('./backend/app.js'\\)\")",
+      "Bash(mv /e/Super-Admin-Portal/backend/legal-library-*.png \"/c/Users/SANTU/AppData/Local/Temp/claude/e--Super-Admin-Portal/b71d3e85-b316-4bc4-80ae-8a3dc3313c6e/scratchpad/\" 2>&1 *)"
     ],
     "additionalDirectories": [
-      "e:\\Super-Admin-Portal\\backend\\controllers\\finance"
+      "e:\\Super-Admin-Portal\\backend\\controllers\\finance",
+      "E:\\Super-Admin-Portal\\backend"
     ]
   }
 }

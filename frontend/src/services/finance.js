@@ -2,6 +2,14 @@ import { apiClient } from './client';
 
 export const financeApi = {
   getDashboard: (token) => apiClient.get('/api/dept/finance/dashboard', token),
+  getDepartmentFinancials: (token) => apiClient.get('/api/dept/finance/departments', token, { cache: false }),
+  getDepartmentFinancialProfile: (token, departmentId) => apiClient.get(`/api/dept/finance/departments/${encodeURIComponent(departmentId)}`, token, { cache: false }),
+  getRequests: (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/finance/requests${query ? `?${query}` : ''}`, token, { cache: false });
+  },
+  getRequestDetail: (id, token) => apiClient.get(`/api/dept/finance/requests/${id}`, token, { cache: false }),
+  updateRequestAction: (id, action, data, token) => apiClient.patch(`/api/dept/finance/requests/${id}/${action}`, data, token),
 
   getAccounts: (token) => apiClient.get('/api/dept/finance/accounts', token),
   createAccount: (data, token) => apiClient.post('/api/dept/finance/accounts', data, token),

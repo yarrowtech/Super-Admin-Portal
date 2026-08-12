@@ -1,11 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import {
   getApprovedDocuments,
   getLegalDocumentById,
   getDocumentVersions,
   getLegalDocumentPdf,
 } from '../../api/legalDocument';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
+import IconButton from '../common/IconButton';
+import Button from '../common/Button';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
@@ -46,56 +51,15 @@ const normalizeLegalError = (err) => {
   return message;
 };
 
-// ─── Design Tokens ────────────────────────────────────────────────────────────
-const Card = ({ children, className = '' }) => (
-  <section className={`rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 ${className}`}>
-    {children}
-  </section>
-);
-
-const Inner = ({ children, className = '' }) => (
-  <div className={`p-5 lg:p-6 ${className}`}>{children}</div>
-);
-
-const PageHdr = ({ title, subtitle, icon, action }) => (
-  <header className="mb-6 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-    <div className="h-1 w-full bg-emerald-600" />
-    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 shadow-sm">
-          <span className="material-symbols-outlined text-[20px] text-white">{icon}</span>
-        </div>
-        <div>
-          <h1 className="text-[17px] font-black leading-tight text-neutral-900 dark:text-neutral-100">{title}</h1>
-          {subtitle && <p className="text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
-        </div>
-      </div>
-      {action && <div className="shrink-0 flex items-center gap-2">{action}</div>}
-    </div>
-  </header>
-);
-
-const StatCard = ({ icon, label, value, color = 'bg-emerald-600' }) => (
-  <Card>
-    <Inner className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{label}</p>
-        <span className={`material-symbols-outlined rounded-xl p-2 text-[18px] text-white ${color}`}>{icon}</span>
-      </div>
-      <p className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">{value}</p>
-    </Inner>
-  </Card>
-);
-
 // ─── Document Viewer Modal ────────────────────────────────────────────────────
-const DocViewer = ({ doc, versions, token, onClose }) => {
+const DocViewer = ({ doc, versions, token, onClose, toast }) => {
   const handleDownloadPdf = async () => {
     if (!doc?._id) return;
     try {
       const { blob, filename } = await getLegalDocumentPdf(token, doc._id);
       downloadBlob(blob, filename);
     } catch (err) {
-      alert(err.message || 'PDF download failed');
+      toast.error(err.message || 'PDF download failed');
     }
   };
 
@@ -121,13 +85,10 @@ const DocViewer = ({ doc, versions, token, onClose }) => {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={handleDownloadPdf} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 shadow-sm">
-              <span className="material-symbols-outlined text-[15px]">picture_as_pdf</span>
-              Download PDF
-            </button>
-            <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-              <span className="material-symbols-outlined text-neutral-400">close</span>
-            </button>
+            <Button variant="danger" size="sm" onClick={handleDownloadPdf} icon={<span className="material-symbols-outlined text-sm">picture_as_pdf</span>}>
+              <span className="hidden sm:inline">Download PDF</span>
+            </Button>
+            <IconButton icon="close" tooltip="Close" onClick={onClose} />
           </div>
         </div>
 
@@ -222,6 +183,7 @@ const DocCard = ({ doc, onView }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 const LSWLegalLibrary = () => {
   const { token } = useAuth();
+  const toast = useToast();
   const [docs, setDocs]               = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
@@ -284,52 +246,60 @@ const LSWLegalLibrary = () => {
     .slice(0, 3);
 
   return (
-    <main className="flex-1 overflow-y-auto bg-neutral-50 p-4 dark:bg-neutral-950 md:p-6">
-      <div className="mx-auto w-full max-w-350">
+    <main className="portal-page">
+      <div className="portal-page-inner">
 
-        <PageHdr
-          icon="library_books"
+        <PortalHeader
           title="Approved Legal Library"
-          subtitle="Read-only access to all CEO-approved legal documents."
-          action={
-            <>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700">
-                <span className="material-symbols-outlined text-[14px]">verified</span>
-                CEO Approved
-              </div>
-              <button onClick={fetchDocs} className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-                <span className="material-symbols-outlined text-[15px]">refresh</span>
-                Refresh
-              </button>
-            </>
-          }
-        />
+          subtitle="Read-only access to all CEO-approved legal documents"
+          icon="library_books"
+          showSearch={false}
+          showNotifications={false}
+          showThemeToggle={false}
+        >
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700">
+            <span className="material-symbols-outlined text-sm">verified</span>
+            CEO Approved
+          </div>
+          <Button variant="secondary" size="md" className="min-h-11" onClick={fetchDocs} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
+            Refresh
+          </Button>
+        </PortalHeader>
 
         {/* KPI row */}
-        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard icon="library_books" label="Total Approved"  value={docs.length}                       color="bg-emerald-600" />
-          <StatCard icon="folder_open"   label="Document Types"  value={topTypes.length > 0 ? DOC_TYPES.filter((t) => docs.some((d) => d.type === t)).length : 0} color="bg-indigo-600" />
-          <StatCard icon="category"      label="Projects"         value={projects.length}                   color="bg-violet-600" />
-          <StatCard icon="search"        label="Matching Filter"  value={filtered.length}                   color="bg-amber-500" />
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <KPICard title="Total Approved" value={docs.length} icon="library_books" compact />
+          <KPICard title="Document Types" value={topTypes.length > 0 ? DOC_TYPES.filter((t) => docs.some((d) => d.type === t)).length : 0} icon="folder_open" compact />
+          <KPICard title="Projects" value={projects.length} icon="category" compact />
+          <KPICard title="Matching Filter" value={filtered.length} icon="search" compact />
         </div>
 
         {/* Search + Filters */}
-        <Card className="mb-6">
-          <Inner className="flex flex-wrap items-center gap-3">
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
             <div className="relative min-w-50 flex-1">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-neutral-400">search</span>
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-neutral-400">search</span>
               <input
                 type="text"
                 placeholder="Search documents…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-xl border border-neutral-200 bg-neutral-50 py-2.5 pl-9 pr-4 text-sm text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                className="app-input pl-10 pr-9"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-red-600 dark:hover:bg-neutral-700"
+                  aria-label="Clear search"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              )}
             </div>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+              className="min-h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
             >
               <option value="">All Types</option>
               {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
@@ -338,7 +308,7 @@ const LSWLegalLibrary = () => {
               <select
                 value={filterProject}
                 onChange={(e) => setFilterProject(e.target.value)}
-                className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+                className="min-h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
               >
                 <option value="">All Projects</option>
                 {projects.map((p) => <option key={p}>{p}</option>)}
@@ -346,25 +316,25 @@ const LSWLegalLibrary = () => {
             )}
             {(searchTerm || filterType || filterProject) && (
               <button
+                type="button"
                 onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}
-                className="inline-flex items-center gap-1 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900"
+                className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-500 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900"
               >
-                <span className="material-symbols-outlined text-[15px]">close</span>
+                <span className="material-symbols-outlined text-lg">close</span>
                 Clear
               </button>
             )}
-          </Inner>
-        </Card>
+        </div>
 
         {/* Error */}
         {!loading && error && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 dark:border-amber-800 dark:bg-amber-900/10">
-            <span className="material-symbols-outlined mt-0.5 text-[18px] text-amber-500">warning</span>
+          <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 dark:border-amber-800 dark:bg-amber-900/10">
+            <span className="material-symbols-outlined mt-0.5 text-lg text-amber-500">warning</span>
             <div>
               <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Unable to load documents</p>
               <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">{error}</p>
             </div>
-            <button onClick={fetchDocs} className="ml-auto shrink-0 text-xs font-semibold text-amber-700 underline hover:no-underline dark:text-amber-400">Retry</button>
+            <button type="button" onClick={fetchDocs} className="ml-auto shrink-0 text-xs font-semibold text-amber-700 underline hover:no-underline dark:text-amber-400">Retry</button>
           </div>
         )}
 
@@ -379,29 +349,22 @@ const LSWLegalLibrary = () => {
 
         {/* Empty state */}
         {!loading && !error && filtered.length === 0 && (
-          <Card>
-            <Inner>
-              <div className="flex flex-col items-center gap-3 py-14 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/20">
-                  <span className="material-symbols-outlined text-3xl text-emerald-500">library_books</span>
-                </div>
-                <p className="font-bold text-neutral-700 dark:text-neutral-300">No approved documents yet</p>
-                <p className="text-sm text-neutral-400 dark:text-neutral-500">
-                  {searchTerm || filterType || filterProject
-                    ? 'No documents match your current filters.'
-                    : 'Documents will appear here after CEO approval.'}
-                </p>
-                {(searchTerm || filterType || filterProject) && (
-                  <button
-                    onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}
-                    className="mt-1 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                  >
-                    Clear Filters
-                  </button>
-                )}
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-neutral-200 bg-white py-16 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/20">
+                <span className="material-symbols-outlined text-3xl text-emerald-500">library_books</span>
               </div>
-            </Inner>
-          </Card>
+              <p className="font-bold text-neutral-700 dark:text-neutral-300">No approved documents yet</p>
+              <p className="text-sm text-neutral-400 dark:text-neutral-500">
+                {searchTerm || filterType || filterProject
+                  ? 'No documents match your current filters.'
+                  : 'Documents will appear here after CEO approval.'}
+              </p>
+              {(searchTerm || filterType || filterProject) && (
+                <Button variant="primary" size="sm" onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}>
+                  Clear Filters
+                </Button>
+              )}
+          </div>
         )}
 
         {/* Grouped document cards */}
@@ -445,6 +408,7 @@ const LSWLegalLibrary = () => {
           doc={viewDoc}
           versions={viewVersions}
           token={token}
+          toast={toast}
           onClose={() => { setViewDoc(null); setViewVersions([]); }}
         />
       )}

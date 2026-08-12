@@ -8,6 +8,7 @@ import {
   AdminProjectsPage,
   AdminDepartmentsPage,
   AdminSecurityPage,
+  AdminSystemLogsPage,
   AdminReportsPage,
   AdminWorkflowsPage,
   AdminUsersPage,
@@ -39,6 +40,7 @@ import {
   MediaDashboardPage,
   MediaProjectDetailPage,
   MediaHeadDashboardPage,
+  MediaHeadProjectDetailPage,
   ProjectOverviewPage,
   SalesDashboardPage,
   SalesQueryPage,
@@ -422,6 +424,16 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/media/head/projects/:projectId"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_head')}>
+                <MediaHeadProjectDetailPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/media/head/:view?"
           element={
             <PortalRoute portal={PORTALS.MEDIA}>
@@ -572,6 +584,16 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.ADMIN}>
               <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminSecurityPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/admin/system-logs"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminSystemLogsPage)}
               </PrivateRoute>
             </PortalRoute>
           }

@@ -130,6 +130,15 @@ exports.getMediaHeadDeadlines = async (req, res) => {
   }
 };
 
+exports.getMediaHeadProjectDetail = async (req, res) => {
+  try {
+    const data = await mediaService.getProjectDetailForHead(req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Head project detail', 'Media Head project detail error');
+  }
+};
+
 exports.getAssets = async (req, res) => {
   try {
     const data = await mediaService.listMedia(req.query || {}, req.projectId, 'asset');

@@ -270,6 +270,7 @@ export const QK = {
     revenue:          (params = {})       => ['mediaHead', 'revenue', params],
     team:             (params = {})       => ['mediaHead', 'team', params],
     deadlines:        (params = {})       => ['mediaHead', 'deadlines', params],
+    projectDetail:    (projectId)         => ['mediaHead', 'projectDetail', projectId],
   },
 };
 

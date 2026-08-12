@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const User = require('../models/auth/User');
 const Session = require('../models/auth/Session');
 const PortalAccess = require('../models/superAdmin/PortalAccess');
+const logService = require('../services/log.service');
 const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
 const { getRolePermissions } = require('../config/roles');
@@ -80,6 +81,43 @@ const logAuthEvent = (req, level, status, message, extra = {}) => {
   };
   const targetLogger = req.log || logger;
   targetLogger[level]?.(payload, message);
+  if (status !== 'success') {
+    const isForbidden = Boolean(extra.accountStatus) || /inactive|restricted|deactivated|blocked|suspended/i.test(message);
+    req.systemErrorLogged = true;
+    logService.fireAndForgetFromRequest(req, {
+      level: level === 'error' ? 'error' : 'warn',
+      event: isForbidden ? 'ACCESS_DENIED' : 'AUTHENTICATE',
+      message,
+      emit: false,
+      module: 'authentication',
+      action: 'AUTHENTICATE',
+      userId: payload.userId,
+      role: payload.role,
+      statusCode: isForbidden ? 403 : 401,
+      metadata: {
+        reason: extra.reason || status,
+        path: req.originalUrl,
+        method: req.method,
+      },
+    });
+  } else {
+    logService.fireAndForgetFromRequest(req, {
+      level: 'info',
+      event: 'AUTHENTICATE',
+      message,
+      emit: false,
+      module: 'authentication',
+      action: 'AUTHENTICATE',
+      userId: payload.userId,
+      role: payload.role,
+      statusCode: 200,
+      metadata: {
+        status,
+        path: req.originalUrl,
+        method: req.method,
+      },
+    });
+  }
 };
 
 /**
@@ -256,6 +294,17 @@ const authorize = (...roles) => {
         method: req.method,
         requiredRoles: roles,
       }, 'Authorization rejected: unauthenticated request');
+      req.systemErrorLogged = true;
+      logService.fireAndForgetFromRequest(req, {
+        level: 'warn',
+        event: 'ACCESS_DENIED',
+        message: 'Authorization rejected: unauthenticated request',
+        emit: false,
+        module: 'authorization',
+        action: 'ROLE_CHECK',
+        statusCode: 401,
+        metadata: { requiredRoles: roles },
+      });
       return res.status(401).json({
         success: false,
         error: 'Authentication required',
@@ -275,6 +324,17 @@ const authorize = (...roles) => {
         path: req.originalUrl,
         method: req.method,
       }, 'Authorization rejected: role mismatch');
+      req.systemErrorLogged = true;
+      logService.fireAndForgetFromRequest(req, {
+        level: 'warn',
+        event: 'ACCESS_DENIED',
+        message: 'Authorization rejected: role mismatch',
+        emit: false,
+        module: 'authorization',
+        action: 'ROLE_CHECK',
+        statusCode: 403,
+        metadata: { requiredRoles: roles },
+      });
       return res.status(403).json({
         success: false,
         error: `Access denied. Required roles: ${roles.join(', ')}`,
@@ -293,6 +353,16 @@ const authorize = (...roles) => {
       role: req.user.role,
       requiredRoles: roles,
     }, 'Authorization role check passed');
+    logService.fireAndForgetFromRequest(req, {
+      level: 'info',
+      event: 'ACCESS_GRANTED',
+      message: 'Authorization role check passed',
+      emit: false,
+      module: 'authorization',
+      action: 'ROLE_CHECK',
+      statusCode: 200,
+      metadata: { requiredRoles: roles },
+    });
     next();
   };
 };
@@ -314,6 +384,17 @@ const authorizePortalAccess = (portal) => {
           path: req.originalUrl,
           method: req.method,
         }, 'Portal access rejected: unauthenticated request');
+        req.systemErrorLogged = true;
+        logService.fireAndForgetFromRequest(req, {
+          level: 'warn',
+          event: 'ACCESS_DENIED',
+          message: 'Portal access rejected: unauthenticated request',
+          emit: false,
+          module: 'authorization',
+          action: 'PORTAL_ACCESS',
+          statusCode: 401,
+          metadata: { portal },
+        });
         return res.status(401).json({
           success: false,
           error: 'Authentication required',
@@ -356,6 +437,17 @@ const authorizePortalAccess = (portal) => {
           role: req.user.role,
           portal,
         }, 'Portal access rejected: rule missing');
+        req.systemErrorLogged = true;
+        logService.fireAndForgetFromRequest(req, {
+          level: 'warn',
+          event: 'ACCESS_DENIED',
+          message: 'Portal access rejected: rule missing',
+          emit: false,
+          module: 'authorization',
+          action: 'PORTAL_ACCESS',
+          statusCode: 403,
+          metadata: { portal },
+        });
         return res.status(403).json({
           success: false,
           error: `No portal access rule found for role '${req.user.role}' and portal '${portal}'`,
@@ -373,6 +465,17 @@ const authorizePortalAccess = (portal) => {
           role: req.user.role,
           portal,
         }, 'Portal access rejected: denied by rule');
+        req.systemErrorLogged = true;
+        logService.fireAndForgetFromRequest(req, {
+          level: 'warn',
+          event: 'ACCESS_DENIED',
+          message: 'Portal access rejected: denied by rule',
+          emit: false,
+          module: 'authorization',
+          action: 'PORTAL_ACCESS',
+          statusCode: 403,
+          metadata: { portal },
+        });
         return res.status(403).json({
           success: false,
           error: `Access denied for portal '${portal}'`,
@@ -392,6 +495,18 @@ const authorizePortalAccess = (portal) => {
         role: req.user?.role || null,
         portal,
       }, 'Portal access authorization error');
+      req.systemErrorLogged = true;
+      logService.fireAndForgetFromRequest(req, {
+        level: 'error',
+        event: 'API_ERROR',
+        message: 'Portal access verification failed',
+        emit: false,
+        module: 'authorization',
+        action: 'PORTAL_ACCESS',
+        statusCode: 500,
+        metadata: { portal },
+        error,
+      });
       return res.status(500).json({
         success: false,
         error: 'Portal access verification failed',

@@ -64,7 +64,7 @@ const MediaHeadDashboard = ({ onNavigate }) => {
       label: 'Project overdue',
       title: p.name,
       meta: `Deadline ${new Date(p.deadline).toLocaleDateString()}`,
-      action: () => navigate(`/media/dashboard/projects/${p.projectCode || p._id}`),
+      action: () => navigate(`/media/head/projects/${p._id}`),
     })),
     pendingApprovals.length > 0 && {
       key: 'pending-approvals',

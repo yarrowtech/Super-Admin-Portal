@@ -4,6 +4,7 @@ const FinanceAuditLog = require("../models/finance/AuditLog");
 const logger = require("../utils/logger");
 const { getRequestContext } = require("../logger/context");
 const { sanitizeForLog } = require("../logger/sanitize");
+const logService = require("./log.service");
 
 const writeAuditTrail = async ({
   userId,
@@ -80,6 +81,25 @@ const writeAuditTrail = async ({
     },
     "Business audit event recorded"
   );
+  logService.fireAndForget({
+    level: "info",
+    event: String(action).replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").toUpperCase(),
+    message: `${String(action).replace(/[_-]+/g, " ")} recorded`,
+    emit: false,
+    userId,
+    role,
+    module,
+    action,
+    requestId: context.requestId || safeMetadata.requestId || null,
+    targetId: targetId ? String(targetId) : "",
+    ip: ipAddress,
+    userAgent,
+    metadata: {
+      targetType: targetType || module,
+      status: safeMetadata.status || "success",
+      ...safeMetadata,
+    },
+  });
 
   return activity;
 };

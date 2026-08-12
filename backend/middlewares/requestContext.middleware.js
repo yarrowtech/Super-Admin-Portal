@@ -1,6 +1,7 @@
 const logger = require("../utils/logger");
 const { runWithRequestContext, setRequestContext } = require("../logger/context");
 const { sanitizeForLog } = require("../logger/sanitize");
+const logService = require("../services/log.service");
 
 const METHOD_ACTION = {
   GET: "read",
@@ -56,6 +57,61 @@ const inferAction = (req) => {
   if (path.includes("upload")) return "upload";
   if (path.includes("download") || path.includes("export")) return "export";
   return METHOD_ACTION[req.method] || "request";
+};
+
+const toEventName = (req, statusCode) => {
+  const method = String(req.method || "").toUpperCase();
+  const path = String(req.originalUrl || req.path || "").toLowerCase();
+  const action = inferAction(req);
+  const module = inferModule(path);
+
+  if (path.includes("/auth/login") || path.includes("/auth/outsourcing/login") || path.includes("/auth/logout") || path.includes("/auth/refresh-token")) {
+    return null;
+  }
+  if (statusCode < 400 && path.includes("/users")) {
+    return null;
+  }
+
+  if (statusCode === 401) return "UNAUTHORIZED";
+  if (statusCode === 403) return "FORBIDDEN";
+  if (statusCode === 404) return "NOT_FOUND";
+  if (statusCode === 400 || statusCode === 422) return "VALIDATION_ERROR";
+  if (statusCode >= 500) return "API_ERROR";
+  if (method === "GET") return null;
+
+  if (module === "users" || path.includes("/users")) {
+    if (method === "POST") return "USER_CREATED";
+    if (method === "DELETE") return "USER_DELETED";
+    if (path.includes("role")) return "ROLE_CHANGED";
+    if (path.includes("permission")) return "PERMISSION_CHANGED";
+    return "USER_UPDATED";
+  }
+
+  if (module === "projects" || path.includes("/projects") || path.includes("/project")) {
+    if (method === "POST") return "PROJECT_CREATED";
+    if (method === "DELETE") return "PROJECT_DELETED";
+    return "PROJECT_UPDATED";
+  }
+
+  return `${module}_${action}`.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").toUpperCase();
+};
+
+const toHumanMessage = (event, req, statusCode) => {
+  if (!event) return "";
+  if (event === "API_ERROR") return `${req.method} ${req.originalUrl || req.path} failed`;
+  if (event === "VALIDATION_ERROR") return `${req.method} ${req.originalUrl || req.path} validation failed`;
+  if (event === "UNAUTHORIZED") return "Request rejected: authentication required";
+  if (event === "FORBIDDEN") return "Request rejected: insufficient permissions";
+  if (event === "NOT_FOUND") return "Route not found";
+  if (event === "USER_CREATED") return "User created successfully";
+  if (event === "USER_UPDATED") return "User updated successfully";
+  if (event === "USER_DELETED") return "User deleted successfully";
+  if (event === "ROLE_CHANGED") return "User role updated";
+  if (event === "PERMISSION_CHANGED") return "User permissions updated";
+  if (event === "PROJECT_CREATED") return "Project created successfully";
+  if (event === "PROJECT_UPDATED") return "Project updated successfully";
+  if (event === "PROJECT_DELETED") return "Project deleted successfully";
+  return `${req.method} ${req.originalUrl || req.path} completed with status ${statusCode}`;
 };
 
 const requestContextMiddleware = (req, res, next) => {
@@ -134,6 +190,23 @@ const requestContextMiddleware = (req, res, next) => {
           },
           "Slow request"
         );
+      }
+
+      const event = req.systemErrorLogged ? null : toEventName(req, res.statusCode);
+      if (event) {
+        logService.fireAndForgetFromRequest(req, {
+          level: res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info",
+          event,
+          message: toHumanMessage(event, req, res.statusCode),
+          emit: false,
+          module,
+          action,
+          statusCode: res.statusCode,
+          durationMs: roundedDurationMs,
+          metadata: {
+            status,
+          },
+        });
       }
     });
 

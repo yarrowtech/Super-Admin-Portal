@@ -27,7 +27,10 @@ const MEDIA_THEME = {
 const mediaHeadMobileItems = [
   { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { key: 'projects', label: 'Projects', icon: 'folder_copy' },
+  { key: 'team', label: 'Team', icon: 'groups' },
+  { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
   { key: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
+  { key: 'revenue', label: 'Revenue', icon: 'payments' },
   { key: 'approvals', label: 'Approvals', icon: 'fact_check' },
   { key: 'activity', label: 'Activity', icon: 'history' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
@@ -52,8 +55,14 @@ const MediaHeadPortal = () => {
         return <MediaHeadDashboard onNavigate={setCurrentView} />;
       case 'projects':
         return <MediaHeadProjectOverview />;
+      case 'team':
+        return <MediaHeadTeam />;
+      case 'deadlines':
+        return <MediaHeadDeadlineCenter />;
       case 'campaigns':
         return <MediaHeadCampaignPerformance />;
+      case 'revenue':
+        return <MediaHeadRevenue />;
       case 'approvals':
         return <MediaHeadApprovalCenter />;
       case 'activity':

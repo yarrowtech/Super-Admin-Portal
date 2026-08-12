@@ -23,6 +23,7 @@ export const SuperAdminControlCenterPage = lazy(() => import('../components/admi
 export const AdminProjectsPage           = lazy(() => import('../components/admin/AdminProjectsPage'));
 export const AdminDepartmentsPage        = lazy(() => import('../components/admin/DepartmentsOverview'));
 export const AdminSecurityPage           = lazy(() => import('../components/admin/SecurityMonitoring'));
+export const AdminSystemLogsPage         = lazy(() => import('../components/admin/SystemLogsPage'));
 export const AdminReportsPage            = lazy(() => import('../components/admin/ReportsAnalytics'));
 export const AdminWorkflowsPage          = lazy(() => import('../components/admin/WorkflowManagement'));
 export const AdminUsersPage              = lazy(() => import('../components/admin/UserRoleManagement'));
@@ -58,6 +59,7 @@ export const MediaDashboardPage = lazy(() => import('../components/media/MediaPo
 export const MediaPortalPage    = MediaDashboardPage;
 export const MediaProjectDetailPage = lazy(() => import('../components/media/MediaProjectDetail'));
 export const MediaHeadDashboardPage = lazy(() => import('../components/media/head/MediaHeadPortal'));
+export const MediaHeadProjectDetailPage = lazy(() => import('../components/media/head/MediaHeadProjectDetail'));
 export const ProjectOverviewPage = lazy(() => import('../components/shared/ProjectOverviewPage'));
 
 // ── Department portals ────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ const logger = require('../../utils/logger');
 // backend/controllers/dept/admin.controller.js
 const User = require('../../models/auth/User');
 const ActivityLog = require('../../models/auth/ActivityLog');
+const logService = require('../../services/log.service');
 const { ROLES } = require('../../config/roles');
 
 const USER_ACCOUNT_STATUSES = ['active', 'inactive', 'suspended', 'blocked', 'pending_verification'];
@@ -146,6 +147,45 @@ const writeActivity = async (req, action, targetUser, metadata = {}) => {
       metadata,
       ipAddress: req.ip,
       userAgent: req.get('user-agent')
+    });
+    const eventMap = {
+      'user.created': 'USER_CREATED',
+      'user.updated': metadata.roleChanged ? 'ROLE_CHANGED' : metadata.permissionsChanged ? 'PERMISSION_CHANGED' : 'USER_UPDATED',
+      'user.deleted': 'USER_DELETED',
+      'user.activated': 'STATUS_CHANGE',
+      'user.deactivated': 'STATUS_CHANGE',
+      'user.active': 'STATUS_CHANGE',
+      'user.inactive': 'STATUS_CHANGE',
+      'user.suspended': 'ACCOUNT_LOCKED',
+      'user.blocked': 'ACCOUNT_LOCKED',
+      'user.pending_verification': 'STATUS_CHANGE',
+    };
+    logService.fireAndForgetFromRequest(req, {
+      level: 'info',
+      event: eventMap[action] || action.replace(/[^a-z0-9]+/gi, '_').toUpperCase(),
+      emit: false,
+      module: 'users',
+      action: action.replace(/^user\./, '').toUpperCase(),
+      message:
+        action === 'user.created'
+          ? 'User created successfully'
+          : action === 'user.deleted'
+            ? 'User deleted successfully'
+            : metadata.roleChanged
+              ? 'User role updated'
+              : metadata.permissionsChanged
+                ? 'User permissions updated'
+                : action.startsWith('user.')
+                  ? 'User updated successfully'
+                  : 'User activity recorded',
+      statusCode: req.res?.statusCode,
+      targetId: targetUser?._id?.toString(),
+      metadata: {
+        targetUserId: targetUser?._id?.toString(),
+        targetUserEmail: targetUser?.email,
+        targetUserRole: targetUser?.role,
+        ...metadata,
+      },
     });
   } catch (error) {
     logger.warn({ err: error, action }, 'Failed to write user activity log');
@@ -414,6 +454,9 @@ exports.updateUser = async (req, res) => {
       });
     }
 
+    const previousRole = user.role;
+    const previousPermissions = Array.isArray(user.permissions) ? [...user.permissions] : [];
+
     // Validate role if provided
     if (role) {
       const validRoles = Object.values(ROLES);
@@ -499,7 +542,9 @@ exports.updateUser = async (req, res) => {
     await writeActivity(req, 'user.updated', user, {
       role: user.role,
       accountStatus: user.accountStatus,
-      isActive: user.isActive
+      isActive: user.isActive,
+      roleChanged: previousRole !== user.role,
+      permissionsChanged: JSON.stringify(previousPermissions.sort()) !== JSON.stringify([...(user.permissions || [])].sort())
     });
 
     res.status(200).json({

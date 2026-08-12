@@ -24,6 +24,7 @@ export const departmentApi = {
   getMediaHeadRevenue: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/revenue', params), token, options),
   getMediaHeadTeam: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/team', params), token, options),
   getMediaHeadDeadlines: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/deadlines', params), token, options),
+  getMediaHeadProjectDetail: (token, projectId, options = {}) => apiClient.get(`/api/dept/media/head/projects/${projectId}`, token, options),
   getMediaProjects: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/projects', params), token),
   uploadMediaProjectLogo: (token, projectId, file) => {
     const formData = new FormData();

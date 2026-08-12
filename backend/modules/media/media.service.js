@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { v2: cloudinary } = require('cloudinary');
 const { mediaLogger: logger } = require('./media.logger');
 const Media = require('../../models/department/Media');
@@ -888,6 +889,144 @@ const getDeadlineCenter = async () => {
   };
 };
 
+const DELIVERABLE_SECTIONS = ['asset', 'content', 'brand', 'design', 'video', 'social'];
+
+const getProjectDetailForHead = async (projectId) => {
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    const err = new Error('Invalid project id');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const filter = buildAllowedProjectFilter();
+  const project = await Project.findOne({ $and: [filter, { _id: projectId }] })
+    .populate('projectManager', 'firstName lastName email')
+    .populate('teamMembers.employee', 'firstName lastName email')
+    .lean();
+
+  if (!project) {
+    const err = new Error('Project not found or not accessible from the Media Head portal');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const now = new Date();
+  const health = computeProjectHealth(project, now);
+
+  const mediaItems = await Media.find({ projectId: project._id })
+    .select('title section status approvalStatus budgetImpact publishAt updatedAt createdAt')
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  const mediaIds = mediaItems.map((m) => m._id);
+  const campaigns = mediaItems.filter((m) => m.section === 'campaign');
+  const deliverables = mediaItems.filter((m) => DELIVERABLE_SECTIONS.includes(m.section));
+
+  const [approvalWorkflows, salesLeads] = await Promise.all([
+    ApprovalWorkflow.find({ module: 'media', entityId: { $in: mediaIds } })
+      .sort({ updatedAt: -1 })
+      .limit(30)
+      .populate('requestedBy', 'firstName lastName email')
+      .lean(),
+    project.projectCode
+      ? SalesQuery.find({ 'project.code': project.projectCode })
+          .select('buyerName businessName email phone buyerCategory createdAt submittedBy')
+          .sort({ createdAt: -1 })
+          .limit(20)
+          .populate('submittedBy', 'firstName lastName email')
+          .lean()
+      : [],
+  ]);
+
+  const mediaById = new Map(mediaItems.map((m) => [String(m._id), m]));
+  const activity = approvalWorkflows.map((wf) => {
+    const media = mediaById.get(String(wf.entityId));
+    const requester = wf.requestedBy
+      ? [wf.requestedBy.firstName, wf.requestedBy.lastName].filter(Boolean).join(' ')
+      : 'Someone';
+    const title = media?.title || 'a media item';
+    let text;
+    if (wf.status === 'approved') text = `${requester}'s "${title}" was approved`;
+    else if (wf.status === 'rejected') text = `${requester}'s "${title}" was rejected`;
+    else text = `${requester} requested approval for "${title}"`;
+    return { id: wf._id, text, status: wf.status, time: wf.updatedAt };
+  });
+
+  const team = [];
+  const pm = ownerLabel(project.projectManager);
+  if (pm) team.push({ ...pm, role: 'Project Manager' });
+  for (const tm of project.teamMembers || []) {
+    const emp = ownerLabel(tm.employee);
+    if (emp) team.push({ ...emp, role: tm.role || 'Team Member' });
+  }
+
+  const campaignSpend = campaigns.reduce((sum, c) => sum + (Number(c.budgetImpact?.spend) || 0), 0);
+  const roiValues = campaigns
+    .map((c) => Number(c.budgetImpact?.roiAtSnapshot))
+    .filter((v) => Number.isFinite(v) && v !== 0);
+  const avgRoi = roiValues.length ? Number((roiValues.reduce((a, b) => a + b, 0) / roiValues.length).toFixed(2)) : null;
+
+  return {
+    project: {
+      id: String(project._id),
+      name: project.name,
+      projectCode: project.projectCode,
+      description: project.description,
+      client: project.client || null,
+      status: project.status,
+      priority: project.priority,
+      progress: Number(project.progress) || 0,
+      health,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      deadline: project.deadline,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    },
+    sales: {
+      totalLeads: salesLeads.length,
+      recentLeads: salesLeads,
+    },
+    marketing: {
+      totalCampaigns: campaigns.length,
+      totalDeliverables: deliverables.length,
+      pendingApprovals: mediaItems.filter((m) => m.approvalStatus === 'pending').length,
+    },
+    execution: {
+      milestones: (project.milestones || []).map((m) => ({
+        id: String(m._id),
+        title: m.title,
+        description: m.description,
+        deadline: m.deadline,
+        status: m.status,
+        completedDate: m.completedDate,
+      })),
+    },
+    budget: {
+      estimated: project.budget?.estimated || 0,
+      actual: project.budget?.actual || 0,
+      remaining: (project.budget?.estimated || 0) - (project.budget?.actual || 0),
+      campaignSpend,
+      avgRoi,
+    },
+    team,
+    deliverables: deliverables.map((d) => ({
+      id: String(d._id), title: d.title, section: d.section, status: d.status, updatedAt: d.updatedAt,
+    })),
+    campaigns: campaigns.map((c) => ({
+      id: String(c._id), title: c.title, status: c.status,
+      spend: c.budgetImpact?.spend || 0, roi: c.budgetImpact?.roiAtSnapshot ?? null, updatedAt: c.updatedAt,
+    })),
+    analytics: {
+      totalMediaItems: mediaItems.length,
+      approvedCount: mediaItems.filter((m) => m.approvalStatus === 'approved').length,
+      rejectedCount: mediaItems.filter((m) => m.approvalStatus === 'rejected').length,
+      pendingCount: mediaItems.filter((m) => m.approvalStatus === 'pending').length,
+    },
+    activity,
+  };
+};
+
 const getMediaHeadDashboard = async (query = {}) => {
   const cacheKey = `media:head:dashboard:${JSON.stringify(query || {})}`;
   const cached = await getCache(cacheKey);
@@ -1404,4 +1543,5 @@ module.exports = {
   getNeedsAttention,
   getTeamOverview,
   getDeadlineCenter,
+  getProjectDetailForHead,
 };

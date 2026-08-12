@@ -94,7 +94,7 @@ const MediaHeadDeadlineCenter = () => {
                       <span className={`text-xs font-medium ${overdue ? 'text-rose-500' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : '—'}
                       </span>
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/media/dashboard/projects/${item.projectCode || item.projectId}`)}>
+                      <Button variant="ghost" size="sm" onClick={() => navigate(`/media/head/projects/${item.projectId}`)}>
                         Open
                       </Button>
                     </div>

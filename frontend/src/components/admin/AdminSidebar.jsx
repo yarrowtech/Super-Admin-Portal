@@ -56,6 +56,12 @@ const navItems = [
     description: 'Security monitoring'
   },
   {
+    label: 'System Logs',
+    icon: 'receipt_long',
+    path: '/admin/system-logs',
+    description: 'MongoDB activity logs'
+  },
+  {
     label: 'Projects',
     icon: 'folder_open',
     path: '/admin/projects',

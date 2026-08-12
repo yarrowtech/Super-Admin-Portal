@@ -1,4 +1,5 @@
 const errorLogger = require("../logger/errorLogger");
+const logService = require("../services/log.service");
 
 const mapMongoAndJwtError = (err) => {
   if (!err) return { statusCode: 500, message: "Internal server error" };
@@ -37,6 +38,20 @@ const mapMongoAndJwtError = (err) => {
 const errorMiddleware = (err, req, res, next) => {
   const mapped = mapMongoAndJwtError(err);
   errorLogger(err, req, mapped.statusCode);
+  req.systemErrorLogged = true;
+  logService.fireAndForgetFromRequest(req, {
+    level: mapped.statusCode >= 500 ? "error" : "warn",
+    event: mapped.statusCode === 400 ? "VALIDATION_ERROR" : mapped.statusCode === 401 ? "UNAUTHORIZED" : mapped.statusCode === 403 ? "FORBIDDEN" : "API_ERROR",
+    message: mapped.statusCode >= 500 ? `${req.method} ${req.originalUrl || req.path} failed` : mapped.message,
+    emit: false,
+    module: req.logContext?.module || 'api',
+    action: req.logContext?.action || 'request',
+    statusCode: mapped.statusCode,
+    metadata: {
+      status: 'error',
+    },
+    error: err,
+  });
 
   res.status(mapped.statusCode).json({
     success: false,

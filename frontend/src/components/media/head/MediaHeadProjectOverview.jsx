@@ -146,7 +146,7 @@ const MediaHeadProjectOverview = () => {
                         <td className="px-4 py-3"><StatusBadge tone={health.tone} label={health.label} /></td>
                         <td className="px-4 py-3 text-xs text-neutral-500">{project.deadline ? new Date(project.deadline).toLocaleDateString() : '—'}</td>
                         <td className="px-4 py-3 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/media/dashboard/projects/${project.projectCode || project._id}`)}>
+                          <Button variant="ghost" size="sm" onClick={() => navigate(`/media/head/projects/${project._id}`)}>
                             Open
                           </Button>
                         </td>

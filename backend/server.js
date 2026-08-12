@@ -3,6 +3,7 @@ const env = require("./config/env");
 const { validateStartupConfig } = require("./config/startupValidation");
 const { server } = require("./app");
 const mongoose = require("mongoose");
+const logService = require("./services/log.service");
 
 const PORT = env.PORT;
 
@@ -15,6 +16,18 @@ try {
 
 const httpServer = server.listen(PORT, () => {
   logger.info({ port: PORT }, "Server running");
+  logService.fireAndForget({
+    level: "info",
+    event: "SERVER_STARTED",
+    message: "Server started",
+    emit: false,
+    module: "system",
+    action: "SERVER_STARTED",
+    metadata: {
+      port: PORT,
+      env: env.NODE_ENV,
+    },
+  });
 });
 
 const shutdown = async (signal) => {

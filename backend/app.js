@@ -1,4 +1,5 @@
 const logger = require("./utils/logger");
+const logService = require("./services/log.service");
 require("dotenv").config();
 
 const express = require("express");
@@ -77,6 +78,10 @@ app.use(mongoSanitize());
 if (!env.IS_PRODUCTION) {
   app.post("/__dev/frontend-log", (req, res) => {
     const payload = req.body && typeof req.body === "object" ? req.body : {};
+    const level = payload.level === "error" ? "error" : payload.level === "warn" ? "warn" : "info";
+    const event = level === "error" || payload.direction === "error"
+      ? "FRONTEND_ERROR"
+      : String(payload.action || payload.eventType || "FRONTEND_EVENT").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").toUpperCase();
     logger[payload.level === "error" ? "error" : payload.level === "warn" ? "warn" : "info"](
       {
         source: "frontend",
@@ -98,6 +103,29 @@ if (!env.IS_PRODUCTION) {
       },
       "Frontend activity"
     );
+    logService.fireAndForget({
+      level,
+      event,
+      message: payload.error || payload.message || "Frontend activity",
+      emit: false,
+      source: "FRONTEND",
+      module: payload.module || "frontend",
+      action: payload.action || payload.eventType || null,
+      requestId: payload.requestId || req.headers["x-request-id"] || null,
+      method: payload.method || null,
+      route: payload.path || payload.route || null,
+      statusCode: payload.statusCode || null,
+      durationMs: payload.durationMs || null,
+      userId: payload.userId || null,
+      role: payload.role || null,
+      ip: req.ip || req.socket?.remoteAddress || null,
+      userAgent: req.get("user-agent") || null,
+      metadata: {
+        status: payload.status || null,
+        eventType: payload.eventType || null,
+      },
+      error: payload.error ? { name: "FrontendError", message: payload.error } : null,
+    });
     res.status(204).end();
   });
 }
@@ -205,6 +233,7 @@ app.use("/api/profile", routes.profileRoutes);
 app.use("/api/hr", routes.hrProfileRoutes);
 app.use("/api/legal", routes.legalDocRoutes);
 app.use("/api/portal-support", routes.portalSupportRoutes);
+app.use("/api/logs", routes.logRoutes);
 
 logger.info({ routeCount: countExpressRoutes(app) }, "Routes loaded");
 

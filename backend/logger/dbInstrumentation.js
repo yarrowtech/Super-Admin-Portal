@@ -1,5 +1,6 @@
 const logger = require("../utils/logger");
 const { getRequestContext } = require("./context");
+const logService = require("../services/log.service");
 
 const patchExec = (prototype, getMetadata, thresholdMs) => {
   if (!prototype || prototype.__superAdminLogPatched) return;
@@ -18,6 +19,7 @@ const patchExec = (prototype, getMetadata, thresholdMs) => {
     } catch (err) {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
       const context = getRequestContext();
+      const metadata = getMetadata(this);
       logger.error(
         {
           err,
@@ -26,15 +28,31 @@ const patchExec = (prototype, getMetadata, thresholdMs) => {
           action: context.action || "database_operation",
           status: "error",
           durationMs: Math.round(durationMs * 100) / 100,
-          ...getMetadata(this),
+          ...metadata,
         },
         "Database operation failed"
       );
+      if (metadata.collection !== "system_logs") {
+        logService.fireAndForget({
+          level: "error",
+          event: "DATABASE_ERROR",
+          message: "Database operation failed",
+          emit: false,
+          module: context.module || "database",
+          action: context.action || "database_operation",
+          requestId: context.requestId || null,
+          durationMs: Math.round(durationMs * 100) / 100,
+          collection: metadata.collection,
+          operation: metadata.operation,
+          error: err,
+        });
+      }
       throw err;
     } finally {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
       if (durationMs >= thresholdMs) {
         const context = getRequestContext();
+        const metadata = getMetadata(this);
         logger.warn(
           {
             requestId: context.requestId || null,
@@ -43,10 +61,25 @@ const patchExec = (prototype, getMetadata, thresholdMs) => {
             status: "slow",
             durationMs: Math.round(durationMs * 100) / 100,
             thresholdMs,
-            ...getMetadata(this),
+            ...metadata,
           },
           "Slow query"
         );
+        if (metadata.collection !== "system_logs") {
+          logService.fireAndForget({
+            level: "warn",
+            event: "SLOW_QUERY",
+            message: "MongoDB query exceeded configured threshold",
+            emit: false,
+            module: context.module || "database",
+            action: context.action || "database_operation",
+            requestId: context.requestId || null,
+            durationMs: Math.round(durationMs * 100) / 100,
+            thresholdMs,
+            collection: metadata.collection,
+            operation: metadata.operation,
+          });
+        }
       }
     }
   };

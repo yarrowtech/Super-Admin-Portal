@@ -6,6 +6,7 @@ const User = require('../../models/auth/User');
 const Session = require('../../models/auth/Session');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const { getCache, setCache } = require('../../services/cache.service');
+const logService = require('../../services/log.service');
 const { ROLES, isValidRole } = require('../../config/roles');
 const env = require('../../config/env');
 const jwtConfig = require('../../config/jwt');
@@ -106,6 +107,39 @@ const writeAuthActivity = async (req, action, user, metadata = {}) => {
       role: user?.role || metadata.role || null,
       ip: req.ip,
     }, 'Authentication activity recorded');
+    const eventMap = {
+      'auth.registered': 'USER_CREATED',
+      'auth.login': 'LOGIN_SUCCESS',
+      'auth.outsourcing_login': 'LOGIN_SUCCESS',
+      'auth.logout': 'LOGOUT',
+      'auth.logout_all_other_sessions': 'LOGOUT',
+      'auth.refresh': 'TOKEN_REFRESH',
+      'auth.profile_updated': 'USER_UPDATED',
+    };
+    logService.fireAndForgetFromRequest(req, {
+      level: 'info',
+      event: eventMap[action] || action.replace(/[^a-z0-9]+/gi, '_').toUpperCase(),
+      emit: false,
+      module: 'authentication',
+      action: action.replace(/^auth\./, '').toUpperCase(),
+      message:
+        action === 'auth.login' || action === 'auth.outsourcing_login'
+          ? 'User logged in successfully'
+          : action === 'auth.logout'
+            ? 'User logged out successfully'
+            : action === 'auth.refresh'
+              ? 'Access token refreshed successfully'
+              : action === 'auth.registered'
+                ? 'User created successfully'
+                : 'Authentication activity recorded',
+      userId: user?._id,
+      userName: [user?.firstName, user?.lastName].filter(Boolean).join(' '),
+      userEmail: user?.email,
+      role: user?.role || metadata.role || null,
+      department: user?.department || null,
+      statusCode: action === 'auth.registered' ? 201 : 200,
+      metadata,
+    });
   } catch (error) {
     logger.warn({ err: error, action }, 'Failed to write auth activity log');
   }
@@ -122,6 +156,32 @@ const logAuthFailure = (req, action, reason, extra = {}) => {
     reason,
     ip: req.ip,
   }, 'Authentication activity failed');
+  const eventMap = {
+    'auth.login': 'LOGIN_FAILED',
+    'auth.refresh': 'TOKEN_REFRESH',
+  };
+  const statusCode =
+    reason === 'login_error'
+      ? 500
+      : /deactivated|restricted|denied|blocked|suspended/i.test(String(reason))
+        ? 403
+        : 401;
+  logService.fireAndForgetFromRequest(req, {
+    level: 'warn',
+    event: eventMap[action] || 'UNAUTHORIZED',
+    message: action === 'auth.login' ? 'User login failed' : 'Authentication activity failed',
+    emit: false,
+    module: 'authentication',
+    action: action.replace(/^auth\./, '').toUpperCase(),
+    userId: extra.userId || null,
+    role: extra.role || null,
+    statusCode,
+    metadata: {
+      action,
+      reason,
+      ...extra,
+    },
+  });
 };
 
 const sanitizeStringArray = (input) => {
@@ -567,6 +627,7 @@ exports.outsourcingLogin = async (req, res) => {
       outsourcingType === 'freelancer';
 
     if (!allowed) {
+      logAuthFailure(req, 'auth.login', 'outsourcing_access_denied', { userId: user._id, role: user.role });
       return res.status(403).json({
         success: false,
         error: 'This account cannot access outsourcing portal',
@@ -581,6 +642,7 @@ exports.outsourcingLogin = async (req, res) => {
     const token = generateToken(user, { jti: sessionJti });
     const refreshToken = generateRefreshToken(user, { jti: sessionJti });
     const session = await persistSession(req, res, user, refreshToken, { jti: sessionJti });
+    await writeAuthActivity(req, 'auth.outsourcing_login', user);
 
     return res.status(200).json({
       success: true,
@@ -608,6 +670,7 @@ exports.outsourcingLogin = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, 'Outsourcing login error');
     if (error.message === 'Invalid credentials') {
+      logAuthFailure(req, 'auth.login', 'invalid_credentials');
       return res.status(401).json({
         success: false,
         error: 'Invalid email or password',
@@ -615,12 +678,14 @@ exports.outsourcingLogin = async (req, res) => {
       });
     }
     if (error.message === 'Account is deactivated') {
+      logAuthFailure(req, 'auth.login', 'account_deactivated');
       return res.status(403).json({
         success: false,
         error: 'Your account has been deactivated. Contact administrator.',
         code: 'ACCOUNT_DEACTIVATED'
       });
     }
+    logAuthFailure(req, 'auth.login', 'login_error');
     return res.status(500).json({
       success: false,
       error: 'Outsourcing login failed. Please try again.',
@@ -692,6 +757,7 @@ exports.refreshAccessToken = async (req, res) => {
 
     session.lastUsedAt = new Date();
     await session.save();
+    await writeAuthActivity(req, 'auth.refresh', user, { sessionId: session._id });
 
     // Generate new access token
     const newToken = jwt.sign(

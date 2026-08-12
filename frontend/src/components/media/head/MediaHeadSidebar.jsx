@@ -14,12 +14,30 @@ const MiniTooltip = memo(({ label }) => (
   </span>
 ));
 
-const menuItems = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { key: 'projects', label: 'Projects', icon: 'folder_copy' },
-  { key: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
-  { key: 'approvals', label: 'Approvals', icon: 'fact_check' },
-  { key: 'activity', label: 'Activity', icon: 'history' },
+const menuGroups = [
+  {
+    label: 'Department',
+    items: [
+      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+      { key: 'projects', label: 'Projects', icon: 'folder_copy' },
+      { key: 'team', label: 'Team', icon: 'groups' },
+      { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
+    ],
+  },
+  {
+    label: 'Performance',
+    items: [
+      { key: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
+      { key: 'revenue', label: 'Revenue', icon: 'payments' },
+    ],
+  },
+  {
+    label: 'Control',
+    items: [
+      { key: 'approvals', label: 'Approvals', icon: 'fact_check' },
+      { key: 'activity', label: 'Activity', icon: 'history' },
+    ],
+  },
 ];
 
 const MediaHeadSidebar = ({ currentView = 'dashboard', onViewChange }) => {
@@ -91,37 +109,48 @@ const MediaHeadSidebar = ({ currentView = 'dashboard', onViewChange }) => {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 pb-2 pt-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-200 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700">
-        <div className="space-y-0.5">
-          {menuItems.map((item) => {
-            const active = currentView === item.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => handleViewChange(item.key)}
-                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                  active
-                    ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
-                } ${collapsed ? 'justify-center px-0' : ''}`}
-                aria-label={collapsed ? item.label : undefined}
-              >
-                <span
-                  className={`material-symbols-outlined shrink-0 text-[20px] transition-none ${collapsed ? 'mx-auto' : ''}`}
-                  style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
-                >
-                  {item.icon}
-                </span>
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 truncate text-left leading-none">{item.label}</span>
-                    {active && <span className="material-symbols-outlined shrink-0 text-[14px] text-white/70">chevron_right</span>}
-                  </>
-                )}
-                {collapsed && <MiniTooltip label={item.label} />}
-              </button>
-            );
-          })}
+        <div className="space-y-3">
+          {menuGroups.map((group) => (
+            <div key={group.label}>
+              {!collapsed && (
+                <p className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-600">
+                  {group.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = currentView === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => handleViewChange(item.key)}
+                      className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                        active
+                          ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+                          : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+                      } ${collapsed ? 'justify-center px-0' : ''}`}
+                      aria-label={collapsed ? item.label : undefined}
+                    >
+                      <span
+                        className={`material-symbols-outlined shrink-0 text-[20px] transition-none ${collapsed ? 'mx-auto' : ''}`}
+                        style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
+                      >
+                        {item.icon}
+                      </span>
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 truncate text-left leading-none">{item.label}</span>
+                          {active && <span className="material-symbols-outlined shrink-0 text-[14px] text-white/70">chevron_right</span>}
+                        </>
+                      )}
+                      {collapsed && <MiniTooltip label={item.label} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </nav>
 

@@ -99,13 +99,23 @@
       "Bash(rm -f \"e:\\\\Super-Admin-Portal\\\\backend\\\\check_reject_state2.js\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\check_refetch_timing.js\")",
       "Bash(rm -f media_head_verify2.js)",
       "Bash(mv \"e:\\\\Super-Admin-Portal\\\\backend\\\\mhv2-dashboard.png\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\mhv2-projects.png\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\mhv2-campaigns.png\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\mhv2-approvals.png\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\mhv2-activity.png\" \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\\\\\" 2>/dev/null; echo done)",
-      "Bash(SCRATCH=\"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\" *)"
+      "Bash(SCRATCH=\"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\" *)",
+      "Bash(cp \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\\\\media_head_verify3.js\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\media_head_verify3.js\")",
+      "Bash(node media_head_verify3.js)",
+      "Bash(cp \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\\\\check_dashboard_live.js\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\check_dashboard_live.js\")",
+      "Bash(node check_dashboard_live.js)",
+      "Bash(rm -f \"e:\\\\Super-Admin-Portal\\\\backend\\\\check_dashboard_live.js\")",
+      "Bash(cp \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\\\\recheck_dashboard_render.js\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\recheck_dashboard_render.js\")",
+      "Bash(node recheck_dashboard_render.js)",
+      "Bash(cp \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\\\\mh_project_detail_verify.js\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\mh_project_detail_verify.js\")",
+      "Bash(node mh_project_detail_verify.js)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",
       "E:\\Super-Admin-Portal\\backend",
       "C:\\Users\\SANTU\\AppData\\Local\\Temp\\claude\\e--Super-Admin-Portal\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\scratchpad\" 2>\\dev",
-      "e:\\Super-Admin-Portal"
+      "e:\\Super-Admin-Portal",
+      "e:\\Super-Admin-Portal\\backend"
     ]
   }
 }

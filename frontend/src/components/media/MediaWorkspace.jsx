@@ -345,7 +345,17 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     designQuery, videoQuery, socialQuery,
   ] = useQueries({
     queries: [
-      { queryKey: QK.media.projects({ limit: 200 }), queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }), enabled },
+      {
+        queryKey: QK.media.projects({ limit: 200 }),
+        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }, { forceRefresh: true }),
+        enabled,
+        // Project allocation is changed externally by Media Head (assign/revoke) —
+        // this list must always reflect the latest allocation on mount, not the
+        // shared default 90s staleTime other media queries use (forceRefresh also
+        // bypasses the apiClient's own sessionStorage HTTP cache layer).
+        staleTime: 0,
+        refetchOnMount: 'always',
+      },
       { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled: enableWorkspaceData },

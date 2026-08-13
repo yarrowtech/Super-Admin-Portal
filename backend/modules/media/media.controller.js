@@ -39,7 +39,7 @@ exports.getDashboard = async (req, res) => {
 
 exports.getProjects = async (req, res) => {
   try {
-    const data = await mediaService.listProjects(req.query || {});
+    const data = await mediaService.listProjects(req.query || {}, req.user);
     getMediaRequestLogger(req, { action: 'getProjects' }).info(
       { query: req.query || {} },
       'Media projects listed'
@@ -47,6 +47,45 @@ exports.getProjects = async (req, res) => {
     res.status(200).json({ success: true, data });
   } catch (err) {
     handleError(res, err, 'Failed to fetch media projects', 'Media module getProjects error');
+  }
+};
+
+exports.getMediaMarketingUsers = async (req, res) => {
+  try {
+    const data = await mediaService.listMediaMarketingUsers();
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to load Media Marketing users', 'Media Marketing users error');
+  }
+};
+
+exports.assignProjectMember = async (req, res) => {
+  try {
+    const { employeeId, role } = req.body || {};
+    if (!employeeId) {
+      return res.status(400).json({ success: false, error: 'employeeId is required' });
+    }
+    const data = await mediaService.assignProjectMember(req.params.id, employeeId, role);
+    getMediaRequestLogger(req, { action: 'assignProjectMember' }).info(
+      { projectId: req.params.id, employeeId },
+      'Media project member assigned'
+    );
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to assign project member', 'Media assign project member error');
+  }
+};
+
+exports.removeProjectMember = async (req, res) => {
+  try {
+    const data = await mediaService.removeProjectMember(req.params.id, req.params.userId);
+    getMediaRequestLogger(req, { action: 'removeProjectMember' }).info(
+      { projectId: req.params.id, employeeId: req.params.userId },
+      'Media project member removed'
+    );
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Unable to remove project member', 'Media remove project member error');
   }
 };
 

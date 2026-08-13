@@ -42,6 +42,9 @@ router.get('/head/kpis', canViewMediaHead, v.mediaHeadListValidation, validate, 
 router.get('/head/attention', canViewMediaHead, controller.getMediaHeadAttention);
 router.get('/head/team', canViewMediaHead, controller.getMediaHeadTeam);
 router.get('/head/deadlines', canViewMediaHead, controller.getMediaHeadDeadlines);
+router.get('/head/marketing-users', canViewMediaHead, controller.getMediaMarketingUsers);
+router.post('/head/projects/:id/team', canViewMediaHead, v.mediaIdValidation, validate, controller.assignProjectMember);
+router.delete('/head/projects/:id/team/:userId', canViewMediaHead, v.mediaIdValidation, validate, controller.removeProjectMember);
 router.get('/head/projects/:id', canViewMediaHead, controller.getMediaHeadProjectDetail);
 router.get('/head/projects', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadProjects);
 router.get('/head/sales-summary', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadSalesSummary);

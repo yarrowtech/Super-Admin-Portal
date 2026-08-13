@@ -4,6 +4,7 @@ const { mediaLogger: logger } = require('./media.logger');
 const Media = require('../../models/department/Media');
 const SalesQuery = require('../../models/department/SalesQuery');
 const Project = require('../../models/common/Project');
+const User = require('../../models/auth/User');
 const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
 const { getCache, setCache } = require('../../services/cache.service');
 const { createApprovalRequest, decideApprovalRequest } = require('../../services/approvalEngine.service');
@@ -393,7 +394,12 @@ const listMedia = async (query = {}, projectId, section) => {
   };
 };
 
-const listProjects = async (query = {}) => {
+// Roles that see every registered project regardless of assignment — media_head
+// allocates projects to media_marketing users, so the head (and anyone above)
+// needs unrestricted visibility to do that allocation.
+const MEDIA_FULL_PROJECT_ACCESS_ROLES = ['media_head', 'ceo', 'admin', 'super_admin'];
+
+const listProjects = async (query = {}, user = null) => {
   const { page, limit, skip } = withPagination(query);
   const clauses = [buildAllowedProjectFilter()];
   const filter = {};
@@ -403,6 +409,14 @@ const listProjects = async (query = {}) => {
     clauses.push({ $or: [{ name: q }, { description: q }, { projectCode: q }] });
   }
   if (Object.keys(filter).length > 0) clauses.push(filter);
+
+  // media_marketing users only see projects a media_head has allocated them to
+  // (via teamMembers/projectManager) — everyone else on the media roster
+  // (media_head, ceo, admin, super_admin) keeps full visibility.
+  const role = String(user?.role || '').toLowerCase();
+  if (role && !MEDIA_FULL_PROJECT_ACCESS_ROLES.includes(role) && user?._id) {
+    clauses.push({ $or: [{ 'teamMembers.employee': user._id }, { projectManager: user._id }] });
+  }
 
   const projectFilter = clauses.length > 1 ? { $and: clauses } : (clauses[0] || {});
 
@@ -811,6 +825,67 @@ const getTeamOverview = async () => {
     totalMembers: members.length,
     overloaded: members.filter((m) => m.activeProjects >= 3 || m.atRiskProjects >= 1),
   };
+};
+
+// media_head-facing roster of media_marketing users to allocate projects to.
+const listMediaMarketingUsers = async () => {
+  const users = await User.find({ role: 'media_marketing', isActive: { $ne: false } })
+    .select('firstName lastName email')
+    .sort({ firstName: 1, lastName: 1 })
+    .lean();
+  return users.map((u) => ownerLabel(u)).filter(Boolean);
+};
+
+const assignProjectMember = async (projectId, employeeId, role) => {
+  if (!mongoose.Types.ObjectId.isValid(projectId) || !mongoose.Types.ObjectId.isValid(employeeId)) {
+    const err = new Error('Invalid project or employee id');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const filter = buildAllowedProjectFilter();
+  const project = await Project.findOne({ $and: [filter, { _id: projectId }] });
+  if (!project) {
+    const err = new Error('Project not found or not accessible from the Media Head portal');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const employee = await User.findOne({ _id: employeeId, role: 'media_marketing' }).select('firstName lastName email');
+  if (!employee) {
+    const err = new Error('Employee not found or is not a Media Marketing user');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const alreadyAssigned = (project.teamMembers || []).some((tm) => String(tm.employee) === String(employeeId));
+  if (!alreadyAssigned) {
+    project.teamMembers.push({ employee: employeeId, role: role || 'Team Member', assignedDate: new Date() });
+    await project.save();
+  }
+
+  return { project: { id: String(project._id), name: project.name }, employee: ownerLabel(employee) };
+};
+
+const removeProjectMember = async (projectId, employeeId) => {
+  if (!mongoose.Types.ObjectId.isValid(projectId) || !mongoose.Types.ObjectId.isValid(employeeId)) {
+    const err = new Error('Invalid project or employee id');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const filter = buildAllowedProjectFilter();
+  const project = await Project.findOne({ $and: [filter, { _id: projectId }] });
+  if (!project) {
+    const err = new Error('Project not found or not accessible from the Media Head portal');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  project.teamMembers = (project.teamMembers || []).filter((tm) => String(tm.employee) !== String(employeeId));
+  await project.save();
+
+  return { project: { id: String(project._id), name: project.name } };
 };
 
 const bucketForDueDate = (dueDate, now) => {
@@ -1523,6 +1598,9 @@ module.exports = {
   getOverview,
   listMedia,
   listProjects,
+  listMediaMarketingUsers,
+  assignProjectMember,
+  removeProjectMember,
   createMediaRecord,
   getMediaRecordById,
   updateMediaRecord,

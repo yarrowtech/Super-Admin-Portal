@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../context/AuthContext';
 import { departmentApi } from '../../../services/departments';
 import { QK } from '../../../utils/queryKeys';
@@ -75,7 +75,12 @@ const MediaHeadProjectDetail = () => {
   const { projectId } = useParams();
   const { token } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [removingId, setRemovingId] = useState('');
+  const [teamError, setTeamError] = useState('');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: QK.mediaHead.projectDetail(projectId),
@@ -83,9 +88,46 @@ const MediaHeadProjectDetail = () => {
     enabled: Boolean(token && projectId),
   });
 
+  const { data: marketingUsersData } = useQuery({
+    queryKey: QK.mediaHead.marketingUsers(),
+    queryFn: () => departmentApi.getMediaMarketingUsers(token),
+    enabled: Boolean(token),
+  });
+
   const payload = data?.data;
   const project = payload?.project;
   const health = HEALTH_TONE[project?.health] || HEALTH_TONE.ON_TRACK;
+  const marketingUsers = arr(marketingUsersData?.data);
+  const assignedIds = new Set(arr(payload?.team).map((m) => m.id));
+  const availableUsers = marketingUsers.filter((u) => !assignedIds.has(u.id));
+
+  const refetchDetail = () => queryClient.invalidateQueries({ queryKey: QK.mediaHead.projectDetail(projectId) });
+
+  const handleAssign = async () => {
+    if (!selectedMemberId) return;
+    setAssigning(true); setTeamError('');
+    try {
+      await departmentApi.assignMediaProjectMember(token, projectId, selectedMemberId);
+      setSelectedMemberId('');
+      await refetchDetail();
+    } catch (err) {
+      setTeamError(err.message || 'Failed to assign project member');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleRemove = async (employeeId) => {
+    setRemovingId(employeeId); setTeamError('');
+    try {
+      await departmentApi.removeMediaProjectMember(token, projectId, employeeId);
+      await refetchDetail();
+    } catch (err) {
+      setTeamError(err.message || 'Failed to remove project member');
+    } finally {
+      setRemovingId('');
+    }
+  };
 
   return (
     <div
@@ -220,6 +262,22 @@ const MediaHeadProjectDetail = () => {
 
             {activeTab === 'team' && (
               <SectionCard title="Team" subtitle="Project manager and assigned team members">
+                <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-100 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/60">
+                  <select
+                    value={selectedMemberId}
+                    onChange={(e) => setSelectedMemberId(e.target.value)}
+                    className="h-9 flex-1 min-w-[200px] rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-[var(--portal-accent)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+                  >
+                    <option value="">Select a Media Marketing user…</option>
+                    {availableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}{u.email ? ` (${u.email})` : ''}</option>
+                    ))}
+                  </select>
+                  <Button variant="primary" size="sm" onClick={handleAssign} disabled={!selectedMemberId || assigning}>
+                    {assigning ? 'Assigning…' : 'Allocate project'}
+                  </Button>
+                </div>
+                {teamError && <p className="mb-3 text-xs font-semibold text-rose-500">{teamError}</p>}
                 {payload.team.length === 0 ? (
                   <EmptyRow icon="group_off" text="No team members assigned to this project" />
                 ) : (
@@ -230,7 +288,19 @@ const MediaHeadProjectDetail = () => {
                           <p className="font-medium text-neutral-900 dark:text-neutral-100">{member.name}</p>
                           <p className="text-xs text-neutral-500 dark:text-neutral-400">{member.email}</p>
                         </div>
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{member.role}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{member.role}</span>
+                          {member.role !== 'Project Manager' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemove(member.id)}
+                              disabled={removingId === member.id}
+                            >
+                              {removingId === member.id ? 'Removing…' : 'Remove'}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

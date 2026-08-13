@@ -25,7 +25,12 @@ export const departmentApi = {
   getMediaHeadTeam: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/team', params), token, options),
   getMediaHeadDeadlines: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/deadlines', params), token, options),
   getMediaHeadProjectDetail: (token, projectId, options = {}) => apiClient.get(`/api/dept/media/head/projects/${projectId}`, token, options),
-  getMediaProjects: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/projects', params), token),
+  getMediaProjects: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/projects', params), token, options),
+  getMediaMarketingUsers: (token, options = {}) => apiClient.get('/api/dept/media/head/marketing-users', token, options),
+  assignMediaProjectMember: (token, projectId, employeeId, role) =>
+    apiClient.post(`/api/dept/media/head/projects/${projectId}/team`, { employeeId, role }, token),
+  removeMediaProjectMember: (token, projectId, employeeId) =>
+    apiClient.delete(`/api/dept/media/head/projects/${projectId}/team/${employeeId}`, token),
   uploadMediaProjectLogo: (token, projectId, file) => {
     const formData = new FormData();
     formData.append('file', file);

@@ -137,7 +137,10 @@
       "Bash(node \"/c/Users/SANTU/AppData/Local/Temp/claude/e--Super-Admin-Portal/9bbfd18c-77ec-4b2c-adf2-c7e42531f7ad/scratchpad/diagnose_media_access.js\")",
       "PowerShell(Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue)",
       "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
-      "PowerShell(Get-Process -Id 5676)"
+      "PowerShell(Get-Process -Id 5676)",
+      "Bash(git diff *)",
+      "Bash(node -c modules/media/marketingPlan.service.js)",
+      "Bash(node -c modules/media/marketingPlan.controller.js)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

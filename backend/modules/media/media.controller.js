@@ -515,3 +515,22 @@ exports.getActivity = async (req, res) => {
     handleError(res, err, 'Failed to load activity feed', 'Media module getActivity error');
   }
 };
+
+exports.getMarketingPlanActivity = async (req, res) => {
+  try {
+    const parsedLimit = Number.parseInt(req.query?.limit, 10);
+    const data = await mediaService.getMarketingPlanActivity(Number.isFinite(parsedLimit) ? parsedLimit : undefined);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to load marketing plan edit history', 'Media module getMarketingPlanActivity error');
+  }
+};
+
+exports.getMarketingUserWork = async (req, res) => {
+  try {
+    const data = await mediaService.getMarketingUserWork();
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    handleError(res, err, 'Failed to load Media Marketing user work analytics', 'Media module getMarketingUserWork error');
+  }
+};

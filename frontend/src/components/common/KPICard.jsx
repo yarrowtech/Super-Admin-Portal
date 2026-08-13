@@ -1,16 +1,33 @@
 import React, { memo } from 'react';
 
+/**
+ * tone: 'accent' (default, uses --portal-accent) | 'success' | 'warning' | 'danger' | 'info'
+ * Matches the same tone vocabulary as StatusBadge so a KPI's severity is
+ * visually distinguishable from a plain count, not just its label text.
+ */
+const TONE_COLORS = {
+  accent: { icon: 'var(--portal-accent)', bg: 'var(--portal-accent-soft)' },
+  success: { icon: '#059669', bg: 'rgba(5, 150, 105, 0.12)' },
+  warning: { icon: '#d97706', bg: 'rgba(217, 119, 6, 0.12)' },
+  danger: { icon: '#e11d48', bg: 'rgba(225, 29, 72, 0.12)' },
+  info: { icon: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)' },
+};
+
 const KPICard = memo(({
   title = 'KPI Title',
   value = 0,
   icon = 'analytics',
   subtitle = '',
   trend,
+  tone = 'accent',
   className = '',
   compact = false,
   // Legacy colorScheme prop accepted but ignored — accent comes from --portal-accent
   colorScheme,
-}) => (
+}) => {
+  const { icon: iconColor, bg } = TONE_COLORS[tone] || TONE_COLORS.accent;
+
+  return (
   <div
     className={`group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 ${
       compact ? 'p-4' : 'p-5 lg:p-6'
@@ -20,18 +37,18 @@ const KPICard = memo(({
     {/* Decorative blob */}
     <div
       className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-40 transition-transform duration-300 group-hover:scale-125"
-      style={{ background: 'var(--portal-accent-soft)' }}
+      style={{ background: bg }}
     />
 
     <div className="relative">
       <div className={`${compact ? 'mb-3' : 'mb-4'} flex items-center justify-between`}>
         <div
           className={`flex ${compact ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-2xl'} shrink-0 items-center justify-center`}
-          style={{ background: 'var(--portal-accent-soft)' }}
+          style={{ background: bg }}
         >
           <span
             className={`material-symbols-outlined ${compact ? 'text-[20px]' : 'text-[22px]'}`}
-            style={{ color: 'var(--portal-accent)' }}
+            style={{ color: iconColor }}
           >
             {icon}
           </span>
@@ -68,6 +85,7 @@ const KPICard = memo(({
       </div>
     </div>
   </div>
-));
+  );
+});
 
 export default KPICard;

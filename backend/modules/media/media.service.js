@@ -6,6 +6,7 @@ const SalesQuery = require('../../models/department/SalesQuery');
 const Project = require('../../models/common/Project');
 const User = require('../../models/auth/User');
 const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
+const ActivityLog = require('../../models/auth/ActivityLog');
 const { getCache, setCache } = require('../../services/cache.service');
 const { createApprovalRequest, decideApprovalRequest } = require('../../services/approvalEngine.service');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
@@ -480,6 +481,16 @@ const mapProjectForHead = (project = {}, related = {}, now = new Date()) => {
   const health = computeProjectHealth(project, now);
   const manager = project.projectManager;
 
+  // Role-labeled roster so the Head's project list/cards can show who's
+  // Media Marketing on each project, not just a single "owner" name.
+  const team = [];
+  const pmLabel = ownerLabel(manager);
+  if (pmLabel) team.push({ ...pmLabel, role: 'Project Manager' });
+  for (const tm of project.teamMembers || []) {
+    const empLabel = ownerLabel(tm.employee);
+    if (empLabel) team.push({ ...empLabel, role: tm.role || 'Team Member' });
+  }
+
   return {
     id: String(project._id),
     _id: project._id,
@@ -494,6 +505,7 @@ const mapProjectForHead = (project = {}, related = {}, now = new Date()) => {
           email: manager.email || '',
         }
       : null,
+    team,
     progress: Number(project.progress) || 0,
     status: project.status,
     priority: project.priority,
@@ -683,6 +695,7 @@ const listMediaHeadProjects = async (query = {}) => {
       .skip(skip)
       .limit(limit)
       .populate('projectManager', 'firstName lastName email')
+      .populate('teamMembers.employee', 'firstName lastName email')
       .lean(),
     Project.countDocuments(filter),
   ]);
@@ -765,6 +778,11 @@ const ownerLabel = (person) => {
     email: person.email || '',
   };
 };
+
+// 'media_marketing' -> 'Media Marketing', used to label who-did-what in
+// activity feeds so media_head sees the actor's role, not just their name.
+const formatRole = (role = '') =>
+  String(role).split('_').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Unknown role';
 
 const getTeamOverview = async () => {
   const filter = buildAllowedProjectFilter();
@@ -997,7 +1015,7 @@ const getProjectDetailForHead = async (projectId) => {
   const campaigns = mediaItems.filter((m) => m.section === 'campaign');
   const deliverables = mediaItems.filter((m) => DELIVERABLE_SECTIONS.includes(m.section));
 
-  const [approvalWorkflows, salesLeads] = await Promise.all([
+  const [approvalWorkflows, salesLeads, planEditLogs] = await Promise.all([
     ApprovalWorkflow.find({ module: 'media', entityId: { $in: mediaIds } })
       .sort({ updatedAt: -1 })
       .limit(30)
@@ -1011,10 +1029,15 @@ const getProjectDetailForHead = async (projectId) => {
           .populate('submittedBy', 'firstName lastName email')
           .lean()
       : [],
+    ActivityLog.find({ module: 'media', action: 'marketing_plan_saved', 'metadata.projectId': String(project._id) })
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .populate('actor', 'firstName lastName email role')
+      .lean(),
   ]);
 
   const mediaById = new Map(mediaItems.map((m) => [String(m._id), m]));
-  const activity = approvalWorkflows.map((wf) => {
+  const approvalActivity = approvalWorkflows.map((wf) => {
     const media = mediaById.get(String(wf.entityId));
     const requester = wf.requestedBy
       ? [wf.requestedBy.firstName, wf.requestedBy.lastName].filter(Boolean).join(' ')
@@ -1026,6 +1049,27 @@ const getProjectDetailForHead = async (projectId) => {
     else text = `${requester} requested approval for "${title}"`;
     return { id: wf._id, text, status: wf.status, time: wf.updatedAt };
   });
+  // Marketing-plan saves are their own activity source (ActivityLog, written
+  // in marketingPlan.service.js) — interleaved here so media_head sees plan
+  // edits alongside approval activity for this project, not just in the
+  // separate department-wide feed on the dashboard.
+  const planActivity = planEditLogs.map((log) => {
+    const actorName = log.actor
+      ? [log.actor.firstName, log.actor.lastName].filter(Boolean).join(' ') || log.actor.email || 'Someone'
+      : 'Someone';
+    const actorRole = formatRole(log.actor?.role || '');
+    const changed = Array.isArray(log.metadata?.changedSections) ? log.metadata.changedSections : [];
+    const changedText = changed.length ? ` (${changed.join(', ')})` : '';
+    return {
+      id: String(log._id),
+      text: `${actorName} (${actorRole}) edited the marketing plan${changedText}`,
+      status: 'plan_saved',
+      time: log.createdAt,
+    };
+  });
+  const activity = [...approvalActivity, ...planActivity]
+    .sort((a, b) => new Date(b.time) - new Date(a.time))
+    .slice(0, 30);
 
   const team = [];
   const pm = ownerLabel(project.projectManager);
@@ -1467,6 +1511,153 @@ const getActivity = async () => {
   });
 };
 
+// Who edited which project's marketing plan and when — surfaced on the Media
+// Head overview so the head can track marketing-plan edits without opening
+// every project individually. Backed by the ActivityLog writes already made
+// in marketingPlan.service.js on every save.
+const getMarketingPlanActivity = async (limit = 20) => {
+  const logs = await ActivityLog.find({ module: 'media', action: 'marketing_plan_saved' })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate('actor', 'firstName lastName email role')
+    .lean();
+
+  const projectIds = [...new Set(logs.map((log) => log.metadata?.projectId).filter(Boolean))];
+  const projects = await Project.find({ _id: { $in: projectIds } }).select('name projectCode').lean();
+  const projectMap = new Map(projects.map((p) => [String(p._id), p]));
+
+  return logs.map((log) => {
+    const project = projectMap.get(String(log.metadata?.projectId || ''));
+    const actor = log.actor;
+    return {
+      id: String(log._id),
+      actorName: actor ? ([actor.firstName, actor.lastName].filter(Boolean).join(' ') || actor.email || 'Someone') : 'Someone',
+      actorEmail: actor?.email || '',
+      actorRole: formatRole(actor?.role || ''),
+      projectId: log.metadata?.projectId || null,
+      projectName: project?.name || project?.projectCode || 'Unknown project',
+      changedSections: Array.isArray(log.metadata?.changedSections) ? log.metadata.changedSections : [],
+      time: log.createdAt,
+    };
+  });
+};
+
+// Per Media Marketing user breakdown of what they've actually produced —
+// counts by module (asset/content/brand/design/video/social/...), approval
+// outcomes, marketing-plan edit count, and their most recent items. Powers
+// the Head portal's "Team Analytics" section (work/task-level detail,
+// distinct from MediaHeadTeam.jsx's project-allocation roster).
+const getMarketingUserWork = async () => {
+  const users = await listMediaMarketingUsers();
+  if (!users.length) return [];
+  const userIds = users.map((u) => new mongoose.Types.ObjectId(u.id));
+
+  const [totalsAgg, sectionAgg, recentItems, planEditsAgg, recentPlanLogs] = await Promise.all([
+    Media.aggregate([
+      { $match: { createdBy: { $in: userIds } } },
+      {
+        $group: {
+          _id: '$createdBy',
+          total: { $sum: 1 },
+          pendingApprovals: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'pending'] }, 1, 0] } },
+          approved: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved'] }, 1, 0] } },
+          rejected: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'rejected'] }, 1, 0] } },
+        },
+      },
+    ]),
+    Media.aggregate([
+      { $match: { createdBy: { $in: userIds } } },
+      { $group: { _id: { user: '$createdBy', section: '$section' }, count: { $sum: 1 } } },
+    ]),
+    Media.find({ createdBy: { $in: userIds } })
+      .sort({ updatedAt: -1 })
+      .limit(300)
+      .select('createdBy title section status approvalStatus projectName updatedAt')
+      .lean(),
+    ActivityLog.aggregate([
+      { $match: { module: 'media', action: 'marketing_plan_saved', actor: { $in: userIds } } },
+      { $group: { _id: '$actor', count: { $sum: 1 }, lastEditAt: { $max: '$createdAt' } } },
+    ]),
+    ActivityLog.find({ module: 'media', action: 'marketing_plan_saved', actor: { $in: userIds } })
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .select('actor metadata createdAt')
+      .lean(),
+  ]);
+
+  const totalsMap = new Map(totalsAgg.map((row) => [String(row._id), row]));
+  const planEditsMap = new Map(planEditsAgg.map((row) => [String(row._id), row]));
+  const sectionMap = new Map();
+  sectionAgg.forEach((row) => {
+    const uid = String(row._id.user);
+    if (!sectionMap.has(uid)) sectionMap.set(uid, {});
+    sectionMap.get(uid)[row._id.section] = row.count;
+  });
+  const recentMap = new Map();
+  recentItems.forEach((item) => {
+    const uid = String(item.createdBy);
+    const list = recentMap.get(uid) || [];
+    if (list.length < 5) {
+      list.push({
+        id: String(item._id),
+        title: item.title,
+        section: item.section,
+        status: item.status,
+        approvalStatus: item.approvalStatus,
+        projectName: item.projectName,
+        updatedAt: item.updatedAt,
+      });
+    }
+    recentMap.set(uid, list);
+  });
+
+  const planProjectIds = [...new Set(recentPlanLogs.map((log) => log.metadata?.projectId).filter(Boolean))];
+  const planProjects = await Project.find({ _id: { $in: planProjectIds } }).select('name projectCode').lean();
+  const planProjectMap = new Map(planProjects.map((p) => [String(p._id), p]));
+  // Full per-user plan-edit history (not just a handful of "recent" ones) —
+  // media_head asked to see everything a Media Marketing user has touched,
+  // not a truncated preview. Bounded at 100/user only as a sanity ceiling.
+  const recentPlanEditsMap = new Map();
+  recentPlanLogs.forEach((log) => {
+    const uid = String(log.actor);
+    const list = recentPlanEditsMap.get(uid) || [];
+    if (list.length < 100) {
+      const project = planProjectMap.get(String(log.metadata?.projectId || ''));
+      list.push({
+        id: String(log._id),
+        projectName: project?.name || project?.projectCode || 'Unknown project',
+        changedSections: Array.isArray(log.metadata?.changedSections) ? log.metadata.changedSections : [],
+        time: log.createdAt,
+      });
+    }
+    recentPlanEditsMap.set(uid, list);
+  });
+
+  return users
+    .map((u) => {
+      const totals = totalsMap.get(u.id) || {};
+      const planStats = planEditsMap.get(u.id) || {};
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        totalItems: totals.total || 0,
+        pendingApprovals: totals.pendingApprovals || 0,
+        approved: totals.approved || 0,
+        rejected: totals.rejected || 0,
+        planEdits: planStats.count || 0,
+        lastActivityAt: [planStats.lastEditAt, recentMap.get(u.id)?.[0]?.updatedAt].filter(Boolean).sort().pop() || null,
+        bySection: sectionMap.get(u.id) || {},
+        recentItems: recentMap.get(u.id) || [],
+        recentPlanEdits: recentPlanEditsMap.get(u.id) || [],
+      };
+    })
+    // Most active first, counting plan edits as real work — a user who has
+    // only edited plans (no Media records yet) should still rank above one
+    // with zero activity at all.
+    .sort((a, b) => (b.totalItems + b.planEdits) - (a.totalItems + a.planEdits));
+};
+
 const resolveResourceType = (mimetype = '') => {
   if (mimetype.startsWith('image/')) return 'image';
   if (mimetype.startsWith('video/')) return 'video';
@@ -1610,6 +1801,8 @@ module.exports = {
   listApprovals,
   decideMediaApproval,
   getActivity,
+  getMarketingPlanActivity,
+  getMarketingUserWork,
   uploadMediaFile,
   setProjectLogo,
   setProjectThemeColor,

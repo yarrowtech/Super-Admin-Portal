@@ -63,6 +63,24 @@ const MediaProjectList = ({ projects = [], onSelect }) => {
                 <p className="mt-1 line-clamp-2 text-[13px] text-slate-500 dark:text-neutral-400">{project.description}</p>
               </div>
             </div>
+            {Array.isArray(project.team) && project.team.length > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3 dark:border-neutral-800">
+                {project.team.slice(0, 3).map((member, i) => (
+                  <span
+                    key={member.id || i}
+                    title={member.role}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                  >
+                    {member.name}
+                    <span className="text-slate-400 dark:text-neutral-500">· {member.role}</span>
+                  </span>
+                ))}
+                {project.team.length > 3 ? (
+                  <span className="text-[11px] font-semibold text-slate-400 dark:text-neutral-500">+{project.team.length - 3} more</span>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-4 flex items-center justify-between">
               <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusTone(project.status)}`}>
                 {project.status || 'active'}

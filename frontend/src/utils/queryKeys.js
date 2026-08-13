@@ -266,6 +266,8 @@ export const QK = {
     marketing:        (params = {})       => ['mediaHead', 'marketing', params],
     approvals:        (params = {})       => ['mediaHead', 'approvals', params],
     activity:         (params = {})       => ['mediaHead', 'activity', params],
+    planActivity:     (params = {})       => ['mediaHead', 'planActivity', params],
+    userWork:         ()                  => ['mediaHead', 'userWork'],
     attention:        (params = {})       => ['mediaHead', 'attention', params],
     revenue:          (params = {})       => ['mediaHead', 'revenue', params],
     team:             (params = {})       => ['mediaHead', 'team', params],

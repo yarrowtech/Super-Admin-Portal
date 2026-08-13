@@ -7,7 +7,7 @@ import MobilePortalNav from '../../common/MobilePortalNav';
 const MediaHeadDashboard = lazy(() => import('./MediaHeadDashboard'));
 const MediaHeadProjectList = lazy(() => import('./MediaHeadProjectList'));
 const MediaHeadProjectOverview = lazy(() => import('./MediaHeadProjectOverview'));
-const MediaHeadTeam = lazy(() => import('./MediaHeadTeam'));
+const MediaHeadTeamAnalytics = lazy(() => import('./MediaHeadTeamAnalytics'));
 const MediaHeadDeadlineCenter = lazy(() => import('./MediaHeadDeadlineCenter'));
 const MediaHeadCampaignPerformance = lazy(() => import('./MediaHeadCampaignPerformance'));
 const MediaHeadRevenue = lazy(() => import('./MediaHeadRevenue'));
@@ -29,7 +29,7 @@ const mediaHeadMobileItems = [
   { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { key: 'projects', label: 'Projects', icon: 'folder_copy' },
   { key: 'overview', label: 'Overview', icon: 'table_view' },
-  { key: 'team', label: 'Team', icon: 'groups' },
+  { key: 'team-analytics', label: 'Team Analytics', icon: 'insights' },
   { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
   { key: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
   { key: 'revenue', label: 'Revenue', icon: 'payments' },
@@ -59,8 +59,8 @@ const MediaHeadPortal = () => {
         return <MediaHeadProjectList />;
       case 'overview':
         return <MediaHeadProjectOverview />;
-      case 'team':
-        return <MediaHeadTeam />;
+      case 'team-analytics':
+        return <MediaHeadTeamAnalytics />;
       case 'deadlines':
         return <MediaHeadDeadlineCenter />;
       case 'campaigns':

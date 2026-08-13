@@ -8,6 +8,9 @@ import ThemeToggleButton from '../common/ThemeToggleButton';
 
 const DEFAULT_ACCENT = '#0f766e';
 const HEX_RE = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i;
+
+const formatRole = (role = '') =>
+  String(role).split('_').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 const THEME_PRESETS = ['#0f766e', '#2563eb', '#7c3aed', '#db2777', '#d97706', '#059669', '#dc2626', '#0891b2'];
 
 const hexToRgb = (hex) => {
@@ -688,13 +691,23 @@ const StatusPill = ({ value }) => (
 );
 
 const MediaProjectDetail = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { projectSlug } = useParams();
 
+  // media_head opens this workspace from the Head portal (via the "Marketing
+  // Plan" button on MediaHeadProjectDetail.jsx) and shares full edit rights
+  // on it, but "back" must return them to their own portal's project list —
+  // not into the Marketing user's dashboard shell, which has a different
+  // sidebar and previously stranded head users in the wrong portal.
+  const isHeadUser = String(user?.role || '').toLowerCase() === 'media_head';
+  const projectsHome = isHeadUser ? '/media/head/projects' : '/media/dashboard/projects';
+  const portalLabel = isHeadUser ? 'Media Head Portal' : 'Media Portal';
+
   const [project, setProject] = useState(null);
   const [notFound, setNotFound] = useState(false);
+  const [planMeta, setPlanMeta] = useState(null);
   const [plan, setPlan] = useState(emptyPlan());
   const [draft, setDraft] = useState(buildDraft(emptyPlan()));
   const [loading, setLoading] = useState(true);
@@ -746,6 +759,16 @@ const MediaProjectDetail = () => {
           const merged = mergePlan(hasPlanContent(planData) ? planData : seed, executionProfile);
           setPlan(merged);
           setDraft(buildDraft(merged));
+          // updatedBy only arrives as a populated {firstName,lastName,email,role}
+          // object once the backend has picked up the population change —
+          // treat an unpopulated raw id (a plain string) as "unknown" rather
+          // than rendering a misleading "Someone" placeholder.
+          const updatedByUser = planData.updatedBy && typeof planData.updatedBy === 'object' ? planData.updatedBy : null;
+          setPlanMeta(updatedByUser && planData.updatedAt ? {
+            name: [updatedByUser.firstName, updatedByUser.lastName].filter(Boolean).join(' ') || updatedByUser.email || 'Unknown user',
+            role: formatRole(updatedByUser.role),
+            updatedAt: planData.updatedAt,
+          } : null);
         });
       })
       .catch((err) => {
@@ -822,6 +845,11 @@ const MediaProjectDetail = () => {
       setDraft(buildDraft(saved));
       setEditing(false);
       setSaveMessage('Marketing plan saved.');
+      setPlanMeta({
+        name: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'You',
+        role: formatRole(user?.role),
+        updatedAt: new Date().toISOString(),
+      });
     } catch (err) {
       setError(err.message || 'Failed to save marketing plan.');
     } finally {
@@ -875,11 +903,11 @@ const MediaProjectDetail = () => {
       <main className="portal-page">
         <div className="portal-page-inner max-w-[1480px] space-y-4">
           <nav className="flex items-center gap-1.5 px-1 text-[12px] font-semibold text-neutral-400 dark:text-neutral-500">
-            <button type="button" onClick={() => navigate('/media/dashboard/projects')} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
-              Media Portal
+            <button type="button" onClick={() => navigate(projectsHome)} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
+              {portalLabel}
             </button>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <button type="button" onClick={() => navigate('/media/dashboard/projects')} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
+            <button type="button" onClick={() => navigate(projectsHome)} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
               Projects
             </button>
             {!notFound ? (
@@ -896,7 +924,7 @@ const MediaProjectDetail = () => {
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => navigate('/media/dashboard/projects')}
+                  onClick={() => navigate(projectsHome)}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 shadow-sm transition-all duration-200 hover:border-teal-300 hover:text-teal-700 hover:shadow-md active:scale-95 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
                   title="Back to Projects"
                 >
@@ -994,6 +1022,12 @@ const MediaProjectDetail = () => {
                     {!notFound ? <StatusPill value={currentPlan.overview.overallStatus} /> : null}
                   </div>
                   <p className="mt-1 max-w-3xl text-sm leading-5 text-neutral-500 dark:text-neutral-400">{projectDescription}</p>
+                  {planMeta ? (
+                    <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-neutral-400 dark:text-neutral-500">
+                      <span className="material-symbols-outlined text-[13px]">history</span>
+                      Last updated by {planMeta.name}{planMeta.role ? ` (${planMeta.role})` : ''} · {new Date(planMeta.updatedAt).toLocaleString()}
+                    </p>
+                  ) : null}
                   {logoError ? <p className="truncate text-[11px] font-semibold text-red-600">{logoError}</p> : null}
                   {themeError ? <p className="truncate text-[11px] font-semibold text-red-600">{themeError}</p> : null}
                 </div>
@@ -1077,7 +1111,7 @@ const MediaProjectDetail = () => {
               <p className="mt-1 text-xs text-neutral-400">This link may be outdated, or the project may no longer be accessible.</p>
               <button
                 type="button"
-                onClick={() => navigate('/media/dashboard/projects')}
+                onClick={() => navigate(projectsHome)}
                 className="mt-4 rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-sm transition"
                 style={{ background: 'var(--portal-accent)' }}
               >

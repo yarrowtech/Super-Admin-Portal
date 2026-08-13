@@ -140,10 +140,48 @@ const normalizePayload = (payload = {}) => ({
   },
 });
 
-const getPlanByProject = (projectId) => MarketingPlan.findOne({ projectId }).lean();
+// Populates updatedBy (with role) so the workspace can show "Last updated by
+// X (role) · date" — a persistent, always-visible signal (unlike the saving
+// user's own session-only "Marketing plan saved." toast) that lets
+// media_head see who last touched a project's plan without needing to
+// compare timestamps.
+const getPlanByProject = (projectId) =>
+  MarketingPlan.findOne({ projectId }).populate('updatedBy', 'firstName lastName email role').lean();
 
-const upsertPlanByProject = async (projectId, payload, actorId) => {
+const SECTION_LABELS = {
+  overview: 'Overview',
+  goals: 'Goals',
+  framework: 'Framework',
+  planning: 'Planning',
+  funnelStages: 'Funnel Stages',
+  kpiPlan: 'KPI Plan',
+  budgetPlan: 'Budget Plan',
+  weeklyChecklist: 'Weekly Checklist',
+  weeklyUpdates: 'Weekly Updates',
+  acquisitionBudget: 'Acquisition Budget',
+  funnelPerformance: 'Funnel Performance',
+  contentTracker: 'Content Tracker',
+  priorityMatrix: 'Priority Matrix',
+  deliverables: 'Deliverables',
+  performanceSnapshot: 'Performance Snapshot',
+  notes: 'Notes',
+};
+
+// Field-level diff between the plan's prior state and the incoming save so
+// the activity trail can say *what* changed (e.g. "Overview, Budget Plan"),
+// not just that a save happened.
+const diffChangedSections = (previous, next) => {
+  const before = previous || {};
+  return Object.keys(SECTION_LABELS)
+    .filter((key) => JSON.stringify(before[key] ?? null) !== JSON.stringify(next[key] ?? null))
+    .map((key) => SECTION_LABELS[key]);
+};
+
+const upsertPlanByProject = async (projectId, payload, actorId, actorRole) => {
   const normalized = normalizePayload(payload);
+  const previous = await MarketingPlan.findOne({ projectId }).lean();
+  const changedSections = previous ? diffChangedSections(previous, normalized) : ['Created'];
+
   const doc = await MarketingPlan.findOneAndUpdate(
     { projectId },
     { $set: { ...normalized, projectId, updatedBy: actorId }, $setOnInsert: { createdBy: actorId } },
@@ -152,11 +190,12 @@ const upsertPlanByProject = async (projectId, payload, actorId) => {
 
   await writeAuditTrail({
     userId: actorId,
+    role: actorRole || '',
     module: 'media',
     action: 'marketing_plan_saved',
     targetType: 'MarketingPlan',
     targetId: doc._id,
-    metadata: { projectId },
+    metadata: { projectId, changedSections },
   });
 
   return doc;

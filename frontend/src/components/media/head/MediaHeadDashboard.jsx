@@ -22,6 +22,13 @@ const MediaHeadDashboard = ({ onNavigate }) => {
     enabled,
   });
 
+  const { data: planActivityData, isLoading: planActivityLoading } = useQuery({
+    queryKey: QK.mediaHead.planActivity({ limit: 8 }),
+    queryFn: () => departmentApi.getMediaHeadPlanActivity(token, { limit: 8 }),
+    enabled,
+  });
+  const planActivity = arr(planActivityData?.data);
+
   const payload = data?.data || {};
   const loading = isLoading;
   const projects = arr(payload.projects?.items);
@@ -142,6 +149,51 @@ const MediaHeadDashboard = ({ onNavigate }) => {
           )}
         </div>
 
+        {/* Marketing Plan Edit History */}
+        <div className="mb-5 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Marketing Plan Edit History</h2>
+          {planActivityLoading ? (
+            <div className="space-y-2">
+              {[1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-neutral-100 dark:bg-neutral-800" />)}
+            </div>
+          ) : planActivity.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <span className="material-symbols-outlined text-3xl text-neutral-300 dark:text-neutral-600">history</span>
+              <p className="text-sm font-semibold text-neutral-600 dark:text-neutral-300">No plan edits yet</p>
+              <p className="text-xs text-neutral-400">Marketing plan saves will show up here as they happen.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {planActivity.map((item) => (
+                <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/50">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                      {item.actorName}
+                      {item.actorRole && <span className="ml-1.5 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">{item.actorRole}</span>}
+                      {' '}edited the <span style={{ color: 'var(--portal-accent)' }}>{item.projectName}</span> plan
+                    </p>
+                    {item.changedSections?.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.changedSections.map((section) => (
+                          <span key={section} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-500 ring-1 ring-inset ring-neutral-200 dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-700">
+                            {section}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="mt-1 truncate text-xs text-neutral-500 dark:text-neutral-400">{item.time ? new Date(item.time).toLocaleString() : ''}</p>
+                  </div>
+                  {item.projectId && (
+                    <Button variant="secondary" size="sm" onClick={() => navigate(`/media/head/projects/${item.projectId}`)} className="shrink-0">
+                      View
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Sales Overview */}
           <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
@@ -181,7 +233,7 @@ const MediaHeadDashboard = ({ onNavigate }) => {
           <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Marketing Overview</h2>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/media/dashboard/projects')} icon={<span className="material-symbols-outlined text-lg">arrow_outward</span>}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/media/head/projects')} icon={<span className="material-symbols-outlined text-lg">arrow_outward</span>}>
                 View Marketing
               </Button>
             </div>

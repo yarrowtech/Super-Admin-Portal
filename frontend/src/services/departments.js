@@ -20,6 +20,8 @@ export const departmentApi = {
   getMediaHeadMarketingSummary: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/marketing-summary', params), token, options),
   getMediaHeadApprovals: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/approvals', params), token, options),
   getMediaHeadActivity: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/activity', params), token, options),
+  getMediaHeadPlanActivity: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/plan-activity', params), token, options),
+  getMediaHeadUserWork: (token, options = {}) => apiClient.get('/api/dept/media/head/user-work', token, options),
   getMediaHeadAttention: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/attention', params), token, options),
   getMediaHeadRevenue: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/revenue', params), token, options),
   getMediaHeadTeam: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/team', params), token, options),

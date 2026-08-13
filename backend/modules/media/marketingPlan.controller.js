@@ -24,7 +24,8 @@ exports.upsertByProject = async (req, res) => {
     const data = await marketingPlanService.upsertPlanByProject(
       req.params.projectId,
       req.body || {},
-      req.user?.id || req.user?._id
+      req.user?.id || req.user?._id,
+      req.user?.role
     );
     res.status(200).json({ success: true, data });
   } catch (err) {

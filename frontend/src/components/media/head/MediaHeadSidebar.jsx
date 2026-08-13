@@ -21,7 +21,7 @@ const menuGroups = [
       { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
       { key: 'projects', label: 'Projects', icon: 'folder_copy' },
       { key: 'overview', label: 'Overview', icon: 'table_view' },
-      { key: 'team', label: 'Team', icon: 'groups' },
+      { key: 'team-analytics', label: 'Team Analytics', icon: 'insights' },
       { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
     ],
   },

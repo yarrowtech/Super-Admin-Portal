@@ -30,6 +30,7 @@ const buildProjectOptions = (projectItems = []) =>
         status: String(project?.status || 'active').trim() || 'active',
         label: name,
         value,
+        team: arr(project?.team),
       };
     })
     .filter(Boolean);

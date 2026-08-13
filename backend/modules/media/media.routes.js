@@ -52,6 +52,8 @@ router.get('/head/marketing-summary', canViewMediaHead, v.mediaHeadListValidatio
 router.get('/head/revenue', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadRevenue);
 router.get('/head/approvals', canViewMediaHead, controller.listApprovals);
 router.get('/head/activity', canViewMediaHead, controller.getActivity);
+router.get('/head/plan-activity', canViewMediaHead, controller.getMarketingPlanActivity);
+router.get('/head/user-work', canViewMediaHead, controller.getMarketingUserWork);
 router.get('/head/reports', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadDashboard);
 
 router.post('/projects/:id/logo', canManageMedia, v.mediaIdValidation, validate, uploadMediaFile(), controller.uploadProjectLogo);

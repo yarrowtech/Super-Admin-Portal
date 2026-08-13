@@ -71,6 +71,9 @@ const Inp = ({ className = '', ...p }) => (
 const Txa = ({ className = '', ...p }) => (
   <textarea className={`w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-sm placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-white ${className}`} {...p} />
 );
+const Sel = ({ children, className = '', ...p }) => (
+  <select className={`w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-white ${className}`} {...p}>{children}</select>
+);
 const BtnPrimary = ({ children, className = '', ...p }) => (
   <button className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60 ${className}`} style={{ background: 'var(--portal-accent, #6366f1)' }} {...p}>{children}</button>
 );
@@ -91,7 +94,16 @@ const defaultForm = () => ({
   city: '', country: '', timezone: '', hourlyRate: '', availability: '', skillsCsv: '',
   accountHolderName: '', bankName: '', accountNumber: '', ifscCode: '', accountType: '',
   upiId: '', paypalEmail: '',
+  entityType: 'individual', businessName: '', website: '', foundedYear: '', teamSize: '', teamMembers: [],
 });
+
+const BUSINESS_DOC_TYPES = [
+  { key: 'companyRegistration', label: 'Company Registration', icon: 'gavel' },
+  { key: 'gstDocument', label: 'GST / Tax Document', icon: 'receipt_long' },
+  { key: 'businessCertificate', label: 'Business Certificate', icon: 'workspace_premium' },
+  { key: 'portfolio', label: 'Portfolio', icon: 'photo_library' },
+  { key: 'certifications', label: 'Certifications', icon: 'verified' },
+];
 
 const DocUploadCard = ({ label, icon, accept, currentUrl, currentName, uploading, error, onUpload }) => {
   const inputRef = useRef(null);
@@ -148,6 +160,8 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
   const [avatarError, setAvatarError] = useState('');
   const [resumeUploading, setResumeUploading] = useState(false);
   const [resumeError, setResumeError] = useState('');
+  const [docsUploading, setDocsUploading] = useState({});
+  const [docsError, setDocsError] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -173,6 +187,12 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
           accountType: payment.bankDetails?.accountType || '',
           upiId: payment.upiId || '',
           paypalEmail: payment.paypalEmail || '',
+          entityType: professional.entityType || 'individual',
+          businessName: professional.businessName || '',
+          website: professional.website || '',
+          foundedYear: professional.foundedYear || '',
+          teamSize: professional.teamSize || '',
+          teamMembers: Array.isArray(p.teamMembers) ? p.teamMembers : [],
         });
       }
     } finally {
@@ -195,6 +215,12 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
         skills: form.skillsCsv.split(',').map((s) => s.trim()).filter(Boolean),
         bankDetails: { accountHolderName: form.accountHolderName, bankName: form.bankName, accountNumber: form.accountNumber, ifscCode: form.ifscCode, accountType: form.accountType },
         paymentInfo: { upiId: form.upiId, paypalEmail: form.paypalEmail },
+        entityType: form.entityType,
+        businessName: form.businessName,
+        website: form.website,
+        foundedYear: form.foundedYear === '' ? undefined : Number(form.foundedYear) || 0,
+        teamSize: form.teamSize === '' ? undefined : Number(form.teamSize) || 0,
+        teamMembers: form.teamMembers,
       });
       setMsg('Saved!');
       await load();
@@ -231,21 +257,68 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
     }
   };
 
+  const uploadBusinessDoc = (docType) => async (file) => {
+    setDocsUploading((s) => ({ ...s, [docType]: true }));
+    setDocsError((s) => ({ ...s, [docType]: '' }));
+    try {
+      const res = await profileApi.uploadProfileDocument(token, file, docType);
+      const data = res?.data;
+      if (data?.url) {
+        setProfile((p) => ({
+          ...p,
+          profile: {
+            ...(p?.profile || {}),
+            documents: { ...(p?.profile?.documents || {}), [docType]: { url: data.url, fileName: data.fileName } },
+          },
+        }));
+      }
+    } catch (e) {
+      setDocsError((s) => ({ ...s, [docType]: e.message || 'Upload failed' }));
+    } finally {
+      setDocsUploading((s) => ({ ...s, [docType]: false }));
+    }
+  };
+
   const p = profile?.profile || {};
   const basic = p.basic || {};
   const professional = p.professional || {};
   const payment = p.payment || {};
+  const documents = p.documents || {};
   const skills = (p.skills || []).map((s) => (typeof s === 'string' ? s : s?.name)).filter(Boolean);
-  const displayName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || authUser?.email || portalLabel;
+  const teamMembers = Array.isArray(p.teamMembers) ? p.teamMembers : [];
+
+  // entityType drives which flavor of the profile renders below. Missing/
+  // unrecognized values fall back to 'individual' so every existing profile
+  // (HR/IT/Finance/Law/CEO/Media, all of which have never set this field)
+  // renders exactly the same UI it always has.
+  const entityType = professional.entityType || 'individual';
+  const isOrg = entityType === 'team' || entityType === 'agency';
+  const isAgency = entityType === 'agency';
+
+  const displayName = (isOrg && professional.businessName)
+    ? professional.businessName
+    : (`${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || authUser?.email || portalLabel);
   const bg = avatarBg(displayName);
   const avatarUrl = profile?.profileImage;
   const completion = Number(p.completion) || 0;
 
-  const EDIT_TABS = [
-    { id: 'personal', label: 'Personal Info', icon: 'person' },
-    { id: 'bank', label: 'Bank & Payment', icon: 'account_balance' },
-    { id: 'docs', label: 'Documents', icon: 'folder_open' },
-  ];
+  // Tabs are derived from form.entityType (the in-progress edit value), not
+  // the last-saved profile, so switching type in the modal immediately
+  // reveals the right tabs before Save is clicked.
+  const editEntityType = form.entityType || 'individual';
+  const editIsOrg = editEntityType === 'team' || editEntityType === 'agency';
+  const EDIT_TABS = editIsOrg
+    ? [
+        { id: 'personal', label: editEntityType === 'agency' ? 'Agency Info' : 'Team Info', icon: 'person' },
+        { id: 'team',     label: 'Team Members',   icon: 'groups' },
+        { id: 'bank',     label: 'Bank & Payment', icon: 'account_balance' },
+        { id: 'docs',     label: 'Documents',      icon: 'folder_open' },
+      ]
+    : [
+        { id: 'personal', label: 'Personal Info', icon: 'person' },
+        { id: 'bank',     label: 'Bank & Payment', icon: 'account_balance' },
+        { id: 'docs',     label: 'Documents',      icon: 'folder_open' },
+      ];
 
   if (loading) return <main className="portal-page"><div className="portal-page-inner"><Skeleton rows={6} /></div></main>;
 
@@ -277,8 +350,15 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
                   </button>
                 </div>
                 <div className="pb-1">
-                  <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">{displayName}</h2>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">{professional.title || portalLabel}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">{displayName}</h2>
+                    {isOrg && (
+                      <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-semibold capitalize text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                        {entityType}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">{professional.title || (isAgency ? 'Agency' : isOrg ? 'Team' : portalLabel)}</p>
                   {(basic.city || basic.country) && (
                     <p className="flex items-center gap-1 text-xs text-neutral-400 dark:text-neutral-500">
                       <span className="material-symbols-outlined text-sm">location_on</span>
@@ -302,10 +382,21 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          <StatCard icon="work" label="Total Jobs" value={0} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
-          <StatCard icon="schedule" label="Hours Logged" value="0h" accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
-          <StatCard icon="handshake" label="Active Contracts" value={0} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
-          <StatCard icon="task_alt" label="Completed Jobs" value={0} accentIcon="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+          {isOrg ? (
+            <>
+              <StatCard icon="work" label="Total Projects" value={0} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
+              <StatCard icon="bolt" label="Active Projects" value={0} accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
+              <StatCard icon="handshake" label="Active Contracts" value={0} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+              <StatCard icon="groups" label="Team Members" value={teamMembers.length} accentIcon="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" />
+            </>
+          ) : (
+            <>
+              <StatCard icon="work" label="Total Jobs" value={0} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
+              <StatCard icon="schedule" label="Hours Logged" value="0h" accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
+              <StatCard icon="handshake" label="Active Contracts" value={0} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+              <StatCard icon="task_alt" label="Completed Jobs" value={0} accentIcon="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -313,13 +404,18 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
             <Inner>
               <SectionHdr title="Contact Info" />
               <div className="space-y-3 text-sm">
-                {[
+                {(isOrg ? [
+                  { icon: 'email', label: 'Email', value: profile?.email },
+                  { icon: 'phone', label: 'Phone', value: basic.phone || profile?.phone || '—' },
+                  { icon: 'location_on', label: 'Location', value: [basic.city, basic.country].filter(Boolean).join(', ') || '—' },
+                  { icon: 'language', label: 'Website', value: professional.website || 'No website added' },
+                ] : [
                   { icon: 'email', label: 'Email', value: profile?.email },
                   { icon: 'phone', label: 'Phone', value: basic.phone || profile?.phone || '—' },
                   { icon: 'public', label: 'Timezone', value: basic.timezone || '—' },
                   { icon: 'schedule', label: 'Availability', value: professional.availability || '—' },
                   { icon: 'currency_rupee', label: 'Hourly Rate', value: professional.hourlyRate ? `₹${professional.hourlyRate}/hr` : '—' },
-                ].map((r) => (
+                ]).map((r) => (
                   <div key={r.label} className="flex items-start gap-3">
                     <span className="material-symbols-outlined mt-0.5 text-base text-neutral-400">{r.icon}</span>
                     <div>
@@ -334,17 +430,17 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
 
           <Card>
             <Inner>
-              <SectionHdr title="Skills & Bio" />
+              <SectionHdr title={isAgency ? 'About Agency' : isOrg ? 'About Team' : 'Skills & Bio'} />
               {basic.bio && <p className="mb-4 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">{basic.bio}</p>}
               {skills.length > 0
                 ? <div className="flex flex-wrap gap-2">{skills.map((s) => <span key={s} className="rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">{s}</span>)}</div>
-                : <p className="text-sm text-neutral-400">No skills listed.</p>}
+                : <p className="text-sm text-neutral-400">{isOrg ? 'No services added.' : 'No skills listed.'}</p>}
             </Inner>
           </Card>
 
           <Card>
             <Inner>
-              <SectionHdr title="Payment Details" />
+              <SectionHdr title={isAgency ? 'Business & Payment Details' : isOrg ? 'Team Payment Details' : 'Payment Details'} />
               <div className="space-y-2 text-sm">
                 {[
                   { label: 'Account Holder', value: payment.bankDetails?.accountHolderName || '—' },
@@ -362,13 +458,63 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
               </div>
             </Inner>
           </Card>
+
+          {isOrg && (
+            <Card>
+              <Inner>
+                <SectionHdr title={isAgency ? 'Agency Details' : 'Team Details'} />
+                <div className="space-y-2 text-sm">
+                  {[
+                    { label: isAgency ? 'Agency Type' : 'Team Type', value: professional.title || '—' },
+                    { label: 'Team Size', value: professional.teamSize || 'Size not specified' },
+                    { label: 'Location', value: [basic.city, basic.country].filter(Boolean).join(', ') || '—' },
+                    { label: 'Founded', value: professional.foundedYear || 'Not specified' },
+                    { label: 'Primary Contact', value: profile?.email || '—' },
+                  ].map((r) => (
+                    <div key={r.label} className="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+                      <span className="text-xs text-neutral-400">{r.label}</span>
+                      <span className="font-medium text-neutral-800 dark:text-neutral-100">{r.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </Inner>
+            </Card>
+          )}
+
+          {isOrg && (
+            <Card>
+              <Inner>
+                <div className="mb-3 flex items-center justify-between">
+                  <SectionHdr title="Team Members" />
+                  <button onClick={() => { setEditTab('team'); setEditOpen(true); }} className="text-xs font-semibold hover:underline" style={{ color: 'var(--portal-accent, #6366f1)' }}>Manage Team →</button>
+                </div>
+                {teamMembers.length === 0 ? (
+                  <p className="text-sm text-neutral-400">No team members added.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {teamMembers.map((tm, i) => (
+                      <div key={i} className="flex items-center gap-3 rounded-xl border border-neutral-100 p-2.5 dark:border-neutral-800">
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarBg(tm.name || String(i))}`}>
+                          {(tm.name || '?').trim().charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-neutral-900 dark:text-white">{tm.name || 'Unnamed'}</p>
+                          <p className="truncate text-xs text-neutral-400">{tm.role || 'No role specified'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Inner>
+            </Card>
+          )}
         </div>
 
         {/* Documents section */}
         <Card>
           <Inner>
             <div className="mb-4 flex items-center justify-between">
-              <SectionHdr title="My Documents" />
+              <SectionHdr title={isOrg ? 'Business Documents' : 'My Documents'} />
               <button onClick={() => { setEditTab('docs'); setEditOpen(true); }} className="text-xs font-semibold hover:underline" style={{ color: 'var(--portal-accent, #6366f1)' }}>Manage →</button>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -377,21 +523,38 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
                   <span className={`material-symbols-outlined text-[18px] ${avatarUrl ? 'text-emerald-600' : 'text-neutral-400'}`}>account_circle</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">Profile Photo</p>
+                  <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{isOrg ? 'Logo' : 'Profile Photo'}</p>
                   {avatarUrl ? <a href={avatarUrl} target="_blank" rel="noreferrer" className="truncate text-[11px] text-emerald-600 hover:underline">View photo</a> : <p className="text-[11px] text-neutral-400">Not uploaded</p>}
                 </div>
                 <span className={`h-2 w-2 shrink-0 rounded-full ${avatarUrl ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-600'}`} />
               </div>
-              <div className="flex items-center gap-3 rounded-xl border border-neutral-100 p-3 dark:border-neutral-800">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${p.resumeUrl ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                  <span className={`material-symbols-outlined text-[18px] ${p.resumeUrl ? 'text-emerald-600' : 'text-neutral-400'}`}>description</span>
+              {!isOrg && (
+                <div className="flex items-center gap-3 rounded-xl border border-neutral-100 p-3 dark:border-neutral-800">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${p.resumeUrl ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                    <span className={`material-symbols-outlined text-[18px] ${p.resumeUrl ? 'text-emerald-600' : 'text-neutral-400'}`}>description</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">CV / Resume</p>
+                    {p.resumeUrl ? <a href={p.resumeUrl} target="_blank" rel="noreferrer" className="truncate text-[11px] text-emerald-600 hover:underline">View document</a> : <p className="text-[11px] text-neutral-400">Not uploaded</p>}
+                  </div>
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${p.resumeUrl ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-600'}`} />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">CV / Resume</p>
-                  {p.resumeUrl ? <a href={p.resumeUrl} target="_blank" rel="noreferrer" className="truncate text-[11px] text-emerald-600 hover:underline">View document</a> : <p className="text-[11px] text-neutral-400">Not uploaded</p>}
-                </div>
-                <span className={`h-2 w-2 shrink-0 rounded-full ${p.resumeUrl ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-600'}`} />
-              </div>
+              )}
+              {isOrg && BUSINESS_DOC_TYPES.map((d) => {
+                const doc = documents[d.key];
+                return (
+                  <div key={d.key} className="flex items-center gap-3 rounded-xl border border-neutral-100 p-3 dark:border-neutral-800">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${doc?.url ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                      <span className={`material-symbols-outlined text-[18px] ${doc?.url ? 'text-emerald-600' : 'text-neutral-400'}`}>{d.icon}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{d.label}</p>
+                      {doc?.url ? <a href={doc.url} target="_blank" rel="noreferrer" className="truncate text-[11px] text-emerald-600 hover:underline">View document</a> : <p className="text-[11px] text-neutral-400">Not uploaded</p>}
+                    </div>
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${doc?.url ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-600'}`} />
+                  </div>
+                );
+              })}
             </div>
           </Inner>
         </Card>
@@ -431,34 +594,70 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
               <div className="flex-1 overflow-y-auto px-6 py-5">
                 {editTab === 'personal' && (
                   <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Account Type</label>
+                      <Sel value={form.entityType} onChange={fld('entityType')}>
+                        <option value="individual">Individual</option>
+                        <option value="team">Team</option>
+                        <option value="agency">Agency</option>
+                      </Sel>
+                    </div>
+
+                    {editIsOrg && (
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editEntityType === 'agency' ? 'Agency Name' : 'Team Name'}</label>
+                        <Inp placeholder={editEntityType === 'agency' ? 'e.g. Acme Media Agency' : 'e.g. Acme Content Team'} value={form.businessName} onChange={fld('businessName')} />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">First Name</label>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editIsOrg ? 'Primary Contact — First Name' : 'First Name'}</label>
                         <Inp placeholder="First name" value={form.firstName} onChange={fld('firstName')} />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Last Name</label>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editIsOrg ? 'Primary Contact — Last Name' : 'Last Name'}</label>
                         <Inp placeholder="Last name" value={form.lastName} onChange={fld('lastName')} />
                       </div>
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Professional Title</label>
-                      <Inp placeholder="e.g. Marketing Executive" value={form.title} onChange={fld('title')} />
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                        {editEntityType === 'agency' ? 'Agency Type' : editEntityType === 'team' ? 'Team Type' : 'Professional Title'}
+                      </label>
+                      <Inp
+                        placeholder={editIsOrg ? 'e.g. Media & Marketing Agency' : 'e.g. Marketing Executive'}
+                        value={form.title} onChange={fld('title')}
+                      />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Bio</label>
-                      <Txa rows={3} placeholder="Tell us about yourself…" value={form.bio} onChange={fld('bio')} />
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editIsOrg ? 'Description' : 'Bio'}</label>
+                      <Txa rows={3} placeholder={editIsOrg ? 'Tell us about your team/agency…' : 'Tell us about yourself…'} value={form.bio} onChange={fld('bio')} />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</label>
-                        <Inp placeholder="+91 9000000000" value={form.phone} onChange={fld('phone')} />
+
+                    {editIsOrg ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</label>
+                          <Inp placeholder="+91 9000000000" value={form.phone} onChange={fld('phone')} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Website</label>
+                          <Inp placeholder="https://example.com" value={form.website} onChange={fld('website')} />
+                        </div>
                       </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hourly Rate (₹)</label>
-                        <Inp placeholder="500" value={form.hourlyRate} onChange={fld('hourlyRate')} />
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</label>
+                          <Inp placeholder="+91 9000000000" value={form.phone} onChange={fld('phone')} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hourly Rate (₹)</label>
+                          <Inp placeholder="500" value={form.hourlyRate} onChange={fld('hourlyRate')} />
+                        </div>
                       </div>
-                    </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">City</label>
@@ -469,20 +668,74 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
                         <Inp placeholder="India" value={form.country} onChange={fld('country')} />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Timezone</label>
-                        <Inp placeholder="Asia/Kolkata" value={form.timezone} onChange={fld('timezone')} />
+
+                    {editIsOrg ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Founded Year</label>
+                          <Inp placeholder="2018" value={form.foundedYear} onChange={fld('foundedYear')} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Team Size</label>
+                          <Inp placeholder="12" value={form.teamSize} onChange={fld('teamSize')} />
+                        </div>
                       </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Availability</label>
-                        <Inp placeholder="Full-time / Part-time" value={form.availability} onChange={fld('availability')} />
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Timezone</label>
+                          <Inp placeholder="Asia/Kolkata" value={form.timezone} onChange={fld('timezone')} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Availability</label>
+                          <Inp placeholder="Full-time / Part-time" value={form.availability} onChange={fld('availability')} />
+                        </div>
                       </div>
-                    </div>
+                    )}
+
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Skills <span className="font-normal text-neutral-400">(comma-separated)</span></label>
-                      <Inp placeholder="SEO, Content Strategy, Figma…" value={form.skillsCsv} onChange={fld('skillsCsv')} />
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                        {editIsOrg ? 'Services' : 'Skills'} <span className="font-normal text-neutral-400">(comma-separated)</span>
+                      </label>
+                      <Inp placeholder={editIsOrg ? 'Media, Marketing, Branding…' : 'SEO, Content Strategy, Figma…'} value={form.skillsCsv} onChange={fld('skillsCsv')} />
                     </div>
+                  </div>
+                )}
+
+                {editTab === 'team' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">Add the people on your team. This is a simple roster shown on your profile — not a login/invite system.</p>
+                    {form.teamMembers.length === 0 && (
+                      <p className="rounded-xl border border-dashed border-neutral-300 px-4 py-3 text-sm text-neutral-400 dark:border-neutral-700">No team members yet. Add your first team member.</p>
+                    )}
+                    <div className="space-y-3">
+                      {form.teamMembers.map((tm, i) => (
+                        <div key={i} className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Name</label>
+                            <Inp placeholder="Full name" value={tm.name} onChange={(e) => setForm((f) => ({ ...f, teamMembers: f.teamMembers.map((row, ri) => (ri === i ? { ...row, name: e.target.value } : row)) }))} />
+                          </div>
+                          <div className="flex-1">
+                            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Role</label>
+                            <Inp placeholder="e.g. Creative Director" value={tm.role} onChange={(e) => setForm((f) => ({ ...f, teamMembers: f.teamMembers.map((row, ri) => (ri === i ? { ...row, role: e.target.value } : row)) }))} />
+                          </div>
+                          <button
+                            onClick={() => setForm((f) => ({ ...f, teamMembers: f.teamMembers.filter((_, ri) => ri !== i) }))}
+                            className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
+                            title="Remove"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <BtnSecondary
+                      onClick={() => setForm((f) => (f.teamMembers.length >= 50 ? f : { ...f, teamMembers: [...f.teamMembers, { name: '', role: '' }] }))}
+                      disabled={form.teamMembers.length >= 50}
+                    >
+                      + Add Team Member
+                    </BtnSecondary>
+                    {form.teamMembers.length >= 50 && <p className="text-xs text-neutral-400">Maximum of 50 team members.</p>}
                   </div>
                 )}
 
@@ -536,15 +789,25 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
                   <div className="space-y-4">
                     <p className="text-sm text-neutral-500 dark:text-neutral-400">Upload your documents securely. Files are accessible only to you and your admin.</p>
                     <DocUploadCard
-                      label="Profile Photo" icon="account_circle" accept="image/*"
+                      label={editIsOrg ? 'Logo' : 'Profile Photo'} icon="account_circle" accept="image/*"
                       currentUrl={avatarUrl} currentName="Current photo"
                       uploading={avatarUploading} error={avatarError} onUpload={uploadAvatar}
                     />
-                    <DocUploadCard
-                      label="CV / Resume" icon="description" accept=".pdf"
-                      currentUrl={p.resumeUrl} currentName="Current resume"
-                      uploading={resumeUploading} error={resumeError} onUpload={uploadResume}
-                    />
+                    {!editIsOrg && (
+                      <DocUploadCard
+                        label="CV / Resume" icon="description" accept=".pdf"
+                        currentUrl={p.resumeUrl} currentName="Current resume"
+                        uploading={resumeUploading} error={resumeError} onUpload={uploadResume}
+                      />
+                    )}
+                    {editIsOrg && BUSINESS_DOC_TYPES.map((d) => (
+                      <DocUploadCard
+                        key={d.key}
+                        label={d.label} icon={d.icon} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        currentUrl={documents[d.key]?.url} currentName={documents[d.key]?.fileName}
+                        uploading={Boolean(docsUploading[d.key])} error={docsError[d.key]} onUpload={uploadBusinessDoc(d.key)}
+                      />
+                    ))}
                   </div>
                 )}
 

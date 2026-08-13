@@ -141,7 +141,8 @@
       "Bash(git diff *)",
       "Bash(node -c modules/media/marketingPlan.service.js)",
       "Bash(node -c modules/media/marketingPlan.controller.js)",
-      "Bash(node -c controllers/outsourcing/outsourcing.controller.js)"
+      "Bash(node -c controllers/outsourcing/outsourcing.controller.js)",
+      "Bash(node -c routes/profile.routes.js)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

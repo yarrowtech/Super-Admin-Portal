@@ -45,6 +45,22 @@ export const profileApi = {
     }
     return response.json();
   },
+  uploadProfileDocument: async (token, file, docType) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('docType', docType);
+    const response = await fetch(`${apiClient.getBaseUrl()}/api/profile/document`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      throw new Error(err?.error || 'Failed to upload document');
+    }
+    return response.json();
+  },
 
   getHrProfiles: (token, params = {}) => {
     const query = toQuery(params);

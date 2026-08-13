@@ -367,6 +367,20 @@ const sanitizeProfileInput = (payload = {}) => {
 };
 
 const calculateProfileCompletion = (profile = {}, user = {}) => {
+  const entityType = profile?.professional?.entityType;
+  // Team/Agency accounts don't have "experience"/"resume" — weight the
+  // fields that are actually relevant/editable for them instead, so they
+  // aren't penalized for irrelevant individual-only fields.
+  if (entityType === 'team' || entityType === 'agency') {
+    let total = 0;
+    if (user.profileImage || profile?.basic?.profilePicture) total += 15;
+    if (profile?.basic?.bio) total += 15;
+    if (profile?.professional?.businessName) total += 20;
+    if (profile?.professional?.website) total += 15;
+    if (Array.isArray(profile?.skills) && profile.skills.length > 0) total += 20;
+    if (Array.isArray(profile?.teamMembers) && profile.teamMembers.length > 0) total += 15;
+    return total;
+  }
   let total = 0;
   if (user.profileImage || profile?.basic?.profilePicture) total += 10;
   if (profile?.basic?.bio) total += 10;
@@ -1146,6 +1160,73 @@ exports.uploadAvatar = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, 'Upload avatar error');
     return res.status(500).json({ success: false, error: 'Failed to upload avatar' });
+  }
+};
+
+const PROFILE_BUSINESS_DOC_TYPES = ['companyRegistration', 'gstDocument', 'businessCertificate', 'portfolio', 'certifications'];
+
+/**
+ * @route   POST /api/profile/document
+ * @desc    Upload a Team/Agency business document (company registration, GST,
+ *          certificate, portfolio, certifications). Separate from
+ *          uploadResume/uploadAvatar above (untouched) so those two existing
+ *          endpoints keep their exact current behavior.
+ * @access  Private (same roles as the rest of /api/profile)
+ */
+exports.uploadProfileDocument = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' });
+    const docType = String(req.body?.docType || '');
+    if (!PROFILE_BUSINESS_DOC_TYPES.includes(docType)) {
+      return res.status(400).json({ success: false, error: `Invalid docType. Use: ${PROFILE_BUSINESS_DOC_TYPES.join(', ')}` });
+    }
+
+    let url = null;
+    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      const uploaded = await cloudinary.uploader.upload(dataUri, {
+        folder: `profiles/business-documents/${docType}`,
+        resource_type: req.file.mimetype.startsWith('image/') ? 'image' : 'auto',
+        public_id: `${docType}_${req.user.id}_${Date.now()}`
+      });
+      url = uploaded.secure_url;
+    } else {
+      url = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    const metadata = user.metadata && typeof user.metadata === 'object' ? user.metadata : {};
+    const existingProfile = metadata.profile && typeof metadata.profile === 'object' ? metadata.profile : {};
+    const mergedProfile = {
+      ...existingProfile,
+      documents: {
+        ...(existingProfile.documents || {}),
+        [docType]: { url, fileName: req.file.originalname, uploadedAt: new Date().toISOString() },
+      },
+    };
+    const completion = calculateProfileCompletion(mergedProfile, user);
+    user.metadata = {
+      ...metadata,
+      profile: mergedProfile,
+      profileMeta: {
+        ...(metadata.profileMeta || {}),
+        completion,
+        lastUpdated: new Date().toISOString(),
+        viewsCount: Number(metadata?.profileMeta?.viewsCount || 0),
+      },
+    };
+    await user.save({ validateModifiedOnly: true });
+    await setCache(getProfileCacheKey(req.user.id), null, 1);
+
+    return res.status(201).json({
+      success: true,
+      data: { docType, url, fileName: req.file.originalname }
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Upload profile document error');
+    return res.status(500).json({ success: false, error: 'Failed to upload document' });
   }
 };
 

@@ -21,6 +21,7 @@ router.get('/me', authController.getMe);
 router.patch('/update', updateProfileValidation, validate, authController.updateProfile);
 router.post('/upload-resume', uploadSingle('resume'), authController.uploadResume);
 router.post('/avatar', uploadSingle('avatar'), authController.uploadAvatar);
+router.post('/document', uploadSingle('file'), authController.uploadProfileDocument);
 
 module.exports = router;
 

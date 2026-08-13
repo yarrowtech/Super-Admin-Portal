@@ -18,6 +18,9 @@ const MEDIA_SECTIONS = [
   { id: 'design', label: 'Design', icon: 'draw' },
   { id: 'video', label: 'Video', icon: 'movie' },
   { id: 'social', label: 'Social', icon: 'chat_bubble' },
+  { id: 'profile', label: 'Profile', icon: 'person' },
+  { id: 'settings', label: 'Settings', icon: 'settings' },
+  { id: 'support', label: 'Support', icon: 'support_agent' },
 ];
 
 const MODULE_FOR_SECTION = {

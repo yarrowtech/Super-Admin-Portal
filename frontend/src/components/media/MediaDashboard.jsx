@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
 import { findCanonicalProject } from '../../config/projectNames';
@@ -104,17 +104,6 @@ const StatusPieChart = React.memo(({ data, innerRadius, outerRadius, styledToolt
       </Pie>
       <Tooltip contentStyle={styledTooltip ? { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16 } : undefined} />
     </PieChart>
-  </ResponsiveContainer>
-));
-
-const ModuleBarChart = React.memo(({ data }) => (
-  <ResponsiveContainer width="100%" height="100%">
-    <BarChart data={data}>
-      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
-      <YAxis stroke="#94a3b8" fontSize={12} />
-      <Tooltip />
-      <Bar dataKey="value" fill="#2563eb" radius={[8, 8, 0, 0]} />
-    </BarChart>
   </ResponsiveContainer>
 ));
 
@@ -621,210 +610,55 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
           <KPICard title="Approvals" value={summary.totalApprovals} icon="fact_check" colorScheme="purple" subtitle="QUEUE" compact className="min-h-[150px]" />
         </section>
 
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">Reach</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">{summary.socialReach.toLocaleString()}</p>
-          </div>
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">Engagement</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">{summary.socialEngagement.toLocaleString()}</p>
-          </div>
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">Reporting Feed</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">{summary.reportCount ? summary.reportCount : 0}</p>
-          </div>
-        </section>
-
-        <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">ROAS</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">{summary.roas.toFixed(2)}x</p>
-          </div>
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">Cost / Lead</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">${summary.cpl.toFixed(0)}</p>
-          </div>
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">Lead-to-Customer</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">{summary.leadToCustomerConversion.toFixed(1)}%</p>
-          </div>
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">Pending Approvals</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">{summary.pendingApprovalsKpi}</p>
-          </div>
-          <div className={cardClass}>
-            <p className="text-xs font-bold uppercase text-neutral-500">Upcoming Deadlines</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900">{summary.upcomingDeadlines}</p>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <div className={`${cardClass} lg:col-span-2 lg:p-5`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase text-primary">Executive Focus</p>
-                <h2 className="mt-1 text-xl font-black text-neutral-900 sm:text-2xl">Decision signals</h2>
-                <p className="mt-1 text-sm text-neutral-600">
-                  Monitor projects, campaigns, content, approvals, and media health from one analytics workspace.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                `Campaigns ${campaignRatio}%`,
-                `Content ${contentRatio}%`,
-                `Approvals ${summary.totalApprovals}`,
-                `Assets ${summary.totalAssets}`,
-              ].map((item) => (
-                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-[11px] font-semibold text-neutral-700">
-                  {item}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-900">Module Split</p>
-                    <p className="text-xs text-neutral-500">Projects, assets, campaigns, content</p>
-                  </div>
-                </div>
-                <div className="h-64">
-                  <ModuleBarChart data={summary.moduleBreakdown} />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-900">Status Distribution</p>
-                    <p className="text-xs text-neutral-500">Portfolio state across records</p>
-                  </div>
-                </div>
-                <div className="h-64">
-                  <StatusPieChart data={summary.statusBreakdown} innerRadius={54} outerRadius={88} />
-                </div>
-              </div>
+        <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm lg:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900">Recent Media Activity</h2>
+              <p className="text-sm text-neutral-600">Latest campaigns, assets, approvals, and content updates.</p>
             </div>
           </div>
-
-          <aside className={`${cardClass} lg:p-5`}>
-            <h2 className="text-lg font-bold text-neutral-900">Executive Snapshot</h2>
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                <span className="text-sm text-neutral-600">Active Campaigns</span>
-                <span className="text-sm font-bold text-neutral-900">{summary.activeCampaigns}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                <span className="text-sm text-neutral-600">Pending Reviews</span>
-                <span className="text-sm font-bold text-neutral-900">{summary.pendingCampaigns}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                <span className="text-sm text-neutral-600">Published Content</span>
-                <span className="text-sm font-bold text-neutral-900">{summary.publishedContent}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                <span className="text-sm text-neutral-600">Reporting Feed</span>
-                <span className="text-sm font-bold text-neutral-900">{summary.reportCount ? `${summary.reportCount} records` : 'Empty'}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                <span className="text-sm text-neutral-600">Tasks completed / pending</span>
-                <span className="text-sm font-bold text-neutral-900">{summary.completedTasks} / {summary.pendingTasks}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                <span className="text-sm text-neutral-600">Budget used / total</span>
-                <span className="text-sm font-bold text-neutral-900">${summary.budgetUsed.toLocaleString()} / ${summary.totalBudget.toLocaleString()}</span>
-              </div>
-            </div>
-          </aside>
-        </section>
-
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm xl:col-span-7 lg:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-neutral-900">Recent Media Activity</h2>
-                <p className="text-sm text-neutral-600">Latest campaigns, assets, approvals, and content updates.</p>
-              </div>
-            </div>
-            <div className="overflow-hidden rounded-xl border border-neutral-200">
-              <table className="min-w-full divide-y divide-neutral-200 text-sm">
-                <thead className="bg-neutral-50 text-left text-xs uppercase tracking-[0.2em] text-neutral-500">
-                  <tr>
-                    <th className="px-4 py-3">Title</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Owner</th>
-                    <th className="px-4 py-3">Updated</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200">
-                  {summary.recentItems.length ? summary.recentItems.map((item) => {
-                    const title = pickText(item?.title, item?.name, item?.contentName, item?.assetName, 'Untitled item');
-                    const status = pickText(item?.status, item?.state, item?.approvalStatus, 'Draft');
-                    const owner = pickText(item?.owner, item?.author, item?.assignedTo, item?.lead, 'Unassigned');
-                    const updated = pickText(item?.updatedAt, item?.modifiedAt, item?.createdAt, '');
-                    return (
-                      <tr key={item?._id || item?.id || title}>
-                        <td className="px-4 py-3 font-medium text-neutral-900">
-                          <div>{title}</div>
-                          <div className="mt-1 text-xs text-neutral-500">{item?.section || item?.type || 'Media record'}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
-                            {status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-neutral-700">{owner}</td>
-                        <td className="px-4 py-3 text-neutral-700">{updated ? new Date(updated).toLocaleDateString() : 'N/A'}</td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td className="px-4 py-8 text-center text-neutral-500" colSpan={4}>
-                        No media records available yet.
+          <div className="overflow-hidden rounded-xl border border-neutral-200">
+            <table className="min-w-full divide-y divide-neutral-200 text-sm">
+              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-[0.2em] text-neutral-500">
+                <tr>
+                  <th className="px-4 py-3">Title</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Owner</th>
+                  <th className="px-4 py-3">Updated</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {summary.recentItems.length ? summary.recentItems.map((item) => {
+                  const title = pickText(item?.title, item?.name, item?.contentName, item?.assetName, 'Untitled item');
+                  const status = pickText(item?.status, item?.state, item?.approvalStatus, 'Draft');
+                  const owner = pickText(item?.owner, item?.author, item?.assignedTo, item?.lead, 'Unassigned');
+                  const updated = pickText(item?.updatedAt, item?.modifiedAt, item?.createdAt, '');
+                  return (
+                    <tr key={item?._id || item?.id || title}>
+                      <td className="px-4 py-3 font-medium text-neutral-900">
+                        <div>{title}</div>
+                        <div className="mt-1 text-xs text-neutral-500">{item?.section || item?.type || 'Media record'}</div>
                       </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-700">{owner}</td>
+                      <td className="px-4 py-3 text-neutral-700">{updated ? new Date(updated).toLocaleDateString() : 'N/A'}</td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm xl:col-span-5 lg:p-5">
-            <h2 className="text-lg font-bold text-neutral-900">Operational Controls</h2>
-            <div className="mt-4 space-y-3">
-              {[
-                ['API Sync', 'Connected'],
-                ['Project Hub', summary.activeProjects ? 'Populated' : 'Empty'],
-                ['Campaign Board', summary.totalCampaigns ? 'Populated' : 'Empty'],
-                ['Content Vault', summary.totalContent ? 'Populated' : 'Empty'],
-                ['Approvals Queue', summary.totalApprovals ? 'Populated' : 'Empty'],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                  <span className="text-sm text-neutral-600">{label}</span>
-                  <span className="text-sm font-bold text-neutral-900">{value}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-              <p className="text-xs font-bold uppercase text-neutral-500">Permissions</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {summary.permissions.length ? summary.permissions.map((permission) => (
-                  <span key={permission} className="rounded-lg border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-neutral-700">
-                    {permission}
-                  </span>
-                )) : (
-                  <span className="rounded-lg border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-neutral-500">
-                    No permissions reported
-                  </span>
+                  );
+                }) : (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-neutral-500" colSpan={4}>
+                      No media records available yet.
+                    </td>
+                  </tr>
                 )}
-              </div>
-            </div>
-          </article>
-        </section>
+              </tbody>
+            </table>
+          </div>
+        </article>
       </div>
     );
   };

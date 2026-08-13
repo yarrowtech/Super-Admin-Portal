@@ -25,6 +25,7 @@ const SectionSidebar = ({
   items = [],
   activeId = '',
   onSelect,
+  footerItems = [],
 }) => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -240,6 +241,35 @@ const SectionSidebar = ({
 
       {/* Footer */}
       <div className="shrink-0 border-t border-neutral-100 px-2 pb-3 pt-2 dark:border-neutral-800">
+        {footerItems.length > 0 && (
+          <div className="mb-0.5 space-y-0.5">
+            {footerItems.map((item) => {
+              const isActive = activeId === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelect?.(item.id)}
+                  className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                    isActive
+                      ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+                      : 'border border-transparent text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+                  } ${collapsed ? 'justify-center px-0' : ''}`}
+                  aria-label={collapsed ? item.label : undefined}
+                >
+                  <span
+                    className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}
+                    style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+                  >
+                    {item.icon}
+                  </span>
+                  {!collapsed && <span className="flex-1 truncate text-left leading-none">{item.label}</span>}
+                  {collapsed && <MiniTooltip label={item.label} />}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <button
           type="button"
           onClick={handleLogout}

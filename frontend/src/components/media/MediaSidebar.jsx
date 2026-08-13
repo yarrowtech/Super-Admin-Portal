@@ -9,7 +9,8 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 const GROUPS = [
   { id: 'creative', label: 'Assets', icon: 'perm_media', sectionIds: ['assets', 'brand', 'content', 'design', 'video', 'social'] },
 ];
-const STANDALONE_IDS = new Set(['dashboard', 'projects']);
+const STANDALONE_IDS = new Set(['dashboard', 'projects', 'profile']);
+const FOOTER_IDS = new Set(['settings', 'support']);
 
 const buildGroupedItems = (sections = []) => {
   const byId = new Map(sections.map((section) => [section.id, section]));
@@ -24,7 +25,7 @@ const buildGroupedItems = (sections = []) => {
   })).filter((group) => group.children.length);
 
   // Anything not explicitly grouped (e.g. a future section) still shows up, ungrouped.
-  const ungrouped = sections.filter((section) => !STANDALONE_IDS.has(section.id) && !grouped.has(section.id));
+  const ungrouped = sections.filter((section) => !STANDALONE_IDS.has(section.id) && !grouped.has(section.id) && !FOOTER_IDS.has(section.id));
 
   return [...standalone, ...groupItems, ...ungrouped];
 };
@@ -32,6 +33,7 @@ const buildGroupedItems = (sections = []) => {
 const MediaSidebar = ({ activeSection, onSelect, sections = [] }) => {
   const { user } = useAuth();
   const groupedItems = useMemo(() => buildGroupedItems(sections), [sections]);
+  const footerItems = useMemo(() => sections.filter((section) => FOOTER_IDS.has(section.id)), [sections]);
 
   if (!canAccessPortal(user, PORTALS.MEDIA)) return null;
 
@@ -43,6 +45,7 @@ const MediaSidebar = ({ activeSection, onSelect, sections = [] }) => {
       items={groupedItems}
       activeId={activeSection}
       onSelect={onSelect}
+      footerItems={footerItems}
     />
   );
 };

@@ -47,6 +47,7 @@ import {
   SalesQueryPage,
   SalesSubmissionPage,
   SalesProjectOverviewPage,
+  SalesProfilePage,
   // Legal Document Management
   LegalDocManagementPage,
   LSWLegalLibraryPage,
@@ -489,6 +490,16 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.MEDIA}>
               <PrivateRoute roles={allow('media_sales')}>
                 <SalesSubmissionPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/profile"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_sales')}>
+                <SalesProfilePage />
               </PrivateRoute>
             </PortalRoute>
           }

@@ -213,6 +213,9 @@ const sanitizeProfileInput = (payload = {}) => {
   if (typeof payload.headline === 'string' || typeof basicInfo.headline === 'string') profile.basic.headline = asTrimmed(payload.headline || basicInfo.headline, 120);
   if (typeof payload.location === 'string' || typeof basicInfo.location === 'string') profile.basic.location = asTrimmed(payload.location || basicInfo.location, 150);
   if (typeof payload.phone === 'string' || typeof basicInfo.phone === 'string') profile.basic.phone = asTrimmed(payload.phone || basicInfo.phone, 30);
+  if (typeof payload.city === 'string' || typeof basicInfo.city === 'string') profile.basic.city = asTrimmed(payload.city || basicInfo.city, 100);
+  if (typeof payload.country === 'string' || typeof basicInfo.country === 'string') profile.basic.country = asTrimmed(payload.country || basicInfo.country, 100);
+  if (typeof payload.timezone === 'string' || typeof basicInfo.timezone === 'string') profile.basic.timezone = asTrimmed(payload.timezone || basicInfo.timezone, 60);
   if (typeof payload.resumeUrl === 'string' || typeof payload?.resume?.url === 'string') profile.resumeUrl = asTrimmed(payload.resumeUrl || payload.resume.url, 1000);
   if (typeof payload.profilePicture === 'string' || typeof basicInfo.avatar === 'string') profile.basic.profilePicture = asTrimmed(payload.profilePicture || basicInfo.avatar, 1000);
 
@@ -307,6 +310,27 @@ const sanitizeProfileInput = (payload = {}) => {
   if (typeof payload.industry === 'string' || typeof professionalInfo.industry === 'string') profile.professional.industry = asTrimmed(payload.industry || professionalInfo.industry, 120);
   if (typeof payload.preferredJobRole === 'string' || typeof professionalInfo.preferredRole === 'string') profile.professional.preferredJobRole = asTrimmed(payload.preferredJobRole || professionalInfo.preferredRole, 120);
   if (typeof payload.employmentStatus === 'string' || typeof professionalInfo.status === 'string') profile.professional.employmentStatus = asTrimmed(payload.employmentStatus || professionalInfo.status, 40);
+  if (typeof payload.title === 'string' || typeof professionalInfo.title === 'string') profile.professional.title = asTrimmed(payload.title || professionalInfo.title, 120);
+  if (payload.hourlyRate !== undefined || professionalInfo.hourlyRate !== undefined) profile.professional.hourlyRate = asNonNegativeNumber(payload.hourlyRate ?? professionalInfo.hourlyRate, 0);
+  if (typeof payload.availability === 'string' || typeof professionalInfo.availability === 'string') profile.professional.availability = asTrimmed(payload.availability || professionalInfo.availability, 60);
+
+  if (payload.bankDetails && typeof payload.bankDetails === 'object') {
+    const b = payload.bankDetails;
+    profile.payment = profile.payment || {};
+    profile.payment.bankDetails = {
+      accountHolderName: asTrimmed(b.accountHolderName, 120),
+      bankName: asTrimmed(b.bankName, 120),
+      accountNumber: asTrimmed(b.accountNumber, 40),
+      ifscCode: asTrimmed(b.ifscCode, 20).toUpperCase(),
+      accountType: asTrimmed(b.accountType, 40),
+    };
+  }
+  if (payload.paymentInfo && typeof payload.paymentInfo === 'object') {
+    const p = payload.paymentInfo;
+    profile.payment = profile.payment || {};
+    profile.payment.upiId = asTrimmed(p.upiId, 100);
+    profile.payment.paypalEmail = asTrimmed(p.paypalEmail, 150);
+  }
 
   if (typeof payload.linkedin === 'string' || typeof socialInfo.linkedin === 'string') profile.socialLinks.linkedin = asTrimmed(payload.linkedin || socialInfo.linkedin, 500);
   if (typeof payload.github === 'string' || typeof socialInfo.github === 'string') profile.socialLinks.github = asTrimmed(payload.github || socialInfo.github, 500);
@@ -859,6 +883,7 @@ exports.getMe = async (req, res) => {
             achievements: Array.isArray(profile.achievements) ? profile.achievements : [],
             socialLinks: profile.socialLinks || {},
             preferences: profile.preferences || {},
+            payment: profile.payment || {},
             resumeUrl: profile.resumeUrl || '',
             completion,
             lastUpdated: profileMeta.lastUpdated || user.updatedAt,
@@ -891,7 +916,10 @@ exports.getMe = async (req, res) => {
  */
 exports.updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, phone, profileImage, bio, skills, experience, projects, resumeUrl, section, value } = req.body;
+    const {
+      firstName, lastName, phone, profileImage, bio, skills, experience, projects, resumeUrl, section, value,
+      location, headline, city, country, timezone, title, hourlyRate, availability, bankDetails, paymentInfo,
+    } = req.body;
 
     const user = await User.findById(req.user.id);
 
@@ -910,7 +938,10 @@ exports.updateProfile = async (req, res) => {
     if (profileImage) user.profileImage = profileImage;
     const metadata = user.metadata && typeof user.metadata === 'object' ? user.metadata : {};
     const existingProfile = metadata.profile && typeof metadata.profile === 'object' ? metadata.profile : {};
-    const updatePayload = { bio, skills, experience, projects, resumeUrl };
+    const updatePayload = {
+      bio, skills, experience, projects, resumeUrl,
+      location, headline, city, country, timezone, title, hourlyRate, availability, bankDetails, paymentInfo,
+    };
     if (section && value !== undefined) {
       updatePayload[section] = value;
     }
@@ -923,6 +954,7 @@ exports.updateProfile = async (req, res) => {
         professional: { ...(existingProfile.professional || {}), ...(nextProfile.professional || {}) },
         socialLinks: { ...(existingProfile.socialLinks || {}), ...(nextProfile.socialLinks || {}) },
         preferences: { ...(existingProfile.preferences || {}), ...(nextProfile.preferences || {}) },
+        payment: { ...(existingProfile.payment || {}), ...(nextProfile.payment || {}) },
       };
       const profileCompletion = calculateProfileCompletion(mergedProfile, user);
       user.metadata = {

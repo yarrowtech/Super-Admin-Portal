@@ -5,6 +5,7 @@ import { useSidebar } from '../../../context/SidebarContext';
 import MobilePortalNav from '../../common/MobilePortalNav';
 
 const MediaHeadDashboard = lazy(() => import('./MediaHeadDashboard'));
+const MediaHeadProjectList = lazy(() => import('./MediaHeadProjectList'));
 const MediaHeadProjectOverview = lazy(() => import('./MediaHeadProjectOverview'));
 const MediaHeadTeam = lazy(() => import('./MediaHeadTeam'));
 const MediaHeadDeadlineCenter = lazy(() => import('./MediaHeadDeadlineCenter'));
@@ -27,6 +28,7 @@ const MEDIA_THEME = {
 const mediaHeadMobileItems = [
   { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { key: 'projects', label: 'Projects', icon: 'folder_copy' },
+  { key: 'overview', label: 'Overview', icon: 'table_view' },
   { key: 'team', label: 'Team', icon: 'groups' },
   { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
   { key: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
@@ -54,6 +56,8 @@ const MediaHeadPortal = () => {
       case 'dashboard':
         return <MediaHeadDashboard onNavigate={setCurrentView} />;
       case 'projects':
+        return <MediaHeadProjectList />;
+      case 'overview':
         return <MediaHeadProjectOverview />;
       case 'team':
         return <MediaHeadTeam />;

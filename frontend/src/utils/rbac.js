@@ -12,7 +12,8 @@ export const PORTALS = {
   OUTSOURCING: 'outsourcing',
 };
 
-export const IT_PORTAL_ROLES = ['it_manager', 'it_admin', 'it_employee', 'it_hr'];
+export const IT_PORTAL_ROLES = ['it_admin', 'it_employee'];
+export const HR_PORTAL_ROLES = ['hr', 'it_hr'];
 export const FINANCE_PORTAL_ROLES = ['finance_manager', 'finance_employee'];
 export const MEDIA_PORTAL_ROLES = ['media_head', 'media_sales', 'media_marketing'];
 export const LAW_PORTAL_ROLES = ['law_head', 'law_employee'];
@@ -28,10 +29,10 @@ const baseRoleAccess = {
   superadmin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
   ceo: [PORTALS.CEO],
   hr: [PORTALS.HR],
-  it_manager: [PORTALS.IT, PORTALS.MANAGER],
+  it_manager: [PORTALS.MANAGER],
   it_admin: [PORTALS.IT],
   it_employee: [PORTALS.IT],
-  it_hr: [PORTALS.IT, PORTALS.HR],
+  it_hr: [PORTALS.HR],
   finance_manager: [PORTALS.FINANCE],
   finance_employee: [PORTALS.FINANCE, PORTALS.EMPLOYEE],
   law_head: [PORTALS.LAW],

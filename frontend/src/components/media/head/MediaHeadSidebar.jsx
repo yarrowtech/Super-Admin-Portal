@@ -20,6 +20,7 @@ const menuGroups = [
     items: [
       { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
       { key: 'projects', label: 'Projects', icon: 'folder_copy' },
+      { key: 'overview', label: 'Overview', icon: 'table_view' },
       { key: 'team', label: 'Team', icon: 'groups' },
       { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
     ],

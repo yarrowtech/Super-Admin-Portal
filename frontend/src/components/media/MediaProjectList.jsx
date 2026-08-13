@@ -13,7 +13,7 @@ const statusTone = (status = '') => {
   return 'border-teal-300 bg-teal-50 text-teal-700';
 };
 
-const MediaProjectList = ({ projects = [] }) => {
+const MediaProjectList = ({ projects = [], onSelect }) => {
   const navigate = useNavigate();
   const slugMap = useMemo(() => buildProjectSlugMap(projects), [projects]);
 
@@ -34,7 +34,9 @@ const MediaProjectList = ({ projects = [] }) => {
           <button
             key={project.value}
             type="button"
-            onClick={() => navigate(`/media/dashboard/projects/${slugMap.get(project.value) || project.value}`)}
+            onClick={() =>
+              onSelect ? onSelect(project) : navigate(`/media/dashboard/projects/${slugMap.get(project.value) || project.value}`)
+            }
             className="group flex flex-col rounded-[1.75rem] border border-slate-200 bg-white p-5 text-left shadow-[0_18px_50px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-[0_22px_60px_rgba(15,118,110,0.15)] dark:border-neutral-800 dark:bg-neutral-900"
           >
             <div className="h-1.5 w-full rounded-full" style={{ background: accent }} />

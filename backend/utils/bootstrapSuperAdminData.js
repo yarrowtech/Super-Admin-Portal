@@ -35,15 +35,9 @@ const ensureSuperAdminDefaults = async () => {
     { role: 'hr', portal: 'hr', canAccess: true },
     { role: 'hr', portal: 'admin', canAccess: true },
     // IT department
-    { role: 'it_manager', portal: 'it', canAccess: true },
-    { role: 'it_manager', portal: 'admin', canAccess: true },
     { role: 'it_manager', portal: 'manager', canAccess: true },
-    { role: 'it_manager', portal: 'hr', canAccess: true },
-    { role: 'it_manager', portal: 'law', canAccess: true },
     { role: 'it_admin', portal: 'it', canAccess: true },
     { role: 'it_employee', portal: 'it', canAccess: true },
-    { role: 'it_employee', portal: 'employee', canAccess: true },
-    { role: 'it_hr', portal: 'it', canAccess: true },
     { role: 'it_hr', portal: 'hr', canAccess: true },
     // Finance department
     { role: 'finance_manager', portal: 'finance', canAccess: true },
@@ -72,6 +66,24 @@ const ensureSuperAdminDefaults = async () => {
       )
     );
   }
+
+  const revokedAccessRules = [
+    { role: 'it_manager', portal: 'it' },
+    { role: 'it_manager', portal: 'admin' },
+    { role: 'it_manager', portal: 'hr' },
+    { role: 'it_manager', portal: 'law' },
+    { role: 'it_employee', portal: 'employee' },
+    { role: 'it_hr', portal: 'it' },
+  ];
+
+  await Promise.all(
+    revokedAccessRules.map((rule) =>
+      PortalAccess.updateOne(
+        { role: rule.role, portal: rule.portal },
+        { $set: { canAccess: false } }
+      )
+    )
+  );
 
   if (controlCount === 0) {
     await CompanyControl.insertMany([

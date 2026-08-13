@@ -11,7 +11,7 @@ const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
 const { getRolePermissions } = require('../config/roles');
 
-const DEFAULT_IT_MANAGER_PORTALS = new Set(['it', 'admin', 'hr', 'law']);
+const DEFAULT_IT_MANAGER_PORTALS = new Set(['manager']);
 const DEFAULT_IT_EMPLOYEE_PORTALS = new Set(['it']);
 const DEFAULT_IT_HR_PORTALS = new Set(['hr']);
 const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);

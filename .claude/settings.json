@@ -132,7 +132,8 @@
       "Bash(cp \"C:\\\\Users\\\\SANTU\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Super-Admin-Portal\\\\b71d3e85-b316-4bc4-80ae-8a3dc3313c6e\\\\scratchpad\\\\check_manager_employee.js\" \"e:\\\\Super-Admin-Portal\\\\backend\\\\check_manager_employee.js\")",
       "Bash(node check_manager_employee.js)",
       "Bash(mv /e/Super-Admin-Portal/backend/check-_manager_dashboard.png /c/Users/SANTU/AppData/Local/Temp/claude/e--Super-Admin-Portal/b71d3e85-b316-4bc4-80ae-8a3dc3313c6e/scratchpad/check-manager-dashboard.png)",
-      "Bash(mv /e/Super-Admin-Portal/backend/check-_employee_dashboard.png /c/Users/SANTU/AppData/Local/Temp/claude/e--Super-Admin-Portal/b71d3e85-b316-4bc4-80ae-8a3dc3313c6e/scratchpad/check-employee-dashboard.png)"
+      "Bash(mv /e/Super-Admin-Portal/backend/check-_employee_dashboard.png /c/Users/SANTU/AppData/Local/Temp/claude/e--Super-Admin-Portal/b71d3e85-b316-4bc4-80ae-8a3dc3313c6e/scratchpad/check-employee-dashboard.png)",
+      "Bash(node -c controllers/auth/auth.controller.js)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

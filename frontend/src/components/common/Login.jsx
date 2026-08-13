@@ -356,9 +356,13 @@ const Login = ({ roleFocus = null, loginMode = 'default' }) => {
             </div>
 
             <div className="mb-5 flex justify-end">
-              <a href="/forgot-password" className="text-[12px] font-extrabold text-[#d77a25] underline-offset-4 transition hover:text-[#b85f18] hover:underline focus:outline-none focus:ring-2 focus:ring-[#d8892e]/30">
+              <button
+                type="button"
+                onClick={() => setError('Please contact your administrator to reset your password.')}
+                className="text-[12px] font-extrabold text-[#d77a25] underline-offset-4 transition hover:text-[#b85f18] hover:underline focus:outline-none focus:ring-2 focus:ring-[#d8892e]/30"
+              >
                 Forgot Password?
-              </a>
+              </button>
             </div>
 
             <button

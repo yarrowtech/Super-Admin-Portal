@@ -67,6 +67,7 @@ export const SalesDashboardPage    = lazy(() => import('../components/media/Medi
 export const SalesQueryPage        = lazy(() => import('../components/media/SalesQueryPage'));
 export const SalesSubmissionPage   = lazy(() => import('../components/media/SalesSubmissionsPage'));
 export const SalesProjectOverviewPage = lazy(() => import('../components/media/SalesProjectOverviewPage'));
+export const SalesProfilePage = lazy(() => import('../components/media/SalesProfilePage'));
 
 // ── Law portal ────────────────────────────────────────────────────────────────
 export const LegalDocManagementPage  = lazy(() => import('../components/law/pages/LegalDocumentManagementPage'));

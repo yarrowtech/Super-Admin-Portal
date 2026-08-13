@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
@@ -7,6 +7,10 @@ import MobilePortalNav from '../common/MobilePortalNav';
 import MediaSidebar from './MediaSidebar';
 import MediaDashboard from './MediaDashboard';
 import MediaWorkspace, { MEDIA_SECTIONS } from './MediaWorkspace';
+import EmployeeProfilePage from '../shared/EmployeeProfilePage';
+
+const MediaSettingsPage = lazy(() => import('../shared/PortalSettingsPage').then((m) => ({ default: () => <m.default portalLabel="Media Marketing" accentColor="#0f766e" /> })));
+const MediaSupportPage = lazy(() => import('../shared/PortalSupportPage').then((m) => ({ default: () => <m.default portal="media" portalLabel="Media Marketing" accentColor="#0f766e" /> })));
 
 const PROJECT_STORAGE_KEY = 'activeProjectId';
 const SECTION_IDS = MEDIA_SECTIONS.map((section) => section.id);
@@ -43,7 +47,7 @@ const MediaPortal = () => {
   // accurate even while the user is deep in Assets, Campaigns, etc.
   useEffect(() => {
     let alive = true;
-    if (!token || activeSection === 'projects') {
+    if (!token || activeSection === 'projects' || activeSection === 'profile' || activeSection === 'settings' || activeSection === 'support') {
       setPendingApprovals(0);
       return undefined;
     }
@@ -155,6 +159,16 @@ const MediaPortal = () => {
             selectedProjectId={selectedProjectId}
             onProjectChange={handleProjectChange}
           />
+        ) : activeSection === 'profile' ? (
+          <EmployeeProfilePage portalLabel="Media Marketing" />
+        ) : activeSection === 'settings' ? (
+          <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
+            <MediaSettingsPage />
+          </Suspense>
+        ) : activeSection === 'support' ? (
+          <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
+            <MediaSupportPage />
+          </Suspense>
         ) : (
           <MediaWorkspace
             activeSection={activeSection}

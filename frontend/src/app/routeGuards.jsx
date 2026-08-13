@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { canAccessPortal, IT_PORTAL_ROLES, FINANCE_PORTAL_ROLES, MEDIA_PORTAL_ROLES, LAW_PORTAL_ROLES, EMPLOYEE_PORTAL_ROLES } from '../utils/rbac';
+import { canAccessPortal, IT_PORTAL_ROLES, HR_PORTAL_ROLES, FINANCE_PORTAL_ROLES, MEDIA_PORTAL_ROLES, LAW_PORTAL_ROLES, EMPLOYEE_PORTAL_ROLES } from '../utils/rbac';
 import Loader from '../components/common/Loader';
 
 const normalizeOutsourcingType = (value) =>
@@ -141,6 +141,7 @@ export const OutsourcingRoute = ({ children }) => {
 
 const DEPARTMENT_ROLE_GROUPS = {
   it: IT_PORTAL_ROLES,
+  hr: HR_PORTAL_ROLES,
   finance: FINANCE_PORTAL_ROLES,
   media: MEDIA_PORTAL_ROLES,
   law: LAW_PORTAL_ROLES,

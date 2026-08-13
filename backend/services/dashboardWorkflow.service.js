@@ -33,14 +33,11 @@ const roleWorkflows = {
   },
   [ROLES.IT_MANAGER]: {
     role: ROLES.IT_MANAGER,
-    dashboardEndpoint: '/api/dept/it/dashboard',
+    dashboardEndpoint: '/api/dept/manager/dashboard',
     modules: [
-      { key: 'admin', endpoint: '/api/dept/admin/dashboard' },
-      { key: 'hr', endpoint: '/api/dept/hr/dashboard' },
-      { key: 'law', endpoint: '/api/dept/law/dashboard' },
-      { key: 'overview', endpoint: '/api/dept/it/overview' },
-      { key: 'assets', endpoint: '/api/dept/it/module/assets' },
-      { key: 'tickets', endpoint: '/api/dept/it/module/tickets' },
+      { key: 'projects', endpoint: '/api/project-overview/projects?portal=manager' },
+      { key: 'team', endpoint: '/api/dept/manager/team' },
+      { key: 'approvals', endpoint: '/api/dept/manager/work-approvals' },
     ],
   },
   [ROLES.IT_ADMIN]: {
@@ -60,9 +57,11 @@ const roleWorkflows = {
   },
   [ROLES.IT_HR]: {
     role: ROLES.IT_HR,
-    dashboardEndpoint: '/api/dept/it/dashboard',
+    dashboardEndpoint: '/api/dept/hr/dashboard',
     modules: [
-      { key: 'hr', endpoint: '/api/dept/hr/dashboard' },
+      { key: 'employees', endpoint: '/api/dept/hr/employees' },
+      { key: 'attendance', endpoint: '/api/dept/hr/attendance' },
+      { key: 'leave', endpoint: '/api/dept/hr/leave' },
     ],
   },
   [ROLES.FINANCE_MANAGER]: {

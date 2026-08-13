@@ -101,7 +101,7 @@ const ROLE_PORTAL = {
   [ROLES.LAW_EMPLOYEE]: 'law',
   [ROLES.IT_MANAGER]: 'manager',
   [ROLES.IT_ADMIN]: 'it',
-  [ROLES.IT_EMPLOYEE]: 'employee',
+  [ROLES.IT_EMPLOYEE]: 'it',
   [ROLES.IT_HR]: 'hr',
   [ROLES.HR]: 'hr',
   [ROLES.FINANCE_MANAGER]: 'finance',

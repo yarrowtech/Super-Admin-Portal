@@ -15,6 +15,7 @@ export const SALES_NAV = [
   { id: 'project-overview', label: 'Project Overview', icon: 'folder_copy', description: 'Read-only project visibility' },
   { id: 'query', label: 'Query', icon: 'quiz', description: 'Field buyer questionnaire' },
   { id: 'submission', label: 'Submission', icon: 'fact_check', description: 'Your submitted queries' },
+  { id: 'profile', label: 'Profile', icon: 'person', description: 'Your profile' },
 ];
 
 const SalesPortalLayout = ({ activeId, children, bare = false }) => {

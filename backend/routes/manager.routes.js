@@ -4,12 +4,15 @@ const router = express.Router();
 const managerController = require('../controllers/manager/managerDashboard.controller');
 const managerExportController = require('../controllers/manager/exportSystem.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
+const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
 
 // All routes require authentication and manager-capable role
 router.use(authenticate);
 router.use(authorize(ROLES.IT_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN));
 router.use(authorizePortalAccess('manager'));
+router.use(cacheGetResponses('manager', { tags: ['projects', 'employees', 'dashboard'] }));
+router.use(invalidateCacheAfterMutation('projects', ['employees', 'dashboard']));
 
 // Manager specific routes
 router.get('/dashboard', managerController.getDashboard);

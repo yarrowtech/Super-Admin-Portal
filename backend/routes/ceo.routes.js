@@ -6,12 +6,15 @@ const departmentStatsController = require('../controllers/ceo/departmentStats.co
 const ceoChatController = require('../controllers/ceo/ceoChat.controller');
 const ceoSalesAnalyticsController = require('../controllers/ceo/ceoSalesAnalytics.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
+const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
 
 // All routes require authentication and CEO role
 router.use(authenticate);
 router.use(authorize(ROLES.CEO, ROLES.ADMIN));
 router.use(authorizePortalAccess('ceo'));
+router.use(cacheGetResponses('ceo', { tags: ['dashboard', 'analytics'] }));
+router.use(invalidateCacheAfterMutation('ceo'));
 
 // CEO specific routes
 router.get('/dashboard', ceoController.getDashboard);

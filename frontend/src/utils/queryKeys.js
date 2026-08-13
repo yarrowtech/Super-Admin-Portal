@@ -1,3 +1,5 @@
+import { cachePolicyFor, staleTimeFor } from './queryPolicies';
+
 /**
  * Centralised query-key factory.
  * Every key is a tuple so TanStack Query can diff / invalidate at any level.
@@ -278,38 +280,26 @@ export const QK = {
   },
 };
 
-const matchesAny = (segment, needles) => needles.some((needle) => segment.includes(needle));
+export const queryScope = (user = {}) => ({
+  tenantId: user.tenantId || user.organizationId || user.orgId || user.metadata?.tenantId || user.metadata?.organizationId || 'global',
+  userId: user.id || user._id || 'anonymous',
+  role: user.role || 'anonymous',
+  departmentId: user.departmentId || user.department || 'none',
+});
 
-/**
- * Shared client-side cache policy for React Query.
- *
- * The first segment of the query key drives both stale time and cache
- * retention so the policy stays consistent across providers, prefetching,
- * and hooks.
- */
-export const cachePolicyFor = (queryKey) => {
-  const seg = Array.isArray(queryKey) ? String(queryKey[0] || '') : String(queryKey || '');
-
-  if (matchesAny(seg, ['dashboard', 'kpi', 'metric'])) {
-    return { staleTime: 60_000, gcTime: 10 * 60_000 };
-  }
-  if (matchesAny(seg, ['settings', 'config', 'workflow', 'permission', 'role'])) {
-    return { staleTime: 60 * 60_000, gcTime: 24 * 60 * 60_000 };
-  }
-  if (matchesAny(seg, ['report', 'analytic', 'stat'])) {
-    return { staleTime: 15 * 60_000, gcTime: 60 * 60_000 };
-  }
-  if (matchesAny(seg, ['auth', 'profile', 'user', 'session'])) {
-    return { staleTime: 30 * 60_000, gcTime: 24 * 60 * 60_000 };
-  }
-  if (matchesAny(seg, ['project', 'task', 'leave'])) {
-    return { staleTime: 5 * 60_000, gcTime: 30 * 60_000 };
-  }
-  if (matchesAny(seg, ['notification', 'chat'])) {
-    return { staleTime: 30_000, gcTime: 5 * 60_000 };
-  }
-
-  return { staleTime: 90_000, gcTime: 10 * 60_000 };
+export const scopedKey = (scope, key) => {
+  const normalizedScope = queryScope(scope || {});
+  const suffix = Array.isArray(key) ? key : [key];
+  return [
+    'scope',
+    {
+      tenantId: normalizedScope.tenantId,
+      userId: normalizedScope.userId,
+      role: normalizedScope.role,
+      departmentId: normalizedScope.departmentId,
+    },
+    ...suffix,
+  ];
 };
 
-export const staleTimeFor = (queryKey) => cachePolicyFor(queryKey).staleTime;
+export { cachePolicyFor, staleTimeFor };

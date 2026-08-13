@@ -69,6 +69,14 @@ const env = Object.freeze({
   SMARTFARMING_PORTAL_URL: process.env.SMARTFARMING_PORTAL_URL || "",
   ENABLE_SELF_REGISTRATION: parseBoolean(process.env.ENABLE_SELF_REGISTRATION, false),
   LOG_LEVEL: process.env.LOG_LEVEL || (isProduction ? "info" : "debug"),
+  CACHE_ENABLED: parseBoolean(process.env.CACHE_ENABLED, true),
+  CACHE_VERSION: process.env.CACHE_VERSION || "v1",
+  REDIS_URL: process.env.REDIS_URL || "",
+  REDIS_CONNECT_TIMEOUT_MS: parseNumber(process.env.REDIS_CONNECT_TIMEOUT_MS, 2000),
+  REDIS_COMMAND_TIMEOUT_MS: parseNumber(process.env.REDIS_COMMAND_TIMEOUT_MS, 750),
+  REDIS_LOCK_TTL_MS: parseNumber(process.env.REDIS_LOCK_TTL_MS, 5000),
+  REDIS_LOCK_WAIT_MS: parseNumber(process.env.REDIS_LOCK_WAIT_MS, 750),
+  LOG_CACHE_EVENTS: parseBoolean(process.env.LOG_CACHE_EVENTS, false),
 });
 
 module.exports = env;

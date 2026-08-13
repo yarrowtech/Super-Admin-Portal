@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const itController = require('../controllers/department/it.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
+const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
 const modularItRoutes = require('../modules/it/it.routes');
 
@@ -10,6 +11,8 @@ const modularItRoutes = require('../modules/it/it.routes');
 router.use(authenticate);
 router.use(authorize(ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO, ROLES.HR));
 router.use(authorizePortalAccess('it'));
+router.use(cacheGetResponses('it', { tags: ['it', 'projects', 'dashboard'] }));
+router.use(invalidateCacheAfterMutation('projects', ['it']));
 router.use('/module', modularItRoutes);
 
 // Dashboard

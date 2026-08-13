@@ -1,5 +1,6 @@
 const express = require('express');
 const { authenticate, authorize, authorizePortalAccess } = require('../../middlewares/auth.middleware');
+const { cacheGetResponses, invalidateCacheAfterMutation } = require('../../middlewares/cacheInvalidation.middleware');
 const { requireProjectContext, attachOptionalProjectContext } = require('../../middlewares/project.middleware');
 const { validate } = require('../../middlewares/validate.middleware');
 const { ROLES } = require('../../config/roles');
@@ -31,6 +32,8 @@ router.use((req, res, next) => {
   }
   next();
 });
+router.use(cacheGetResponses('media', { tags: ['media', 'projects', 'dashboard'] }));
+router.use(invalidateCacheAfterMutation('media'));
 
 router.get('/dashboard', controller.getDashboard);
 router.get('/overview', controller.getOverview);

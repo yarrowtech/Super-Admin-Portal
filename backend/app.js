@@ -30,6 +30,7 @@ const Session = require("./models/auth/Session");
 const errorMiddleware = require("./middlewares/error.middleware");
 const cacheHeaders = require("./middlewares/cacheHeaders");
 const jwtConfig = require("./config/jwt");
+const { CacheService } = require("./services/cache.service");
 
 const app = express();
 const server = http.createServer(app);
@@ -179,6 +180,7 @@ app.get("/health", (req, res) => {
         state: dbState,
         code: dbStateCode
       },
+      cache: CacheService.metrics(),
       integrations: {
         edifyEightTeachers: {
           configured: Boolean(env.EDIFYEIGHT_API_TOKEN && (env.EDIFYEIGHT_TEACHER_API_URL || env.EDIFYEIGHT_API_URL)),

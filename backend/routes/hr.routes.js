@@ -7,6 +7,7 @@ const performanceSystemController = require('../controllers/hr/performanceSystem
 const exportSystemController = require('../controllers/hr/exportSystem.controller');
 const attendanceExportController = require('../controllers/hr/attendanceExport.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
+const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { attachOptionalProjectContext } = require('../middlewares/project.middleware');
 const { ROLES } = require('../config/roles');
 
@@ -15,6 +16,8 @@ router.use(authenticate);
 router.use(authorize(ROLES.HR, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT_MANAGER, ROLES.IT_HR));
 router.use(authorizePortalAccess('hr'));
 router.use(attachOptionalProjectContext);
+router.use(cacheGetResponses('hr', { tags: ['employees', 'departments', 'dashboard'] }));
+router.use(invalidateCacheAfterMutation('hr'));
 
 // Dashboard
 router.get('/dashboard', hrController.getDashboard);

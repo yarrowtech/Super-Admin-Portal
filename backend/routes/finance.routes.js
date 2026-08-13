@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const financeController = require('../controllers/finance/financeDashboard.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
+const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
 const modularFinanceRoutes = require('../modules/finance/finance.routes');
 
@@ -10,6 +11,8 @@ const modularFinanceRoutes = require('../modules/finance/finance.routes');
 router.use(authenticate);
 router.use(authorize(ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO, ROLES.HR));
 router.use(authorizePortalAccess('finance'));
+router.use(cacheGetResponses('finance', { tags: ['finance', 'dashboard', 'analytics'] }));
+router.use(invalidateCacheAfterMutation('finance'));
 router.use('/module', modularFinanceRoutes);
 
 const canWriteFinance = (req, res, next) => {

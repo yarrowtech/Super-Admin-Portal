@@ -4,6 +4,7 @@ const { validateStartupConfig } = require("./config/startupValidation");
 const { server } = require("./app");
 const mongoose = require("mongoose");
 const logService = require("./services/log.service");
+const { closeRedis } = require("./infrastructure/cache/redisClient");
 
 const PORT = env.PORT;
 
@@ -38,6 +39,12 @@ const shutdown = async (signal) => {
   forceExitTimer.unref();
 
   httpServer.close(async () => {
+    try {
+      await closeRedis();
+      logger.info("Redis cache connection closed");
+    } catch (err) {
+      logger.error({ err }, "Redis cache close failed");
+    }
     try {
       await mongoose.connection.close();
       logger.info("MongoDB connection closed");

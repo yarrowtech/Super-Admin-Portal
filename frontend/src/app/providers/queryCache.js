@@ -26,6 +26,7 @@ const queryRoots = [
   QK.notifications.root(),
   QK.chat.root(),
   QK.media.root(),
+  QK.mediaHead.root(),
 ];
 
 export const queryClient = new QueryClient({

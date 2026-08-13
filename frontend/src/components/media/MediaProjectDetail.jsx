@@ -1022,12 +1022,6 @@ const MediaProjectDetail = () => {
                     {!notFound ? <StatusPill value={currentPlan.overview.overallStatus} /> : null}
                   </div>
                   <p className="mt-1 max-w-3xl text-sm leading-5 text-neutral-500 dark:text-neutral-400">{projectDescription}</p>
-                  {planMeta ? (
-                    <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-neutral-400 dark:text-neutral-500">
-                      <span className="material-symbols-outlined text-[13px]">history</span>
-                      Last updated by {planMeta.name}{planMeta.role ? ` (${planMeta.role})` : ''} · {new Date(planMeta.updatedAt).toLocaleString()}
-                    </p>
-                  ) : null}
                   {logoError ? <p className="truncate text-[11px] font-semibold text-red-600">{logoError}</p> : null}
                   {themeError ? <p className="truncate text-[11px] font-semibold text-red-600">{themeError}</p> : null}
                 </div>

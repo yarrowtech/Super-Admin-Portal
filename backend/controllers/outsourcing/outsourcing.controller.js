@@ -1358,7 +1358,13 @@ const updateMyProfile = async (req, res) => {
       skills,
       paymentDetails,
       bankDetails,
-      paymentInfo
+      paymentInfo,
+      entityType,
+      businessName,
+      website,
+      foundedYear,
+      teamSize,
+      teamMembers
     } = req.body || {};
 
     const user = await User.findById(req.user._id);
@@ -1382,6 +1388,25 @@ const updateMyProfile = async (req, res) => {
       nextMeta.skills = skills
         .map((s) => String(s).trim())
         .filter(Boolean)
+        .slice(0, 50);
+    }
+
+    // Individual / Team / Agency profile typing — additive, independent of
+    // the fields above. `entityType` drives which sections the Outsourcing
+    // profile page renders; unrecognized values fall back to 'individual'
+    // rather than rejecting the save.
+    if (entityType !== undefined) {
+      const t = String(entityType).trim().toLowerCase();
+      nextMeta.entityType = ['individual', 'team', 'agency'].includes(t) ? t : 'individual';
+    }
+    if (businessName !== undefined) nextMeta.businessName = String(businessName).trim();
+    if (website !== undefined) nextMeta.website = String(website).trim();
+    if (foundedYear !== undefined) nextMeta.foundedYear = normalizeNumber(foundedYear, undefined);
+    if (teamSize !== undefined) nextMeta.teamSize = normalizeNumber(teamSize, undefined);
+    if (Array.isArray(teamMembers)) {
+      nextMeta.teamMembers = teamMembers
+        .map((tm) => ({ name: String(tm?.name || '').trim(), role: String(tm?.role || '').trim() }))
+        .filter((tm) => tm.name || tm.role)
         .slice(0, 50);
     }
 
@@ -1889,11 +1914,20 @@ const uploadProfileDocument = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' });
     const docType = String(req.body?.docType || 'document');
-    const allowed = ['avatar', 'cv', 'bankStatement'];
-    if (!allowed.includes(docType)) return res.status(400).json({ success: false, error: 'Invalid docType. Use: avatar, cv, bankStatement' });
+    const allowed = ['avatar', 'cv', 'bankStatement', 'companyRegistration', 'gstDocument', 'businessCertificate', 'portfolio', 'certifications'];
+    if (!allowed.includes(docType)) return res.status(400).json({ success: false, error: `Invalid docType. Use: ${allowed.join(', ')}` });
 
     const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    const folderMap = { avatar: 'freelancer-portal/avatars', cv: 'freelancer-portal/cv', bankStatement: 'freelancer-portal/bank-statements' };
+    const folderMap = {
+      avatar: 'freelancer-portal/avatars',
+      cv: 'freelancer-portal/cv',
+      bankStatement: 'freelancer-portal/bank-statements',
+      companyRegistration: 'freelancer-portal/company-registration',
+      gstDocument: 'freelancer-portal/gst',
+      businessCertificate: 'freelancer-portal/certificates',
+      portfolio: 'freelancer-portal/portfolio',
+      certifications: 'freelancer-portal/certifications',
+    };
     const uploaded = await cloudinary.uploader.upload(dataUri, {
       folder: folderMap[docType],
       resource_type: docType === 'avatar' ? 'image' : 'auto',

@@ -36,6 +36,10 @@ const STATUS_TONE = { planning: 'neutral', 'in-progress': 'info', 'on-hold': 'wa
 
 const formatCurrency = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : '—');
+// Mirrors MediaProjectDetail.jsx's own parseMetric — plan fields are
+// free-text strings (e.g. "₹15,000"), so digits are extracted the same way
+// here to keep this read-only snapshot numerically consistent with the plan.
+const parseMetric = (value) => Number(String(value || '').replace(/[^0-9.-]/g, '')) || 0;
 
 const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.14em]';
 
@@ -174,12 +178,35 @@ const MediaHeadProjectDetail = () => {
     enabled: Boolean(token),
   });
 
+  // Read-only snapshot of the same Marketing Plan the "Marketing Plan" button
+  // opens — lets media_head see Phase/Status/Budget/Leads/Deliverables at a
+  // glance without leaving this page. Purely a GET; never touches the plan
+  // or MediaProjectDetail.jsx's editor.
+  const { data: planData } = useQuery({
+    queryKey: QK.mediaHead.projectPlan(projectId),
+    queryFn: () => departmentApi.getMediaMarketingPlan(token, projectId),
+    enabled: Boolean(token && projectId),
+  });
+
   const payload = data?.data;
   const project = payload?.project;
   const health = HEALTH_TONE[project?.health] || HEALTH_TONE.ON_TRACK;
   const marketingUsers = arr(marketingUsersData?.data);
   const assignedIds = new Set(arr(payload?.team).map((m) => m.id));
   const availableUsers = marketingUsers.filter((u) => !assignedIds.has(u.id));
+
+  const plan = planData?.data;
+  const planMonthlyInvestment = arr(plan?.acquisitionBudget).reduce((sum, r) => sum + parseMetric(r.monthlyInvestment), 0);
+  const planLeadsEstimate = arr(plan?.acquisitionBudget).reduce((sum, r) => sum + parseMetric(r.leadsEstimate), 0);
+  const planDeliverablesDone = arr(plan?.deliverables).filter((d) => d.done).length;
+  const planDeliverablesTotal = arr(plan?.deliverables).length;
+  const planSnapshot = plan ? [
+    { label: 'Phase', value: plan.overview?.currentPhase || 'Foundation', icon: 'rocket_launch' },
+    { label: 'Status', value: plan.overview?.overallStatus || 'On Track', icon: 'verified' },
+    { label: 'Budget', value: planMonthlyInvestment ? `INR ${planMonthlyInvestment.toLocaleString('en-IN')}` : 'Not budgeted', icon: 'payments' },
+    { label: 'Leads Est.', value: planLeadsEstimate ? planLeadsEstimate.toLocaleString('en-IN') : 'No target', icon: 'groups' },
+    { label: 'Deliverables', value: `${planDeliverablesDone}/${planDeliverablesTotal}`, icon: 'task_alt' },
+  ] : [];
 
   const refetchDetail = () => queryClient.invalidateQueries({ queryKey: QK.mediaHead.projectDetail(projectId) });
 
@@ -290,6 +317,16 @@ const MediaHeadProjectDetail = () => {
                 </div>
               </div>
             </header>
+
+            {planSnapshot.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+                {planSnapshot.map((stat) => (
+                  <div key={stat.label} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
+                    <StatTile icon={stat.icon} label={stat.label} value={stat.value} />
+                  </div>
+                ))}
+              </div>
+            )}
 
             <HeadTabs activeKey={activeTab} onChange={setActiveTab} />
 

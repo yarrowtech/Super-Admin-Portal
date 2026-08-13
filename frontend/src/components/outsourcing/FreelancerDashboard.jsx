@@ -4,6 +4,7 @@ import { outsourcingApi } from '../../services/outsourcing';
 import { useOutsourcingSocket } from '../../hooks/useOutsourcingSocket';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
+import { computeProfileCompletion } from '../../utils/outsourcingProfile';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Unchanged named exports that other files import
@@ -578,12 +579,7 @@ export default function FreelancerDashboard({ token, user }) {
 
   const totalRevenue = useMemo(() => calcRevenue((l) => l.verificationStatus === 'approved'), [calcRevenue]);
 
-  const profileCompletion = useMemo(() => {
-    if (!profile) return 0;
-    const m = profile.metadata || {};
-    const fields = [profile.firstName, profile.lastName, profile.email, m.phone, m.title, m.bio, m.city, m.country, m.hourlyRate, (m.skills || []).length > 0];
-    return Math.round((fields.filter(Boolean).length / fields.length) * 100);
-  }, [profile]);
+  const profileCompletion = useMemo(() => (profile ? computeProfileCompletion(profile) : 0), [profile]);
 
   // Synthetic notifications when API returns empty
   const notifications = useMemo(() => {

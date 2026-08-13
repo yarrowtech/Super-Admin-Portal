@@ -314,6 +314,25 @@ const sanitizeProfileInput = (payload = {}) => {
   if (payload.hourlyRate !== undefined || professionalInfo.hourlyRate !== undefined) profile.professional.hourlyRate = asNonNegativeNumber(payload.hourlyRate ?? professionalInfo.hourlyRate, 0);
   if (typeof payload.availability === 'string' || typeof professionalInfo.availability === 'string') profile.professional.availability = asTrimmed(payload.availability || professionalInfo.availability, 60);
 
+  // Individual / Team / Agency profile typing — additive, independent of
+  // the fields above. entityType drives which sections EmployeeProfilePage.jsx
+  // renders for Media Marketing / Media Sales; unrecognized values fall back
+  // to 'individual' rather than rejecting the save.
+  if (payload.entityType !== undefined) {
+    const t = String(payload.entityType).trim().toLowerCase();
+    profile.professional.entityType = ['individual', 'team', 'agency'].includes(t) ? t : 'individual';
+  }
+  if (typeof payload.businessName === 'string') profile.professional.businessName = asTrimmed(payload.businessName, 150);
+  if (typeof payload.website === 'string') profile.professional.website = asTrimmed(payload.website, 300);
+  if (payload.foundedYear !== undefined) profile.professional.foundedYear = asNonNegativeNumber(payload.foundedYear, undefined);
+  if (payload.teamSize !== undefined) profile.professional.teamSize = asNonNegativeNumber(payload.teamSize, undefined);
+  if (Array.isArray(payload.teamMembers)) {
+    profile.teamMembers = payload.teamMembers
+      .map((tm) => ({ name: asTrimmed(tm?.name, 120), role: asTrimmed(tm?.role, 120) }))
+      .filter((tm) => tm.name || tm.role)
+      .slice(0, 50);
+  }
+
   if (payload.bankDetails && typeof payload.bankDetails === 'object') {
     const b = payload.bankDetails;
     profile.payment = profile.payment || {};
@@ -881,9 +900,11 @@ exports.getMe = async (req, res) => {
             projects: Array.isArray(profile.projects) ? profile.projects : [],
             certifications: Array.isArray(profile.certifications) ? profile.certifications : [],
             achievements: Array.isArray(profile.achievements) ? profile.achievements : [],
+            teamMembers: Array.isArray(profile.teamMembers) ? profile.teamMembers : [],
             socialLinks: profile.socialLinks || {},
             preferences: profile.preferences || {},
             payment: profile.payment || {},
+            documents: profile.documents || {},
             resumeUrl: profile.resumeUrl || '',
             completion,
             lastUpdated: profileMeta.lastUpdated || user.updatedAt,
@@ -919,6 +940,7 @@ exports.updateProfile = async (req, res) => {
     const {
       firstName, lastName, phone, profileImage, bio, skills, experience, projects, resumeUrl, section, value,
       location, headline, city, country, timezone, title, hourlyRate, availability, bankDetails, paymentInfo,
+      entityType, businessName, website, foundedYear, teamSize, teamMembers,
     } = req.body;
 
     const user = await User.findById(req.user.id);
@@ -941,6 +963,7 @@ exports.updateProfile = async (req, res) => {
     const updatePayload = {
       bio, skills, experience, projects, resumeUrl,
       location, headline, city, country, timezone, title, hourlyRate, availability, bankDetails, paymentInfo,
+      entityType, businessName, website, foundedYear, teamSize, teamMembers,
     };
     if (section && value !== undefined) {
       updatePayload[section] = value;
@@ -1001,8 +1024,11 @@ exports.updateProfile = async (req, res) => {
             projects: Array.isArray(userProfile.projects) ? userProfile.projects : [],
             certifications: Array.isArray(userProfile.certifications) ? userProfile.certifications : [],
             achievements: Array.isArray(userProfile.achievements) ? userProfile.achievements : [],
+            teamMembers: Array.isArray(userProfile.teamMembers) ? userProfile.teamMembers : [],
             socialLinks: userProfile.socialLinks || {},
             preferences: userProfile.preferences || {},
+            payment: userProfile.payment || {},
+            documents: userProfile.documents || {},
             resumeUrl: userProfile.resumeUrl || ''
           }
         }

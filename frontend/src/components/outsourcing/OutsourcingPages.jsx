@@ -4,6 +4,7 @@ import { outsourcingApi } from '../../services/outsourcing';
 import { useOutsourcingSocket } from '../../hooks/useOutsourcingSocket';
 import FreelancerDashboard from './FreelancerDashboard';
 import ThemeToggleButton from '../common/ThemeToggleButton';
+import { computeProfileCompletion } from '../../utils/outsourcingProfile';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design System
@@ -1021,6 +1022,7 @@ const defaultForm = () => ({
   city: '', country: '', timezone: '', hourlyRate: '', availability: '', skillsCsv: '',
   accountHolderName: '', bankName: '', accountNumber: '', ifscCode: '', accountType: '',
   upiId: '', paypalEmail: '',
+  entityType: 'individual', businessName: '', website: '', foundedYear: '', teamSize: '', teamMembers: [],
 });
 
 const DocUploadCard = ({ label, icon, docType, currentUrl, currentName, token, onDone }) => {
@@ -1118,6 +1120,12 @@ export const OutsourcingProfilePage = () => {
         accountType: m.bankDetails?.accountType || '',
         upiId: m.paymentInfo?.upiId || '',
         paypalEmail: m.paymentInfo?.paypalEmail || '',
+        entityType: m.entityType || 'individual',
+        businessName: m.businessName || '',
+        website: m.website || '',
+        foundedYear: m.foundedYear || '',
+        teamSize: m.teamSize || '',
+        teamMembers: Array.isArray(m.teamMembers) ? m.teamMembers : [],
       });
     }
     setLoading(false);
@@ -1138,6 +1146,12 @@ export const OutsourcingProfilePage = () => {
         skills: form.skillsCsv.split(',').map((s) => s.trim()).filter(Boolean),
         bankDetails: { accountHolderName: form.accountHolderName, bankName: form.bankName, accountNumber: form.accountNumber, ifscCode: form.ifscCode, accountType: form.accountType },
         paymentInfo: { upiId: form.upiId, paypalEmail: form.paypalEmail },
+        entityType: form.entityType,
+        businessName: form.businessName,
+        website: form.website,
+        foundedYear: form.foundedYear === '' ? undefined : Number(form.foundedYear) || 0,
+        teamSize: form.teamSize === '' ? undefined : Number(form.teamSize) || 0,
+        teamMembers: form.teamMembers,
       });
       setMsg('Saved!');
       await load();
@@ -1157,20 +1171,42 @@ export const OutsourcingProfilePage = () => {
   const totalHours = logs.reduce((s, l) => s + Number(l.hours || 0), 0).toFixed(0);
   const completedJobs = jobs.filter((j) => j.status === 'completed').length;
   const activeContracts = contracts.filter((c) => c.status === 'active').length;
-  const displayName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || authUser?.email || 'Freelancer';
+  const activeProjects = jobs.filter((j) => j.status === 'in_progress' || j.status === 'accepted').length;
+  const teamMembers = Array.isArray(m.teamMembers) ? m.teamMembers : [];
+
+  // entityType drives which flavor of the profile renders below. Missing/
+  // unrecognized values fall back to 'individual' so every existing
+  // freelancer account (which has never set this field) renders exactly
+  // the same UI it always has.
+  const entityType = m.entityType || 'individual';
+  const isOrg = entityType === 'team' || entityType === 'agency';
+  const isAgency = entityType === 'agency';
+
+  const displayName = (isOrg && m.businessName)
+    ? m.businessName
+    : (`${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || authUser?.email || 'Freelancer');
   const bg = avatarBg(displayName);
   const avatarUrl = m.avatar;
 
-  const completion = (() => {
-    const fields = [profile?.firstName, profile?.lastName, profile?.email, m.phone, m.title, m.bio, m.city, m.country, m.hourlyRate, skills.length > 0];
-    return Math.round((fields.filter(Boolean).length / fields.length) * 100);
-  })();
+  const completion = computeProfileCompletion(profile);
 
-  const EDIT_TABS = [
-    { id: 'personal', label: 'Personal Info', icon: 'person' },
-    { id: 'bank',     label: 'Bank & Payment', icon: 'account_balance' },
-    { id: 'docs',     label: 'Documents',      icon: 'folder_open' },
-  ];
+  // Tabs are derived from form.entityType (the in-progress edit value), not
+  // the last-saved profile, so switching type in the modal immediately
+  // reveals the right tabs before Save is clicked.
+  const editEntityType = form.entityType || 'individual';
+  const editIsOrg = editEntityType === 'team' || editEntityType === 'agency';
+  const EDIT_TABS = editIsOrg
+    ? [
+        { id: 'personal', label: editEntityType === 'agency' ? 'Agency Info' : 'Team Info', icon: 'person' },
+        { id: 'team',     label: 'Team Members',   icon: 'groups' },
+        { id: 'bank',     label: 'Bank & Payment', icon: 'account_balance' },
+        { id: 'docs',     label: 'Documents',      icon: 'folder_open' },
+      ]
+    : [
+        { id: 'personal', label: 'Personal Info', icon: 'person' },
+        { id: 'bank',     label: 'Bank & Payment', icon: 'account_balance' },
+        { id: 'docs',     label: 'Documents',      icon: 'folder_open' },
+      ];
 
   if (loading) return <Skeleton rows={6} />;
 
@@ -1201,8 +1237,11 @@ export const OutsourcingProfilePage = () => {
                 </button>
               </div>
               <div className="pb-1">
-                <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">{displayName}</h2>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">{m.title || 'Freelancer'}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">{displayName}</h2>
+                  {isOrg && <Pill value={entityType} />}
+                </div>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">{m.title || (isAgency ? 'Agency' : isOrg ? 'Team' : 'Freelancer')}</p>
                 {(m.city || m.country) && (
                   <p className="flex items-center gap-1 text-xs text-neutral-400 dark:text-neutral-500">
                     <span className="material-symbols-outlined text-sm">location_on</span>
@@ -1227,10 +1266,22 @@ export const OutsourcingProfilePage = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard icon="work" label="Total Jobs" value={jobs.length} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
-        <StatCard icon="schedule" label="Hours Logged" value={`${totalHours}h`} accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
-        <StatCard icon="handshake" label="Active Contracts" value={activeContracts} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
-        <StatCard icon="task_alt" label="Completed Jobs" value={completedJobs} accentIcon="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+        {isOrg ? (
+          <>
+            <StatCard icon="work" label="Total Projects" value={jobs.length} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
+            <StatCard icon="bolt" label="Active Projects" value={activeProjects} accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
+            <StatCard icon="task_alt" label="Completed Projects" value={completedJobs} accentIcon="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+            <StatCard icon="handshake" label="Active Contracts" value={activeContracts} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+            <StatCard icon="groups" label="Team Members" value={teamMembers.length} accentIcon="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" />
+          </>
+        ) : (
+          <>
+            <StatCard icon="work" label="Total Jobs" value={jobs.length} accentIcon="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" />
+            <StatCard icon="schedule" label="Hours Logged" value={`${totalHours}h`} accentIcon="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" />
+            <StatCard icon="handshake" label="Active Contracts" value={activeContracts} accentIcon="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+            <StatCard icon="task_alt" label="Completed Jobs" value={completedJobs} accentIcon="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -1239,13 +1290,18 @@ export const OutsourcingProfilePage = () => {
           <Inner>
             <SectionHdr title="Contact Info" />
             <div className="space-y-3 text-sm">
-              {[
+              {(isOrg ? [
+                { icon: 'email', label: 'Email', value: profile?.email },
+                { icon: 'phone', label: 'Phone', value: m.phone || '—' },
+                { icon: 'location_on', label: 'Location', value: [m.city, m.country].filter(Boolean).join(', ') || '—' },
+                { icon: 'language', label: 'Website', value: m.website || 'No website added' },
+              ] : [
                 { icon: 'email', label: 'Email', value: profile?.email },
                 { icon: 'phone', label: 'Phone', value: m.phone || '—' },
                 { icon: 'public', label: 'Timezone', value: m.timezone || '—' },
                 { icon: 'schedule', label: 'Availability', value: m.availability || '—' },
                 { icon: 'currency_rupee', label: 'Hourly Rate', value: m.hourlyRate ? `₹${m.hourlyRate}/hr` : '—' },
-              ].map((r) => (
+              ]).map((r) => (
                 <div key={r.label} className="flex items-start gap-3">
                   <span className="material-symbols-outlined mt-0.5 text-base text-neutral-400">{r.icon}</span>
                   <div>
@@ -1261,18 +1317,18 @@ export const OutsourcingProfilePage = () => {
         {/* Skills & bio */}
         <Card>
           <Inner>
-            <SectionHdr title="Skills & Bio" />
+            <SectionHdr title={isAgency ? 'About Agency' : isOrg ? 'About Team' : 'Skills & Bio'} />
             {m.bio && <p className="mb-4 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">{m.bio}</p>}
             {skills.length > 0
               ? <div className="flex flex-wrap gap-2">{skills.map((s) => <span key={s} className="rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">{s}</span>)}</div>
-              : <p className="text-sm text-neutral-400">No skills listed.</p>}
+              : <p className="text-sm text-neutral-400">{isOrg ? 'No services added.' : 'No skills listed.'}</p>}
           </Inner>
         </Card>
 
         {/* Payment */}
         <Card>
           <Inner>
-            <SectionHdr title="Payment Details" />
+            <SectionHdr title={isAgency ? 'Business & Payment Details' : isOrg ? 'Team Payment Details' : 'Payment Details'} />
             <div className="space-y-2 text-sm">
               {[
                 { label: 'Account Holder', value: m.bankDetails?.accountHolderName || '—' },
@@ -1290,21 +1346,79 @@ export const OutsourcingProfilePage = () => {
             </div>
           </Inner>
         </Card>
+
+        {isOrg && (
+          <Card>
+            <Inner>
+              <SectionHdr title={isAgency ? 'Agency Details' : 'Team Details'} />
+              <div className="space-y-2 text-sm">
+                {[
+                  { label: isAgency ? 'Agency Type' : 'Team Type', value: m.title || '—' },
+                  { label: 'Team Size', value: m.teamSize || 'Size not specified' },
+                  { label: 'Location', value: [m.city, m.country].filter(Boolean).join(', ') || '—' },
+                  { label: 'Founded', value: m.foundedYear || 'Not specified' },
+                  { label: 'Primary Contact', value: profile?.email || '—' },
+                ].map((r) => (
+                  <div key={r.label} className="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+                    <span className="text-xs text-neutral-400">{r.label}</span>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-100">{r.value}</span>
+                  </div>
+                ))}
+              </div>
+            </Inner>
+          </Card>
+        )}
+
+        {isOrg && (
+          <Card>
+            <Inner>
+              <div className="mb-3 flex items-center justify-between">
+                <SectionHdr title="Team Members" />
+                <button onClick={() => { setEditTab('team'); setEditOpen(true); }} className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Manage Team →</button>
+              </div>
+              {teamMembers.length === 0 ? (
+                <p className="text-sm text-neutral-400">No team members added.</p>
+              ) : (
+                <div className="space-y-2">
+                  {teamMembers.map((tm, i) => (
+                    <div key={i} className="flex items-center gap-3 rounded-xl border border-neutral-100 p-2.5 dark:border-neutral-800">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarBg(tm.name || String(i))}`}>
+                        {(tm.name || '?').trim().charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-neutral-900 dark:text-white">{tm.name || 'Unnamed'}</p>
+                        <p className="truncate text-xs text-neutral-400">{tm.role || 'No role specified'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Inner>
+          </Card>
+        )}
       </div>
 
       {/* Documents section */}
       <Card>
         <Inner>
           <div className="mb-4 flex items-center justify-between">
-            <SectionHdr title="My Documents" />
+            <SectionHdr title={isOrg ? 'Business Documents' : 'My Documents'} />
             <button onClick={() => { setEditTab('docs'); setEditOpen(true); }} className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Manage →</button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
+            {(isOrg ? [
+              { key: 'avatar', label: 'Logo', icon: 'account_circle' },
+              { key: 'bankStatement', label: 'Bank Statement', icon: 'account_balance' },
+              { key: 'companyRegistration', label: 'Company Registration', icon: 'gavel' },
+              { key: 'gstDocument', label: 'GST / Tax Document', icon: 'receipt_long' },
+              { key: 'businessCertificate', label: 'Business Certificate', icon: 'workspace_premium' },
+              { key: 'portfolio', label: 'Portfolio', icon: 'photo_library' },
+              { key: 'certifications', label: 'Certifications', icon: 'verified' },
+            ] : [
               { key: 'avatar', label: 'Profile Photo', icon: 'account_circle' },
               { key: 'cv', label: 'CV / Resume', icon: 'description' },
               { key: 'bankStatement', label: 'Bank Statement', icon: 'account_balance' },
-            ].map((d) => {
+            ]).map((d) => {
               const docData = d.key === 'avatar' ? { url: m.avatar } : docs[d.key];
               return (
                 <div key={d.key} className="flex items-center gap-3 rounded-xl border border-neutral-100 p-3 dark:border-neutral-800">
@@ -1363,34 +1477,70 @@ export const OutsourcingProfilePage = () => {
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {editTab === 'personal' && (
                 <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Account Type</label>
+                    <Sel value={form.entityType} onChange={fld('entityType')}>
+                      <option value="individual">Individual</option>
+                      <option value="team">Team</option>
+                      <option value="agency">Agency</option>
+                    </Sel>
+                  </div>
+
+                  {editIsOrg && (
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editEntityType === 'agency' ? 'Agency Name' : 'Team Name'}</label>
+                      <Inp placeholder={editEntityType === 'agency' ? 'e.g. Acme Media Agency' : 'e.g. Acme Dev Team'} value={form.businessName} onChange={fld('businessName')} />
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">First Name</label>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editIsOrg ? 'Primary Contact — First Name' : 'First Name'}</label>
                       <Inp placeholder="First name" value={form.firstName} onChange={fld('firstName')} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Last Name</label>
+                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editIsOrg ? 'Primary Contact — Last Name' : 'Last Name'}</label>
                       <Inp placeholder="Last name" value={form.lastName} onChange={fld('lastName')} />
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Professional Title</label>
-                    <Inp placeholder="e.g. Full Stack Developer" value={form.title} onChange={fld('title')} />
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                      {editEntityType === 'agency' ? 'Agency Type' : editEntityType === 'team' ? 'Team Type' : 'Professional Title'}
+                    </label>
+                    <Inp
+                      placeholder={editIsOrg ? 'e.g. Media & Marketing Agency' : 'e.g. Full Stack Developer'}
+                      value={form.title} onChange={fld('title')}
+                    />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Bio</label>
-                    <Txa rows={3} placeholder="Tell us about yourself…" value={form.bio} onChange={fld('bio')} />
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">{editIsOrg ? 'Description' : 'Bio'}</label>
+                    <Txa rows={3} placeholder={editIsOrg ? 'Tell us about your team/agency…' : 'Tell us about yourself…'} value={form.bio} onChange={fld('bio')} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</label>
-                      <Inp placeholder="+91 9000000000" value={form.phone} onChange={fld('phone')} />
+
+                  {editIsOrg ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</label>
+                        <Inp placeholder="+91 9000000000" value={form.phone} onChange={fld('phone')} />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Website</label>
+                        <Inp placeholder="https://example.com" value={form.website} onChange={fld('website')} />
+                      </div>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hourly Rate (₹)</label>
-                      <Inp placeholder="500" value={form.hourlyRate} onChange={fld('hourlyRate')} />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Phone</label>
+                        <Inp placeholder="+91 9000000000" value={form.phone} onChange={fld('phone')} />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hourly Rate (₹)</label>
+                        <Inp placeholder="500" value={form.hourlyRate} onChange={fld('hourlyRate')} />
+                      </div>
                     </div>
-                  </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">City</label>
@@ -1401,20 +1551,74 @@ export const OutsourcingProfilePage = () => {
                       <Inp placeholder="India" value={form.country} onChange={fld('country')} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Timezone</label>
-                      <Inp placeholder="Asia/Kolkata" value={form.timezone} onChange={fld('timezone')} />
+
+                  {editIsOrg ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Founded Year</label>
+                        <Inp placeholder="2018" value={form.foundedYear} onChange={fld('foundedYear')} />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Team Size</label>
+                        <Inp placeholder="12" value={form.teamSize} onChange={fld('teamSize')} />
+                      </div>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Availability</label>
-                      <Inp placeholder="Full-time / Part-time" value={form.availability} onChange={fld('availability')} />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Timezone</label>
+                        <Inp placeholder="Asia/Kolkata" value={form.timezone} onChange={fld('timezone')} />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Availability</label>
+                        <Inp placeholder="Full-time / Part-time" value={form.availability} onChange={fld('availability')} />
+                      </div>
                     </div>
-                  </div>
+                  )}
+
                   <div>
-                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Skills <span className="font-normal text-neutral-400">(comma-separated)</span></label>
-                    <Inp placeholder="React, Node.js, Figma…" value={form.skillsCsv} onChange={fld('skillsCsv')} />
+                    <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                      {editIsOrg ? 'Services' : 'Skills'} <span className="font-normal text-neutral-400">(comma-separated)</span>
+                    </label>
+                    <Inp placeholder={editIsOrg ? 'Media, Marketing, Branding…' : 'React, Node.js, Figma…'} value={form.skillsCsv} onChange={fld('skillsCsv')} />
                   </div>
+                </div>
+              )}
+
+              {editTab === 'team' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Add the people on your team. This is a simple roster shown on your profile — not a login/invite system.</p>
+                  {form.teamMembers.length === 0 && (
+                    <p className="rounded-xl border border-dashed border-neutral-300 px-4 py-3 text-sm text-neutral-400 dark:border-neutral-700">No team members yet. Add your first team member.</p>
+                  )}
+                  <div className="space-y-3">
+                    {form.teamMembers.map((tm, i) => (
+                      <div key={i} className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Name</label>
+                          <Inp placeholder="Full name" value={tm.name} onChange={(e) => setForm((f) => ({ ...f, teamMembers: f.teamMembers.map((row, ri) => (ri === i ? { ...row, name: e.target.value } : row)) }))} />
+                        </div>
+                        <div className="flex-1">
+                          <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Role</label>
+                          <Inp placeholder="e.g. Creative Director" value={tm.role} onChange={(e) => setForm((f) => ({ ...f, teamMembers: f.teamMembers.map((row, ri) => (ri === i ? { ...row, role: e.target.value } : row)) }))} />
+                        </div>
+                        <button
+                          onClick={() => setForm((f) => ({ ...f, teamMembers: f.teamMembers.filter((_, ri) => ri !== i) }))}
+                          className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
+                          title="Remove"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <BtnSecondary
+                    onClick={() => setForm((f) => (f.teamMembers.length >= 50 ? f : { ...f, teamMembers: [...f.teamMembers, { name: '', role: '' }] }))}
+                    disabled={form.teamMembers.length >= 50}
+                  >
+                    + Add Team Member
+                  </BtnSecondary>
+                  {form.teamMembers.length >= 50 && <p className="text-xs text-neutral-400">Maximum of 50 team members.</p>}
                 </div>
               )}
 
@@ -1468,20 +1672,51 @@ export const OutsourcingProfilePage = () => {
                 <div className="space-y-4">
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">Upload your documents to Cloudinary. Files are securely stored and accessible only to you and your admin.</p>
                   <DocUploadCard
-                    label="Profile Photo" icon="account_circle" docType="avatar"
+                    label={editIsOrg ? 'Logo' : 'Profile Photo'} icon="account_circle" docType="avatar"
                     currentUrl={m.avatar} currentName="Current photo"
                     token={token} onDone={handleDocDone}
                   />
-                  <DocUploadCard
-                    label="CV / Resume" icon="description" docType="cv"
-                    currentUrl={docs.cv?.url} currentName={docs.cv?.fileName}
-                    token={token} onDone={handleDocDone}
-                  />
+                  {!editIsOrg && (
+                    <DocUploadCard
+                      label="CV / Resume" icon="description" docType="cv"
+                      currentUrl={docs.cv?.url} currentName={docs.cv?.fileName}
+                      token={token} onDone={handleDocDone}
+                    />
+                  )}
                   <DocUploadCard
                     label="Bank Statement" icon="account_balance" docType="bankStatement"
                     currentUrl={docs.bankStatement?.url} currentName={docs.bankStatement?.fileName}
                     token={token} onDone={handleDocDone}
                   />
+                  {editIsOrg && (
+                    <>
+                      <DocUploadCard
+                        label="Company Registration" icon="gavel" docType="companyRegistration"
+                        currentUrl={docs.companyRegistration?.url} currentName={docs.companyRegistration?.fileName}
+                        token={token} onDone={handleDocDone}
+                      />
+                      <DocUploadCard
+                        label="GST / Tax Document" icon="receipt_long" docType="gstDocument"
+                        currentUrl={docs.gstDocument?.url} currentName={docs.gstDocument?.fileName}
+                        token={token} onDone={handleDocDone}
+                      />
+                      <DocUploadCard
+                        label="Business Certificate" icon="workspace_premium" docType="businessCertificate"
+                        currentUrl={docs.businessCertificate?.url} currentName={docs.businessCertificate?.fileName}
+                        token={token} onDone={handleDocDone}
+                      />
+                      <DocUploadCard
+                        label="Portfolio" icon="photo_library" docType="portfolio"
+                        currentUrl={docs.portfolio?.url} currentName={docs.portfolio?.fileName}
+                        token={token} onDone={handleDocDone}
+                      />
+                      <DocUploadCard
+                        label="Certifications" icon="verified" docType="certifications"
+                        currentUrl={docs.certifications?.url} currentName={docs.certifications?.fileName}
+                        token={token} onDone={handleDocDone}
+                      />
+                    </>
+                  )}
                 </div>
               )}
 

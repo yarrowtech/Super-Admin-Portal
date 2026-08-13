@@ -6,11 +6,9 @@ import { departmentApi } from '../../services/departments';
 import { findCanonicalProject, buildProjectSlugMap } from '../../config/projectNames';
 import ThemeToggleButton from '../common/ThemeToggleButton';
 
-const DEFAULT_ACCENT = '#0f766e';
+const DEFAULT_ACCENT = '#087C73';
 const HEX_RE = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i;
 
-const formatRole = (role = '') =>
-  String(role).split('_').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 const THEME_PRESETS = ['#0f766e', '#2563eb', '#7c3aed', '#db2777', '#d97706', '#059669', '#dc2626', '#0891b2'];
 
 const hexToRgb = (hex) => {
@@ -47,16 +45,17 @@ const buildThemeVars = (accent, isDark = false) => {
   };
 };
 
-const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-shadow duration-300 hover:shadow-[0_14px_34px_rgba(15,23,42,0.09)] dark:border-neutral-800 dark:bg-neutral-900';
-const soft = 'rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-neutral-800 dark:bg-neutral-950/45';
-const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.14em]';
-const fieldLabel = 'text-[11px] font-bold uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400';
-const inputCls = 'mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition-all duration-200 focus:border-[var(--portal-accent)] focus:shadow-[0_0_0_3px_var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:shadow-[0_0_0_3px_rgba(15,118,110,0.25)]';
+const card = 'rounded-[16px] border border-[#DFE8E7] bg-white p-5 shadow-[0_8px_22px_rgba(23,35,35,0.045)] transition-all duration-200 hover:shadow-[0_12px_28px_rgba(23,35,35,0.07)] dark:border-[#294040] dark:bg-[#142020]';
+const soft = 'rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-4 transition-colors duration-200 dark:border-[#294040] dark:bg-[#192727]';
+const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.12em]';
+const fieldLabel = 'text-[11px] font-bold uppercase tracking-[0.08em] text-[#667575] dark:text-[#91A4A2]';
+const inputCls = 'mt-1 w-full rounded-[10px] border border-[#DFE8E7] bg-white px-3 py-2 text-sm text-[#172323] shadow-sm outline-none transition-all duration-200 focus:border-[var(--portal-accent)] focus:shadow-[0_0_0_3px_var(--portal-accent-soft)] dark:border-[#294040] dark:bg-[#0E1717] dark:text-[#F1F7F6] dark:focus:shadow-[0_0_0_3px_rgba(24,168,154,0.25)]';
 const textareaCls = `${inputCls} min-h-[96px] resize-y`;
-const tableWrap = 'mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/30';
-const tableHead = 'text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50 dark:[&>th]:bg-neutral-900/70';
-const tableTh = 'border-b border-neutral-200 px-3 py-2.5 dark:border-neutral-800';
-const tableTd = 'border-b border-neutral-100 px-3 py-3 dark:border-neutral-800';
+const tableWrap = 'mt-4 overflow-x-auto rounded-xl border border-[#DFE8E7] bg-white dark:border-[#294040] dark:bg-[#142020]';
+const tableHead = 'text-left text-[11px] font-black uppercase tracking-wide text-[#667575] dark:text-[#91A4A2] [&>th]:bg-[#F5F8F8] dark:[&>th]:bg-[#192727]';
+const tableTh = 'border-b border-[#DFE8E7] px-3 py-2.5 dark:border-[#294040]';
+const tableTd = 'border-b border-[#EDF3F2] px-3 py-3 dark:border-[#294040]';
+const tableRow = 'align-top transition-colors duration-150 hover:bg-[#E7F4F2]/45 dark:hover:bg-[#192727]';
 
 const FRAMEWORK_PHASES = [
   { phase: 'Foundation Kit', hint: 'Before Launch' },
@@ -631,24 +630,41 @@ const buildPayload = (draft) => applyPlanCalculations({
   notes: { ...draft.notes },
 });
 
+const EmptyValue = ({ text = 'Not defined yet.' }) => <span className="italic text-[#93A0A0] dark:text-[#91A4A2]">{text}</span>;
+const displayValue = (value, empty = '—') => value || <EmptyValue text={empty} />;
+
+const Badge = ({ children, tone = 'neutral' }) => {
+  const styles = tone === 'active'
+    ? { background: 'var(--portal-accent-soft)', color: 'var(--portal-accent-ink)' }
+    : undefined;
+  return (
+    <span
+      className="inline-flex items-center rounded-full border border-[#DFE8E7] bg-[#F5F8F8] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#667575] dark:border-[#294040] dark:bg-[#192727] dark:text-[#91A4A2]"
+      style={styles}
+    >
+      {children}
+    </span>
+  );
+};
+
 const BulletList = ({ items = [], empty = 'Not defined yet.' }) =>
   items.length ? (
     <ul className="space-y-1.5">
       {items.map((item, idx) => (
-        <li key={idx} className="flex items-start gap-2 text-sm leading-5 text-neutral-700 dark:text-neutral-300">
-          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_0_3px_var(--portal-accent-soft)]" style={{ background: 'var(--portal-accent)' }} />
+        <li key={idx} className="flex items-start gap-2 text-sm leading-5 text-[#172323] dark:text-[#F1F7F6]">
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: 'var(--portal-accent)' }} />
           <span>{item}</span>
         </li>
       ))}
     </ul>
   ) : (
-    <p className="text-sm italic text-neutral-400">{empty}</p>
+    <p className="text-sm"><EmptyValue text={empty} /></p>
   );
 
 const OverviewField = ({ label, value }) => (
-  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950/40">
+  <div className="min-h-[92px] rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(23,35,35,0.055)] dark:border-[#294040] dark:bg-[#192727] dark:hover:bg-[#1c2d2d]">
     <p className={fieldLabel}>{label}</p>
-    <p className="mt-0.5 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{value || '-'}</p>
+    <p className="mt-1 text-sm font-bold leading-5 text-[#172323] dark:text-[#F1F7F6]">{displayValue(value)}</p>
   </div>
 );
 
@@ -666,12 +682,12 @@ const SectionHeader = ({ eyebrow, title, description, icon, index }) => (
         ) : null}
         <p className={sectionTitle} style={{ color: 'var(--portal-accent)' }}>{eyebrow}</p>
       </div>
-      {title ? <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-neutral-100">{title}</h2> : null}
-      {description ? <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500 dark:text-neutral-400">{description}</p> : null}
+      {title ? <h2 className="mt-1 text-xl font-black tracking-tight text-[#172323] dark:text-[#F1F7F6]">{title}</h2> : null}
+      {description ? <p className="mt-1 max-w-3xl text-sm leading-5 text-[#667575] dark:text-[#91A4A2]">{description}</p> : null}
     </div>
     {icon ? (
       <span
-        className="material-symbols-outlined flex h-10 w-10 items-center justify-center rounded-xl border text-[20px]"
+        className="material-symbols-outlined flex h-9 w-9 items-center justify-center rounded-[10px] border text-[18px]"
         style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-accent-soft)', color: 'var(--portal-accent)' }}
       >
         {icon}
@@ -682,12 +698,19 @@ const SectionHeader = ({ eyebrow, title, description, icon, index }) => (
 
 const StatusPill = ({ value }) => (
   <span
-    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white shadow-[0_6px_14px_rgba(15,118,110,0.25)]"
-    style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
+    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white shadow-[0_5px_12px_rgba(8,124,115,0.22)]"
+    style={{ background: 'var(--portal-accent)' }}
   >
     <span className="h-1.5 w-1.5 rounded-full bg-white/85" />
     {value || 'On Track'}
   </span>
+);
+
+const StrategyCard = ({ label, children }) => (
+  <div className={`${soft} min-h-[154px]`}>
+    <p className="text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]">{label}</p>
+    <div className="mt-2">{children}</div>
+  </div>
 );
 
 const MediaProjectDetail = () => {
@@ -707,7 +730,6 @@ const MediaProjectDetail = () => {
 
   const [project, setProject] = useState(null);
   const [notFound, setNotFound] = useState(false);
-  const [planMeta, setPlanMeta] = useState(null);
   const [plan, setPlan] = useState(emptyPlan());
   const [draft, setDraft] = useState(buildDraft(emptyPlan()));
   const [loading, setLoading] = useState(true);
@@ -759,16 +781,6 @@ const MediaProjectDetail = () => {
           const merged = mergePlan(hasPlanContent(planData) ? planData : seed, executionProfile);
           setPlan(merged);
           setDraft(buildDraft(merged));
-          // updatedBy only arrives as a populated {firstName,lastName,email,role}
-          // object once the backend has picked up the population change —
-          // treat an unpopulated raw id (a plain string) as "unknown" rather
-          // than rendering a misleading "Someone" placeholder.
-          const updatedByUser = planData.updatedBy && typeof planData.updatedBy === 'object' ? planData.updatedBy : null;
-          setPlanMeta(updatedByUser && planData.updatedAt ? {
-            name: [updatedByUser.firstName, updatedByUser.lastName].filter(Boolean).join(' ') || updatedByUser.email || 'Unknown user',
-            role: formatRole(updatedByUser.role),
-            updatedAt: planData.updatedAt,
-          } : null);
         });
       })
       .catch((err) => {
@@ -845,11 +857,6 @@ const MediaProjectDetail = () => {
       setDraft(buildDraft(saved));
       setEditing(false);
       setSaveMessage('Marketing plan saved.');
-      setPlanMeta({
-        name: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'You',
-        role: formatRole(user?.role),
-        updatedAt: new Date().toISOString(),
-      });
     } catch (err) {
       setError(err.message || 'Failed to save marketing plan.');
     } finally {
@@ -882,6 +889,10 @@ const MediaProjectDetail = () => {
   const totalCpl = calcCpl(totalMonthlyInvestment, totalLeads);
   const completedDeliverables = (editing ? draft.deliverables : plan.deliverables).filter((item) => item.done).length;
   const totalDeliverables = (editing ? draft.deliverables : plan.deliverables).length;
+  const activeWeeklyChecklist = editing ? draft.weeklyChecklist : plan.weeklyChecklist;
+  const completedWeeklyTasks = activeWeeklyChecklist.filter((item) => item.done).length;
+  const totalWeeklyTasks = activeWeeklyChecklist.length;
+  const weeklyCompletion = totalWeeklyTasks ? Math.round((completedWeeklyTasks / totalWeeklyTasks) * 100) : 0;
   const currentPlan = editing ? buildPayload(draft) : plan;
   const performanceLabels = {
     ...DEFAULT_EXECUTION_PROFILE.performanceLabels,
@@ -897,17 +908,17 @@ const MediaProjectDetail = () => {
 
   return (
     <div
-      className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef6f4_45%,#f6f8fb_100%)] text-neutral-900 dark:bg-background-dark dark:text-neutral-100"
+      className="min-h-screen w-full bg-[#F5F8F8] text-[#172323] dark:bg-[#0E1717] dark:text-[#F1F7F6]"
       style={themeVars}
     >
       <main className="portal-page">
-        <div className="portal-page-inner max-w-[1480px] space-y-4">
-          <nav className="flex items-center gap-1.5 px-1 text-[12px] font-semibold text-neutral-400 dark:text-neutral-500">
-            <button type="button" onClick={() => navigate(projectsHome)} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
+        <div className="portal-page-inner mx-auto max-w-[1440px] space-y-4 px-4 py-5 sm:px-6 lg:px-8">
+          <nav className="flex items-center gap-1.5 px-1 text-[12px] font-semibold text-[#93A0A0] dark:text-[#91A4A2]">
+            <button type="button" onClick={() => navigate(projectsHome)} className="transition-colors hover:text-[#172323] dark:hover:text-[#F1F7F6]">
               {portalLabel}
             </button>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <button type="button" onClick={() => navigate(projectsHome)} className="transition-colors hover:text-neutral-600 dark:hover:text-neutral-300">
+            <button type="button" onClick={() => navigate(projectsHome)} className="transition-colors hover:text-[#172323] dark:hover:text-[#F1F7F6]">
               Projects
             </button>
             {!notFound ? (
@@ -918,14 +929,15 @@ const MediaProjectDetail = () => {
             ) : null}
           </nav>
 
-          <header className="sticky top-0 z-30 overflow-hidden rounded-2xl border border-neutral-200 bg-white/90 shadow-[0_14px_38px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950/90">
-            <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, var(--portal-accent-strong), var(--portal-accent))' }} />
-            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-6">
+          <header className="sticky top-0 z-30 overflow-visible rounded-[16px] border border-[#DFE8E7] bg-white/92 shadow-[0_12px_30px_rgba(23,35,35,0.075)] backdrop-blur-md dark:border-[#294040] dark:bg-[#142020]/94">
+            <div className="h-[2px] w-full rounded-t-[16px]" style={{ background: 'var(--portal-accent)' }} />
+            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 md:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
                   onClick={() => navigate(projectsHome)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 shadow-sm transition-all duration-200 hover:border-teal-300 hover:text-teal-700 hover:shadow-md active:scale-95 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                  aria-label="Back to projects"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#DFE8E7] bg-white text-[#667575] shadow-sm transition-all duration-200 hover:border-[var(--portal-accent)] hover:text-[var(--portal-accent)] hover:shadow-md active:scale-95 dark:border-[#294040] dark:bg-[#192727] dark:text-[#91A4A2]"
                   title="Back to Projects"
                 >
                   <span className="material-symbols-outlined text-[20px]">arrow_back</span>
@@ -943,7 +955,7 @@ const MediaProjectDetail = () => {
                   onClick={() => logoInputRef.current?.click()}
                   disabled={logoUploading || notFound}
                   title={project?.logo?.url ? 'Change project logo' : 'Upload project logo'}
-                  className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-slate-50 shadow-sm transition-all duration-200 hover:border-teal-300 hover:shadow-md disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-900"
+                  className="group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#DFE8E7] bg-[#F5F8F8] shadow-[0_8px_18px_rgba(8,124,115,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:shadow-md disabled:opacity-60 dark:border-[#294040] dark:bg-[#192727]"
                 >
                   {project?.logo?.url ? (
                     <img src={project.logo.url} alt={`${projectName} logo`} className="h-full w-full object-cover" />
@@ -975,7 +987,8 @@ const MediaProjectDetail = () => {
                     onClick={() => setThemeMenuOpen((v) => !v)}
                     disabled={themeSaving || notFound}
                     title="Change project theme color"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 shadow-sm transition-all duration-200 hover:border-teal-300 hover:text-teal-700 hover:shadow-md active:scale-95 disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                    aria-label="Change project theme color"
+                    className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#DFE8E7] bg-white text-[#667575] shadow-sm transition-all duration-200 hover:border-[var(--portal-accent)] hover:text-[var(--portal-accent)] hover:shadow-md active:scale-95 disabled:opacity-60 dark:border-[#294040] dark:bg-[#192727] dark:text-[#91A4A2]"
                   >
                     <span className={`material-symbols-outlined text-[18px] ${themeSaving ? 'animate-spin' : ''}`} style={{ color: themeSaving ? undefined : activeAccent }}>
                       {themeSaving ? 'progress_activity' : 'palette'}
@@ -989,8 +1002,8 @@ const MediaProjectDetail = () => {
                         className="fixed inset-0 z-10 cursor-default"
                         onClick={() => setThemeMenuOpen(false)}
                       />
-                      <div className="absolute left-0 top-12 z-20 w-52 rounded-xl border border-neutral-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.16)] dark:border-neutral-800 dark:bg-neutral-900">
-                        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400">Theme color</p>
+                      <div className="absolute left-0 top-12 z-20 w-52 rounded-xl border border-[#DFE8E7] bg-white p-3 shadow-[0_16px_40px_rgba(23,35,35,0.16)] dark:border-[#294040] dark:bg-[#142020]">
+                        <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#667575] dark:text-[#91A4A2]">Theme color</p>
                         <div className="mt-2 grid grid-cols-4 gap-2">
                           {THEME_PRESETS.map((color) => (
                             <button
@@ -1006,7 +1019,7 @@ const MediaProjectDetail = () => {
                         <button
                           type="button"
                           onClick={() => themeColorInputRef.current?.click()}
-                          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-neutral-300 px-2 py-1.5 text-[12px] font-bold text-neutral-600 transition hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#DFE8E7] px-2 py-1.5 text-[12px] font-bold text-[#667575] transition hover:border-[var(--portal-accent)] hover:bg-[#F5F8F8] dark:border-[#294040] dark:text-[#91A4A2] dark:hover:bg-[#192727]"
                         >
                           <span className="material-symbols-outlined text-[15px]">colorize</span>
                           Custom color
@@ -1018,10 +1031,10 @@ const MediaProjectDetail = () => {
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate text-[22px] font-black leading-tight tracking-tight text-slate-950 dark:text-neutral-100">{projectName}</h1>
+                    <h1 className="truncate text-[22px] font-black leading-tight tracking-tight text-[#172323] dark:text-[#F1F7F6]">{projectName}</h1>
                     {!notFound ? <StatusPill value={currentPlan.overview.overallStatus} /> : null}
                   </div>
-                  <p className="mt-1 max-w-3xl text-sm leading-5 text-neutral-500 dark:text-neutral-400">{projectDescription}</p>
+                  <p className="mt-1 max-w-3xl text-sm leading-5 text-[#667575] dark:text-[#91A4A2]">{projectDescription}</p>
                   {logoError ? <p className="truncate text-[11px] font-semibold text-red-600">{logoError}</p> : null}
                   {themeError ? <p className="truncate text-[11px] font-semibold text-red-600">{themeError}</p> : null}
                 </div>
@@ -1036,7 +1049,7 @@ const MediaProjectDetail = () => {
                       type="button"
                       onClick={cancelEdit}
                       disabled={saving}
-                      className="rounded-xl border border-neutral-300 px-4 py-2 text-[13px] font-bold text-neutral-600 transition-all duration-200 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900"
+                      className="rounded-[10px] border border-[#DFE8E7] px-4 py-2 text-[13px] font-bold text-[#667575] transition-all duration-200 hover:border-[#93A0A0] hover:bg-[#F5F8F8] active:scale-[0.98] disabled:opacity-50 dark:border-[#294040] dark:text-[#91A4A2] dark:hover:bg-[#192727]"
                     >
                       Cancel
                     </button>
@@ -1044,8 +1057,8 @@ const MediaProjectDetail = () => {
                       type="button"
                       onClick={save}
                       disabled={saving}
-                      className="rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_10px_24px_rgba(15,118,110,0.35)] active:scale-[0.98] disabled:opacity-50"
-                      style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
+                      className="rounded-[10px] px-4 py-2 text-[13px] font-bold text-white shadow-[0_8px_18px_rgba(8,124,115,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_10px_22px_rgba(8,124,115,0.3)] active:scale-[0.98] disabled:opacity-50"
+                      style={{ background: 'var(--portal-accent)' }}
                     >
                       {saving ? 'Saving...' : 'Save Plan'}
                     </button>
@@ -1054,8 +1067,8 @@ const MediaProjectDetail = () => {
                   <button
                     type="button"
                     onClick={startEdit}
-                    className="rounded-xl px-4 py-2 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(15,118,110,0.28)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_10px_24px_rgba(15,118,110,0.35)] active:scale-[0.98]"
-                    style={{ background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' }}
+                    className="rounded-[10px] px-4 py-2 text-[13px] font-bold text-white shadow-[0_8px_18px_rgba(8,124,115,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_10px_22px_rgba(8,124,115,0.3)] active:scale-[0.98]"
+                    style={{ background: 'var(--portal-accent)' }}
                   >
                     Edit Plan
                   </button>
@@ -1067,7 +1080,7 @@ const MediaProjectDetail = () => {
 
           {editing && !notFound && !loading ? (
             <div
-              className="sticky top-21.5 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-[12px] font-bold shadow-sm"
+              className="sticky top-[86px] z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2 text-[12px] font-bold shadow-sm"
               style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-accent-soft)', color: 'var(--portal-accent-ink)' }}
             >
               <span className="flex items-center gap-2">
@@ -1115,7 +1128,7 @@ const MediaProjectDetail = () => {
           ) : null}
 
           {!loading && !notFound ? (
-            <div className="flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="sticky top-[92px] z-20 flex rounded-[16px] border border-[#DFE8E7] bg-white/92 p-1.5 shadow-[0_8px_22px_rgba(23,35,35,0.055)] backdrop-blur-md dark:border-[#294040] dark:bg-[#142020]/94">
               {[
                 { id: '1', label: 'Marketing Command Center', icon: 'dashboard' },
                 { id: '2', label: 'Weekly Execution', icon: 'checklist' },
@@ -1123,13 +1136,15 @@ const MediaProjectDetail = () => {
                 <button
                   key={tab.id}
                   type="button"
+                  role="tab"
+                  aria-selected={page === tab.id}
                   onClick={() => setPage(tab.id)}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold transition-all duration-200 ${
+                  className={`flex h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-[13px] font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#142020] ${
                     page === tab.id
-                      ? 'text-white shadow-[0_6px_16px_var(--portal-accent-soft)]'
-                      : 'text-neutral-500 hover:bg-slate-50 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                      ? 'text-white shadow-[0_8px_16px_rgba(8,124,115,0.22)]'
+                      : 'text-[#667575] hover:bg-[#F5F8F8] dark:text-[#91A4A2] dark:hover:bg-[#192727]'
                   }`}
-                  style={page === tab.id ? { background: 'linear-gradient(135deg, var(--portal-accent), var(--portal-accent-strong))' } : undefined}
+                  style={page === tab.id ? { background: 'var(--portal-accent)' } : undefined}
                 >
                   <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
                   <span className="hidden sm:inline">{tab.label}</span>
@@ -1140,22 +1155,22 @@ const MediaProjectDetail = () => {
           ) : null}
 
           {!loading && !notFound ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
+            <section className="rounded-[16px] border border-[#DFE8E7] bg-white p-3 shadow-[0_8px_22px_rgba(23,35,35,0.045)] dark:border-[#294040] dark:bg-[#142020]">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {commandStats.map((stat) => (
                   <div
                     key={stat.label}
-                    className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(15,23,42,0.08)] dark:border-neutral-800 dark:bg-neutral-950/40"
+                    className="group flex min-h-[76px] items-center gap-3 rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-3 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_20px_rgba(23,35,35,0.06)] dark:border-[#294040] dark:bg-[#192727] dark:hover:bg-[#1c2d2d]"
                   >
                     <span
-                      className="material-symbols-outlined flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[21px] transition-transform duration-200 group-hover:scale-105"
+                      className="material-symbols-outlined flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-[18px] transition-transform duration-200 group-hover:scale-105"
                       style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-accent)' }}
                     >
                       {stat.icon}
                     </span>
                     <div className="min-w-0">
                       <p className={fieldLabel}>{stat.label}</p>
-                      <p className="truncate text-[15px] font-black text-slate-950 dark:text-neutral-100">{stat.value}</p>
+                      <p className="truncate text-[15px] font-black text-[#172323] dark:text-[#F1F7F6]">{stat.value}</p>
                     </div>
                   </div>
                 ))}
@@ -1217,13 +1232,13 @@ const MediaProjectDetail = () => {
                     </label>
                   </div>
                 ) : (
-                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <OverviewField label="Industry" value={plan.overview.industry} />
                     <OverviewField label="Platform" value={plan.overview.platform} />
                     <OverviewField label="Target Audience" value={plan.overview.targetAudience} />
                     <OverviewField label="USP" value={plan.overview.usp} />
                     <OverviewField label="Current Phase" value={plan.overview.currentPhase} />
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950/40">
+                    <div className="min-h-[92px] rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(23,35,35,0.055)] dark:border-[#294040] dark:bg-[#192727] dark:hover:bg-[#1c2d2d]">
                       <p className={fieldLabel}>Overall Status</p>
                       <div className="mt-2"><StatusPill value={plan.overview.overallStatus} /></div>
                     </div>
@@ -1240,14 +1255,13 @@ const MediaProjectDetail = () => {
                   description="Brand, marketing, and business goals side by side for fast review."
                   icon="track_changes"
                 />
-                <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
                   {[
                     { key: 'brand', label: 'Brand Goal', draftKey: 'goalsBrand' },
                     { key: 'marketing', label: 'Marketing Goal', draftKey: 'goalsMarketing' },
                     { key: 'business', label: 'Business Goal', draftKey: 'goalsBusiness' },
                   ].map(({ key, label, draftKey }) => (
-                    <div key={key} className={soft}>
-                      <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">{label}</p>
+                    <StrategyCard key={key} label={label}>
                       <div className="mt-2">
                         {editing ? (
                           <textarea
@@ -1260,7 +1274,7 @@ const MediaProjectDetail = () => {
                           <BulletList items={plan.goals[key]} />
                         )}
                       </div>
-                    </div>
+                    </StrategyCard>
                   ))}
                 </div>
               </section>
@@ -1274,53 +1288,56 @@ const MediaProjectDetail = () => {
                   description="A compact view of when each phase is used, what the team focuses on, and the expected output."
                   icon="account_tree"
                 />
-                <div className={tableWrap}>
-                  <table className="w-full min-w-[640px] border-collapse text-sm">
-                    <thead>
-                      <tr className={tableHead}>
-                        <th className={tableTh}>Phase</th>
-                        <th className={tableTh}>When Used</th>
-                        <th className={tableTh}>Main Focus</th>
-                        <th className={tableTh}>Key Output</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(editing ? draft.framework : plan.framework).map((row, idx) => (
-                        <tr key={row.phase} className="odd:bg-slate-50/50 align-top transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
-                          <td className={`${tableTd} font-bold`} style={{ color: 'var(--portal-accent)' }}>
-                            {row.phase}
-                          </td>
-                          <td className={tableTd}>
-                            {editing ? (
-                              <input className={inputCls} value={row.whenUsed} onChange={(e) => setFrameworkField(idx, 'whenUsed', e.target.value)} />
-                            ) : (
-                              row.whenUsed || '-'
-                            )}
-                          </td>
-                          <td className={tableTd}>
-                            {editing ? (
-                              <textarea
-                                className={textareaCls}
-                                placeholder="One focus area per line"
-                                value={row.mainFocus}
-                                onChange={(e) => setFrameworkField(idx, 'mainFocus', e.target.value)}
-                              />
-                            ) : (
-                              <BulletList items={row.mainFocus} />
-                            )}
-                          </td>
-                          <td className={tableTd}>
-                            {editing ? (
-                              <input className={inputCls} value={row.keyOutput} onChange={(e) => setFrameworkField(idx, 'keyOutput', e.target.value)} />
-                            ) : (
-                              row.keyOutput || '-'
-                            )}
-                          </td>
+                {editing ? (
+                  <div className={tableWrap}>
+                    <table className="w-full min-w-[640px] border-collapse text-sm">
+                      <thead>
+                        <tr className={tableHead}>
+                          <th className={tableTh}>Phase</th>
+                          <th className={tableTh}>When Used</th>
+                          <th className={tableTh}>Main Focus</th>
+                          <th className={tableTh}>Key Output</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {draft.framework.map((row, idx) => (
+                          <tr key={row.phase} className={tableRow}>
+                            <td className={`${tableTd} font-bold`} style={{ color: 'var(--portal-accent)' }}>{row.phase}</td>
+                            <td className={tableTd}><input className={inputCls} value={row.whenUsed} onChange={(e) => setFrameworkField(idx, 'whenUsed', e.target.value)} /></td>
+                            <td className={tableTd}>
+                              <textarea className={textareaCls} placeholder="One focus area per line" value={row.mainFocus} onChange={(e) => setFrameworkField(idx, 'mainFocus', e.target.value)} />
+                            </td>
+                            <td className={tableTd}><input className={inputCls} value={row.keyOutput} onChange={(e) => setFrameworkField(idx, 'keyOutput', e.target.value)} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="relative mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    <div className="absolute left-[16.5%] right-[16.5%] top-8 hidden h-px bg-[#DFE8E7] lg:block dark:bg-[#294040]" />
+                    {plan.framework.map((row, idx) => (
+                      <div key={row.phase} className="relative rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(23,35,35,0.055)] dark:border-[#294040] dark:bg-[#192727] dark:hover:bg-[#1c2d2d]">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-black text-white shadow-sm" style={{ background: 'var(--portal-accent)' }}>
+                            {String(idx + 1).padStart(2, '0')}
+                          </span>
+                          <div>
+                            <p className="text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]">{row.phase}</p>
+                            <p className="text-[12px] font-semibold text-[#667575] dark:text-[#91A4A2]">{displayValue(row.whenUsed)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <p className={fieldLabel}>Main Focus</p>
+                          <div className="mt-2"><BulletList items={row.mainFocus} /></div>
+                        </div>
+                        <div className="mt-4 rounded-lg bg-white px-3 py-2 text-sm font-semibold leading-5 text-[#172323] dark:bg-[#142020] dark:text-[#F1F7F6]">
+                          {displayValue(row.keyOutput)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               {/* Before Campaign Starts - Required Planning */}
@@ -1332,9 +1349,9 @@ const MediaProjectDetail = () => {
                   description="Audience segments, friction points, triggers, positioning, value proposition, and channel mix."
                   icon="fact_check"
                 />
-                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <div className={soft}>
-                    <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">Target Customer</p>
+                    <p className="flex items-center gap-2 text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>groups</span>Target Customer</p>
                     <div className="mt-2">
                       {editing ? (
                         <textarea className={textareaCls} placeholder="One segment per line" value={draft.targetCustomers} onChange={(e) => setDraft((d) => ({ ...d, targetCustomers: e.target.value }))} />
@@ -1344,7 +1361,7 @@ const MediaProjectDetail = () => {
                     </div>
                   </div>
                   <div className={soft}>
-                    <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">Pain Points</p>
+                    <p className="flex items-center gap-2 text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>report</span>Pain Points</p>
                     <div className="mt-2">
                       {editing ? (
                         <textarea className={textareaCls} placeholder="One pain point per line" value={draft.painPoints} onChange={(e) => setDraft((d) => ({ ...d, painPoints: e.target.value }))} />
@@ -1354,7 +1371,7 @@ const MediaProjectDetail = () => {
                     </div>
                   </div>
                   <div className={soft}>
-                    <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">Buying Triggers</p>
+                    <p className="flex items-center gap-2 text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>bolt</span>Buying Triggers</p>
                     <div className="mt-2">
                       {editing ? (
                         <textarea className={textareaCls} placeholder="One trigger per line" value={draft.buyingTriggers} onChange={(e) => setDraft((d) => ({ ...d, buyingTriggers: e.target.value }))} />
@@ -1364,27 +1381,27 @@ const MediaProjectDetail = () => {
                     </div>
                   </div>
                   <div className={soft}>
-                    <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">Positioning</p>
+                    <p className="flex items-center gap-2 text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>explore</span>Positioning</p>
                     <div className="mt-2">
                       {editing ? (
                         <textarea className={textareaCls} placeholder="Positioning statement" value={draft.positioning} onChange={(e) => setDraft((d) => ({ ...d, positioning: e.target.value }))} />
                       ) : (
-                        <p className="text-sm leading-5 text-neutral-700 dark:text-neutral-300">{plan.planning.positioning || <span className="italic text-neutral-400">Not defined yet.</span>}</p>
+                        <p className="text-sm leading-5 text-[#172323] dark:text-[#F1F7F6]">{displayValue(plan.planning.positioning)}</p>
                       )}
                     </div>
                   </div>
                   <div className={soft}>
-                    <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">Value Proposition</p>
+                    <p className="flex items-center gap-2 text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>diamond</span>Value Proposition</p>
                     <div className="mt-2">
                       {editing ? (
                         <textarea className={textareaCls} placeholder="Value proposition statement" value={draft.valueProposition} onChange={(e) => setDraft((d) => ({ ...d, valueProposition: e.target.value }))} />
                       ) : (
-                        <p className="text-sm leading-5 text-neutral-700 dark:text-neutral-300">{plan.planning.valueProposition || <span className="italic text-neutral-400">Not defined yet.</span>}</p>
+                        <p className="text-sm leading-5 text-[#172323] dark:text-[#F1F7F6]">{displayValue(plan.planning.valueProposition)}</p>
                       )}
                     </div>
                   </div>
                   <div className={soft}>
-                    <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">Channel Plan</p>
+                    <p className="flex items-center gap-2 text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>hub</span>Channel Plan</p>
                     <div className="mt-2 space-y-3">
                       {(editing ? draft.channelPlan : plan.planning.channelPlan).map((row, idx) => (
                         <div key={row.category}>
@@ -1424,23 +1441,19 @@ const MediaProjectDetail = () => {
                       onChange={(e) => setDraft((d) => ({ ...d, funnelStages: e.target.value }))}
                     />
                   ) : plan.funnelStages.length ? (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
                       {plan.funnelStages.map((stage, idx) => (
-                        <React.Fragment key={stage}>
-                          <span
-                            className="rounded-xl border px-3 py-2 text-[13px] font-bold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                            style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-accent-soft)', color: 'var(--portal-accent-ink)' }}
-                          >
-                            {stage}
-                          </span>
-                          {idx < plan.funnelStages.length - 1 ? (
-                            <span className="material-symbols-outlined text-[18px] text-neutral-400">arrow_forward</span>
-                          ) : null}
-                        </React.Fragment>
+                        <div key={stage} className="relative rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-3 text-sm font-bold text-[#172323] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(23,35,35,0.055)] dark:border-[#294040] dark:bg-[#192727] dark:text-[#F1F7F6]">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white" style={{ background: 'var(--portal-accent)' }}>{String(idx + 1).padStart(2, '0')}</span>
+                            <span>{stage}</span>
+                          </div>
+                          {idx < plan.funnelStages.length - 1 ? <span className="material-symbols-outlined absolute -right-3 top-1/2 hidden -translate-y-1/2 text-[18px] text-[#93A0A0] xl:block">arrow_forward</span> : null}
+                        </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm italic text-neutral-400">Not defined yet.</p>
+                    <p className="text-sm"><EmptyValue /></p>
                   )}
                 </div>
               </section>
@@ -1463,8 +1476,15 @@ const MediaProjectDetail = () => {
                       onChange={(e) => setDraft((d) => ({ ...d, kpiPlan: e.target.value }))}
                     />
                   ) : (
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-1.5 sm:grid-cols-2">
-                      <BulletList items={plan.kpiPlan} />
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className={soft}>
+                        <p className="text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]">What we measure</p>
+                        <div className="mt-2"><BulletList items={plan.kpiPlan} /></div>
+                      </div>
+                      <div className={soft}>
+                        <p className="text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]">Why it matters</p>
+                        <p className="mt-2 text-sm leading-5"><EmptyValue /></p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1479,10 +1499,13 @@ const MediaProjectDetail = () => {
                   description="High-level spending themes for each stage of the media plan."
                   icon="account_balance_wallet"
                 />
-                <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
                   {(editing ? draft.budgetPlan : plan.budgetPlan).map((row, idx) => (
                     <div key={row.phase} className={soft}>
-                      <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">{row.phase}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="flex items-center gap-2 text-[13px] font-black text-[#172323] dark:text-[#F1F7F6]"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>account_balance_wallet</span>{row.phase}</p>
+                        <Badge>{row.items?.length || 0} items</Badge>
+                      </div>
                       <div className="mt-2">
                         {editing ? (
                           <textarea
@@ -1504,40 +1527,57 @@ const MediaProjectDetail = () => {
             <>
               {/* Weekly Checklist */}
               <section className={card}>
-                <SectionHeader
-                  index="01"
-                  eyebrow="Weekly Checklist"
-                  title="Execution readiness"
-                  description="Task ownership and completion status for the current marketing cycle."
-                  icon="checklist"
-                />
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[480px] border-collapse text-sm">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <SectionHeader
+                    index="01"
+                    eyebrow="Weekly Checklist"
+                    title="Execution readiness"
+                    description="Task ownership and completion status for the current marketing cycle."
+                    icon="checklist"
+                  />
+                  <div className="min-w-[180px] rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-3 dark:border-[#294040] dark:bg-[#192727]">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className={fieldLabel}>Complete</p>
+                      <p className="text-sm font-black text-[#172323] dark:text-[#F1F7F6]">{completedWeeklyTasks}/{totalWeeklyTasks}</p>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-[#DFE8E7] dark:bg-[#294040]">
+                      <div className="h-full rounded-full transition-all duration-200" style={{ width: `${weeklyCompletion}%`, background: 'var(--portal-accent)' }} />
+                    </div>
+                    <p className="mt-1 text-[11px] font-semibold text-[#667575] dark:text-[#91A4A2]">{weeklyCompletion}% complete</p>
+                  </div>
+                </div>
+                <div className={tableWrap}>
+                  <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Task</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Owner</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 text-center dark:border-neutral-800">Status</th>
+                      <tr className={tableHead}>
+                        <th className={tableTh}>Task</th>
+                        <th className={tableTh}>Owner</th>
+                        <th className={`${tableTh} text-center`}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(editing ? draft.weeklyChecklist : plan.weeklyChecklist).map((row, idx) => (
-                        <tr key={row.task} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">{row.task}</td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                      {activeWeeklyChecklist.map((row, idx) => (
+                        <tr key={row.task} className={`${tableRow} ${row.done ? 'bg-[#E7F4F2]/45 dark:bg-[#192727]' : 'bg-white dark:bg-[#142020]'}`}>
+                          <td className={`${tableTd} h-[52px] font-semibold text-[#172323] dark:text-[#F1F7F6]`}>
+                            <span className="inline-flex items-center gap-2">
+                              <span className="material-symbols-outlined text-[17px]" style={{ color: row.done ? 'var(--portal-accent)' : '#93A0A0' }}>{row.done ? 'check_circle' : 'radio_button_unchecked'}</span>
+                              {row.task}
+                            </span>
+                          </td>
+                          <td className={tableTd}>
                             {editing ? (
                               <input className={inputCls} value={row.owner} onChange={(e) => setChecklistField(idx, 'owner', e.target.value)} />
                             ) : (
-                              row.owner || '-'
+                              displayValue(row.owner, '—')
                             )}
                           </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 text-center dark:border-neutral-800">
+                          <td className={`${tableTd} text-center`}>
                             <input
                               type="checkbox"
                               checked={row.done}
                               disabled={!editing}
                               onChange={(e) => setChecklistField(idx, 'done', e.target.checked)}
-                              className="h-4 w-4"
+                              className="h-4 w-4 rounded"
                               style={{ accentColor: 'var(--portal-accent)' }}
                             />
                           </td>
@@ -1557,31 +1597,31 @@ const MediaProjectDetail = () => {
                   description="Focus area and progress notes across launch and scaling weeks."
                   icon="event_note"
                 />
-                <div className="mt-3 overflow-x-auto">
+                <div className={tableWrap}>
                   <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Week</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Focus Area</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Progress</th>
+                      <tr className={tableHead}>
+                        <th className={tableTh}>Week</th>
+                        <th className={tableTh}>Focus Area</th>
+                        <th className={tableTh}>Progress</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(editing ? draft.weeklyUpdates : plan.weeklyUpdates).map((row, idx) => (
-                        <tr key={row.week} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
-                          <td className="border-b border-neutral-100 px-3 py-2.5 font-bold dark:border-neutral-800" style={{ color: 'var(--portal-accent)' }}>{row.week}</td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                        <tr key={row.week} className={tableRow}>
+                          <td className={`${tableTd} font-black`} style={{ color: 'var(--portal-accent)' }}>{String(row.week || '').toUpperCase()}</td>
+                          <td className={tableTd}>
                             {editing ? (
                               <input className={inputCls} value={row.focusArea} onChange={(e) => setWeeklyUpdateField(idx, 'focusArea', e.target.value)} />
                             ) : (
-                              row.focusArea || '-'
+                              displayValue(row.focusArea, 'Not started')
                             )}
                           </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                          <td className={tableTd}>
                             {editing ? (
                               <input className={inputCls} placeholder="Progress notes" value={row.progress} onChange={(e) => setWeeklyUpdateField(idx, 'progress', e.target.value)} />
                             ) : (
-                              row.progress || '-'
+                              displayValue(row.progress, 'Not started')
                             )}
                           </td>
                         </tr>
@@ -1603,12 +1643,12 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[680px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Channel</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Monthly Investment (INR)</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Leads (Est.)</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">CPL (INR)</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Status</th>
+                      <tr className={tableHead}>
+                        <th className={tableTh}>Channel</th>
+                        <th className={`${tableTh} text-right`}>Monthly Investment (INR)</th>
+                        <th className={`${tableTh} text-right`}>Leads (Est.)</th>
+                        <th className={`${tableTh} text-right`}>CPL (INR)</th>
+                        <th className={tableTh}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1617,48 +1657,48 @@ const MediaProjectDetail = () => {
                         const displayCpl = row.cpl || (calculatedCpl ? formatPlainNumber(calculatedCpl) : '');
                         const displayStatus = row.status || (parseMetric(row.monthlyInvestment) ? 'Active' : 'Planned');
                         return (
-                          <tr key={row.channel} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
-                            <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.channel}</td>
-                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                          <tr key={row.channel} className={tableRow}>
+                            <td className={`${tableTd} font-semibold text-[#172323] dark:text-[#F1F7F6]`}><span className="inline-flex items-center gap-2"><span className="material-symbols-outlined text-[17px]" style={{ color: 'var(--portal-accent)' }}>campaign</span>{row.channel}</span></td>
+                            <td className={`${tableTd} text-right`}>
                               {editing ? (
                                 <input className={inputCls} value={row.monthlyInvestment} onChange={(e) => setAcquisitionField(idx, 'monthlyInvestment', e.target.value)} />
                               ) : (
-                                row.monthlyInvestment || '-'
+                                displayValue(row.monthlyInvestment)
                               )}
                             </td>
-                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                            <td className={`${tableTd} text-right`}>
                               {editing ? (
                                 <input className={inputCls} value={row.leadsEstimate} onChange={(e) => setAcquisitionField(idx, 'leadsEstimate', e.target.value)} />
                               ) : (
-                                row.leadsEstimate || '-'
+                                displayValue(row.leadsEstimate)
                               )}
                             </td>
-                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                            <td className={`${tableTd} text-right`}>
                               {editing ? (
                                 <div>
                                   <input className={inputCls} value={row.cpl} placeholder={displayCpl || 'Auto'} onChange={(e) => setAcquisitionField(idx, 'cpl', e.target.value)} />
                                   {calculatedCpl ? <p className="mt-1 text-[11px] font-semibold text-neutral-400">Auto: {formatInr(calculatedCpl)}</p> : null}
                                 </div>
                               ) : (
-                                displayCpl || '-'
+                                displayValue(displayCpl)
                               )}
                             </td>
-                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                            <td className={tableTd}>
                               {editing ? (
                                 <input className={inputCls} value={row.status} placeholder={displayStatus} onChange={(e) => setAcquisitionField(idx, 'status', e.target.value)} />
                               ) : (
-                                displayStatus || '-'
+                                <Badge tone={displayStatus === 'Active' ? 'active' : 'neutral'}>{displayStatus || 'Planned'}</Badge>
                               )}
                             </td>
                           </tr>
                         );
                       })}
-                      <tr className="font-black text-neutral-900 dark:text-neutral-100" style={{ background: 'var(--portal-accent-soft)' }}>
+                      <tr className="font-black text-[#172323] dark:text-[#F1F7F6]" style={{ background: 'var(--portal-accent-soft)' }}>
                         <td className="px-3 py-2.5">TOTAL</td>
-                        <td className="px-3 py-2.5">{formatInr(totalMonthlyInvestment) || '-'}</td>
-                        <td className="px-3 py-2.5">{formatPlainNumber(totalLeads) || '-'}</td>
-                        <td className="px-3 py-2.5">{formatInr(totalCpl) || '-'}</td>
-                        <td className="px-3 py-2.5">{totalMonthlyInvestment ? 'Budgeted' : '-'}</td>
+                        <td className="px-3 py-2.5 text-right">{displayValue(formatInr(totalMonthlyInvestment))}</td>
+                        <td className="px-3 py-2.5 text-right">{displayValue(formatPlainNumber(totalLeads))}</td>
+                        <td className="px-3 py-2.5 text-right">{displayValue(formatInr(totalCpl))}</td>
+                        <td className="px-3 py-2.5">{totalMonthlyInvestment ? <Badge tone="active">Budgeted</Badge> : <Badge>Planned</Badge>}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1677,11 +1717,11 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Stage</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Target</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Actual</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Conversion %</th>
+                      <tr className={tableHead}>
+                        <th className={tableTh}>Stage</th>
+                        <th className={`${tableTh} text-right`}>Target</th>
+                        <th className={`${tableTh} text-right`}>Actual</th>
+                        <th className={tableTh}>Conversion %</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1689,30 +1729,37 @@ const MediaProjectDetail = () => {
                         const calculatedConversion = idx > 0 ? calcConversion(row.actual, activeFunnelPerformance[idx - 1]?.actual) : '';
                         const displayConversion = row.conversionPct || calculatedConversion;
                         return (
-                          <tr key={row.stage} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
-                            <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.stage}</td>
-                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                          <tr key={row.stage} className={tableRow}>
+                            <td className={`${tableTd} font-semibold text-[#172323] dark:text-[#F1F7F6]`}>{row.stage}</td>
+                            <td className={`${tableTd} text-right`}>
                               {editing ? (
                                 <input className={inputCls} value={row.target} onChange={(e) => setFunnelPerfField(idx, 'target', e.target.value)} />
                               ) : (
-                                row.target || '-'
+                                displayValue(row.target)
                               )}
                             </td>
-                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                            <td className={`${tableTd} text-right`}>
                               {editing ? (
                                 <input className={inputCls} value={row.actual} onChange={(e) => setFunnelPerfField(idx, 'actual', e.target.value)} />
                               ) : (
-                                row.actual || '-'
+                                displayValue(row.actual)
                               )}
                             </td>
-                            <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                            <td className={tableTd}>
                               {editing ? (
                                 <div>
                                   <input className={inputCls} value={row.conversionPct} placeholder={calculatedConversion || 'Auto'} onChange={(e) => setFunnelPerfField(idx, 'conversionPct', e.target.value)} />
                                   {calculatedConversion ? <p className="mt-1 text-[11px] font-semibold text-neutral-400">Auto: {calculatedConversion}</p> : null}
                                 </div>
                               ) : (
-                                displayConversion || '-'
+                                displayConversion ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-2 w-24 rounded-full bg-[#DFE8E7] dark:bg-[#294040]">
+                                      <div className="h-full rounded-full" style={{ width: `${Math.min(parseMetric(displayConversion), 100)}%`, background: 'var(--portal-accent)' }} />
+                                    </div>
+                                    <span className="font-bold">{displayConversion}</span>
+                                  </div>
+                                ) : displayValue('')
                               )}
                             </td>
                           </tr>
@@ -1735,28 +1782,28 @@ const MediaProjectDetail = () => {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[480px] border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400 [&>th]:bg-slate-50/70 dark:[&>th]:bg-neutral-900/40">
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Content Type</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Target</th>
-                        <th className="border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">Completed</th>
+                      <tr className={tableHead}>
+                        <th className={tableTh}>Content Type</th>
+                        <th className={`${tableTh} text-right`}>Target</th>
+                        <th className={`${tableTh} text-right`}>Completed</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(editing ? draft.contentTracker : plan.contentTracker).map((row, idx) => (
-                        <tr key={row.contentType} className="odd:bg-slate-50/50 transition-colors duration-150 hover:bg-slate-50 dark:odd:bg-neutral-950/25 dark:hover:bg-neutral-800/40">
-                          <td className="border-b border-neutral-100 px-3 py-2.5 font-semibold dark:border-neutral-800">{row.contentType}</td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                        <tr key={row.contentType} className={tableRow}>
+                          <td className={`${tableTd} font-semibold text-[#172323] dark:text-[#F1F7F6]`}>{row.contentType}</td>
+                          <td className={`${tableTd} text-right`}>
                             {editing ? (
                               <input className={inputCls} value={row.target} onChange={(e) => setContentTrackerField(idx, 'target', e.target.value)} />
                             ) : (
-                              row.target || '-'
+                              displayValue(row.target)
                             )}
                           </td>
-                          <td className="border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                          <td className={`${tableTd} text-right`}>
                             {editing ? (
                               <input className={inputCls} value={row.completed} onChange={(e) => setContentTrackerField(idx, 'completed', e.target.value)} />
                             ) : (
-                              row.completed || '-'
+                              displayValue(row.completed)
                             )}
                           </td>
                         </tr>
@@ -1813,7 +1860,11 @@ const MediaProjectDetail = () => {
                   {(editing ? draft.deliverables : plan.deliverables).map((row, idx) => (
                     <label
                       key={row.label}
-                      className="flex items-center gap-2 rounded-lg border border-neutral-100 px-3 py-2 text-sm transition-colors duration-150 hover:bg-(--portal-accent-soft) dark:border-neutral-800"
+                      className={`flex min-h-[44px] items-center gap-2 rounded-[10px] border px-3 py-2 text-sm transition-all duration-200 hover:-translate-y-0.5 ${
+                        row.done
+                          ? 'border-[var(--portal-accent)] bg-[#E7F4F2] font-bold text-[#172323] dark:bg-[#192727] dark:text-[#F1F7F6]'
+                          : 'border-[#DFE8E7] bg-white text-[#667575] hover:bg-[#F5F8F8] dark:border-[#294040] dark:bg-[#142020] dark:text-[#91A4A2] dark:hover:bg-[#192727]'
+                      }`}
                     >
                       <input
                         type="checkbox"
@@ -1823,7 +1874,7 @@ const MediaProjectDetail = () => {
                         className="h-4 w-4"
                         style={{ accentColor: 'var(--portal-accent)' }}
                       />
-                      <span className="text-neutral-700 dark:text-neutral-300">{row.label}</span>
+                      <span>{row.label}</span>
                     </label>
                   ))}
                 </div>
@@ -1856,7 +1907,7 @@ const MediaProjectDetail = () => {
                           onChange={(e) => setPerformanceSnapshotField(key, e.target.value)}
                         />
                       ) : (
-                        <p className="mt-1 text-lg font-black text-neutral-900 dark:text-neutral-100">{plan.performanceSnapshot[key] || '-'}</p>
+                        <p className="mt-1 text-lg font-black text-[#172323] dark:text-[#F1F7F6]">{displayValue(plan.performanceSnapshot[key])}</p>
                       )}
                     </div>
                   ))}
@@ -1889,7 +1940,7 @@ const MediaProjectDetail = () => {
                         />
                       ) : (
                         <p className="mt-1 text-sm leading-5 text-neutral-700 dark:text-neutral-300">
-                          {plan.notes[key] || <span className="italic text-neutral-400">Not defined yet.</span>}
+                          {displayValue(plan.notes[key])}
                         </p>
                       )}
                     </div>

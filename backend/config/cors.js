@@ -13,6 +13,8 @@ const devLocalOrigins = env.IS_PRODUCTION
       "http://127.0.0.1:5174",
       "http://localhost:3000",
       "http://127.0.0.1:3000",
+      "https://superadminportal.yarrowtech.in",
+      "https://super-admin.api.yarrowtech.in"
     ];
 
 const originAllowList = Array.from(new Set([...allowedOrigins, ...devLocalOrigins]));

@@ -1152,7 +1152,7 @@ const getMediaHeadDashboard = async (query = {}) => {
   if (cached) return cached;
 
   const [projects, sales, marketing, approvals, activity, team] = await Promise.all([
-    listMediaHeadProjects({ limit: 8, sortBy: 'updatedAt', order: 'desc' }),
+    listMediaHeadProjects({ limit: 100, sortBy: 'updatedAt', order: 'desc' }),
     getSalesSummary(query),
     getMarketingSummary(query),
     listApprovals({ status: 'pending' }),

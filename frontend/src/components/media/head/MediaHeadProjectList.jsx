@@ -39,10 +39,13 @@ const MediaHeadProjectList = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
 
+  const projectQuery = { limit: 100, catalogVersion: 'matebid-v1' };
   const { data, isLoading } = useQuery({
-    queryKey: QK.mediaHead.projects({ limit: 100 }),
-    queryFn: () => departmentApi.getMediaHeadProjects(token, { limit: 100 }),
+    queryKey: QK.mediaHead.projects(projectQuery),
+    queryFn: () => departmentApi.getMediaHeadProjects(token, projectQuery, { forceRefresh: true }),
     enabled: Boolean(token),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const projectOptions = useMemo(() => buildProjectOptions(arr(data?.data?.items)), [data]);

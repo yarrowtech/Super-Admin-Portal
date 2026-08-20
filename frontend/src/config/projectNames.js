@@ -6,6 +6,12 @@ export const normalizeProjectNameKey = (value) =>
 
 export const CANONICAL_PROJECTS = Object.freeze([
   {
+    code: 'MATEBID',
+    name: 'MATEBID',
+    description: 'Digital fundraising and campaign management platform.',
+    aliases: ['MATE BID', 'MADEBID', 'MADE BID'],
+  },
+  {
     code: 'EEC',
     name: 'EdifyEight',
     description: 'EdifyEight teacher management workspace.',
@@ -44,6 +50,18 @@ export const CANONICAL_PROJECTS = Object.freeze([
     name: 'ERMS',
     description: 'ERMS project workspace.',
     aliases: ['RMS', 'ERMS Portal', 'RMS Portal'],
+  },
+  {
+    code: 'EEC_B2B',
+    name: 'EEC-B2B',
+    description: 'Yarrowtech B2B project workspace.',
+    aliases: ['EEC B2B', 'EECB2B'],
+  },
+  {
+    code: 'SMARTFARMING',
+    name: 'SMARTFARMING',
+    description: 'Yarrowtech smart farming workspace.',
+    aliases: ['SMART FARMING'],
   },
 ]);
 
@@ -137,7 +155,7 @@ export const resolveCanonicalProjects = (projects = []) => {
     });
   });
 
-  return CANONICAL_PROJECTS.map((canonical) => {
+  const canonicalResults = CANONICAL_PROJECTS.map((canonical) => {
     const match = [
       canonical.code,
       canonical.name,
@@ -169,6 +187,51 @@ export const resolveCanonicalProjects = (projects = []) => {
       endDate: match?.endDate || null,
       permissions: Array.isArray(match?.permissions) ? match.permissions : [],
       projectAssignment: match?.projectAssignment || null,
+      brandCode: match?.brandCode || null,
+      projectType: match?.projectType || 'hosted_system',
+    };
+  });
+
+  const knownKeys = new Set(
+    CANONICAL_PROJECTS.flatMap((project) => [project.code, project.name, ...(project.aliases || [])].map(normalizeProjectNameKey))
+  );
+  const additionalResults = entries
+    .filter((project) => ![project.code, project.name, ...(project.aliases || [])].map(normalizeProjectNameKey).some((key) => knownKeys.has(key)))
+    .map((project) => ({
+      ...project,
+      accessGranted: Boolean(project?.access?.canLaunch || project?.access?.canUseApi || project?.accessGranted),
+      access: {
+        ...(project.access || {}),
+        canLaunch: Boolean(project?.access?.canLaunch),
+        canUseApi: Boolean(project?.access?.canUseApi),
+        blockedReason: project?.access?.blockedReason || (project?.accessGranted ? null : 'Project not assigned or access has expired'),
+      },
+    }));
+
+  return [...canonicalResults, ...additionalResults];
+};
+
+export const applyRoleWideWorkspaceAccess = (projects = [], user = {}) => {
+  const role = String(user?.role || '').trim().toLowerCase();
+  const hasRoleWideAccess = ['admin', 'super_admin', 'superadmin', 'freelancer'].includes(role);
+  if (!hasRoleWideAccess) return projects;
+
+  return (Array.isArray(projects) ? projects : []).map((project) => {
+    const isApiWorkspace = project.code === 'EEC' || project.code === 'EFNBMMS';
+    const launchConfigured = Boolean(String(project.launchUrl || '').trim());
+    return {
+      ...project,
+      assigned: project.assigned || false,
+      accessGranted: true,
+      role,
+      status: 'active',
+      access: {
+        ...(project.access || {}),
+        canUseApi: isApiWorkspace || Boolean(project?.access?.canUseApi),
+        canLaunch: !isApiWorkspace && launchConfigured,
+        launchConfigured: isApiWorkspace || launchConfigured,
+        blockedReason: null,
+      },
     };
   });
 };

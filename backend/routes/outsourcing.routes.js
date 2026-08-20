@@ -3,6 +3,7 @@ const router = express.Router();
 const outsourcingController = require('../controllers/outsourcing/outsourcing.controller');
 const efnbmmsAdminManagementController = require('../controllers/outsourcing/efnbmmsAdminManagement.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
+const { requireWorkspaceAccess } = require('../middlewares/workspaceAccess.middleware');
 const { uploadSingle } = require('../middlewares/upload.middleware');
 const {
   validate,
@@ -35,7 +36,7 @@ router.use(authenticate);
 
 router.use(async (req, res, next) => {
   try {
-    if (req.user?.role === ROLES.ADMIN) return next();
+    if ([ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(req.user?.role)) return next();
     if ([
       ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE,
       ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE,
@@ -102,9 +103,9 @@ router.put('/preferences', outsourcingController.updateMyPreferences);
 
 // HR/Manager can view dashboard, freelancer list, create/assign jobs, manage milestones
 router.get('/dashboard', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.outsourcingDashboard);
-router.get('/efnbmms/admin-management', authorize(ROLES.ADMIN, ROLES.HR, ROLES.FREELANCER), efnbmmsAdminManagementController.listAdminManagement);
-router.get('/efnbmms/admin-management/summary', authorize(ROLES.ADMIN, ROLES.HR, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementSummary);
-router.get('/efnbmms/admin-management/:adminId', authorize(ROLES.ADMIN, ROLES.HR, ROLES.FREELANCER), efnbmmsAdminManagementController.getAdminManagementDetail);
+router.get('/efnbmms/admin-management', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER), requireWorkspaceAccess('EFNBMMS'), efnbmmsAdminManagementController.listAdminManagement);
+router.get('/efnbmms/admin-management/summary', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER), requireWorkspaceAccess('EFNBMMS'), efnbmmsAdminManagementController.getAdminManagementSummary);
+router.get('/efnbmms/admin-management/:adminId', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER), requireWorkspaceAccess('EFNBMMS'), efnbmmsAdminManagementController.getAdminManagementDetail);
 router.get('/users', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.listFreelancers);
 router.post('/jobs', authorize(ROLES.ADMIN, ROLES.HR), outsourcingCreateJobValidation, validate, outsourcingController.createJob);
 router.put('/jobs/:id/assign', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.assignJobToFreelancer);

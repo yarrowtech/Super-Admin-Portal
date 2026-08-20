@@ -1,6 +1,6 @@
 const { ROLES } = require('../config/roles');
 
-const TEMP_OPEN_ACCESS_ROLES = new Set([ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER]);
+const PRIVILEGED_ROLES = new Set([ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER]);
 
 const getProjectPermissions = (user = {}, projectCode = '') => {
   const assignments = Array.isArray(user.assignedProjects)
@@ -23,13 +23,13 @@ const requireProjectTeacherPermission = (projectCode, permission) => (req, res, 
     });
   }
 
-  if (TEMP_OPEN_ACCESS_ROLES.has(req.user.role)) return next();
+  if (PRIVILEGED_ROLES.has(req.user.role)) return next();
 
   const directPermissions = Array.isArray(req.user.permissions) ? req.user.permissions : [];
   const projectPermissions = getProjectPermissions(req.user, projectCode);
   const permissions = new Set([...directPermissions, ...projectPermissions]);
 
-  if (!permissions.has(permission)) {
+  if (!permissions.has(permission) && !permissions.has('edifyeight:*') && !permissions.has('*')) {
     return res.status(403).json({
       success: false,
       error: 'Permission denied',

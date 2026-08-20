@@ -1,4 +1,21 @@
+const WORKSPACE_ORGANIZATION = Object.freeze({
+  id: 'HOUSE_OF_MUSA',
+  code: 'HOM',
+  name: 'HOUSE OF MUSA',
+});
+
+const WORKSPACE_BRANDS = Object.freeze([
+  { id: 'MATEBID', code: 'MATEBID', name: 'MATEBID', projectCodes: ['MATEBID'] },
+  { id: 'BETTERPASS', code: 'BETTERPASS', name: 'THE BETTER PASS', projectCodes: ['BETTERPASS'] },
+  { id: 'EDIFYEIGHT', code: 'EDIFYEIGHT', name: 'EDIFYEIGHT', projectCodes: ['EEC'] },
+  { id: 'YARROWTECH', code: 'YARROWTECH', name: 'YARROWTECH', projectCodes: ['EEC_B2B', 'EFNBMMS', 'ESPORTSM', 'ERMS', 'EHC', 'SMARTFARMING'] },
+  { id: 'HIREME', code: 'HIREME', name: 'HIREME', projectCodes: [] },
+  { id: 'ARTBLOCK', code: 'ARTBLOCK', name: 'ARTBLOCK', projectCodes: [] },
+  { id: 'GREENBAR', code: 'GREENBAR', name: 'GREENBAR', projectCodes: [] },
+]);
+
 const CANONICAL_PROJECT_NAMES = Object.freeze([
+  'MATEBID',
   'EdifyEight',
   'EHC',
   'Better Pass',
@@ -9,6 +26,16 @@ const CANONICAL_PROJECT_NAMES = Object.freeze([
 
 const PROJECT_REGISTRY = [
   {
+    code: 'MATEBID',
+    name: 'MATEBID',
+    description: 'Digital fundraising and campaign management platform.',
+    launchUrl: process.env.MATEBID_PORTAL_URL || '',
+    ssoPath: '/sso-login',
+    aliases: ['MATE BID', 'MADEBID', 'MADE BID'],
+    brandCode: 'MATEBID',
+    projectType: 'hosted_system',
+  },
+  {
     code: 'EEC',
     name: 'EdifyEight',
     description: 'EdifyEight teacher management workspace.',
@@ -16,6 +43,8 @@ const PROJECT_REGISTRY = [
     ssoPath: '/sso/eec',
     aliases: ['EEC', 'EEC LMS', 'EEC Portal', 'ECC', 'EDIFIEIGHT', 'EDIGYEIGHT', 'EDIFYEIGHT'],
     teacherApi: true,
+    brandCode: 'EDIFYEIGHT',
+    projectType: 'hosted_system',
   },
   {
     code: 'EHC',
@@ -24,6 +53,8 @@ const PROJECT_REGISTRY = [
     launchUrl: process.env.EHC_PORTAL_URL || 'https://ehc.company.com',
     ssoPath: '/sso-login',
     aliases: ['EHC Portal'],
+    brandCode: 'YARROWTECH',
+    projectType: 'hosted_system',
   },
   {
     code: 'BETTERPASS',
@@ -32,6 +63,8 @@ const PROJECT_REGISTRY = [
     launchUrl: process.env.BETTER_PASS_PORTAL_URL || '',
     ssoPath: '/sso-login',
     aliases: ['THE BETTER PASS', 'BETTER PASS', 'BetterPass', 'Better Pass Portal'],
+    brandCode: 'BETTERPASS',
+    projectType: 'hosted_system',
   },
   {
     code: 'EFNBMMS',
@@ -41,6 +74,8 @@ const PROJECT_REGISTRY = [
     ssoPath: '/sso-login',
     aliases: ['EFNBMMS Admin Management', 'EFNBMMS Portal', 'EFNBMMS API'],
     apiOnly: true,
+    brandCode: 'YARROWTECH',
+    projectType: 'hosted_system',
   },
   {
     code: 'ESPORTSM',
@@ -49,6 +84,8 @@ const PROJECT_REGISTRY = [
     launchUrl: process.env.ESPORTSM_PORTAL_URL || '',
     ssoPath: '/sso-login',
     aliases: ['E Sports M', 'ESPORTS M', 'ESPORTSM Portal'],
+    brandCode: 'YARROWTECH',
+    projectType: 'hosted_system',
   },
   {
     code: 'ERMS',
@@ -57,6 +94,28 @@ const PROJECT_REGISTRY = [
     launchUrl: process.env.ERMS_PORTAL_URL || process.env.RMS_PORTAL_URL || '',
     ssoPath: '/sso-login',
     aliases: ['RMS', 'ERMS Portal', 'RMS Portal'],
+    brandCode: 'YARROWTECH',
+    projectType: 'hosted_system',
+  },
+  {
+    code: 'EEC_B2B',
+    name: 'EEC-B2B',
+    description: 'Yarrowtech B2B project workspace.',
+    launchUrl: process.env.EEC_B2B_PORTAL_URL || '',
+    ssoPath: '/sso-login',
+    aliases: ['EEC B2B', 'EECB2B'],
+    brandCode: 'YARROWTECH',
+    projectType: 'hosted_system',
+  },
+  {
+    code: 'SMARTFARMING',
+    name: 'SMARTFARMING',
+    description: 'Yarrowtech smart farming workspace.',
+    launchUrl: process.env.SMARTFARMING_PORTAL_URL || '',
+    ssoPath: '/sso-login',
+    aliases: ['SMART FARMING'],
+    brandCode: 'YARROWTECH',
+    projectType: 'hosted_system',
   },
 ];
 
@@ -212,6 +271,8 @@ const getAccessibleProjects = (user = {}) => {
       launchUrl: project.launchUrl,
       ssoPath: project.ssoPath,
       aliases: project.aliases,
+      brandCode: project.brandCode,
+      projectType: project.projectType || 'hosted_system',
       apiOnly: Boolean(project.apiOnly),
       assigned: Boolean(assignment),
       accessGranted,
@@ -285,8 +346,19 @@ const buildProjectLaunchUrl = (project = {}, token = '', options = {}) => {
 
 const isPrivilegedProjectLauncher = (user = {}) => {
   const role = String(user?.role || '').trim().toLowerCase();
-  return role === 'admin' || role === 'super_admin' || role === 'freelancer';
+  return role === 'admin' || role === 'super_admin' || role === 'superadmin' || role === 'freelancer';
 };
+
+const buildWorkspaceCatalog = () => ({
+  organization: WORKSPACE_ORGANIZATION,
+  brands: WORKSPACE_BRANDS.map((brand) => ({
+    ...brand,
+    projects: brand.projectCodes
+      .map((code) => PROJECT_REGISTRY.find((project) => project.code === code))
+      .filter(Boolean)
+      .map(({ launchUrl, ...project }) => ({ ...project, configured: Boolean(launchUrl) })),
+  })),
+});
 
 const getProjectRoleBinding = (_projectCode, user = {}) => {
   const normalizedRole = String(user?.role || '').trim().toLowerCase();
@@ -298,7 +370,10 @@ const getProjectRoleBinding = (_projectCode, user = {}) => {
 
 module.exports = {
   CANONICAL_PROJECT_NAMES,
+  WORKSPACE_ORGANIZATION,
+  WORKSPACE_BRANDS,
   PROJECT_REGISTRY,
+  buildWorkspaceCatalog,
   findProjectByCode,
   getCanonicalProject,
   isCanonicalProjectValue,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
-import { resolveCanonicalProjects } from '../../config/projectNames';
+import { applyRoleWideWorkspaceAccess, resolveCanonicalProjects } from '../../config/projectNames';
 import {
   OutsourcingCard,
   OutsourcingEmptyState,
@@ -11,6 +11,7 @@ import {
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
 import Button from '../common/Button';
+import WorkspaceHierarchy from '../shared/WorkspaceHierarchy';
 
 const hasProjectAccess = (project) =>
   Boolean(project?.access?.canUseApi || project?.accessGranted || project?.access?.canLaunch || project?.code === 'EEC');
@@ -31,15 +32,26 @@ export default function AdminProjectsPage() {
   const [launchError, setLaunchError] = useState({ code: '', message: '' });
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [catalog, setCatalog] = useState(null);
   const load = async () => {
     if (!token) return;
     setLoading(true);
     setError('');
     try {
-      const response = await outsourcingApi.getMyProjects(token);
+      const [responseResult, catalogResult] = await Promise.allSettled([
+        outsourcingApi.getMyProjects(token),
+        outsourcingApi.getWorkspaceCatalog(token),
+      ]);
+      if (responseResult.status === 'rejected') throw responseResult.reason;
+      const response = responseResult.value;
+      const catalogResponse = catalogResult.status === 'fulfilled' ? catalogResult.value : null;
       const projectsData = response?.data || {};
-      const resolvedProjects = resolveCanonicalProjects(projectsData.projects || []);
+      const resolvedProjects = applyRoleWideWorkspaceAccess(
+        resolveCanonicalProjects(projectsData.projects || []),
+        user
+      );
       setProjects(resolvedProjects);
+      setCatalog(catalogResponse?.data || null);
       setSummary({
         total: resolvedProjects.length,
         assigned: resolvedProjects.filter((project) => project.assigned).length,
@@ -63,7 +75,7 @@ export default function AdminProjectsPage() {
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, user]);
 
   const filteredProjects = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -84,9 +96,14 @@ export default function AdminProjectsPage() {
   const accessibleCount = summary.accessible ?? projects.filter((p) => hasProjectAccess(p)).length;
   const blockedCount = summary.blocked ?? projects.filter((p) => !hasProjectAccess(p)).length;
 
-  const handleLaunch = async (projectCode) => {
+  const handleLaunch = async (project) => {
+    const projectCode = project.code;
     if (projectCode === 'EFNBMMS') {
       navigate('/admin/efnbmms-admin-management');
+      return;
+    }
+    if (project?.access?.launchConfigured === false) {
+      navigate(`/admin/projects/${encodeURIComponent(projectCode)}`);
       return;
     }
     try {
@@ -128,6 +145,8 @@ export default function AdminProjectsPage() {
       </PortalHeader>
 
       {error ? <OutsourcingErrorState message={error} onRetry={load} /> : null}
+
+      <WorkspaceHierarchy catalog={catalog} loading={loading && !catalog} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KPICard title="Total" value={summary.total || projects.length || 0} subtitle="Linked projects" icon="folder_open" compact />
@@ -205,7 +224,8 @@ export default function AdminProjectsPage() {
             const isEfmbmms = project.code === 'EFNBMMS';
             const hasAccess = hasProjectAccess(project);
             const launchEnabled = !isEfmbmms && (isEec || canLaunch);
-            const actionEnabled = isEfmbmms ? hasAccess : launchEnabled;
+            const actionEnabled = hasAccess;
+            const launchConfigured = isEec || isEfmbmms || project?.access?.launchConfigured !== false;
             const blockedReason = project?.access?.blockedReason || 'Access not available';
             const displayRole = isEfmbmms ? user?.role || project.role || 'freelancer' : project.role || 'member';
             const accentClasses = [
@@ -255,11 +275,11 @@ export default function AdminProjectsPage() {
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex h-2.5 w-2.5 rounded-full ${hasAccess ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                        {canLaunch ? 'Ready to open' : isEec ? 'Open via SSO' : isEfmbmms ? 'Admin management API only' : 'Access blocked'}
+                        {canLaunch ? 'Ready to open' : isEec ? 'Open inside portal' : isEfmbmms ? 'Admin management API only' : hasAccess ? 'Access granted' : 'Access blocked'}
                       </p>
                     </div>
                     <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                      {canLaunch ? 'Open now' : isEec ? 'SSO token required' : isEfmbmms ? 'Website launch is disabled' : blockedReason}
+                      {canLaunch ? 'Open now' : isEec ? 'Teacher workspace is ready' : isEfmbmms ? 'Website launch is disabled' : hasAccess && !launchConfigured ? 'Hosted URL is not configured yet' : blockedReason}
                     </p>
                   </div>
 
@@ -277,7 +297,7 @@ export default function AdminProjectsPage() {
                     <button
                       type="button"
                       disabled={!actionEnabled || launchingProject === project.code}
-                      onClick={() => handleLaunch(project.code)}
+                      onClick={() => handleLaunch(project)}
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm transition ${
                         actionEnabled
                           ? 'bg-blue-600 text-white hover:-translate-y-0.5 hover:bg-blue-700'
@@ -293,6 +313,8 @@ export default function AdminProjectsPage() {
                           ? 'Access failed, try again'
                           : isEfmbmms
                             ? 'View API data'
+                            : hasAccess && !launchConfigured
+                              ? 'Open workspace'
                             : launchEnabled
                             ? project.code === 'EEC'
                               ? 'Open EEC'

@@ -7,6 +7,7 @@ import {
   AdminDashboardPage,
   SuperAdminControlCenterPage,
   AdminProjectsPage,
+  HostedProjectWorkspacePage,
   AdminDepartmentsPage,
   AdminSecurityPage,
   AdminSystemLogsPage,
@@ -560,6 +561,16 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/admin/projects/:projectCode"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, () => <HostedProjectWorkspacePage portal="admin" />)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/admin/efnbmms-admin-management"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
@@ -743,6 +754,7 @@ export default function AppRoutes() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<OutsourcingDashboardPage />} />
           <Route path="projects" element={<OutsourcingProjectsPage />} />
+          <Route path="projects/:projectCode" element={<HostedProjectWorkspacePage portal="outsourcing" />} />
           <Route path="efnbmms-admin-management" element={<OutsourcingEfnbmmsAdminManagementPage />} />
           <Route path="edifyeight" element={<OutsourcingEdifyEightWorkspacePage />} />
           <Route path="edifyeight-teachers" element={<OutsourcingEdifyEightTeachersPage />} />

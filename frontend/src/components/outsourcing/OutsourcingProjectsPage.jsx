@@ -2,23 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
-import { resolveCanonicalProjects } from '../../config/projectNames';
+import { applyRoleWideWorkspaceAccess, resolveCanonicalProjects } from '../../config/projectNames';
 import { OutsourcingPageHeader } from '../../features/outsourcing/components/OutsourcingUI';
+import WorkspaceHierarchy from '../shared/WorkspaceHierarchy';
 
-// Backend access logic — unchanged
-const isFreelancerUser = (user) => String(user?.role || '').trim().toLowerCase() === 'freelancer';
-
-const hasProjectAccess = (project, user) =>
+const hasProjectAccess = (project) =>
   Boolean(
-    isFreelancerUser(user) ||
     project?.access?.canUseApi ||
     project?.accessGranted ||
-    project?.access?.canLaunch ||
-    project?.code === 'EEC'
+    project?.access?.canLaunch
   );
 
-const canOpenProject = (project, user) =>
-  Boolean(project?.code !== 'EFNBMMS' && project?.code !== 'EEC' && (isFreelancerUser(user) || project?.access?.canLaunch));
+const canOpenProject = (project) =>
+  Boolean(project?.code !== 'EFNBMMS' && project?.code !== 'EEC' && project?.access?.canLaunch);
 
 const ACCENTS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#6366f1', '#ef4444'];
 
@@ -48,22 +44,30 @@ export default function OutsourcingProjectsPage() {
   const [launchError, setLaunchError] = useState({ code: '', message: '' });
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(true);
+  const [catalog, setCatalog] = useState(null);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError('');
     try {
-      const response = await outsourcingApi.getMyProjects(token);
+      const [responseResult, catalogResult] = await Promise.allSettled([
+        outsourcingApi.getMyProjects(token),
+        outsourcingApi.getWorkspaceCatalog(token),
+      ]);
+      if (responseResult.status === 'rejected') throw responseResult.reason;
+      const response = responseResult.value;
+      const catalogResponse = catalogResult.status === 'fulfilled' ? catalogResult.value : null;
       const data = response?.data || {};
-      const resolved = resolveCanonicalProjects(data.projects || []);
+      const resolved = applyRoleWideWorkspaceAccess(resolveCanonicalProjects(data.projects || []), user);
       setProjects(resolved);
+      setCatalog(catalogResponse?.data || null);
     } catch (e) {
       setError(e?.message || 'Failed to load project access hub');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, user]);
 
   const loadJobs = useCallback(async () => {
     if (!token) return;
@@ -76,11 +80,18 @@ export default function OutsourcingProjectsPage() {
         ? all
         : all.filter((j) => !j.assignedFreelancer || String(j.assignedFreelancer?._id || j.assignedFreelancer) === myId);
       setJobs(mine);
-    } catch (_) {}
+    } catch {
+      setJobs([]);
+    }
     finally { setJobsLoading(false); }
   }, [token, user]);
 
-  useEffect(() => { load(); loadJobs(); }, [load, loadJobs]);
+  useEffect(() => {
+    // These callbacks perform the initial remote synchronization for this route.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+    loadJobs();
+  }, [load, loadJobs]);
 
   const jobStats = useMemo(() => {
     const now = new Date();
@@ -95,13 +106,18 @@ export default function OutsourcingProjectsPage() {
     };
   }, [jobs]);
 
-  const handleLaunch = async (projectCode) => {
+  const handleLaunch = async (project) => {
+    const projectCode = project.code;
     if (projectCode === 'EEC') {
       navigate('/outsourcing/edifyeight');
       return;
     }
     if (projectCode === 'EFNBMMS') {
       navigate('/outsourcing/efnbmms-admin-management');
+      return;
+    }
+    if (project?.access?.launchConfigured === false) {
+      navigate(`/outsourcing/projects/${encodeURIComponent(projectCode)}`);
       return;
     }
     try {
@@ -148,6 +164,8 @@ export default function OutsourcingProjectsPage() {
         </div>
       )}
 
+      <WorkspaceHierarchy catalog={catalog} loading={loading && !catalog} />
+
       {/* Job assignment summary */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <StatCard icon="work"          label="Total Assigned"    count={jobStats.total}     accent="#6366f1" loading={jobsLoading} />
@@ -172,12 +190,13 @@ export default function OutsourcingProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {projects.map((project, index) => {
-            const canLaunch = canOpenProject(project, user);
+            const canLaunch = canOpenProject(project);
             const isEec = project.code === 'EEC';
             const isEfmbmms = project.code === 'EFNBMMS';
-            const hasAccess = hasProjectAccess(project, user);
+            const hasAccess = hasProjectAccess(project);
             const launchEnabled = !isEfmbmms && (isEec || canLaunch);
-            const actionEnabled = (isEec || isEfmbmms) ? hasAccess : launchEnabled;
+            const actionEnabled = hasAccess;
+            const launchConfigured = isEec || isEfmbmms || project?.access?.launchConfigured !== false;
             const blockedReason = project?.access?.blockedReason || 'Access not available';
             const accent = ACCENTS[index % ACCENTS.length];
             const displayRole = isEfmbmms ? user?.role || project.role || 'freelancer' : project.role || 'member';
@@ -243,7 +262,9 @@ export default function OutsourcingProjectsPage() {
                         ? 'Ready to open'
                           : isEfmbmms
                             ? 'Admin management API only'
-                            : blockedReason}
+                            : hasAccess && !launchConfigured
+                              ? 'Access granted · hosted URL not configured'
+                              : blockedReason}
                     </p>
                   </div>
 
@@ -258,7 +279,7 @@ export default function OutsourcingProjectsPage() {
                   <button
                     type="button"
                     disabled={!actionEnabled || launchingProject === project.code}
-                    onClick={() => handleLaunch(project.code)}
+                    onClick={() => handleLaunch(project)}
                     className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-70 ${
                       actionEnabled
                         ? 'text-white hover:-translate-y-0.5'
@@ -277,6 +298,8 @@ export default function OutsourcingProjectsPage() {
                           ? 'Open Workspace'
                           : isEfmbmms
                           ? 'View API data'
+                          : hasAccess && !launchConfigured
+                          ? 'Open workspace'
                           : launchEnabled
                           ? `Open ${project.code}`
                           : 'Locked'}

@@ -121,6 +121,28 @@ const DEFAULT_STRATEGY = {
 };
 
 const PROJECT_STRATEGIES = {
+  MATEBID: {
+    overview: {
+      industry: 'Digital fundraising and social impact',
+      platform: 'Digital fundraising and campaign management platform',
+      targetAudience: 'Startups, NGOs, community organizations, educational institutions, businesses, and contributors',
+      usp: 'Verified campaigns, secure contributions, transparent raising, real-time tracking, and campaign analytics',
+      currentPhase: 'Foundation / Growth / Scaling',
+      overallStatus: 'On Track',
+    },
+    goals: {
+      brand: ['Position MATEBID as a trusted digital fundraising platform connecting campaign creators and contributors through transparency, security, and impact'],
+      marketing: ['Build nationwide awareness for digital fundraising', 'Increase campaign creator and contributor registrations', 'Build partnerships with NGOs, startups, educational institutions, and CSR organizations', 'Promote transparent fundraising practices', 'Increase campaign success stories', 'Build an engaged fundraising community'],
+      business: ['Increase fundraising campaigns on the platform', 'Grow contributor registrations', 'Expand strategic partnerships', 'Increase subscription-based revenue', 'Improve long-term user retention'],
+    },
+    planning: {
+      targetCustomers: ['Startups and entrepreneurs', 'NGOs and community organizations', 'Educational institutions', 'Businesses and CSR programs', 'Financial partners', 'Individual and corporate contributors'],
+      painPoints: ['Difficulty reaching contributors', 'Limited fundraising visibility', 'Manual campaign management', 'Low donor trust and transparency', 'Limited campaign analytics', 'Poor campaign updates and payment options'],
+      buyingTriggers: ['Secure contribution platform', 'Verified campaigns', 'Transparent fundraising', 'Easy campaign creation', 'Real-time tracking', 'Reliable payment gateway'],
+      positioning: 'MATEBID is a secure digital fundraising platform connecting campaign creators and contributors through verified campaigns, transparent raising, secure payments, and real-time progress monitoring.',
+      valueProposition: 'Communities, organizations, and contributors get a transparent ecosystem that makes campaign creation, contribution, and impact tracking simple and reliable.',
+    },
+  },
   BETTERPASS: {
     overview: {
       industry: 'Travel, tourism, and local experiences',
@@ -253,6 +275,27 @@ const DEFAULT_BUDGET = {
   Scaling: ['Retargeting and lookalike campaigns', 'Partnership campaigns', 'Automation and CRO experiments'],
 };
 
+const MATEBID_PLAN = {
+  framework: [
+    { phase: 'Foundation Kit', whenUsed: 'Before Launch', mainFocus: ['Branding & platform setup', 'Digital assets', 'Tracking & analytics', 'Initial partnerships'], keyOutput: 'Platform ready for launch' },
+    { phase: 'Growth Kit', whenUsed: 'Active Marketing', mainFocus: ['Campaign acquisition', 'Digital marketing', 'Partnerships & outreach', 'CRM & follow-up'], keyOutput: 'Continuous campaign growth' },
+    { phase: 'Scaling Kit', whenUsed: 'Expansion Stage', mainFocus: ['Automation', 'Premium plans', 'Data-driven scaling', 'National expansion'], keyOutput: 'Sustainable platform growth' },
+  ],
+  channelPlan: {
+    Organic: ['Website & SEO', 'Blogs & success stories', 'LinkedIn & Facebook', 'Instagram & YouTube'],
+    Paid: ['Google Ads', 'Meta Ads', 'LinkedIn Ads', 'Display Ads', 'YouTube Ads'],
+    Direct: ['Email marketing', 'WhatsApp and SMS', 'Push notifications'],
+    Partnerships: ['NGOs & startups', 'Educational institutions', 'Community organizations', 'Financial partners', 'CSR programs'],
+  },
+  funnel: ['Awareness', 'Interest', 'Website Visit', 'Campaign Registration', 'Campaign Launch', 'Contributions', 'Retention', 'Campaign Success', 'Referral'],
+  kpis: ['Website Traffic', 'Campaign Registrations', 'Contributors Registered', 'Campaign Success Rate', 'Cost Per Lead (CPL)', 'Customer Acquisition Cost (CAC)', 'Contribution Volume', 'Revenue', 'Return on Ad Spend (ROAS)', 'Active Campaigns', 'Partner Organizations', 'User Retention'],
+  budget: {
+    Foundation: ['Branding', 'Website', 'Platform development', 'Content creation', 'CRM setup'],
+    Growth: ['Digital advertising', 'Community marketing', 'Partnership campaigns', 'Influencer outreach', 'Content marketing'],
+    Scaling: ['Referral programs', 'Premium features', 'Automation', 'Partnership expansion', 'National campaigns'],
+  },
+};
+
 const DEFAULT_EXECUTION_PROFILE = {
   weeklyChecklistTasks: WEEKLY_CHECKLIST_TASKS,
   weeklyUpdateWeeks: WEEKLY_UPDATE_WEEKS,
@@ -270,6 +313,25 @@ const DEFAULT_EXECUTION_PROFILE = {
 };
 
 const PROJECT_EXECUTION_PROFILES = {
+  MATEBID: {
+    weeklyChecklistTasks: [
+      'Website & Landing Page', 'Campaign Dashboard Setup', 'KYC & Verification Setup', 'Payment Gateway Integration',
+      'Campaign Creation Flow Setup', 'Google Analytics Setup', 'Meta Pixel Installation', 'SEO Setup',
+      'Social Media Content Plan', 'Email Marketing Setup', 'WhatsApp Automation', 'CRM Setup & Segmentation',
+      'Referral Program Setup', 'Content Calendar Planning', 'Weekly Performance Report',
+    ],
+    weeklyUpdateWeeks: [
+      { week: 'Week 1', hint: 'Branding & Platform Setup' },
+      { week: 'Week 2', hint: 'Campaign Structure & Setup' },
+      { week: 'Week 3', hint: 'Lead Generation' },
+      { week: 'Week 4', hint: 'Community & Partnerships' },
+      { week: 'Week 5', hint: 'Optimization & Analytics' },
+    ],
+    funnelPerformanceStages: ['Awareness', 'Website Visits', 'Campaign Registrations', 'Campaign Launches', 'Contributions', 'Campaign Success', 'Retention', 'Referral'],
+    contentTrackerTypes: ['Reels / Shorts', 'Social Media Posts', 'Blog Articles', 'YouTube Videos', 'Email Campaigns', 'Success Stories', 'NGO & Partner Features', 'Live Campaign Updates'],
+    deliverables: ['Website & Landing Pages', 'Campaign Dashboard', 'User Dashboard', 'Admin Dashboard', 'KYC Integration', 'Payment Gateway', 'Campaign Creation Flow', 'Milestone Tracking', 'Real-Time Reporting', 'Mobile Responsiveness', 'Email Campaigns', 'WhatsApp Templates', 'Social Media Creatives', 'Content Calendar', 'Monthly Performance Report'],
+    performanceLabels: { registrations: 'Campaign Registrations', vendorSignups: 'Contributors Registered', bookings: 'Campaign Launches', revenue: 'Contributions (INR)' },
+  },
   BETTERPASS: {
     weeklyChecklistTasks: [
       'Website & Landing Pages', 'Vendor Onboarding', 'Google Analytics Setup', 'Meta Pixel Installation',
@@ -403,6 +465,7 @@ const buildSeedPlan = (project = {}, canonical = null) => {
   };
   const name = canonical?.name || project?.name || project?.projectCode || 'Project';
   const description = project?.description || canonical?.description || '';
+  const matebidPlan = key === 'MATEBID' ? MATEBID_PLAN : null;
 
   return {
     overview: {
@@ -411,9 +474,9 @@ const buildSeedPlan = (project = {}, canonical = null) => {
       currentPhase: project?.status === 'in-progress' ? 'Growth' : strategy.overview.currentPhase,
     },
     goals: strategy.goals,
-    framework: DEFAULT_FRAMEWORK.map((row) => ({
+    framework: (matebidPlan?.framework || DEFAULT_FRAMEWORK).map((row) => ({
       phase: row.phase,
-      whenUsed: FRAMEWORK_PHASES.find((phase) => phase.phase === row.phase)?.hint || '',
+      whenUsed: row.whenUsed || FRAMEWORK_PHASES.find((phase) => phase.phase === row.phase)?.hint || '',
       mainFocus: row.mainFocus,
       keyOutput: row.keyOutput,
     })),
@@ -422,12 +485,12 @@ const buildSeedPlan = (project = {}, canonical = null) => {
       positioning: strategy.planning.positioning.replace('digital solution', name),
       channelPlan: CHANNEL_CATEGORIES.map((category) => ({
         category,
-        channels: DEFAULT_CHANNEL_PLAN[category] || [],
+        channels: matebidPlan?.channelPlan?.[category] || DEFAULT_CHANNEL_PLAN[category] || [],
       })),
     },
-    funnelStages: DEFAULT_FUNNEL,
-    kpiPlan: DEFAULT_KPIS,
-    budgetPlan: BUDGET_PHASES.map((phase) => ({ phase, items: DEFAULT_BUDGET[phase] || [] })),
+    funnelStages: matebidPlan?.funnel || DEFAULT_FUNNEL,
+    kpiPlan: matebidPlan?.kpis || DEFAULT_KPIS,
+    budgetPlan: BUDGET_PHASES.map((phase) => ({ phase, items: matebidPlan?.budget?.[phase] || DEFAULT_BUDGET[phase] || [] })),
     priorityMatrix: {
       high: ['Complete tracking setup', 'Publish landing pages', 'Launch first acquisition campaign'],
       medium: ['Build weekly content calendar', 'Create retargeting audiences', 'Prepare partner outreach list'],

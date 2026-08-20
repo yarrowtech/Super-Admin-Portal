@@ -21,6 +21,7 @@ export const CommunicationPage = lazy(() => import('../components/hr/pages/Commu
 export const AdminDashboardPage          = lazy(() => import('../components/admin/AdminDashboardEnterprise'));
 export const SuperAdminControlCenterPage = lazy(() => import('../components/admin/SuperAdminDashboard'));
 export const AdminProjectsPage           = lazy(() => import('../components/admin/AdminProjectsPage'));
+export const HostedProjectWorkspacePage  = lazy(() => import('../components/shared/HostedProjectWorkspacePage'));
 export const AdminDepartmentsPage        = lazy(() => import('../components/admin/DepartmentsOverview'));
 export const AdminSecurityPage           = lazy(() => import('../components/admin/SecurityMonitoring'));
 export const AdminSystemLogsPage         = lazy(() => import('../components/admin/SystemLogsPage'));

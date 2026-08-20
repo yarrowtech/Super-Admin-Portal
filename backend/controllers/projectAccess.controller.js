@@ -12,6 +12,7 @@ const {
   buildProjectLaunchUrl,
   isPrivilegedProjectLauncher,
   normalizeProjectKey,
+  buildWorkspaceCatalog,
 } = require('../utils/projectAccess');
 
 const writeProjectAccessActivity = async (req, action, targetId, metadata = {}) => {
@@ -65,6 +66,8 @@ const buildProjectEnvelope = (project, user) => {
     launchUrl: project.launchUrl,
     ssoPath: project.ssoPath,
     apiOnly: Boolean(project.apiOnly),
+    brandCode: project.brandCode || null,
+    projectType: project.projectType || 'hosted_system',
     assigned: project.assigned,
     accessGranted: project.accessGranted,
     role: project.role,
@@ -86,6 +89,33 @@ const buildProjectEnvelope = (project, user) => {
         : project.accessGranted ? null : 'Project not assigned or access has expired',
     },
   };
+};
+
+const getWorkspaceCatalog = async (req, res) => {
+  try {
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ success: false, error: 'User not found' });
+    const catalog = buildWorkspaceCatalog();
+    const accessByCode = new Map(
+      getAccessibleProjects(user).map((project) => [normalizeProjectKey(project.code), buildProjectEnvelope(project, user)])
+    );
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...catalog,
+        brands: catalog.brands.map((brand) => ({
+          ...brand,
+          projects: brand.projects.map((project) => ({
+            ...project,
+            ...(accessByCode.get(normalizeProjectKey(project.code)) || {}),
+          })),
+        })),
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get workspace catalog error');
+    return res.status(500).json({ success: false, error: 'Failed to load workspace catalog' });
+  }
 };
 
 const getMyProjects = async (req, res) => {
@@ -337,6 +367,7 @@ const verifyProjectAccessToken = async (req, res) => {
 
 module.exports = {
   getMyProjects,
+  getWorkspaceCatalog,
   getProjectPermissions,
   getProjectRoles,
   generateProjectAccessToken,

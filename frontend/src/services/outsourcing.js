@@ -129,6 +129,7 @@ export const outsourcingApi = {
   getUsers: async (token) => apiClient.get('/api/outsourcing/users', token, { ttlMs: ttl.slow }),
   getMyProfile: async (token) => apiClient.get('/api/outsourcing/profile', token, { ttlMs: ttl.medium }),
   getMyWorkspace: async (token) => apiClient.get('/api/outsourcing/workspace/me', token, { ttlMs: ttl.fast }),
+  getWorkspaceCatalog: async (token) => apiClient.get('/api/workspace', token, { ttlMs: ttl.slow }),
   updateMyProfile: async (token, payload) => apiClient.put('/api/outsourcing/profile', payload, token),
   uploadProfileDocument: async (token, file, docType) => {
     const form = new FormData();

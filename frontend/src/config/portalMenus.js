@@ -24,6 +24,7 @@ export const portalMenuConfig = {
     { label: 'My Profile', icon: 'person',        path: '/employee/profile',   description: 'Profile and personal data' },
     { label: 'Projects',   icon: 'folder_open',  path: '/employee/projects',  description: 'My projects and work logs' },
     { label: 'Tasks',      icon: 'task',          path: '/employee/tasks',     description: 'Assigned tasks' },
+    { label: 'Attendance', icon: 'schedule',      path: '/employee/attendance', description: 'Daily check-in and work hours' },
     { label: 'Jobs',       icon: 'work_outline',  path: '/employee/jobs',      description: 'Browse open positions and apply' },
     { label: 'Leave',      icon: 'event_note',    path: '/employee/leave',     description: 'Leave requests and status' },
     { label: 'Documents',  icon: 'receipt_long',  path: '/employee/documents', description: 'Payslips and documents' },
@@ -64,8 +65,20 @@ export const portalMenuConfig = {
   ],
 };
 
-export const resolvePortalMenu = (role) => {
+const employeeDepartmentWorkspace = (user) => {
+  const role = String(user?.role || '').toLowerCase();
+  if (role.startsWith('it_')) return { label: 'IT Workspace', icon: 'memory', path: '/it/dashboard', description: 'Department systems and support' };
+  if (role.startsWith('law_')) return { label: 'Law Workspace', icon: 'gavel', path: '/law/dashboard', description: 'Department legal operations' };
+  if (role.startsWith('finance_')) return { label: 'Finance Workspace', icon: 'account_balance', path: '/finance/dashboard', description: 'Department finance operations' };
+  if (role.startsWith('media_')) return { label: 'Media Workspace', icon: 'campaign', path: '/media/dashboard', description: 'Department media operations' };
+  return null;
+};
+
+export const resolvePortalMenu = (role, user = null) => {
   const normalizedRole = String(role || '').toLowerCase();
-  if (normalizedRole === 'employee') return portalMenuConfig.user;
+  if (normalizedRole === 'employee') {
+    const departmentItem = employeeDepartmentWorkspace(user);
+    return departmentItem ? [...portalMenuConfig.user, departmentItem] : portalMenuConfig.user;
+  }
   return portalMenuConfig[normalizedRole] || portalMenuConfig.user;
 };

@@ -19,8 +19,10 @@ export const MEDIA_PORTAL_ROLES = ['media_head', 'media_sales', 'media_marketing
 export const LAW_PORTAL_ROLES = ['law_head', 'law_employee'];
 export const EMPLOYEE_PORTAL_ROLES = [
   'employee',
+  'it_employee',
   'finance_employee',
   'law_employee',
+  'media_marketing',
 ];
 
 const baseRoleAccess = {
@@ -31,7 +33,7 @@ const baseRoleAccess = {
   hr: [PORTALS.HR],
   it_manager: [PORTALS.MANAGER],
   it_admin: [PORTALS.IT],
-  it_employee: [PORTALS.IT],
+  it_employee: [PORTALS.IT, PORTALS.EMPLOYEE],
   it_hr: [PORTALS.HR],
   finance_manager: [PORTALS.FINANCE],
   finance_employee: [PORTALS.FINANCE, PORTALS.EMPLOYEE],
@@ -39,7 +41,7 @@ const baseRoleAccess = {
   law_employee: [PORTALS.LAW, PORTALS.EMPLOYEE],
   media_head: [PORTALS.MEDIA],
   media_sales: [PORTALS.MEDIA],
-  media_marketing: [PORTALS.MEDIA],
+  media_marketing: [PORTALS.MEDIA, PORTALS.EMPLOYEE],
   employee: [PORTALS.EMPLOYEE],
 };
 

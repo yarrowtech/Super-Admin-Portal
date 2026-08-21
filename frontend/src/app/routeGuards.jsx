@@ -49,7 +49,7 @@ export const defaultRolePath = (user) => {
     case 'it_admin':
       return '/it/dashboard';
     case 'it_employee':
-      return '/it/dashboard';
+      return '/employee/dashboard';
     case 'finance_employee':
     case 'law_employee':
     case 'employee':
@@ -61,7 +61,7 @@ export const defaultRolePath = (user) => {
     case 'finance_manager':
       return '/finance/dashboard';
     case 'media_marketing':
-      return '/media/dashboard';
+      return '/employee/dashboard';
     case 'media_head':
       return '/media/head/dashboard';
     case 'media_sales':

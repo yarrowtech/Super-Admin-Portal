@@ -96,6 +96,15 @@ import {
   OutsourcingEfnbmmsAdminManagementPage,
   OutsourcingEdifyEightWorkspacePage,
   OutsourcingEdifyEightTeachersPage,
+  EmployeeDashboardPage,
+  EmployeeTasksPage,
+  EmployeeProjectsPage,
+  EmployeeAttendancePage,
+  EmployeeLeavePage,
+  EmployeeTeamPage,
+  EmployeeDocumentsPage,
+  EmployeeProfileRoute,
+  EmployeeChatPage,
 } from '../pages';
 import {
   AdminLayout,
@@ -105,6 +114,7 @@ import {
   ITLayout,
   LawLayout,
   OutsourcingLayout,
+  EmployeeLayout,
 } from '../layouts/portals';
 import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
@@ -114,7 +124,7 @@ import { emitFrontendEvent } from '../utils/logger';
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
 const managerRoles = ['manager', 'it_manager', ...adminRoles];
-const employeeRoles = ['employee', 'finance_employee', 'law_employee', ...adminRoles];
+const employeeRoles = ['employee', 'it_employee', 'finance_employee', 'law_employee', 'media_marketing', ...adminRoles];
 
 const PortalRoute = ({ portal, children }) => {
   const { user, token, loading } = useAuth();
@@ -324,22 +334,24 @@ export default function AppRoutes() {
           element={
             <PortalRoute portal={PORTALS.EMPLOYEE}>
               <PrivateRoute roles={employeeRoles}>
-                <ProjectOverviewPage portalKey="employee" portalName="Employee Portal" />
+                <EmployeeLayout />
               </PrivateRoute>
             </PortalRoute>
           }
-        />
-        <Route
-          path="/employee/dashboard"
-          element={
-            <PortalRoute portal={PORTALS.EMPLOYEE}>
-              <PrivateRoute roles={employeeRoles}>
-                <ProjectOverviewPage portalKey="employee" portalName="Employee Portal" />
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route path="/employee/projects" element={<Navigate to="/employee/dashboard" replace />} />
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<EmployeeDashboardPage />} />
+          <Route path="project-overview" element={<ProjectOverviewPage portalKey="employee" portalName="Employee Portal" />} />
+          <Route path="projects" element={<EmployeeProjectsPage />} />
+          <Route path="tasks" element={<EmployeeTasksPage />} />
+          <Route path="attendance" element={<EmployeeAttendancePage />} />
+          <Route path="leave" element={<EmployeeLeavePage />} />
+          <Route path="documents" element={<EmployeeDocumentsPage />} />
+          <Route path="team" element={<EmployeeTeamPage />} />
+          <Route path="profile" element={<EmployeeProfileRoute />} />
+          <Route path="chat" element={<EmployeeChatPage />} />
+          <Route path="jobs" element={<EmployeeProjectsPage />} />
+        </Route>
 
         <Route
           path="/law"

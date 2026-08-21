@@ -5,3 +5,4 @@ export { default as HRLayout } from '../components/hr/HRPortal';
 export { default as ITLayout } from '../components/it/ITPortal';
 export { default as LawLayout } from '../components/law/LawPortal';
 export { default as OutsourcingLayout } from '../components/outsourcing/OutsourcingPortal';
+export { default as EmployeeLayout } from '../components/employee/EmployeePortal';

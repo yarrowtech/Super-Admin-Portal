@@ -15,7 +15,13 @@ const DEFAULT_IT_MANAGER_PORTALS = new Set(['manager']);
 const DEFAULT_IT_EMPLOYEE_PORTALS = new Set(['it']);
 const DEFAULT_IT_HR_PORTALS = new Set(['hr']);
 const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);
-const DEFAULT_EMPLOYEE_PORTAL_ROLES = new Set(['employee', 'finance_employee', 'law_employee']);
+const DEFAULT_EMPLOYEE_PORTAL_ROLES = new Set([
+  'employee',
+  'it_employee',
+  'finance_employee',
+  'law_employee',
+  'media_marketing',
+]);
 
 // Department-scoped roles no longer share a literal string with their portal
 // (e.g. role 'it_manager' vs portal 'it'), unlike the old flat roles. This maps

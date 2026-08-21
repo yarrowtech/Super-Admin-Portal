@@ -63,6 +63,17 @@ export const MediaHeadDashboardPage = lazy(() => import('../components/media/hea
 export const MediaHeadProjectDetailPage = lazy(() => import('../components/media/head/MediaHeadProjectDetail'));
 export const ProjectOverviewPage = lazy(() => import('../components/shared/ProjectOverviewPage'));
 
+// Employee portal
+export const EmployeeDashboardPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeDashboardPage })));
+export const EmployeeTasksPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeTasksPage })));
+export const EmployeeProjectsPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeProjectsPage })));
+export const EmployeeAttendancePage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeAttendancePage })));
+export const EmployeeLeavePage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeLeavePage })));
+export const EmployeeTeamPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeTeamPage })));
+export const EmployeeDocumentsPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeDocumentsPage })));
+export const EmployeeProfileRoute = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeProfileRoute })));
+export const EmployeeChatPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeChatPage })));
+
 // ── Department portals ────────────────────────────────────────────────────────
 export const SalesDashboardPage    = lazy(() => import('../components/media/MediaSalesPortal'));
 export const SalesQueryPage        = lazy(() => import('../components/media/SalesQueryPage'));

@@ -21,24 +21,6 @@ import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
 import Button from '../common/Button';
 
-const moduleCards = [
-  { title: 'User Management', description: 'Accounts, roles, permissions, status controls, and exports.', icon: 'group', route: '/admin/users', tone: 'blue', status: 'Live' },
-  { title: 'Departments', description: 'Portal access, routing, and module operations.', icon: 'corporate_fare', route: '/admin/departments', tone: 'green', status: 'Live' },
-  { title: 'Security', description: 'Security policy, account risk, login controls, and sessions.', icon: 'security', route: '/admin/security', tone: 'red', status: 'Review' },
-  { title: 'Reports', description: 'Operational analytics, exports, and business intelligence.', icon: 'bar_chart', route: '/admin/reports', tone: 'purple', status: 'Live' },
-  { title: 'Control Center', description: 'Project allocation, workspace access, and governance.', icon: 'admin_panel_settings', route: '/admin/control-center', tone: 'orange', status: 'Live' },
-  { title: 'Workflows', description: 'Workflow rules and process automation.', icon: 'account_tree', route: '/admin/workflows', tone: 'indigo', status: 'Configured' },
-];
-
-const toneClasses = {
-  blue: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20',
-  green: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20',
-  red: 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20',
-  purple: 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:border-violet-500/20',
-  indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20',
-  orange: 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
-};
-
 const roleLabels = {
   admin: 'Admin',
   ceo: 'CEO',
@@ -69,7 +51,6 @@ const AdminDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
   const [period, setPeriod] = useState('30d');
 
   useEffect(() => {
@@ -110,21 +91,12 @@ const AdminDashboard = () => {
       employeeCount: dashboardData?.workforce?.employees || 0,
       managerCount: dashboardData?.workforce?.managers || 0,
       outsourcingOpenJobs: dashboardData?.workforce?.externalWorkload?.openJobs || 0,
-      recentLoginCount: dashboardData?.summary?.recentLoginCount || 0,
     };
   }, [dashboardData]);
-
-  const filteredModules = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return moduleCards;
-    return moduleCards.filter((item) => `${item.title} ${item.description} ${item.status}`.toLowerCase().includes(q));
-  }, [searchQuery]);
 
   const usersByRole = dashboardData?.usersByRole || [];
   const departmentStats = dashboardData?.departmentStats || [];
   const recentUsers = dashboardData?.users?.recent || [];
-  const largestRole = dashboardData?.insights?.largestRole;
-  const topDepartment = dashboardData?.insights?.topDepartment;
   const maxRoleCount = Math.max(...usersByRole.map((item) => item.count), 1);
   const maxDeptCount = Math.max(...departmentStats.map((item) => item.count), 1);
 
@@ -218,11 +190,8 @@ const AdminDashboard = () => {
           subtitle="Executive platform overview"
           user={user}
           icon="dashboard"
-          showSearch
           showNotifications
           showThemeToggle
-          onSearchChange={(e) => setSearchQuery(e.target.value)}
-          searchPlaceholder="Search admin modules..."
         >
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             {['7d', '30d', '90d'].map((item) => (
@@ -255,8 +224,8 @@ const AdminDashboard = () => {
           <KPICard title="Outsourcing Open Jobs" value={metrics.outsourcingOpenJobs} icon="work" compact />
         </section>
 
-        <section className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-2 lg:p-5">
+        <section className="mb-4">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase text-primary">Executive Focus</p>
@@ -327,27 +296,6 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Executive Snapshot</h2>
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-300">Largest Role</span>
-                <span className="max-w-36 truncate text-sm font-bold capitalize text-neutral-900 dark:text-neutral-100">{roleLabels[largestRole?._id] || largestRole?._id || 'N/A'}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-300">Top Department</span>
-                <span className="max-w-36 truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{topDepartment?._id || 'N/A'}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-300">Recent Logins</span>
-                <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{metrics.recentLoginCount}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-300">Generated</span>
-                <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{formatDate(dashboardData?.summary?.generatedAt)}</span>
-              </div>
-            </div>
-          </aside>
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -475,29 +423,6 @@ const AdminDashboard = () => {
           </aside>
         </section>
 
-        <section className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
-          {filteredModules.map((item) => (
-            <button
-              key={item.title}
-              type="button"
-              onClick={() => navigate(item.route)}
-              className="group min-h-[140px] rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-neutral-800 dark:bg-neutral-900 lg:p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${toneClasses[item.tone]}`}>
-                  <span className="material-symbols-outlined text-2xl">{item.icon}</span>
-                </div>
-                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{item.status}</span>
-              </div>
-              <h3 className="mt-4 text-lg font-bold text-neutral-900 dark:text-neutral-100">{item.title}</h3>
-              <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-400">{item.description}</p>
-              <div className="mt-4 flex items-center text-sm font-bold text-primary">
-                Open module
-                <span className="material-symbols-outlined ml-1 text-lg transition-transform group-hover:translate-x-1">arrow_forward</span>
-              </div>
-            </button>
-          ))}
-        </section>
       </div>
     </main>
   );

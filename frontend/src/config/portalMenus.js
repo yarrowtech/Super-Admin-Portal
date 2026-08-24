@@ -21,7 +21,6 @@ export const portalMenuConfig = {
   user: [
     { label: 'Dashboard', icon: 'dashboard',     path: '/employee/dashboard', description: 'Personal workspace' },
     { label: 'Project Overview', icon: 'folder_copy', path: '/employee/project-overview', description: 'Read-only project plan visibility' },
-    { label: 'My Profile', icon: 'person',        path: '/employee/profile',   description: 'Profile and personal data' },
     { label: 'Projects',   icon: 'folder_open',  path: '/employee/projects',  description: 'My projects and work logs' },
     { label: 'Tasks',      icon: 'task',          path: '/employee/tasks',     description: 'Assigned tasks' },
     { label: 'Attendance', icon: 'schedule',      path: '/employee/attendance', description: 'Daily check-in and work hours' },

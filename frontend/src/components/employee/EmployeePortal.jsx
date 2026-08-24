@@ -27,6 +27,9 @@ const EmployeePortal = () => {
         navItems={navItems}
         currentPath={location.pathname}
         onLogout={handleLogout}
+        footerItems={[
+          { path: '/employee/profile', label: 'Settings', icon: 'settings' },
+        ]}
       />
     </aside>
   );

@@ -50,9 +50,12 @@ const roleWorkflows = {
   },
   [ROLES.IT_EMPLOYEE]: {
     role: ROLES.IT_EMPLOYEE,
-    dashboardEndpoint: '/api/dept/it/dashboard',
+    dashboardEndpoint: '/api/employee/dashboard',
     modules: [
-      { key: 'tickets', endpoint: '/api/dept/it/module/tickets' },
+      { key: 'tasks', endpoint: '/api/employee/tasks' },
+      { key: 'attendance', endpoint: '/api/dept/employee/attendance' },
+      { key: 'leave', endpoint: '/api/dept/employee/leave' },
+      { key: 'it_workspace', endpoint: '/api/dept/it/dashboard' },
     ],
   },
   [ROLES.IT_HR]: {

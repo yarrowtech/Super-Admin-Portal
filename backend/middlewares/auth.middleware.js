@@ -20,7 +20,6 @@ const DEFAULT_EMPLOYEE_PORTAL_ROLES = new Set([
   'it_employee',
   'finance_employee',
   'law_employee',
-  'media_marketing',
 ]);
 
 // Department-scoped roles no longer share a literal string with their portal

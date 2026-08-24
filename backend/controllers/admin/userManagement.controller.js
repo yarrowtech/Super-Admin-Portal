@@ -4,6 +4,7 @@ const User = require('../../models/auth/User');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const logService = require('../../services/log.service');
 const { ROLES } = require('../../config/roles');
+const { getDepartmentForRole } = require('../../utils/roleAllocation');
 
 const USER_ACCOUNT_STATUSES = ['active', 'inactive', 'suspended', 'blocked', 'pending_verification'];
 
@@ -393,7 +394,7 @@ exports.createUser = async (req, res) => {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: phone?.trim(),
-      department: department?.trim(),
+      department: getDepartmentForRole(role, department),
       isActive: selectedStatus === 'active',
       accountStatus: selectedStatus,
       permissions: selectedPermissions,
@@ -492,7 +493,8 @@ exports.updateUser = async (req, res) => {
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
     if (phone) user.phone = phone.trim();
-    if (department) user.department = department.trim();
+    if (role) user.department = getDepartmentForRole(role, department || user.department);
+    else if (department) user.department = department.trim();
     if (accountStatus !== undefined) {
       if (!USER_ACCOUNT_STATUSES.includes(accountStatus)) {
         return res.status(400).json({

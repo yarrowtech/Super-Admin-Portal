@@ -73,6 +73,12 @@ export const EmployeeTeamPage = lazy(() => import('../components/employee/Employ
 export const EmployeeDocumentsPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeDocumentsPage })));
 export const EmployeeProfileRoute = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeProfileRoute })));
 export const EmployeeChatPage = lazy(() => import('../components/employee/EmployeeWorkspacePages').then(m => ({ default: m.EmployeeChatPage })));
+export const ManagerDashboardPage = lazy(() => import('../components/manager/ManagerWorkspacePages').then(m => ({ default: m.ManagerDashboardPage })));
+export const ManagerTeamPage = lazy(() => import('../components/manager/ManagerWorkspacePages').then(m => ({ default: m.ManagerTeamPage })));
+export const ManagerProjectsPage = lazy(() => import('../components/manager/ManagerWorkspacePages').then(m => ({ default: m.ManagerProjectsPage })));
+export const ManagerTasksPage = lazy(() => import('../components/manager/ManagerWorkspacePages').then(m => ({ default: m.ManagerTasksPage })));
+export const ManagerWorkReviewsPage = lazy(() => import('../components/manager/ManagerWorkspacePages').then(m => ({ default: m.ManagerWorkReviewsPage })));
+export const ManagerLeavePage = lazy(() => import('../components/manager/ManagerWorkspacePages').then(m => ({ default: m.ManagerLeavePage })));
 
 // ── Department portals ────────────────────────────────────────────────────────
 export const SalesDashboardPage    = lazy(() => import('../components/media/MediaSalesPortal'));

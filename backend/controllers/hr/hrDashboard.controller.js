@@ -28,6 +28,7 @@ const PolicyAcknowledgement = require('../../models/hr/EmployeeRecord');
 const SupportTicket = require('../../models/common/Notification');
 const ExitInterview = require('../../models/hr/EmployeeRecord');
 const { ROLES } = require('../../config/roles');
+const { getDepartmentForRole } = require('../../utils/roleAllocation');
 const { getCache, setCache } = require('../../services/cache.service');
 const { evaluateAttendanceRecord } = require('../../utils/shiftRules');
 const {
@@ -1921,7 +1922,7 @@ exports.createEmployee = async (req, res) => {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: phone?.trim(),
-      department: department?.trim(),
+      department: getDepartmentForRole(normalizedRole, department),
       accountStatus: selectedStatus,
       isActive: selectedStatus === 'active',
       permissions: selectedPermissions,
@@ -1996,7 +1997,8 @@ exports.updateEmployee = async (req, res) => {
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
     if (phone !== undefined) user.phone = phone?.trim();
-    if (department !== undefined) user.department = department?.trim();
+    if (role) user.department = getDepartmentForRole(user.role, department || user.department);
+    else if (department !== undefined) user.department = department?.trim();
     if (accountStatus !== undefined) {
       if (!HR_ACCOUNT_STATUSES.includes(accountStatus)) {
         return res.status(400).json({

@@ -67,6 +67,7 @@ export const portalMenuConfig = {
 
 const employeeDepartmentWorkspace = (user) => {
   const role = String(user?.role || '').toLowerCase();
+  if (role === 'it_employee') return null;
   if (role.startsWith('it_')) return { label: 'IT Workspace', icon: 'memory', path: '/it/dashboard', description: 'Department systems and support' };
   if (role.startsWith('law_')) return { label: 'Law Workspace', icon: 'gavel', path: '/law/dashboard', description: 'Department legal operations' };
   if (role.startsWith('finance_')) return { label: 'Finance Workspace', icon: 'account_balance', path: '/finance/dashboard', description: 'Department finance operations' };

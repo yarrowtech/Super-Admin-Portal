@@ -26,7 +26,7 @@ const isStrictProjectName = (value) => Boolean(getStrictProject(value));
 const MANAGER_ROLES = [ROLES.IT_MANAGER, 'manager'];
 const EMPLOYEE_ROLES = [ROLES.IT_EMPLOYEE, 'employee'];
 const hasGlobalManagerAccess = (user) =>
-  [...MANAGER_ROLES, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(user?.role);
+  [ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(user?.role);
 const shouldScopeByDepartment = (user) => Boolean(user?.department) && !hasGlobalManagerAccess(user);
 
 const sanitizeQueryValue = (value) => {

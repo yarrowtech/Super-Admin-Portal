@@ -10,6 +10,7 @@ const { ROLES } = require('../config/roles');
 router.use(authenticate);
 router.use(authorize(
   'employee',
+  ROLES.IT_EMPLOYEE,
   ROLES.FINANCE_EMPLOYEE,
   ROLES.LAW_EMPLOYEE,
   ROLES.ADMIN,

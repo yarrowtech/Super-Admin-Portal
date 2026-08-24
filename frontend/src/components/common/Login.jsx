@@ -38,7 +38,7 @@ const defaultRolePath = (role, userMeta = {}, department = '') => {
     case 'it_admin':
       return '/it/dashboard';
     case 'it_employee':
-      return '/it/dashboard';
+      return '/employee/dashboard';
     case 'finance_employee':
     case 'law_employee':
     case 'employee':

@@ -38,6 +38,7 @@ const ensureSuperAdminDefaults = async () => {
     { role: 'it_manager', portal: 'manager', canAccess: true },
     { role: 'it_admin', portal: 'it', canAccess: true },
     { role: 'it_employee', portal: 'it', canAccess: true },
+    { role: 'it_employee', portal: 'employee', canAccess: true },
     { role: 'it_hr', portal: 'hr', canAccess: true },
     // Finance department
     { role: 'finance_manager', portal: 'finance', canAccess: true },
@@ -72,7 +73,6 @@ const ensureSuperAdminDefaults = async () => {
     { role: 'it_manager', portal: 'admin' },
     { role: 'it_manager', portal: 'hr' },
     { role: 'it_manager', portal: 'law' },
-    { role: 'it_employee', portal: 'employee' },
     { role: 'it_hr', portal: 'it' },
   ];
 
@@ -83,6 +83,14 @@ const ensureSuperAdminDefaults = async () => {
         { $set: { canAccess: false } }
       )
     )
+  );
+
+  // Canonical role allocation: an IT employee owns the employee workspace and
+  // may also enter the IT department workspace. Repair legacy false records.
+  await PortalAccess.updateOne(
+    { role: 'it_employee', portal: 'employee' },
+    { $set: { canAccess: true } },
+    { upsert: true }
   );
 
   if (controlCount === 0) {

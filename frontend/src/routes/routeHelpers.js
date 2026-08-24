@@ -36,7 +36,7 @@ export const getDefaultRoute = (user) => {
     it: '/it/dashboard',
     it_manager: '/manager/dashboard',
     it_admin: '/it/dashboard',
-    it_employee: '/it/dashboard',
+    it_employee: '/employee/dashboard',
     it_hr: '/hr/dashboard',
     law: '/law/dashboard',
     law_employee: '/employee/dashboard',

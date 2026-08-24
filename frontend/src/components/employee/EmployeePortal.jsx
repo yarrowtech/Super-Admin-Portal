@@ -12,8 +12,6 @@ const EmployeePortal = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const navItems = useMemo(() => resolvePortalMenu('employee', user), [user]);
-  const department = user?.department || 'Company';
-
   const handleLogout = async () => {
     await logout();
     navigate('/login', { replace: true });
@@ -23,7 +21,7 @@ const EmployeePortal = () => {
     <aside className={`fixed left-0 top-0 z-[1000] hidden h-screen md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
       <PortalSidebar
         brandingTitle="Employee Portal"
-        brandingSubtitle={`${department} workspace`}
+        brandingSubtitle="Employee workspace"
         brandingIcon="badge"
         user={user}
         navItems={navItems}
@@ -37,7 +35,7 @@ const EmployeePortal = () => {
     <AppLayout
       sidebar={sidebar}
       title="Employee Portal"
-      subtitle={`${department} department workspace`}
+      subtitle="Employee workspace"
       mobileIcon="badge"
       mobileItems={navItems}
       user={user}

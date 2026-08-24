@@ -105,6 +105,12 @@ import {
   EmployeeDocumentsPage,
   EmployeeProfileRoute,
   EmployeeChatPage,
+  ManagerDashboardPage,
+  ManagerTeamPage,
+  ManagerProjectsPage,
+  ManagerTasksPage,
+  ManagerWorkReviewsPage,
+  ManagerLeavePage,
 } from '../pages';
 import {
   AdminLayout,
@@ -115,6 +121,7 @@ import {
   LawLayout,
   OutsourcingLayout,
   EmployeeLayout,
+  ManagerLayout,
 } from '../layouts/portals';
 import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
@@ -124,7 +131,7 @@ import { emitFrontendEvent } from '../utils/logger';
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
 const managerRoles = ['manager', 'it_manager', ...adminRoles];
-const employeeRoles = ['employee', 'it_employee', 'finance_employee', 'law_employee', 'media_marketing', ...adminRoles];
+const employeeRoles = ['employee', 'it_employee', 'finance_employee', 'law_employee', ...adminRoles];
 
 const PortalRoute = ({ portal, children }) => {
   const { user, token, loading } = useAuth();
@@ -304,31 +311,20 @@ export default function AppRoutes() {
           element={
             <PortalRoute portal={PORTALS.MANAGER}>
               <PrivateRoute roles={managerRoles}>
-                <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />
+                <ManagerLayout />
               </PrivateRoute>
             </PortalRoute>
           }
-        />
-        <Route
-          path="/manager/dashboard"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={managerRoles}>
-                <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
-        <Route
-          path="/manager/project-overview"
-          element={
-            <PortalRoute portal={PORTALS.MANAGER}>
-              <PrivateRoute roles={managerRoles}>
-                <ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />
-              </PrivateRoute>
-            </PortalRoute>
-          }
-        />
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<ManagerDashboardPage />} />
+          <Route path="projects" element={<ManagerProjectsPage />} />
+          <Route path="team" element={<ManagerTeamPage />} />
+          <Route path="tasks" element={<ManagerTasksPage />} />
+          <Route path="work-reviews" element={<ManagerWorkReviewsPage />} />
+          <Route path="leave" element={<ManagerLeavePage />} />
+          <Route path="project-overview" element={<ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />} />
+        </Route>
         <Route
           path="/employee"
           element={

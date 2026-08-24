@@ -254,7 +254,7 @@ const buildManagerSnapshot = async (manager = {}) => {
   const managerId =
     toObjectId(manager._id) || toObjectId(manager.id) || toObjectId(manager?.userId);
   const department = manager.department || manager.metadata?.department || null;
-  const scopedDepartment = [ROLES.IT_MANAGER, 'manager', ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(manager.role)
+  const scopedDepartment = [ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(manager.role)
     ? null
     : department;
   const projectFilter = managerId ? { projectManager: managerId } : {};
@@ -297,7 +297,9 @@ const buildManagerSnapshot = async (manager = {}) => {
       .select('title status dueDate progress priority project')
       .populate('project', 'name')
       .lean(),
-    User.find(scopedDepartment ? { role: 'employee', department: scopedDepartment } : { role: 'employee' })
+    User.find(scopedDepartment
+      ? { role: { $in: [ROLES.IT_EMPLOYEE, 'employee'] }, department: scopedDepartment }
+      : { role: { $in: [ROLES.IT_EMPLOYEE, 'employee'] } })
       .sort({ firstName: 1 })
       .limit(12)
       .select('firstName lastName email department lastLogin isActive role')

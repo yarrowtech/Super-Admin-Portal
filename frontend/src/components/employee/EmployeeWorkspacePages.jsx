@@ -12,6 +12,7 @@ const humanize = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/
 
 const departmentWorkspace = (user) => {
   const role = String(user?.role || '').toLowerCase();
+  if (role === 'it_employee') return null;
   if (role.startsWith('it_')) return { label: 'Open IT workspace', path: '/it/dashboard', icon: 'memory' };
   if (role.startsWith('law_')) return { label: 'Open Law workspace', path: '/law/dashboard', icon: 'gavel' };
   if (role.startsWith('finance_')) return { label: 'Open Finance workspace', path: '/finance/dashboard', icon: 'account_balance' };

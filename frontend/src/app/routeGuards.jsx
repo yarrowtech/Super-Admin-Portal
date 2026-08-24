@@ -61,7 +61,7 @@ export const defaultRolePath = (user) => {
     case 'finance_manager':
       return '/finance/dashboard';
     case 'media_marketing':
-      return '/employee/dashboard';
+      return '/media/dashboard';
     case 'media_head':
       return '/media/head/dashboard';
     case 'media_sales':

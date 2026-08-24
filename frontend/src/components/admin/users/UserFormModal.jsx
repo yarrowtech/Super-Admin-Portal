@@ -20,6 +20,13 @@ const roles = [
 ];
 
 const departmentSuggestions = ['IT', 'Human Resources', 'Finance', 'Media', 'Law', 'Executive', 'Outsourcing'];
+const roleDepartments = {
+  admin: 'Administration', ceo: 'Executive', hr: 'Human Resources',
+  it_manager: 'IT', it_admin: 'IT', it_employee: 'IT', it_hr: 'IT',
+  finance_manager: 'Finance', finance_employee: 'Finance',
+  media_head: 'Media', media_sales: 'Media', media_marketing: 'Media',
+  law_head: 'Law', law_employee: 'Law', freelancer: 'Outsourcing',
+};
 const statusOptions = [
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
@@ -219,7 +226,7 @@ const UserFormModal = ({
               <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
                 <div className={fieldClass}>
                   <label className={labelClass}>Department</label>
-                  <select value={form.department || ''} onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))} className={inputClass}>
+                  <select value={form.department || ''} disabled={Boolean(roleDepartments[form.role])} onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-70`}>
                     <option value="">Select department</option>
                     {resolvedDepartments.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
                   </select>
@@ -227,7 +234,7 @@ const UserFormModal = ({
                 </div>
                 <div className={fieldClass}>
                   <label className={labelClass}>System Role <span className="text-red-500">*</span></label>
-                  <select required value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} className={inputClass}>
+                  <select required value={form.role} onChange={(e) => { const role = e.target.value; setForm((prev) => ({ ...prev, role, department: roleDepartments[role] || prev.department })); }} className={inputClass}>
                     <option value="" disabled>
                       Select role
                     </option>

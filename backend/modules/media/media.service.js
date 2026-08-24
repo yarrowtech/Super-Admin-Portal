@@ -7,7 +7,7 @@ const Project = require('../../models/common/Project');
 const User = require('../../models/auth/User');
 const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
 const ActivityLog = require('../../models/auth/ActivityLog');
-const { getCache, setCache } = require('../../services/cache.service');
+const { deleteCachePrefix, getCache, setCache } = require('../../services/cache.service');
 const { createApprovalRequest, decideApprovalRequest } = require('../../services/approvalEngine.service');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
 const { notifyApprovalPending } = require('../../services/notificationTrigger.service');
@@ -784,6 +784,18 @@ const ownerLabel = (person) => {
 const formatRole = (role = '') =>
   String(role).split('_').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Unknown role';
 
+const formatApprovalEntityLabel = (workflow = {}) => {
+  const value = String(workflow.entityType || 'media').trim();
+  return formatRole(value.replace(/-/g, '_'));
+};
+
+const formatApprovalRequester = (requester) => {
+  if (!requester || typeof requester !== 'object') return 'Unknown requester';
+  return [requester.firstName, requester.lastName].filter(Boolean).join(' ') || requester.email || 'Unknown requester';
+};
+
+const invalidateMediaHeadDashboardCache = () => deleteCachePrefix('media:head:dashboard:');
+
 const getTeamOverview = async () => {
   const filter = buildAllowedProjectFilter();
   const projects = await Project.find(filter)
@@ -1405,6 +1417,8 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps
     });
   }
 
+  await invalidateMediaHeadDashboardCache();
+
   return workflow;
 };
 
@@ -1418,16 +1432,31 @@ const listApprovals = async (query = {}) => {
     .populate('requestedBy', 'firstName lastName email')
     .lean();
 
-  const mediaIds = workflows.map((w) => w.entityId).filter(Boolean);
+  const mediaIds = workflows.map((w) => w.entityId).filter((id) => mongoose.isValidObjectId(id));
   const mediaRecords = await Media.find({ _id: { $in: mediaIds } })
     .select('title section projectId')
     .lean();
   const mediaById = new Map(mediaRecords.map((record) => [String(record._id), record]));
 
-  return workflows.map((workflow) => ({
-    ...workflow,
-    media: mediaById.get(String(workflow.entityId)) || null,
-  }));
+  return workflows.map((workflow) => {
+    const media = mediaById.get(String(workflow.entityId)) || null;
+    const pendingStep = Array.isArray(workflow.steps)
+      ? workflow.steps.find((step) => step.status === 'pending')
+      : null;
+    const title = media?.title || `${formatApprovalEntityLabel(workflow)} approval`;
+    const section = media?.section || workflow.entityType || 'media';
+
+    return {
+      ...workflow,
+      media,
+      display: {
+        title,
+        section,
+        requester: formatApprovalRequester(workflow.requestedBy),
+        pendingRole: pendingStep?.role || '',
+      },
+    };
+  });
 };
 
 const decideMediaApproval = async ({ workflowId, actorId, actorRole, decision, remarks }) => {
@@ -1468,6 +1497,8 @@ const decideMediaApproval = async ({ workflowId, actorId, actorRole, decision, r
     metadata: { decision, remarks, status: workflow.status },
   });
 
+  await invalidateMediaHeadDashboardCache();
+
   return workflow;
 };
 
@@ -1478,7 +1509,7 @@ const getActivity = async () => {
     .populate('requestedBy', 'firstName lastName')
     .lean();
 
-  const mediaIds = workflows.map((w) => w.entityId).filter(Boolean);
+  const mediaIds = workflows.map((w) => w.entityId).filter((id) => mongoose.isValidObjectId(id));
   const mediaRecords = await Media.find({ _id: { $in: mediaIds } })
     .select('title section')
     .lean();

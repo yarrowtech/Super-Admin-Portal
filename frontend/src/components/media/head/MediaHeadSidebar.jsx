@@ -26,13 +26,6 @@ const menuGroups = [
     ],
   },
   {
-    label: 'Performance',
-    items: [
-      { key: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
-      { key: 'revenue', label: 'Revenue', icon: 'payments' },
-    ],
-  },
-  {
     label: 'Control',
     items: [
       { key: 'approvals', label: 'Approvals', icon: 'fact_check' },

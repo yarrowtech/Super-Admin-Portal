@@ -92,6 +92,8 @@ import {
   HRSupportPage,
   AdminSupportCenterPage,
   AdminSettingsPage,
+  AdminPortfolioPage,
+  PortfolioViewerPage,
   OutsourcingProjectsPage,
   OutsourcingEfnbmmsAdminManagementPage,
   OutsourcingEdifyEightWorkspacePage,
@@ -741,6 +743,16 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/admin/digital-portfolio"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminPortfolioPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/admin/settings"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
@@ -819,6 +831,17 @@ export default function AppRoutes() {
                 {withPortal(AdminLayout, AdminSalesSubmissionsPage)}
               </PrivateRoute>
             </PortalRoute>
+          }
+        />
+
+        {/* Digital Portfolios — read-only, any authenticated user across every portal.
+            Admin-only CRUD lives at /admin/digital-portfolio. */}
+        <Route
+          path="/portfolios"
+          element={
+            <PrivateRoute>
+              <PortfolioViewerPage />
+            </PrivateRoute>
           }
         />
 

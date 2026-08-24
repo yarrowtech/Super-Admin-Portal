@@ -228,7 +228,7 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
   const campaigns = useMemo(() => arr(campaignsQuery.data?.data?.campaigns), [campaignsQuery.data]);
   const content = useMemo(() => arr(contentQuery.data?.data?.items), [contentQuery.data]);
   const brandAssets = useMemo(() => arr(brandAssetsQuery.data?.data?.items), [brandAssetsQuery.data]);
-  const approvals = useMemo(() => arr(approvalsQuery.data?.data?.items), [approvalsQuery.data]);
+  const approvals = useMemo(() => arr(approvalsQuery.data?.data?.items || approvalsQuery.data?.data), [approvalsQuery.data]);
   const reporting = reportingQuery.data?.data || null;
 
   const dataQueries = [dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery, approvalsQuery, reportingQuery];

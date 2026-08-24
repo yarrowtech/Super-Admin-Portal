@@ -9,8 +9,6 @@ const MediaHeadProjectList = lazy(() => import('./MediaHeadProjectList'));
 const MediaHeadProjectOverview = lazy(() => import('./MediaHeadProjectOverview'));
 const MediaHeadTeamAnalytics = lazy(() => import('./MediaHeadTeamAnalytics'));
 const MediaHeadDeadlineCenter = lazy(() => import('./MediaHeadDeadlineCenter'));
-const MediaHeadCampaignPerformance = lazy(() => import('./MediaHeadCampaignPerformance'));
-const MediaHeadRevenue = lazy(() => import('./MediaHeadRevenue'));
 const MediaHeadApprovalCenter = lazy(() => import('./MediaHeadApprovalCenter'));
 const MediaHeadActivityFeed = lazy(() => import('./MediaHeadActivityFeed'));
 const MediaHeadSettingsPage = lazy(() => import('../../shared/PortalSettingsPage').then((m) => ({ default: () => <m.default portalLabel="Media Head" accentColor="#0f766e" /> })));
@@ -31,8 +29,6 @@ const mediaHeadMobileItems = [
   { key: 'overview', label: 'Overview', icon: 'table_view' },
   { key: 'team-analytics', label: 'Team Analytics', icon: 'insights' },
   { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
-  { key: 'campaigns', label: 'Campaigns', icon: 'ads_click' },
-  { key: 'revenue', label: 'Revenue', icon: 'payments' },
   { key: 'approvals', label: 'Approvals', icon: 'fact_check' },
   { key: 'activity', label: 'Activity', icon: 'history' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
@@ -63,10 +59,6 @@ const MediaHeadPortal = () => {
         return <MediaHeadTeamAnalytics />;
       case 'deadlines':
         return <MediaHeadDeadlineCenter />;
-      case 'campaigns':
-        return <MediaHeadCampaignPerformance />;
-      case 'revenue':
-        return <MediaHeadRevenue />;
       case 'approvals':
         return <MediaHeadApprovalCenter />;
       case 'activity':

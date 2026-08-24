@@ -177,44 +177,6 @@ const CREATIVE_DETAILS = {
   video: ['Video Production', 'Manage scripts, edits, cuts, review files, and publishing status.', 'videoType', 'Video types'],
   social: ['Social Desk', 'Plan posts, attach creatives, and capture platform performance.', 'platform', 'Platforms'],
 };
-const CREATIVE_WORKFLOWS = {
-  assets: [
-    ['Intake', 'Upload source file, assign owner, tag usage.'],
-    ['Organize', 'Attach category, rights, and project context.'],
-    ['Approve', 'Request approval before final use.'],
-    ['Publish', 'Use approved files in campaigns and reports.'],
-  ],
-  brand: [
-    ['Guideline', 'Define brand area, notes, and source asset.'],
-    ['Compliance', 'Check logo, type, colors, and usage rules.'],
-    ['Approve', 'Lock approved versions for reuse.'],
-    ['Distribute', 'Share final templates and reference files.'],
-  ],
-  content: [
-    ['Brief', 'Capture type, channel, target, and owner.'],
-    ['Draft', 'Write, attach files, and update status.'],
-    ['Review', 'Move through approval and revisions.'],
-    ['Publish', 'Mark scheduled, live, or published.'],
-  ],
-  design: [
-    ['Request', 'Capture format, size, owner, and brief.'],
-    ['Production', 'Attach work files and revision notes.'],
-    ['Review', 'Track approval and requested changes.'],
-    ['Delivery', 'Store final creative for campaign use.'],
-  ],
-  video: [
-    ['Script', 'Define type, duration, ratio, and owner.'],
-    ['Edit', 'Attach cuts, thumbnails, and review files.'],
-    ['Approve', 'Route edits through approval.'],
-    ['Publish', 'Mark scheduled, live, or archived.'],
-  ],
-  social: [
-    ['Plan', 'Set platform, caption, owner, and asset.'],
-    ['Schedule', 'Track status and publish timing.'],
-    ['Review', 'Approve creative and caption together.'],
-    ['Measure', 'Update reach and engagement.'],
-  ],
-};
 const EXPORT_OPTIONS = ['PDF', 'Excel', 'CSV', 'PPT'];
 const COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#ec4899'];
 
@@ -270,11 +232,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [draft, setDraft] = useState({
     title: '',
     description: '',
-    status: 'Draft',
-    priority: 'Medium',
     category: '',
     projectName: '',
-    ownerName: '',
     domainFields: {},
   });
   const effectiveProjectId = selectedProjectId !== undefined ? selectedProjectId : activeProjectId;
@@ -635,12 +594,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       const payload = {
         title: draft.title.trim(),
         description: draft.description.trim(),
-        status: draft.status.trim() || 'Draft',
-        priority: draft.priority.trim() || 'Medium',
         category: draft.category.trim(),
-        tags: draft.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
         projectName: draft.projectName.trim(),
-        ownerName: draft.ownerName.trim(),
         section: moduleType,
         moduleType,
         projectId: effectiveProjectId || undefined,
@@ -1030,7 +985,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const rows = filterRecords(records);
     const config = getSectionAction(section);
     const details = CREATIVE_DETAILS[section] || (META[section] || [config?.label || 'Records', 'Manage records for this section.']);
-    const workflow = CREATIVE_WORKFLOWS[section] || [];
     const approvedCount = records.filter((item) => ['approved', 'live', 'published'].some((status) => getRecordStatus(item).includes(status))).length;
     const inReviewCount = records.filter((item) => ['pending', 'review'].some((status) => getRecordStatus(item).includes(status))).length;
     const attachedCount = records.filter((item) => item?.storageUrl || item?.thumbnailUrl).length;
@@ -1039,15 +993,18 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const metadataCount = metadataKey
       ? new Set(records.map((item) => String(item?.metadata?.[metadataKey] || item?.category || '').trim()).filter(Boolean)).size
       : 0;
-    const ownerCount = new Set(records.map((item) => String(item?.ownerName || '').trim()).filter(Boolean)).size;
     const recentCount = records.filter((item) => {
       const updatedAt = item?.updatedAt ? new Date(item.updatedAt).getTime() : 0;
       return updatedAt && Date.now() - updatedAt <= 1000 * 60 * 60 * 24 * 7;
     }).length;
     const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
-    const recentRecords = [...records]
-      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
-      .slice(0, 3);
+    const metricItems = [
+      ['Total', records.length, 'inventory_2'],
+      ['In Review', inReviewCount, 'pending_actions'],
+      ['Approved/Live', approvedCount, 'verified'],
+      ['Files', attachedCount, 'attach_file'],
+      [metadataLabel, metadataCount, 'category'],
+    ];
 
     return (
       <div className="space-y-4">
@@ -1077,15 +1034,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
-            {[
-              ['Total', records.length, 'inventory_2'],
-              ['In Review', inReviewCount, 'pending_actions'],
-              ['Approved/Live', approvedCount, 'verified'],
-              ['Files', attachedCount, 'attach_file'],
-              [metadataLabel, metadataCount, 'category'],
-              ['Owners', ownerCount, 'groups'],
-            ].map(([label, value, icon]) => (
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {metricItems.map(([label, value, icon]) => (
               <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
@@ -1103,85 +1053,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           </section>
         ) : null}
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Production Workflow</h3>
-              <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">A consistent path from intake to publish.</p>
-            </div>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-              {workflow.length} steps
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-            {workflow.map(([title, detail], index) => (
-              <div key={title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-black text-white">{index + 1}</span>
-                <p className="mt-4 text-sm font-black text-slate-950 dark:text-neutral-100">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-neutral-400">{detail}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {recentRecords.length ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-400">Recent Work</h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Latest records updated in this workspace.</p>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
-              {recentRecords.map((record) => (
-                <article key={resolveRecordId(record) || record.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-slate-950 dark:text-neutral-100">{record.title}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500 dark:text-neutral-400">{record.ownerName || record.projectName || config?.label || 'Creative record'}</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone(record.status)}`}>
-                      {record.status || 'Draft'}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-neutral-400">
-                    <span>{record.updatedAt ? new Date(record.updatedAt).toLocaleDateString() : 'No date'}</span>
-                    <button
-                      type="button"
-                      disabled={actionBusy}
-                      onClick={() => openEditor('edit', section, record)}
-                      className="rounded-full border border-teal-200 bg-white px-3 py-1 font-semibold text-teal-700 transition hover:bg-teal-50 disabled:opacity-50 dark:border-teal-900/60 dark:bg-neutral-900 dark:text-teal-300 dark:hover:bg-teal-500/10"
-                    >
-                      Open
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
         {renderTable(records, columns, emptyTitle, emptyMessage, {
           rowActions: (item) => renderRowActions(section, item),
-          emptyAccessory: (
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm font-black text-slate-950 dark:text-neutral-100">Start this workspace</p>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Create the first record with owner, project, status, metadata, and file attachment.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openEditor('create', section)}
-                  disabled={actionBusy || !effectiveProjectId}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  {config?.create || 'Create record'}
-                </button>
-              </div>
-            </section>
-          ),
         })}
       </div>
     );
@@ -1281,7 +1154,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'title', label: 'Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || item.moduleType || 'Asset'}</p></div> },
       { key: 'assetType', label: 'Type', render: (item) => item?.metadata?.assetType || item.category || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'version', label: 'Version', render: (item) => item?.version?.current || 'v1.0' },
       { key: 'file', label: 'File', render: renderFileCell },
@@ -1291,7 +1163,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'contentType', label: 'Type', render: (item) => item?.metadata?.contentType || item.category || '-' },
       { key: 'channel', label: 'Channel', render: (item) => item?.metadata?.channel || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
@@ -1300,7 +1171,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'title', label: 'Brand Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Brand guide'}</p></div> },
       { key: 'brandArea', label: 'Area', render: (item) => item?.metadata?.brandArea || item.category || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
@@ -1310,7 +1180,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'format', label: 'Format', render: (item) => item?.metadata?.format || item.category || '-' },
       { key: 'dimensions', label: 'Size', render: (item) => item?.metadata?.dimensions || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
@@ -1320,7 +1189,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'videoType', label: 'Type', render: (item) => item?.metadata?.videoType || item.category || '-' },
       { key: 'durationSeconds', label: 'Duration', render: (item) => item?.metadata?.durationSeconds ? `${item.metadata.durationSeconds}s` : '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
@@ -1329,7 +1197,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'title', label: 'Social Post', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Social post'}</p></div> },
       { key: 'platform', label: 'Platform', render: (item) => item?.metadata?.platform || item.category || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'ownerName', label: 'Owner' },
       { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
       { key: 'reach', label: 'Reach', render: (item) => num(item?.metadata?.reach || item?.analytics?.reach).toLocaleString() },
       { key: 'engagement', label: 'Engagement', render: (item) => num(item?.metadata?.engagement || item?.analytics?.engagement).toLocaleString() },
@@ -1421,32 +1288,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                       <textarea rows={4} value={draft.description} onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))} className={textareaClass} placeholder="Brief, placement, target audience, notes, or approval context" />
                     </label>
                     <label className="space-y-2">
-                      <span className={labelClass}>Status</span>
-                      <select value={draft.status} onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))} className={fieldClass}>
-                        {['Draft', 'Pending', 'In Review', 'Approved', 'Scheduled', 'Live', 'Published', 'Needs Revision', 'Rejected', 'Archived'].map((option) => (
-                          <option className="text-slate-950" key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="space-y-2">
-                      <span className={labelClass}>Priority</span>
-                      <select value={draft.priority} onChange={(e) => setDraft((prev) => ({ ...prev, priority: e.target.value }))} className={fieldClass}>
-                        {['Low', 'Medium', 'High', 'Critical'].map((option) => (
-                          <option className="text-slate-950" key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="space-y-2">
-                      <span className={labelClass}>Owner</span>
-                      <input value={draft.ownerName} onChange={(e) => setDraft((prev) => ({ ...prev, ownerName: e.target.value }))} className={fieldClass} placeholder="Owner name" />
-                    </label>
-                    <label className="space-y-2">
                       <span className={labelClass}>Category</span>
                       <input value={draft.category} onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))} className={fieldClass} placeholder="Category or type" />
-                    </label>
-                    <label className="space-y-2 md:col-span-2">
-                      <span className={labelClass}>Tags</span>
-                      <input value={draft.tags} onChange={(e) => setDraft((prev) => ({ ...prev, tags: e.target.value }))} className={fieldClass} placeholder="Comma separated tags" />
                     </label>
                   </div>
                 </section>

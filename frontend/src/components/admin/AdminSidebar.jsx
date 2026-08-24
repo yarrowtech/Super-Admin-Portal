@@ -68,6 +68,12 @@ const navItems = [
     description: 'Project allocation and access'
   },
   {
+    label: 'Digital Portfolios',
+    icon: 'work',
+    path: '/admin/digital-portfolio',
+    description: 'Manage project portfolios & pillars'
+  },
+  {
     label: 'Reports',
     icon: 'bar_chart',
     path: '/admin/reports',

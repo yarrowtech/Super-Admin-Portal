@@ -1,0 +1,48 @@
+import { apiClient } from './client';
+
+const buildUrl = (path, params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    query.append(key, value);
+  });
+  const queryString = query.toString();
+  return queryString ? `${path}?${queryString}` : path;
+};
+
+export const portfolioApi = {
+  list: (token, params = {}) => apiClient.get(buildUrl('/api/portfolios', params), token, { cache: false }),
+  getProjects: (token) => apiClient.get('/api/portfolios/projects', token, { cache: false }),
+  getById: (token, id) => apiClient.get(`/api/portfolios/${id}`, token, { cache: false }),
+  getOverview: (token, id) => apiClient.get(`/api/portfolios/${id}/overview`, token, { cache: false }),
+
+  create: (token, body) => apiClient.post('/api/portfolios', body, token),
+  update: (token, id, body) => apiClient.put(`/api/portfolios/${id}`, body, token),
+  remove: (token, id) => apiClient.delete(`/api/portfolios/${id}`, token),
+
+  addSection: (token, id, body) => apiClient.post(`/api/portfolios/${id}/sections`, body, token),
+  updateSection: (token, id, sectionId, body) =>
+    apiClient.put(`/api/portfolios/${id}/sections/${sectionId}`, body, token),
+  removeSection: (token, id, sectionId) =>
+    apiClient.delete(`/api/portfolios/${id}/sections/${sectionId}`, token),
+
+  addItem: (token, id, sectionId, body) =>
+    apiClient.post(`/api/portfolios/${id}/sections/${sectionId}/items`, body, token),
+  updateItem: (token, id, sectionId, itemId, body) =>
+    apiClient.put(`/api/portfolios/${id}/sections/${sectionId}/items/${itemId}`, body, token),
+  removeItem: (token, id, sectionId, itemId) =>
+    apiClient.delete(`/api/portfolios/${id}/sections/${sectionId}/items/${itemId}`, token),
+
+  addPlaybookSlide: (token, id, body) => apiClient.post(`/api/portfolios/${id}/playbook/slides`, body, token),
+  updatePlaybookSlide: (token, id, slideId, body) =>
+    apiClient.put(`/api/portfolios/${id}/playbook/slides/${slideId}`, body, token),
+  removePlaybookSlide: (token, id, slideId) =>
+    apiClient.delete(`/api/portfolios/${id}/playbook/slides/${slideId}`, token),
+
+  addPlaybookBlock: (token, id, slideId, body) =>
+    apiClient.post(`/api/portfolios/${id}/playbook/slides/${slideId}/blocks`, body, token),
+  updatePlaybookBlock: (token, id, slideId, blockId, body) =>
+    apiClient.put(`/api/portfolios/${id}/playbook/slides/${slideId}/blocks/${blockId}`, body, token),
+  removePlaybookBlock: (token, id, slideId, blockId) =>
+    apiClient.delete(`/api/portfolios/${id}/playbook/slides/${slideId}/blocks/${blockId}`, token),
+};

@@ -13,6 +13,18 @@ const arr = (value) => (Array.isArray(value) ? value : []);
 
 const STATUS_TONE = { pending: 'warning', approved: 'success', rejected: 'danger' };
 
+const formatRole = (role = '') =>
+  String(role || '').split('_').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
+const getApprovalTitle = (workflow = {}) =>
+  workflow.display?.title || workflow.media?.title || `${formatRole(workflow.entityType || 'media')} approval`;
+
+const getRequesterName = (workflow = {}) =>
+  workflow.display?.requester ||
+  [workflow.requestedBy?.firstName, workflow.requestedBy?.lastName].filter(Boolean).join(' ') ||
+  workflow.requestedBy?.email ||
+  'Unknown requester';
+
 const MediaHeadApprovalCenter = () => {
   const { token } = useAuth();
   const toast = useToast();
@@ -31,7 +43,7 @@ const MediaHeadApprovalCenter = () => {
   const workflows = arr(data?.data);
 
   const handleDecide = async (workflow, decision) => {
-    const title = workflow.media?.title || 'this item';
+    const title = getApprovalTitle(workflow);
     const shouldProceed = await confirm({
       title: decision === 'approve' ? 'Approve request?' : 'Reject request?',
       message: `This will ${decision} the approval request for "${title}".`,
@@ -96,17 +108,22 @@ const MediaHeadApprovalCenter = () => {
             <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {workflows.map((workflow) => {
                 const pendingStep = workflow.steps?.find((s) => s.status === 'pending');
+                const title = getApprovalTitle(workflow);
+                const section = workflow.display?.section || workflow.media?.section || workflow.entityType || '';
+                const requester = getRequesterName(workflow);
+                const pendingRole = workflow.display?.pendingRole || pendingStep?.role || '';
+
                 return (
                   <div key={workflow._id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate font-semibold text-neutral-900 dark:text-neutral-100">{workflow.media?.title || 'Media item'}</p>
+                        <p className="truncate font-semibold text-neutral-900 dark:text-neutral-100">{title}</p>
                         <StatusBadge tone={STATUS_TONE[workflow.status] || 'neutral'} label={workflow.status} />
                       </div>
                       <p className="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">
-                        {workflow.media?.section ? `${workflow.media.section} · ` : ''}
-                        Requested by {[workflow.requestedBy?.firstName, workflow.requestedBy?.lastName].filter(Boolean).join(' ') || 'someone'}
-                        {pendingStep ? ` · awaiting ${String(pendingStep.role).replace(/_/g, ' ')}` : ''}
+                        {section ? `${section} · ` : ''}
+                        Requested by {requester}
+                        {pendingRole ? ` · awaiting ${formatRole(pendingRole).toLowerCase()}` : ''}
                       </p>
                     </div>
                     {workflow.status === 'pending' && (

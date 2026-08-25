@@ -174,8 +174,11 @@ const ShimmerBlock = ({ className = '' }) => (
   </div>
 );
 
+const SUPER_ADMIN_ROLES = ['super_admin', 'superadmin'];
+
 export default function AdminPortfolioPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const canDelete = SUPER_ADMIN_ROLES.includes(String(user?.role || '').toLowerCase());
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -191,7 +194,7 @@ export default function AdminPortfolioPage() {
   const [createForm, setCreateForm] = useState({ project: '', summary: '', liveUrl: '', tags: '' });
 
   const [infoModal, setInfoModal] = useState(false);
-  const [infoForm, setInfoForm] = useState({ summary: '', liveUrl: '', tags: '', status: 'active' });
+  const [infoForm, setInfoForm] = useState({ summary: '', liveUrl: '', tags: '', status: 'active', logoUrl: '' });
 
   const [sectionModal, setSectionModal] = useState(null); // { mode: 'add'|'rename', sectionId?, title }
   const [itemModal, setItemModal] = useState(null); // { mode:'add'|'edit', sectionId, itemId?, title, notes, link, status }
@@ -337,6 +340,7 @@ export default function AdminPortfolioPage() {
       liveUrl: active.liveUrl || '',
       tags: (active.tags || []).join(', '),
       status: active.status || 'active',
+      logoUrl: active.coverImage?.url || '',
     });
     setInfoModal(true);
   };
@@ -352,6 +356,7 @@ export default function AdminPortfolioPage() {
         liveUrl: infoForm.liveUrl,
         status: infoForm.status,
         tags: infoForm.tags ? infoForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        coverImage: { url: infoForm.logoUrl || '' },
       });
       upsertPortfolioInList(res.data);
       setInfoModal(false);
@@ -379,8 +384,8 @@ export default function AdminPortfolioPage() {
 
   // ---- Section CRUD ----
 
-  const openAddSection = () => setSectionModal({ mode: 'add', title: '' });
-  const openRenameSection = (section) => setSectionModal({ mode: 'rename', sectionId: section._id, title: section.title });
+  const openAddSection = () => setSectionModal({ mode: 'add', title: '', description: '' });
+  const openRenameSection = (section) => setSectionModal({ mode: 'rename', sectionId: section._id, title: section.title, description: section.description || '' });
 
   const submitSection = async (e) => {
     e.preventDefault();
@@ -388,9 +393,10 @@ export default function AdminPortfolioPage() {
     setBusy(true);
     setError('');
     try {
+      const payload = { title: sectionModal.title.trim(), description: sectionModal.description || '' };
       const res = sectionModal.mode === 'add'
-        ? await portfolioApi.addSection(token, active._id, { title: sectionModal.title.trim() })
-        : await portfolioApi.updateSection(token, active._id, sectionModal.sectionId, { title: sectionModal.title.trim() });
+        ? await portfolioApi.addSection(token, active._id, payload)
+        : await portfolioApi.updateSection(token, active._id, sectionModal.sectionId, payload);
       upsertPortfolioInList(res.data);
       setSectionModal(null);
     } catch (err) {
@@ -500,9 +506,17 @@ export default function AdminPortfolioPage() {
             <div className="relative bg-white px-5 pb-6 dark:bg-neutral-900 sm:px-7">
               <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex items-end gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-primary to-violet-600 text-xl font-black text-white shadow-lg ring-1 ring-black/5 dark:border-neutral-900">
-                    {initials(active.projectName)}
-                  </div>
+                  {active.coverImage?.url || overview?.project?.logo?.url ? (
+                    <img
+                      src={active.coverImage?.url || overview?.project?.logo?.url}
+                      alt=""
+                      className="h-20 w-20 shrink-0 rounded-2xl border-4 border-white bg-white object-contain shadow-lg ring-1 ring-black/5 dark:border-neutral-900"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-primary to-violet-600 text-xl font-black text-white shadow-lg ring-1 ring-black/5 dark:border-neutral-900">
+                      {initials(active.projectName)}
+                    </div>
+                  )}
                   <div className="pb-1">
                     <h1 className="text-xl font-black tracking-tight text-neutral-900 dark:text-white sm:text-2xl">{active.projectName}</h1>
                     <p className="text-sm font-semibold text-neutral-400">{active.projectCode}</p>
@@ -512,9 +526,11 @@ export default function AdminPortfolioPage() {
                   <Button variant="secondary" size="sm" onClick={openInfoModal} icon={<span className="material-symbols-outlined text-lg">edit</span>}>
                     Edit Info
                   </Button>
-                  <Button variant="danger" size="sm" onClick={() => handleDeletePortfolio(active)} icon={<span className="material-symbols-outlined text-lg">delete</span>}>
-                    Delete
-                  </Button>
+                  {canDelete ? (
+                    <Button variant="danger" size="sm" onClick={() => handleDeletePortfolio(active)} icon={<span className="material-symbols-outlined text-lg">delete</span>}>
+                      Delete
+                    </Button>
+                  ) : null}
                 </div>
               </div>
 
@@ -553,7 +569,14 @@ export default function AdminPortfolioPage() {
             onUpdate={upsertPortfolioInList}
           />
 
-          <PortfolioOverviewPanel overview={overview} loading={overviewLoading} />
+          <PortfolioOverviewPanel
+            portfolio={active}
+            overview={overview}
+            loading={overviewLoading}
+            token={token}
+            editable
+            onUpdate={upsertPortfolioInList}
+          />
 
           <div className="flex items-center justify-between">
             <div>
@@ -603,6 +626,10 @@ export default function AdminPortfolioPage() {
                         </button>
                       </div>
                     </div>
+
+                    {section.description ? (
+                      <p className="px-4 pt-1.5 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{section.description}</p>
+                    ) : null}
 
                     <div className="px-4 pb-1 pt-2.5">
                       <div className="flex items-center justify-between text-[11px] font-semibold text-neutral-400">
@@ -665,6 +692,7 @@ export default function AdminPortfolioPage() {
           {/* Edit info modal */}
           <Modal open={infoModal} title={<ModalTitle icon="edit">Edit Portfolio Info</ModalTitle>} onClose={() => setInfoModal(false)}>
             <form onSubmit={submitInfo} className="space-y-3">
+              <Input label="Logo URL" name="logoUrl" value={infoForm.logoUrl} onChange={(e) => setInfoForm((f) => ({ ...f, logoUrl: e.target.value }))} placeholder="https://... (shown instead of the initials avatar)" />
               <Input label="Summary" name="summary" value={infoForm.summary} onChange={(e) => setInfoForm((f) => ({ ...f, summary: e.target.value }))} />
               <Input label="Live URL" name="liveUrl" value={infoForm.liveUrl} onChange={(e) => setInfoForm((f) => ({ ...f, liveUrl: e.target.value }))} placeholder="https://" />
               <Input label="Tags (comma separated)" name="tags" value={infoForm.tags} onChange={(e) => setInfoForm((f) => ({ ...f, tags: e.target.value }))} />
@@ -685,6 +713,13 @@ export default function AdminPortfolioPage() {
                 value={sectionModal?.title || ''}
                 onChange={(e) => setSectionModal((s) => ({ ...s, title: e.target.value }))}
                 autoFocus
+              />
+              <Input
+                label="Purpose / summary (optional)"
+                name="description"
+                value={sectionModal?.description || ''}
+                onChange={(e) => setSectionModal((s) => ({ ...s, description: e.target.value }))}
+                placeholder="What this pillar covers and why it matters"
               />
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="secondary" onClick={() => setSectionModal(null)}>Cancel</Button>
@@ -844,9 +879,13 @@ export default function AdminPortfolioPage() {
                   <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
                   <div className="flex flex-1 flex-col p-4">
                     <div className="flex items-start gap-3">
-                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-sm font-black text-white shadow-sm`}>
-                        {initials(p.projectName)}
-                      </div>
+                      {p.coverImage?.url ? (
+                        <img src={p.coverImage.url} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-neutral-200 bg-white object-contain shadow-sm dark:border-neutral-700" />
+                      ) : (
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-sm font-black text-white shadow-sm`}>
+                          {initials(p.projectName)}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="truncate text-base font-black tracking-tight text-neutral-900 dark:text-white">{p.projectName}</h3>
@@ -883,9 +922,11 @@ export default function AdminPortfolioPage() {
                       <Button variant="secondary" size="sm" onClick={() => setActiveId(p._id)} icon={<span className="material-symbols-outlined text-lg">open_in_new</span>}>
                         Manage
                       </Button>
-                      <button type="button" onClick={() => handleDeletePortfolio(p)} className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete portfolio">
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
+                      {canDelete ? (
+                        <button type="button" onClick={() => handleDeletePortfolio(p)} className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete portfolio">
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

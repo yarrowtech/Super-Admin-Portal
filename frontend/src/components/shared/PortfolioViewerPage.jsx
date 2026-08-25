@@ -225,9 +225,17 @@ export default function PortfolioViewerPage() {
               <div className="relative bg-white px-5 pb-5 dark:bg-neutral-900 sm:px-7">
                 <div className="-mt-9 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div className="flex items-end gap-4">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-primary to-violet-600 text-lg font-black text-white shadow-lg ring-1 ring-black/5 dark:border-neutral-900">
-                      {initials(active.projectName)}
-                    </div>
+                    {active.coverImage?.url || overview?.project?.logo?.url ? (
+                      <img
+                        src={active.coverImage?.url || overview?.project?.logo?.url}
+                        alt=""
+                        className="h-16 w-16 shrink-0 rounded-2xl border-4 border-white bg-white object-contain shadow-lg ring-1 ring-black/5 dark:border-neutral-900"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-primary to-violet-600 text-lg font-black text-white shadow-lg ring-1 ring-black/5 dark:border-neutral-900">
+                        {initials(active.projectName)}
+                      </div>
+                    )}
                     <div className="pb-1">
                       <h2 className="text-lg font-black tracking-tight text-neutral-900 dark:text-white sm:text-xl">{active.projectName}</h2>
                       <p className="text-xs font-semibold text-neutral-400">{active.projectCode}</p>
@@ -261,7 +269,7 @@ export default function PortfolioViewerPage() {
 
             <PortfolioPlaybook key={active._id} portfolio={active} editable={false} />
 
-            <PortfolioOverviewPanel overview={overview} loading={overviewLoading} />
+            <PortfolioOverviewPanel portfolio={active} overview={overview} loading={overviewLoading} />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {[...(active.sections || [])]
@@ -280,6 +288,9 @@ export default function PortfolioViewerPage() {
                         </span>
                         <h3 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{section.title}</h3>
                       </div>
+                      {section.description ? (
+                        <p className="px-4 pt-1.5 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{section.description}</p>
+                      ) : null}
                       <div className="px-4 pb-1 pt-2.5">
                         <div className="flex items-center justify-between text-[11px] font-semibold text-neutral-400">
                           <span>{done}/{items.length} done</span>
@@ -362,9 +373,13 @@ export default function PortfolioViewerPage() {
                       <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
                       <div className="flex flex-1 flex-col p-4">
                         <div className="flex items-start gap-3">
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-sm font-black text-white shadow-sm`}>
-                            {initials(p.projectName)}
-                          </div>
+                          {p.coverImage?.url ? (
+                            <img src={p.coverImage.url} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-neutral-200 bg-white object-contain shadow-sm dark:border-neutral-700" />
+                          ) : (
+                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-sm font-black text-white shadow-sm`}>
+                              {initials(p.projectName)}
+                            </div>
+                          )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <h3 className="truncate text-base font-black tracking-tight text-neutral-900 dark:text-white">{p.projectName}</h3>

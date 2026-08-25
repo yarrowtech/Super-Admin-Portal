@@ -2,14 +2,21 @@ const mongoose = require('mongoose');
 const Portfolio = require('../models/Portfolio');
 const Project = require('../models/common/Project');
 const Media = require('../models/department/Media');
+const MarketingPlan = require('../models/department/MarketingPlan');
 const LawContract = require('../models/law/LawContract');
 const LegalDocument = require('../models/law/LegalDocument.v2');
 const { buildDefaultSections, buildDefaultPlaybook } = require('../models/Portfolio');
 const { ROLES } = require('../config/roles');
 const { PROJECT_REGISTRY } = require('../utils/projectAccess');
+const { PORTFOLIO_CATEGORY_TEMPLATES, buildSlideFromTemplate } = require('../config/portfolioPlaybookTemplates');
 
 const ADMIN_ROLES = [ROLES.ADMIN, ROLES.SUPER_ADMIN, 'superadmin'];
 exports.ADMIN_ROLES = ADMIN_ROLES;
+
+// Deleting an entire portfolio is destructive and permanent — restricted to
+// super_admin, while every admin role can still create/edit content.
+const SUPER_ADMIN_ROLES = [ROLES.SUPER_ADMIN, 'superadmin'];
+exports.SUPER_ADMIN_ROLES = SUPER_ADMIN_ROLES;
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -256,12 +263,12 @@ exports.deletePortfolio = async (req, res) => {
 exports.addSection = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title } = req.body;
+    const { title, description } = req.body;
     if (!title || !String(title).trim()) return res.status(400).json({ success: false, error: 'Section title is required' });
     const portfolio = await Portfolio.findById(id);
     if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
 
-    portfolio.sections.push({ title: title.trim(), order: portfolio.sections.length, items: [] });
+    portfolio.sections.push({ title: title.trim(), description: description || '', order: portfolio.sections.length, items: [] });
     portfolio.updatedBy = req.user.id;
     await portfolio.save();
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
@@ -280,8 +287,9 @@ exports.updateSection = async (req, res) => {
     const section = portfolio.sections.id(sectionId);
     if (!section) return res.status(404).json({ success: false, error: 'Section not found' });
 
-    const { title, order } = req.body;
+    const { title, description, order } = req.body;
     if (title !== undefined) section.title = title;
+    if (description !== undefined) section.description = description;
     if (order !== undefined) section.order = order;
     portfolio.updatedBy = req.user.id;
     await portfolio.save();
@@ -385,7 +393,39 @@ exports.deleteItem = async (req, res) => {
   }
 };
 
+// GET /api/portfolios/playbook-templates (admin) — category starter-kits for adding a new Playbook slide
+exports.listPlaybookTemplates = async (req, res) => {
+  const data = PORTFOLIO_CATEGORY_TEMPLATES.map((t) => ({
+    key: t.key,
+    label: t.label,
+    icon: t.icon,
+    blockCount: t.blocks.length,
+  }));
+  return res.json({ success: true, data });
+};
+
 // ---- Strategy Playbook — slides (admin) ----
+
+// POST /api/portfolios/:id/playbook/slides/from-template
+exports.addPlaybookSlideFromTemplate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { key } = req.body;
+    const slideData = buildSlideFromTemplate(key);
+    if (!slideData) return res.status(400).json({ success: false, error: 'Unknown template key' });
+
+    const portfolio = await Portfolio.findById(id);
+    if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
+
+    portfolio.playbook.push({ title: slideData.title, order: portfolio.playbook.length, blocks: slideData.blocks });
+    portfolio.updatedBy = req.user.id;
+    await portfolio.save();
+    await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
+    return res.status(201).json({ success: true, data: portfolio });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
 
 // POST /api/portfolios/:id/playbook/slides
 exports.addPlaybookSlide = async (req, res) => {
@@ -517,6 +557,95 @@ exports.deletePlaybookBlock = async (req, res) => {
     const block = slide.blocks.id(blockId);
     if (!block) return res.status(404).json({ success: false, error: 'Block not found' });
     block.deleteOne();
+    portfolio.updatedBy = req.user.id;
+    await portfolio.save();
+    await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
+    return res.json({ success: true, data: portfolio });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// ---- Sync from Media Head's Marketing Plan (admin) ----
+
+const ensureSlide = (portfolio, title) => {
+  let slide = portfolio.playbook.find((s) => s.title === title);
+  if (!slide) {
+    portfolio.playbook.push({ title, order: portfolio.playbook.length, blocks: [] });
+    slide = portfolio.playbook[portfolio.playbook.length - 1];
+  }
+  return slide;
+};
+
+const upsertBlock = (slide, title, defaults, patch) => {
+  let block = slide.blocks.find((b) => b.title === title);
+  if (!block) {
+    slide.blocks.push({ title, order: slide.blocks.length, ...defaults });
+    block = slide.blocks[slide.blocks.length - 1];
+  }
+  Object.assign(block, patch);
+};
+
+// POST /api/portfolios/:id/playbook/sync-marketing-plan (admin)
+// Pulls the project's MarketingPlan (owned by the Media Head / Marketing
+// module — backend/models/department/MarketingPlan.js) into the Overview,
+// Goals, Roadmap, and Strategy slides. Read-only on the Marketing Plan side
+// — nothing is written back to it. Re-runnable: safe to sync again later if
+// the Media Head updates their plan.
+exports.syncFromMarketingPlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid portfolio id' });
+    const portfolio = await Portfolio.findById(id);
+    if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
+
+    const plan = await MarketingPlan.findOne({ projectId: portfolio.project }).lean();
+    if (!plan) {
+      return res.status(404).json({ success: false, error: 'No Marketing Plan found for this project in the Media portal yet.' });
+    }
+
+    const overview = ensureSlide(portfolio, 'Overview');
+    upsertBlock(overview, 'Industry', { type: 'text', icon: 'category' }, { type: 'text', text: plan.overview?.industry || '' });
+    upsertBlock(overview, 'Platform', { type: 'text', icon: 'devices' }, { type: 'text', text: plan.overview?.platform || '' });
+    upsertBlock(overview, 'Target Audience', { type: 'text', icon: 'groups' }, { type: 'text', text: plan.overview?.targetAudience || '' });
+    upsertBlock(overview, 'USP', { type: 'text', icon: 'stars' }, { type: 'text', text: plan.overview?.usp || '' });
+    upsertBlock(overview, 'Current Phase', { type: 'text', icon: 'timeline' }, { type: 'text', text: plan.overview?.currentPhase || '' });
+    upsertBlock(overview, 'Overall Status', { type: 'badge', icon: 'flag', tone: 'success' }, { type: 'badge', text: plan.overview?.overallStatus || '' });
+
+    const goals = ensureSlide(portfolio, 'Goals');
+    upsertBlock(goals, 'Brand Goal', { type: 'list', icon: 'workspace_premium' }, { type: 'list', items: plan.goals?.brand || [] });
+    upsertBlock(goals, 'Marketing Goal', { type: 'list', icon: 'campaign' }, { type: 'list', items: plan.goals?.marketing || [] });
+    upsertBlock(goals, 'Business Goal', { type: 'list', icon: 'trending_up' }, { type: 'list', items: plan.goals?.business || [] });
+
+    const roadmap = ensureSlide(portfolio, 'Roadmap');
+    const framework = plan.framework || [];
+    [
+      { title: 'Foundation Kit', icon: 'foundation', badgeNumber: '01' },
+      { title: 'Growth Kit', icon: 'trending_up', badgeNumber: '02' },
+      { title: 'Scaling Kit', icon: 'rocket_launch', badgeNumber: '03' },
+    ].forEach((entry, i) => {
+      const row = framework.find((f) => f.phase === entry.title) || framework[i];
+      if (!row) return;
+      upsertBlock(roadmap, entry.title, { type: 'list', icon: entry.icon, badgeNumber: entry.badgeNumber }, {
+        type: 'list',
+        subtitle: row.whenUsed || '',
+        items: row.mainFocus || [],
+        footer: row.keyOutput || '',
+      });
+    });
+
+    const strategy = ensureSlide(portfolio, 'Strategy');
+    upsertBlock(strategy, 'Target Customer', { type: 'list', icon: 'groups' }, { type: 'list', items: plan.planning?.targetCustomers || [] });
+    upsertBlock(strategy, 'Pain Points', { type: 'list', icon: 'error' }, { type: 'list', items: plan.planning?.painPoints || [] });
+    upsertBlock(strategy, 'Buying Triggers', { type: 'list', icon: 'bolt' }, { type: 'list', items: plan.planning?.buyingTriggers || [] });
+    upsertBlock(strategy, 'Positioning', { type: 'text', icon: 'explore' }, { type: 'text', text: plan.planning?.positioning || '' });
+    upsertBlock(strategy, 'Value Proposition', { type: 'text', icon: 'diamond' }, { type: 'text', text: plan.planning?.valueProposition || '' });
+    upsertBlock(strategy, 'Channel Plan', { type: 'list', icon: 'hub' }, {
+      type: 'list',
+      items: [],
+      groups: (plan.planning?.channelPlan || []).map((row) => ({ heading: row.category || '', items: row.channels || [] })),
+    });
+
     portfolio.updatedBy = req.user.id;
     await portfolio.save();
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);

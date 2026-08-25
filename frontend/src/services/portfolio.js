@@ -33,6 +33,10 @@ export const portfolioApi = {
   removeItem: (token, id, sectionId, itemId) =>
     apiClient.delete(`/api/portfolios/${id}/sections/${sectionId}/items/${itemId}`, token),
 
+  getPlaybookTemplates: (token) => apiClient.get('/api/portfolios/playbook-templates', token, { cache: false }),
+  syncFromMarketingPlan: (token, id) => apiClient.post(`/api/portfolios/${id}/playbook/sync-marketing-plan`, {}, token),
+  addPlaybookSlideFromTemplate: (token, id, key) =>
+    apiClient.post(`/api/portfolios/${id}/playbook/slides/from-template`, { key }, token),
   addPlaybookSlide: (token, id, body) => apiClient.post(`/api/portfolios/${id}/playbook/slides`, body, token),
   updatePlaybookSlide: (token, id, slideId, body) =>
     apiClient.put(`/api/portfolios/${id}/playbook/slides/${slideId}`, body, token),

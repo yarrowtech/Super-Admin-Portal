@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { buildSlideFromTemplate } = require('../config/portfolioPlaybookTemplates');
 
 const PORTFOLIO_ITEM_STATUSES = ['not-started', 'in-progress', 'done'];
 const PORTFOLIO_STATUSES = ['draft', 'active', 'archived'];
@@ -17,6 +18,7 @@ const portfolioItemSchema = new mongoose.Schema(
 const portfolioSectionSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
+    description: { type: String, trim: true, default: '' },
     order: { type: Number, default: 0 },
     items: [portfolioItemSchema],
   },
@@ -154,12 +156,19 @@ const DEFAULT_PLAYBOOK_SLIDES = [
   },
 ];
 
-const buildDefaultPlaybook = () =>
-  DEFAULT_PLAYBOOK_SLIDES.map((slide, slideOrder) => ({
+// Media and Legal are part of the standard slide set for every project (not
+// an opt-in template) — every project should show its final Media/Law
+// information the same way, mirroring how those portals work for every
+// project uniformly.
+const buildDefaultPlaybook = () => {
+  const base = DEFAULT_PLAYBOOK_SLIDES.map((slide, slideOrder) => ({
     title: slide.title,
     order: slideOrder,
     blocks: slide.blocks.map((block, blockOrder) => ({ ...block, order: blockOrder })),
   }));
+  const extras = [buildSlideFromTemplate('media'), buildSlideFromTemplate('legal')].filter(Boolean);
+  return [...base, ...extras.map((slide, i) => ({ ...slide, order: base.length + i }))];
+};
 
 const Portfolio = mongoose.models.Portfolio || mongoose.model('Portfolio', portfolioSchema);
 

@@ -63,9 +63,28 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
   const [error, setError] = useState('');
   const [slideModal, setSlideModal] = useState(null); // { mode, slideId?, title }
   const [blockModal, setBlockModal] = useState(null);
+  const [templateGallery, setTemplateGallery] = useState(false);
+  const [templates, setTemplates] = useState(null);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
   const dragRef = useRef({ startX: 0, dragging: false });
 
   if (!portfolio) return null;
+
+  const handleSyncMarketingPlan = async () => {
+    setSyncing(true);
+    setError('');
+    setSyncMessage('');
+    try {
+      const res = await portfolioApi.syncFromMarketingPlan(token, portfolio._id);
+      onUpdate?.(res.data);
+      setSyncMessage('Synced Overview, Goals, Roadmap & Strategy from the Marketing Plan.');
+    } catch (err) {
+      setError(err?.message || 'Failed to sync from Marketing Plan');
+    }
+    setSyncing(false);
+  };
 
   const goPrev = () => setActiveIndex((i) => Math.max(0, i - 1));
   const goNext = () => setActiveIndex((i) => Math.min(slides.length - 1, i + 1));
@@ -88,7 +107,35 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
   };
 
   // ---- Slide CRUD ----
-  const openAddSlide = () => setSlideModal({ mode: 'add', title: '' });
+  const openAddSlide = async () => {
+    setTemplateGallery(true);
+    if (templates) return;
+    setTemplatesLoading(true);
+    try {
+      const res = await portfolioApi.getPlaybookTemplates(token);
+      setTemplates(res?.data || []);
+    } catch (err) {
+      setError(err?.message || 'Failed to load slide templates');
+    }
+    setTemplatesLoading(false);
+  };
+  const openBlankSlide = () => {
+    setTemplateGallery(false);
+    setSlideModal({ mode: 'add', title: '' });
+  };
+  const chooseTemplate = async (key) => {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await portfolioApi.addPlaybookSlideFromTemplate(token, portfolio._id, key);
+      handleUpdated(res);
+      setActiveIndex(slides.length);
+      setTemplateGallery(false);
+    } catch (err) {
+      setError(err?.message || 'Failed to add slide from template');
+    }
+    setBusy(false);
+  };
   const openRenameSlide = (slide) => setSlideModal({ mode: 'rename', slideId: slide._id, title: slide.title });
 
   const submitSlide = async (e) => {
@@ -202,14 +249,26 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
           <div className="mt-1 h-0.5 w-8 rounded-full bg-gradient-to-r from-primary to-violet-500" />
         </div>
         {editable ? (
-          <button
-            type="button"
-            onClick={openAddSlide}
-            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
-          >
-            <span className="material-symbols-outlined text-[16px]">add</span>
-            Add slide
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleSyncMarketingPlan}
+              disabled={syncing}
+              title="Pull Overview, Goals, Roadmap & Strategy from this project's Marketing Plan in the Media portal"
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-100 disabled:opacity-60 dark:text-neutral-400 dark:hover:bg-neutral-800"
+            >
+              <span className={`material-symbols-outlined text-[16px] ${syncing ? 'animate-spin-slow' : ''}`}>sync</span>
+              {syncing ? 'Syncing…' : 'Sync from Marketing Plan'}
+            </button>
+            <button
+              type="button"
+              onClick={openAddSlide}
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+            >
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              Add slide
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -217,6 +276,12 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
         <div className="mx-4 mt-3 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300 sm:mx-5">
           <span className="material-symbols-outlined text-[16px]">error</span>
           {error}
+        </div>
+      ) : null}
+      {syncMessage ? (
+        <div className="mx-4 mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-500/10 dark:text-emerald-300 sm:mx-5">
+          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+          {syncMessage}
         </div>
       ) : null}
 
@@ -345,6 +410,49 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
           ) : null}
         </>
       )}
+
+      {/* Add-slide: template gallery */}
+      <Modal open={templateGallery} title="Add Slide" description="Start from a category starter-kit, or add a blank slide" onClose={() => setTemplateGallery(false)}>
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={openBlankSlide}
+            className="flex w-full items-center gap-3 rounded-xl border border-dashed border-neutral-200 p-3 text-left transition hover:border-primary/40 hover:bg-primary/5 dark:border-neutral-700"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-800">
+              <span className="material-symbols-outlined text-[18px]">note_add</span>
+            </span>
+            <div>
+              <p className="text-sm font-bold text-neutral-900 dark:text-white">Blank slide</p>
+              <p className="text-xs text-neutral-400">Start empty and add your own blocks</p>
+            </div>
+          </button>
+
+          {templatesLoading ? (
+            <p className="py-4 text-center text-sm text-neutral-400">Loading templates...</p>
+          ) : (
+            <div className="grid max-h-80 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+              {(templates || []).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => chooseTemplate(t.key)}
+                  className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md disabled:opacity-60 dark:border-neutral-700"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-neutral-900 dark:text-white">{t.label}</p>
+                    <p className="text-xs text-neutral-400">{t.blockCount} starter blocks</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Slide add/rename modal */}
       <Modal open={Boolean(slideModal)} title={slideModal?.mode === 'add' ? 'Add Slide' : 'Rename Slide'} onClose={() => setSlideModal(null)}>

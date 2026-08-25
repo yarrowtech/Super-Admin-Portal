@@ -1,7 +1,18 @@
-// Read-only project snapshot shown inside a Digital Portfolio's detail view —
-// pulls project basics plus a live rollup from the Media and Law modules for
-// the same project. Nothing here writes back to Media/Law; it only reads what
-// those portals already track so a project's full picture shows in one place.
+import { useState } from 'react';
+import { portfolioApi } from '../../services/portfolio';
+
+// The Digital Portfolio's "Command Center" — a read-only project snapshot
+// combining project basics, a live rollup from Media/Law, and signals
+// computed from the portfolio's own content (Strategy Playbook + Pillars).
+// Nothing here is an approval/workflow surface — it only summarizes final
+// information that already exists elsewhere, informationally.
+//
+// The Media/Law cards show live counts from those systems (read-only,
+// nothing duplicated), but deliberately do NOT link out to those portals —
+// per user feedback, the point of the Digital Portfolio is that the final
+// information lives HERE. "Add here" seeds the matching Media/Legal
+// Strategy Playbook slide (from the template library) so an admin can type
+// the real final info directly into the portfolio instead of leaving it.
 // Shared by AdminPortfolioPage (admin CRUD) and PortfolioViewerPage (read-only).
 
 const MEDIA_SECTION_LABELS = {
@@ -32,10 +43,24 @@ const LAW_STATUS_TONE = {
   expired: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
 };
 
+const HEALTH_TONE = {
+  success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  neutral: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300',
+};
+
 const initials = (name = '') =>
   name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+
+const isBlockFilled = (block) => {
+  if (block.type === 'text' || block.type === 'badge') return Boolean(block.text && block.text.trim());
+  if ((block.groups || []).length > 0) return block.groups.some((g) => (g.items || []).length > 0);
+  return (block.items || []).length > 0;
+};
+
+const findSlide = (playbook, pattern) => (playbook || []).find((s) => pattern.test(s.title || ''));
 
 const ProgressBar = ({ value = 0, colorClass = 'bg-primary' }) => (
   <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
@@ -56,7 +81,28 @@ const StatBox = ({ label, value }) => (
   </div>
 );
 
-const SnapshotCard = ({ icon, iconBg, iconColor, title, totalLabel, linkTo, children }) => (
+const MetricCard = ({ label, value, colorClass }) => (
+  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
+    <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">{label}</p>
+    {typeof value === 'number' ? (
+      <>
+        <p className="mt-1 text-2xl font-black tabular-nums tracking-tight text-neutral-900 dark:text-white">{value}%</p>
+        <div className="mt-2"><ProgressBar value={value} colorClass={colorClass} /></div>
+      </>
+    ) : (
+      <p className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-sm font-bold ${value.tone}`}>{value.label}</p>
+    )}
+  </div>
+);
+
+const SectionEyebrow = ({ children }) => (
+  <div>
+    <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400">{children}</h2>
+    <div className="mt-1 h-0.5 w-8 rounded-full bg-gradient-to-r from-primary to-violet-500" />
+  </div>
+);
+
+const SnapshotCard = ({ icon, iconBg, iconColor, title, totalLabel, onAddInfo, addLabel, children }) => (
   <div className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2.5">
@@ -68,11 +114,11 @@ const SnapshotCard = ({ icon, iconBg, iconColor, title, totalLabel, linkTo, chil
           {totalLabel ? <p className="text-xs text-neutral-400">{totalLabel}</p> : null}
         </div>
       </div>
-      {linkTo ? (
-        <a href={linkTo} className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-          Open
-          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-        </a>
+      {onAddInfo ? (
+        <button type="button" onClick={onAddInfo} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20">
+          <span className="material-symbols-outlined text-[14px]">add</span>
+          {addLabel || 'Add here'}
+        </button>
       ) : null}
     </div>
     <div className="mt-3 flex-1">{children}</div>
@@ -93,10 +139,30 @@ const BadgeRow = ({ entries, formatLabel = (k) => k, emptyText = 'No data yet.' 
   );
 };
 
-export default function PortfolioOverviewPanel({ overview, loading }) {
+export default function PortfolioOverviewPanel({ portfolio, overview, loading, token, editable = false, onUpdate }) {
+  const [addingSlide, setAddingSlide] = useState('');
+
+  const addTemplateSlide = async (key) => {
+    if (!portfolio?._id || !token) return;
+    setAddingSlide(key);
+    try {
+      const res = await portfolioApi.addPlaybookSlideFromTemplate(token, portfolio._id, key);
+      onUpdate?.(res.data);
+    } catch {
+      // surfaced implicitly by the slide simply not appearing; keep this
+      // quick-action low-friction rather than adding another error banner
+    }
+    setAddingSlide('');
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <ShimmerBlock className="h-24 rounded-2xl" />
+          <ShimmerBlock className="h-24 rounded-2xl" />
+          <ShimmerBlock className="h-24 rounded-2xl" />
+        </div>
         <ShimmerBlock className="h-40 rounded-2xl" />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ShimmerBlock className="h-56 rounded-2xl" />
@@ -114,13 +180,66 @@ export default function PortfolioOverviewPanel({ overview, loading }) {
     ? `${project.projectManager.firstName || ''} ${project.projectManager.lastName || ''}`.trim()
     : '';
 
+  // ---- Signals computed from the portfolio's own content ----
+  const playbook = portfolio?.playbook || [];
+  const sections = portfolio?.sections || [];
+  const hasMediaSlide = Boolean(findSlide(playbook, /media/i));
+  const hasLegalSlide = Boolean(findSlide(playbook, /legal/i));
+  const allBlocks = playbook.flatMap((s) => s.blocks || []);
+  const filledBlocks = allBlocks.filter(isBlockFilled);
+  const infoCompleteness = allBlocks.length === 0 ? 0 : Math.round((filledBlocks.length / allBlocks.length) * 100);
+
+  const allItems = sections.flatMap((s) => s.items || []);
+  const doneItems = allItems.filter((i) => i.status === 'done');
+  const executionProgress = allItems.length === 0 ? 0 : Math.round((doneItems.length / allItems.length) * 100);
+
+  const health = law.contracts.expiringSoon > 0
+    ? { label: 'Needs Attention', tone: HEALTH_TONE.warning }
+    : (infoCompleteness + executionProgress) / 2 >= 70
+      ? { label: 'On Track', tone: HEALTH_TONE.success }
+      : (infoCompleteness + executionProgress) / 2 >= 35
+        ? { label: 'In Progress', tone: HEALTH_TONE.neutral }
+        : { label: 'Getting Started', tone: HEALTH_TONE.neutral };
+
+  const coverage = playbook.map((slide) => {
+    const blocks = slide.blocks || [];
+    const filled = blocks.filter(isBlockFilled).length;
+    return { title: slide.title, filled, total: blocks.length };
+  });
+
+  const goalsSlide = findSlide(playbook, /goal/i);
+  const achievementsSlide = findSlide(playbook, /achievement|highlight/i);
+
+  const attentionItems = [];
+  if (law.contracts.expiringSoon > 0) {
+    attentionItems.push({ icon: 'warning', tone: 'warning', text: `${law.contracts.expiringSoon} contract${law.contracts.expiringSoon === 1 ? '' : 's'} expiring within 30 days` });
+  }
+  const emptyBlockCount = allBlocks.length - filledBlocks.length;
+  if (emptyBlockCount > 0) {
+    attentionItems.push({ icon: 'edit_note', tone: 'neutral', text: `${emptyBlockCount} playbook block${emptyBlockCount === 1 ? '' : 's'} still need${emptyBlockCount === 1 ? 's' : ''} information` });
+  }
+  const untouchedPillars = sections.filter((s) => (s.items || []).length > 0 && s.items.every((i) => i.status === 'not-started'));
+  if (untouchedPillars.length > 0) {
+    attentionItems.push({ icon: 'schedule', tone: 'neutral', text: `${untouchedPillars.length} pillar${untouchedPillars.length === 1 ? '' : 's'} not started yet` });
+  }
+  if (playbook.length === 0) {
+    attentionItems.push({ icon: 'auto_stories', tone: 'neutral', text: 'No Strategy Playbook slides yet' });
+  }
+
   return (
     <div className="space-y-4">
+      {/* Split completion metrics — deliberately separate, not one blended number */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <MetricCard label="Information Completeness" value={infoCompleteness} colorClass="bg-primary" />
+        <MetricCard label="Execution Progress" value={executionProgress} colorClass={executionProgress === 100 ? 'bg-emerald-500' : 'bg-violet-500'} />
+        <MetricCard label="Overall Health" value={health} />
+      </div>
+
       {/* Project basics */}
       <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03] sm:p-5">
         <div className="flex items-start gap-4">
-          {project.logo?.url ? (
-            <img src={project.logo.url} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-black/5" />
+          {portfolio?.coverImage?.url || project.logo?.url ? (
+            <img src={portfolio?.coverImage?.url || project.logo.url} alt="" className="h-14 w-14 shrink-0 rounded-xl border border-neutral-200 bg-white object-contain ring-1 ring-black/5 dark:border-neutral-700" />
           ) : (
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-violet-600 text-lg font-black text-white">
               {initials(project.name)}
@@ -149,18 +268,8 @@ export default function PortfolioOverviewPanel({ overview, loading }) {
           <StatBox label="Start date" value={formatDate(project.startDate)} />
           <StatBox label="Deadline" value={formatDate(project.deadline || project.endDate)} />
           <StatBox label="Budget" value={project.budget?.estimated != null ? project.budget.estimated.toLocaleString() : '—'} />
-          <StatBox label="Manager" value={managerName || '—'} />
+          <StatBox label="Owner" value={managerName || '—'} />
         </div>
-
-        {typeof project.progress === 'number' ? (
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-neutral-400">
-              <span>Overall project progress</span>
-              <span>{project.progress}%</span>
-            </div>
-            <div className="mt-1"><ProgressBar value={project.progress} /></div>
-          </div>
-        ) : null}
 
         {(project.technologies || []).length ? (
           <div className="mt-4 flex flex-wrap gap-1.5">
@@ -173,6 +282,83 @@ export default function PortfolioOverviewPanel({ overview, loading }) {
         ) : null}
       </div>
 
+      {/* Portfolio Health — coverage per information category (dynamic, since
+          categories are configurable per project, not a fixed fired list) */}
+      {coverage.length > 0 ? (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
+          <SectionEyebrow>Portfolio Health</SectionEyebrow>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {coverage.map((c) => {
+              const pct = c.total === 0 ? 0 : Math.round((c.filled / c.total) * 100);
+              const dotColor = pct === 0 ? 'bg-neutral-300 dark:bg-neutral-700' : pct === 100 ? 'bg-emerald-500' : 'bg-amber-500';
+              return (
+                <span key={c.title} className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+                  {c.title} <span className="text-neutral-400">· {c.filled}/{c.total}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Key Goals + Needs Attention */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
+          <SectionEyebrow>Key Goals</SectionEyebrow>
+          <div className="mt-3 space-y-3">
+            {goalsSlide && (goalsSlide.blocks || []).length > 0 ? (
+              goalsSlide.blocks.map((block) => {
+                const preview = block.type === 'text' ? block.text : (block.items || [])[0];
+                if (!preview) return null;
+                return (
+                  <div key={block._id}>
+                    <p className="text-xs font-bold text-neutral-700 dark:text-neutral-200">{block.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-sm text-neutral-500 dark:text-neutral-400">{preview}</p>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-xs text-neutral-400">No goals captured yet — add a "Goals" slide in the Strategy Playbook.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
+          <SectionEyebrow>Needs Attention</SectionEyebrow>
+          <div className="mt-3 space-y-2">
+            {attentionItems.length === 0 ? (
+              <p className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                Nothing needs attention right now.
+              </p>
+            ) : (
+              attentionItems.map((item, i) => (
+                <div key={i} className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-sm ${item.tone === 'warning' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300' : 'text-neutral-600 dark:text-neutral-300'}`}>
+                  <span className="material-symbols-outlined mt-0.5 text-[16px]">{item.icon}</span>
+                  {item.text}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Key Highlights — only shown if an Achievements/Highlights slide exists */}
+      {achievementsSlide && (achievementsSlide.blocks || []).some((b) => (b.items || []).length > 0) ? (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
+          <SectionEyebrow>Key Highlights</SectionEyebrow>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {achievementsSlide.blocks.flatMap((b) => b.items || []).slice(0, 8).map((item, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                <span className="material-symbols-outlined text-[14px]">military_tech</span>
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {/* Cross-portal rollup */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <SnapshotCard
@@ -180,8 +366,9 @@ export default function PortfolioOverviewPanel({ overview, loading }) {
           iconBg="bg-fuchsia-500/10"
           iconColor="text-fuchsia-500"
           title="Media"
-          totalLabel={`${media.total} item${media.total === 1 ? '' : 's'} tracked in the Media portal`}
-          linkTo="/media/dashboard"
+          totalLabel={`${media.total} item${media.total === 1 ? '' : 's'} live in the Media system`}
+          onAddInfo={editable && !hasMediaSlide ? () => addTemplateSlide('media') : null}
+          addLabel={addingSlide === 'media' ? 'Adding…' : 'Add media info here'}
         >
           <BadgeRow entries={media.bySection} formatLabel={(k) => MEDIA_SECTION_LABELS[k] || k} emptyText="No media activity yet for this project." />
           {media.recent.length > 0 ? (
@@ -194,15 +381,21 @@ export default function PortfolioOverviewPanel({ overview, loading }) {
               ))}
             </div>
           ) : null}
+          {hasMediaSlide ? (
+            <p className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-400 dark:border-neutral-800">
+              Final media info is captured in the "Media / PR" slide above.
+            </p>
+          ) : null}
         </SnapshotCard>
 
         <SnapshotCard
           icon="gavel"
           iconBg="bg-rose-500/10"
           iconColor="text-rose-500"
-          title="Law"
-          totalLabel={`${law.contracts.total} contract${law.contracts.total === 1 ? '' : 's'} · ${law.documents.total} document${law.documents.total === 1 ? '' : 's'}`}
-          linkTo="/law/dashboard"
+          title="Legal"
+          totalLabel={`${law.contracts.total} contract${law.contracts.total === 1 ? '' : 's'} · ${law.documents.total} document${law.documents.total === 1 ? '' : 's'} live in the Law system`}
+          onAddInfo={editable && !hasLegalSlide ? () => addTemplateSlide('legal') : null}
+          addLabel={addingSlide === 'legal' ? 'Adding…' : 'Add legal info here'}
         >
           {law.contracts.expiringSoon > 0 ? (
             <p className="mb-2 inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
@@ -225,6 +418,11 @@ export default function PortfolioOverviewPanel({ overview, loading }) {
                 </div>
               ))}
             </div>
+          ) : null}
+          {hasLegalSlide ? (
+            <p className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-400 dark:border-neutral-800">
+              Final legal info is captured in the "Legal" slide above.
+            </p>
           ) : null}
         </SnapshotCard>
       </div>

@@ -42,12 +42,20 @@ const decideApprovalRequest = async ({ workflowId, role, userId, decision, remar
     throw err;
   }
 
-  step.status = decision === "reject" ? "rejected" : "approved";
-  step.decidedBy = userId;
-  step.decidedAt = new Date();
-  step.remarks = remarks;
+  // An override role decides the workflow as a whole, rather than merely
+  // impersonating the first specialist in the chain.
+  const stepsToDecide = canOverride
+    ? workflow.steps.filter((row) => row.status === "pending")
+    : [step];
+  const decidedAt = new Date();
+  stepsToDecide.forEach((row) => {
+    row.status = decision === "reject" ? "rejected" : "approved";
+    row.decidedBy = userId;
+    row.decidedAt = decidedAt;
+    row.remarks = remarks;
+  });
 
-  if (step.status === "rejected") {
+  if (decision === "reject") {
     workflow.status = "rejected";
   } else {
     const hasBlockingPendingStep = workflow.steps.some((row) => row.status === "pending" && !row.optional);

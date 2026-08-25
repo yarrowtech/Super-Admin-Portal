@@ -6,6 +6,7 @@ const MarketingPlan = require('../models/department/MarketingPlan');
 const LawContract = require('../models/law/LawContract');
 const LegalDocument = require('../models/law/LegalDocument.v2');
 const { buildDefaultSections, buildDefaultPlaybook } = require('../models/Portfolio');
+const { uploadMediaFile: uploadToCloudinary, deleteCloudinaryAsset } = require('../modules/media/media.service');
 const { ROLES } = require('../config/roles');
 const { PROJECT_REGISTRY } = require('../utils/projectAccess');
 const { PORTFOLIO_CATEGORY_TEMPLATES, buildSlideFromTemplate } = require('../config/portfolioPlaybookTemplates');
@@ -53,13 +54,19 @@ const buildCrossPortalSummary = async (projectId) => {
     documentsByStatus,
     documentsRecent,
   ] = await Promise.all([
-    Media.aggregate([{ $match: { projectId } }, { $group: { _id: '$section', count: { $sum: 1 } } }]),
-    Media.find({ projectId }).select('title section status thumbnailUrl updatedAt').sort({ updatedAt: -1 }).limit(6).lean(),
-    LawContract.aggregate([{ $match: { projectId } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
-    LawContract.find({ projectId }).select('title status approvalStatus expiryDate updatedAt').sort({ updatedAt: -1 }).limit(6).lean(),
-    LawContract.countDocuments({ projectId, expiryDate: { $gte: new Date(), $lte: thirtyDaysOut } }),
-    LegalDocument.aggregate([{ $match: { projectId } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
-    LegalDocument.find({ projectId }).select('title type status priority updatedAt').sort({ updatedAt: -1 }).limit(6).lean(),
+    // Only approved items are "final" enough to count toward the portfolio's
+    // rollup — mirrors each module's own approval workflow (Media and
+    // LawContract flip `approvalStatus` to 'approved'; LegalDocument's own
+    // `status` field doubles as its approval state). Draft/pending/rejected
+    // items stay invisible here even though they're still tracked live in
+    // their own portal.
+    Media.aggregate([{ $match: { projectId, approvalStatus: 'approved' } }, { $group: { _id: '$section', count: { $sum: 1 } } }]),
+    Media.find({ projectId, approvalStatus: 'approved' }).select('title section status description thumbnailUrl previewUrl storageUrl mimeType updatedAt').sort({ updatedAt: -1 }).limit(6).lean(),
+    LawContract.aggregate([{ $match: { projectId, approvalStatus: 'approved' } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+    LawContract.find({ projectId, approvalStatus: 'approved' }).select('title status approvalStatus expiryDate ownerDepartment updatedAt').sort({ updatedAt: -1 }).limit(6).lean(),
+    LawContract.countDocuments({ projectId, approvalStatus: 'approved', expiryDate: { $gte: new Date(), $lte: thirtyDaysOut } }),
+    LegalDocument.aggregate([{ $match: { projectId, status: 'Approved' } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+    LegalDocument.find({ projectId, status: 'Approved' }).select('title type status priority owner currentVersion latestContent updatedAt').sort({ updatedAt: -1 }).limit(6).lean(),
   ]);
 
   return {
@@ -244,6 +251,63 @@ exports.updatePortfolio = async (req, res) => {
   }
 };
 
+// POST /api/portfolios/:id/cover-image (admin) — upload/replace the portfolio's logo/cover image
+exports.uploadCoverImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid portfolio id' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Image file is required' });
+    if (!req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ success: false, error: 'File must be an image' });
+    }
+    const portfolio = await Portfolio.findById(id);
+    if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
+
+    const previousStorageKey = portfolio.coverImage?.storageKey;
+    const uploaded = await uploadToCloudinary({ file: req.file, section: 'portfolio-cover', projectId: portfolio.project });
+
+    portfolio.coverImage = {
+      url: uploaded.url,
+      storageKey: uploaded.storageKey,
+      storageProvider: uploaded.storageProvider,
+    };
+    portfolio.updatedBy = req.user.id;
+    await portfolio.save();
+    await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
+
+    if (previousStorageKey && previousStorageKey !== uploaded.storageKey) {
+      await deleteCloudinaryAsset(previousStorageKey, 'image/png');
+    }
+
+    return res.status(201).json({ success: true, data: portfolio });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ success: false, error: err.message });
+  }
+};
+
+// DELETE /api/portfolios/:id/cover-image (admin) — remove the portfolio's logo/cover image
+exports.removeCoverImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid portfolio id' });
+    const portfolio = await Portfolio.findById(id);
+    if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
+
+    const storageKey = portfolio.coverImage?.storageKey;
+    portfolio.coverImage = undefined;
+    portfolio.updatedBy = req.user.id;
+    await portfolio.save();
+    await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
+
+    if (storageKey) await deleteCloudinaryAsset(storageKey, 'image/png');
+
+    return res.json({ success: true, data: portfolio });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // DELETE /api/portfolios/:id (admin)
 exports.deletePortfolio = async (req, res) => {
   try {
@@ -387,6 +451,70 @@ exports.deleteItem = async (req, res) => {
     portfolio.updatedBy = req.user.id;
     await portfolio.save();
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
+    return res.json({ success: true, data: portfolio });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// POST /api/portfolios/:id/sections/:sectionId/items/:itemId/image (admin) — upload/replace an item's image
+exports.uploadItemImage = async (req, res) => {
+  try {
+    const { id, sectionId, itemId } = req.params;
+    if (!req.file) return res.status(400).json({ success: false, error: 'Image file is required' });
+    if (!req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ success: false, error: 'File must be an image' });
+    }
+    const portfolio = await Portfolio.findById(id);
+    if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
+    const section = portfolio.sections.id(sectionId);
+    if (!section) return res.status(404).json({ success: false, error: 'Section not found' });
+    const item = section.items.id(itemId);
+    if (!item) return res.status(404).json({ success: false, error: 'Item not found' });
+
+    const previousStorageKey = item.image?.storageKey;
+    const uploaded = await uploadToCloudinary({ file: req.file, section: 'portfolio-item', projectId: portfolio.project });
+
+    item.image = {
+      url: uploaded.url,
+      storageKey: uploaded.storageKey,
+      storageProvider: uploaded.storageProvider,
+      thumbnailUrl: uploaded.thumbnailUrl,
+    };
+    portfolio.updatedBy = req.user.id;
+    await portfolio.save();
+    await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
+
+    if (previousStorageKey && previousStorageKey !== uploaded.storageKey) {
+      await deleteCloudinaryAsset(previousStorageKey, 'image/png');
+    }
+
+    return res.status(201).json({ success: true, data: portfolio });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ success: false, error: err.message });
+  }
+};
+
+// DELETE /api/portfolios/:id/sections/:sectionId/items/:itemId/image (admin) — remove an item's image
+exports.removeItemImage = async (req, res) => {
+  try {
+    const { id, sectionId, itemId } = req.params;
+    const portfolio = await Portfolio.findById(id);
+    if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
+    const section = portfolio.sections.id(sectionId);
+    if (!section) return res.status(404).json({ success: false, error: 'Section not found' });
+    const item = section.items.id(itemId);
+    if (!item) return res.status(404).json({ success: false, error: 'Item not found' });
+
+    const storageKey = item.image?.storageKey;
+    item.image = undefined;
+    portfolio.updatedBy = req.user.id;
+    await portfolio.save();
+    await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
+
+    if (storageKey) await deleteCloudinaryAsset(storageKey, 'image/png');
+
     return res.json({ success: true, data: portfolio });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });

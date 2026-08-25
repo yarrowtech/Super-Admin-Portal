@@ -1084,21 +1084,26 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const id = resolveRecordId(item);
     const config = getSectionAction(section);
     const workflowId = item?.approvalWorkflowId || item?.workflowId || item?.metadata?.approvalWorkflowId;
-    const approvalState = getRecordStatus(item);
+    const approvalState = String(item?.approvalStatus || getRecordStatus(item) || 'draft').toLowerCase();
+    const isPending = approvalState === 'pending';
+    const isApproved = approvalState === 'approved';
+    const canDecide = ['media_head', 'ceo', 'admin', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+    const canEdit = Boolean(config) && !isPending;
+    const canRequestApproval = Boolean(config) && !isPending && !isApproved;
 
     return (
       <>
-        {config ? (
+        {canEdit ? (
           <button
             type="button"
             disabled={actionBusy}
             onClick={() => openEditor('edit', section, item)}
             className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
           >
-            Edit
+            {isApproved ? 'Create revision' : 'Edit'}
           </button>
         ) : null}
-        {config ? (
+        {canRequestApproval ? (
           <button
             type="button"
             disabled={actionBusy}
@@ -1108,7 +1113,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             Request approval
           </button>
         ) : null}
-        {config ? (
+        {config && !isPending ? (
           <button
             type="button"
             disabled={actionBusy}
@@ -1118,7 +1123,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             Delete
           </button>
         ) : null}
-        {workflowId && approvalState === 'pending' ? (
+        {workflowId && isPending && canDecide ? (
           <>
             <button
               type="button"
@@ -1139,9 +1144,9 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           </>
         ) : null}
         {!config && !workflowId ? <span className="text-xs text-neutral-500 dark:text-neutral-400">No actions</span> : null}
-        {workflowId && approvalState !== 'pending' ? (
-          <span className="text-xs text-neutral-500 dark:text-neutral-400">Workflow: {approvalState || 'n/a'}</span>
-        ) : null}
+        {isPending && !canDecide ? <span className="text-xs font-semibold text-amber-600 dark:text-amber-300">Awaiting approval</span> : null}
+        {isApproved ? <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">Approved</span> : null}
+        {approvalState === 'rejected' ? <span className="text-xs font-semibold text-rose-600 dark:text-rose-300">Needs revision</span> : null}
         {!id ? <span className="text-xs text-neutral-500 dark:text-neutral-400">No ID</span> : null}
       </>
     );

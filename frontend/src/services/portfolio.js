@@ -19,6 +19,12 @@ export const portfolioApi = {
   create: (token, body) => apiClient.post('/api/portfolios', body, token),
   update: (token, id, body) => apiClient.put(`/api/portfolios/${id}`, body, token),
   remove: (token, id) => apiClient.delete(`/api/portfolios/${id}`, token),
+  uploadCoverImage: (token, id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.upload(`/api/portfolios/${id}/cover-image`, formData, token);
+  },
+  removeCoverImage: (token, id) => apiClient.delete(`/api/portfolios/${id}/cover-image`, token),
 
   addSection: (token, id, body) => apiClient.post(`/api/portfolios/${id}/sections`, body, token),
   updateSection: (token, id, sectionId, body) =>
@@ -32,6 +38,13 @@ export const portfolioApi = {
     apiClient.put(`/api/portfolios/${id}/sections/${sectionId}/items/${itemId}`, body, token),
   removeItem: (token, id, sectionId, itemId) =>
     apiClient.delete(`/api/portfolios/${id}/sections/${sectionId}/items/${itemId}`, token),
+  uploadItemImage: (token, id, sectionId, itemId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.upload(`/api/portfolios/${id}/sections/${sectionId}/items/${itemId}/image`, formData, token);
+  },
+  removeItemImage: (token, id, sectionId, itemId) =>
+    apiClient.delete(`/api/portfolios/${id}/sections/${sectionId}/items/${itemId}/image`, token),
 
   getPlaybookTemplates: (token) => apiClient.get('/api/portfolios/playbook-templates', token, { cache: false }),
   syncFromMarketingPlan: (token, id) => apiClient.post(`/api/portfolios/${id}/playbook/sync-marketing-plan`, {}, token),

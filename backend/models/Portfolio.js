@@ -9,6 +9,12 @@ const portfolioItemSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     notes: { type: String, trim: true, default: '' },
     link: { type: String, trim: true, default: '' },
+    image: {
+      url: String,
+      storageKey: String,
+      storageProvider: String,
+      thumbnailUrl: String,
+    },
     status: { type: String, enum: PORTFOLIO_ITEM_STATUSES, default: 'not-started' },
     order: { type: Number, default: 0 },
   },

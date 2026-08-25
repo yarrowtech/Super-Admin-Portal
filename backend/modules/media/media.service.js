@@ -1263,6 +1263,11 @@ const getMediaRecordById = (id, projectId, section) =>
 const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) => {
   const existing = await Media.findOne(buildRecordScope(id, projectId, section));
   if (!existing) return null;
+  if (existing.approvalStatus === 'pending') {
+    const err = new Error('This item is awaiting approval and cannot be edited');
+    err.statusCode = 409;
+    throw err;
+  }
 
   const update = normalizeMediaPayload(payload, existing);
   const previousStorageKey = existing.storageKey;
@@ -1294,6 +1299,13 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) 
   }
 
   Object.assign(existing, update, { updatedBy: actorId });
+  if (existing.approvalWorkflowId) {
+    existing.approvalStatus = 'draft';
+    existing.status = 'Draft';
+    existing.approvalWorkflowId = undefined;
+    existing.approvalSteps = [];
+    existing.submittedAt = undefined;
+  }
   await existing.save();
 
   if (replacedCloudinaryAsset) {
@@ -1371,6 +1383,16 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps
     err.statusCode = 404;
     throw err;
   }
+  if (record.approvalStatus === 'pending') {
+    const err = new Error('This item is already awaiting approval');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (record.approvalStatus === 'approved') {
+    const err = new Error('Create a revision before requesting approval again');
+    err.statusCode = 409;
+    throw err;
+  }
 
   const workflowSteps = Array.isArray(steps)
     ? steps.map((step) => ({ ...step }))
@@ -1438,15 +1460,17 @@ const listApprovals = async (query = {}) => {
     .lean();
   const mediaById = new Map(mediaRecords.map((record) => [String(record._id), record]));
 
-  return workflows.map((workflow) => {
+  return workflows.flatMap((workflow) => {
     const media = mediaById.get(String(workflow.entityId)) || null;
+    // Hide orphaned legacy workflows after their source media item is gone.
+    if (!media) return [];
     const pendingStep = Array.isArray(workflow.steps)
       ? workflow.steps.find((step) => step.status === 'pending')
       : null;
     const title = media?.title || `${formatApprovalEntityLabel(workflow)} approval`;
     const section = media?.section || workflow.entityType || 'media';
 
-    return {
+    return [{
       ...workflow,
       media,
       display: {
@@ -1455,7 +1479,7 @@ const listApprovals = async (query = {}) => {
         requester: formatApprovalRequester(workflow.requestedBy),
         pendingRole: pendingStep?.role || '',
       },
-    };
+    }];
   });
 };
 
@@ -1835,6 +1859,7 @@ module.exports = {
   getMarketingPlanActivity,
   getMarketingUserWork,
   uploadMediaFile,
+  deleteCloudinaryAsset,
   setProjectLogo,
   setProjectThemeColor,
   getMediaHeadDashboard,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { portfolioApi } from '../../services/portfolio';
+import Modal from '../ui/Modal';
 
 // The Digital Portfolio's "Command Center" — a read-only project snapshot
 // combining project basics, a live rollup from Media/Law, and signals
@@ -139,8 +140,28 @@ const BadgeRow = ({ entries, formatLabel = (k) => k, emptyText = 'No data yet.' 
   );
 };
 
+const DetailRow = ({ label, value }) => {
+  if (!value) return null;
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5 text-sm">
+      <span className="shrink-0 text-neutral-400">{label}</span>
+      <span className="min-w-0 text-right font-medium text-neutral-700 dark:text-neutral-200">{value}</span>
+    </div>
+  );
+};
+
+// Hides a broken image instead of showing the browser's broken-icon placeholder.
+const hideOnError = (e) => { e.currentTarget.style.display = 'none'; };
+
 export default function PortfolioOverviewPanel({ portfolio, overview, loading, token, editable = false, onUpdate }) {
   const [addingSlide, setAddingSlide] = useState('');
+  const [previewItem, setPreviewItem] = useState(null); // { kind: 'media'|'contract'|'document', ...record }
+  const [previewImageFailed, setPreviewImageFailed] = useState(false);
+
+  const openPreview = (item) => {
+    setPreviewImageFailed(false);
+    setPreviewItem(item);
+  };
 
   const addTemplateSlide = async (key) => {
     if (!portfolio?._id || !token) return;
@@ -238,8 +259,8 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
       {/* Project basics */}
       <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03] sm:p-5">
         <div className="flex items-start gap-4">
-          {portfolio?.coverImage?.url || project.logo?.url ? (
-            <img src={portfolio?.coverImage?.url || project.logo.url} alt="" className="h-14 w-14 shrink-0 rounded-xl border border-neutral-200 bg-white object-contain ring-1 ring-black/5 dark:border-neutral-700" />
+          {project.logo?.url || portfolio?.project?.logo?.url || portfolio?.coverImage?.url ? (
+            <img src={project.logo?.url || portfolio?.project?.logo?.url || portfolio.coverImage.url} alt="" className="h-14 w-14 shrink-0 rounded-xl border border-neutral-200 bg-white object-contain ring-1 ring-black/5 dark:border-neutral-700" />
           ) : (
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-violet-600 text-lg font-black text-white">
               {initials(project.name)}
@@ -374,10 +395,23 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
           {media.recent.length > 0 ? (
             <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3 dark:border-neutral-800">
               {media.recent.slice(0, 4).map((item) => (
-                <div key={item._id} className="flex items-center justify-between gap-2 text-sm">
+                <button
+                  type="button"
+                  key={item._id}
+                  onClick={() => openPreview({ kind: 'media', ...item })}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-sm transition hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
+                >
+                  {item.thumbnailUrl || item.previewUrl || item.storageUrl ? (
+                    <img
+                      src={item.thumbnailUrl || item.previewUrl || item.storageUrl}
+                      alt=""
+                      onError={hideOnError}
+                      className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-black/5"
+                    />
+                  ) : null}
                   <span className="min-w-0 flex-1 truncate text-neutral-600 dark:text-neutral-300">{item.title}</span>
                   <span className="shrink-0 text-xs text-neutral-400">{item.status}</span>
-                </div>
+                </button>
               ))}
             </div>
           ) : null}
@@ -411,11 +445,19 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
           ) : null}
           {[...law.contracts.recent, ...law.documents.recent].length > 0 ? (
             <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3 dark:border-neutral-800">
-              {[...law.contracts.recent, ...law.documents.recent].slice(0, 4).map((item) => (
-                <div key={item._id} className="flex items-center justify-between gap-2 text-sm">
+              {[
+                ...law.contracts.recent.map((item) => ({ kind: 'contract', ...item })),
+                ...law.documents.recent.map((item) => ({ kind: 'document', ...item })),
+              ].slice(0, 4).map((item) => (
+                <button
+                  type="button"
+                  key={item._id}
+                  onClick={() => openPreview(item)}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-sm transition hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
+                >
                   <span className="min-w-0 flex-1 truncate text-neutral-600 dark:text-neutral-300">{item.title}</span>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${LAW_STATUS_TONE[String(item.status).toLowerCase()] || LAW_STATUS_TONE.draft}`}>{item.status}</span>
-                </div>
+                </button>
               ))}
             </div>
           ) : null}
@@ -426,6 +468,66 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
           ) : null}
         </SnapshotCard>
       </div>
+
+      <Modal
+        open={Boolean(previewItem)}
+        onClose={() => setPreviewItem(null)}
+        title={previewItem?.title || 'Details'}
+        description={
+          previewItem?.kind === 'media' ? 'Media asset' : previewItem?.kind === 'contract' ? 'Legal contract' : previewItem?.kind === 'document' ? 'Legal document' : ''
+        }
+      >
+        {previewItem?.kind === 'media' ? (
+          <div className="space-y-3">
+            {!previewImageFailed && (previewItem.previewUrl || previewItem.storageUrl || previewItem.thumbnailUrl) ? (
+              <img
+                src={previewItem.previewUrl || previewItem.storageUrl || previewItem.thumbnailUrl}
+                alt=""
+                onError={() => setPreviewImageFailed(true)}
+                className="max-h-80 w-full rounded-xl border border-neutral-200 bg-neutral-50 object-contain dark:border-neutral-800 dark:bg-neutral-800/60"
+              />
+            ) : (
+              <div className="flex h-32 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-neutral-200 text-neutral-400 dark:border-neutral-700">
+                <span className="material-symbols-outlined text-[24px]">image_not_supported</span>
+                <p className="text-xs">No preview available for this file.</p>
+              </div>
+            )}
+            {previewItem.description ? <p className="text-sm text-neutral-600 dark:text-neutral-300">{previewItem.description}</p> : null}
+            <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <DetailRow label="Section" value={MEDIA_SECTION_LABELS[previewItem.section] || previewItem.section} />
+              <DetailRow label="Status" value={previewItem.status} />
+              <DetailRow label="Last updated" value={formatDate(previewItem.updatedAt)} />
+            </div>
+          </div>
+        ) : previewItem?.kind === 'contract' ? (
+          <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <DetailRow label="Status" value={previewItem.status} />
+            <DetailRow label="Approval status" value={previewItem.approvalStatus} />
+            <DetailRow label="Owner department" value={previewItem.ownerDepartment} />
+            <DetailRow label="Expiry date" value={formatDate(previewItem.expiryDate)} />
+            <DetailRow label="Last updated" value={formatDate(previewItem.updatedAt)} />
+          </div>
+        ) : previewItem?.kind === 'document' ? (
+          <div className="space-y-3">
+            <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <DetailRow label="Type" value={previewItem.type} />
+              <DetailRow label="Status" value={previewItem.status} />
+              <DetailRow label="Priority" value={previewItem.priority} />
+              <DetailRow label="Owner" value={previewItem.owner} />
+              <DetailRow label="Version" value={previewItem.currentVersion} />
+              <DetailRow label="Last updated" value={formatDate(previewItem.updatedAt)} />
+            </div>
+            {previewItem.latestContent ? (
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">Content</p>
+                <p className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-600 dark:bg-neutral-800/60 dark:text-neutral-300">
+                  {previewItem.latestContent}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

@@ -79,6 +79,15 @@ const DOT_PATTERN = {
 const initials = (name = '') =>
   name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
+const MAX_IMAGE_MB = 8;
+const validateImageFile = (file) => {
+  if (!file.type.startsWith('image/')) return 'Please choose an image file.';
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) return `Image must be smaller than ${MAX_IMAGE_MB}MB.`;
+  return '';
+};
+// Hides a broken image instead of showing the browser's broken-icon placeholder.
+const hideOnError = (e) => { e.currentTarget.style.display = 'none'; };
+
 const countItems = (portfolio) => (portfolio.sections || []).reduce((sum, s) => sum + (s.items || []).length, 0);
 const countDone = (portfolio) => (portfolio.sections || []).reduce((sum, s) => sum + (s.items || []).filter((i) => i.status === 'done').length, 0);
 const completionPct = (portfolio) => {
@@ -189,15 +198,17 @@ export default function AdminPortfolioPage() {
 
   const [activeId, setActiveId] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [infoStage, setInfoStage] = useState(''); // '' | 'uploading' | 'removing' — image sub-step feedback
+  const [itemStage, setItemStage] = useState('');
 
   const [createModal, setCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({ project: '', summary: '', liveUrl: '', tags: '' });
 
   const [infoModal, setInfoModal] = useState(false);
-  const [infoForm, setInfoForm] = useState({ summary: '', liveUrl: '', tags: '', status: 'active', logoUrl: '' });
+  const [infoForm, setInfoForm] = useState({ summary: '', liveUrl: '', tags: '', status: 'active', logo: null, logoFile: null, logoPreview: '', removeLogo: false });
 
   const [sectionModal, setSectionModal] = useState(null); // { mode: 'add'|'rename', sectionId?, title }
-  const [itemModal, setItemModal] = useState(null); // { mode:'add'|'edit', sectionId, itemId?, title, notes, link, status }
+  const [itemModal, setItemModal] = useState(null); // { mode:'add'|'edit', sectionId, itemId?, title, notes, link, status, image, imageFile, imagePreview, removeImage }
 
   const active = useMemo(() => portfolios.find((p) => p._id === activeId) || null, [portfolios, activeId]);
 
@@ -340,10 +351,27 @@ export default function AdminPortfolioPage() {
       liveUrl: active.liveUrl || '',
       tags: (active.tags || []).join(', '),
       status: active.status || 'active',
-      logoUrl: active.coverImage?.url || '',
+      logo: active.coverImage || null,
+      logoFile: null,
+      logoPreview: '',
+      logoError: '',
+      removeLogo: false,
     });
     setInfoModal(true);
   };
+
+  const onLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setInfoForm((f) => ({ ...f, logoError: validationError }));
+    } else {
+      setInfoForm((f) => ({ ...f, logoFile: file, logoPreview: URL.createObjectURL(file), logoError: '', removeLogo: false }));
+    }
+    e.target.value = '';
+  };
+  const clearLogo = () => setInfoForm((f) => ({ ...f, logoFile: null, logoPreview: '', logoError: '', logo: null, removeLogo: true }));
 
   const submitInfo = async (e) => {
     e.preventDefault();
@@ -351,19 +379,28 @@ export default function AdminPortfolioPage() {
     setBusy(true);
     setError('');
     try {
-      const res = await portfolioApi.update(token, active._id, {
+      let res = await portfolioApi.update(token, active._id, {
         summary: infoForm.summary,
         liveUrl: infoForm.liveUrl,
         status: infoForm.status,
         tags: infoForm.tags ? infoForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
-        coverImage: { url: infoForm.logoUrl || '' },
       });
+
+      if (infoForm.logoFile) {
+        setInfoStage('uploading');
+        res = await portfolioApi.uploadCoverImage(token, active._id, infoForm.logoFile);
+      } else if (infoForm.removeLogo) {
+        setInfoStage('removing');
+        res = await portfolioApi.removeCoverImage(token, active._id);
+      }
+
       upsertPortfolioInList(res.data);
       setInfoModal(false);
     } catch (err) {
       setError(err?.message || 'Failed to update portfolio');
     }
     setBusy(false);
+    setInfoStage('');
   };
 
   const handleDeletePortfolio = async (portfolio) => {
@@ -420,9 +457,36 @@ export default function AdminPortfolioPage() {
 
   // ---- Item CRUD ----
 
-  const openAddItem = (sectionId) => setItemModal({ mode: 'add', sectionId, title: '', notes: '', link: '', status: 'not-started' });
+  const openAddItem = (sectionId) =>
+    setItemModal({ mode: 'add', sectionId, title: '', notes: '', link: '', status: 'not-started', image: null, imageFile: null, imagePreview: '', imageError: '', removeImage: false });
   const openEditItem = (sectionId, item) =>
-    setItemModal({ mode: 'edit', sectionId, itemId: item._id, title: item.title, notes: item.notes || '', link: item.link || '', status: item.status });
+    setItemModal({
+      mode: 'edit',
+      sectionId,
+      itemId: item._id,
+      title: item.title,
+      notes: item.notes || '',
+      link: item.link || '',
+      status: item.status,
+      image: item.image || null,
+      imageFile: null,
+      imagePreview: '',
+      imageError: '',
+      removeImage: false,
+    });
+
+  const onItemImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setItemModal((s) => ({ ...s, imageError: validationError }));
+    } else {
+      setItemModal((s) => ({ ...s, imageFile: file, imagePreview: URL.createObjectURL(file), imageError: '', removeImage: false }));
+    }
+    e.target.value = '';
+  };
+  const clearItemImage = () => setItemModal((s) => ({ ...s, imageFile: null, imagePreview: '', imageError: '', image: null, removeImage: true }));
 
   const submitItem = async (e) => {
     e.preventDefault();
@@ -431,15 +495,31 @@ export default function AdminPortfolioPage() {
     setError('');
     try {
       const payload = { title: itemModal.title.trim(), notes: itemModal.notes, link: itemModal.link, status: itemModal.status };
-      const res = itemModal.mode === 'add'
+      let res = itemModal.mode === 'add'
         ? await portfolioApi.addItem(token, active._id, itemModal.sectionId, payload)
         : await portfolioApi.updateItem(token, active._id, itemModal.sectionId, itemModal.itemId, payload);
+
+      let itemId = itemModal.itemId;
+      if (itemModal.mode === 'add') {
+        const section = res.data.sections.find((s) => s._id === itemModal.sectionId);
+        itemId = section?.items?.[section.items.length - 1]?._id;
+      }
+
+      if (itemModal.imageFile && itemId) {
+        setItemStage('uploading');
+        res = await portfolioApi.uploadItemImage(token, active._id, itemModal.sectionId, itemId, itemModal.imageFile);
+      } else if (itemModal.removeImage && itemModal.mode === 'edit') {
+        setItemStage('removing');
+        res = await portfolioApi.removeItemImage(token, active._id, itemModal.sectionId, itemId);
+      }
+
       upsertPortfolioInList(res.data);
       setItemModal(null);
     } catch (err) {
       setError(err?.message || 'Failed to save item');
     }
     setBusy(false);
+    setItemStage('');
   };
 
   const handleDeleteItem = async (sectionId, item) => {
@@ -506,10 +586,11 @@ export default function AdminPortfolioPage() {
             <div className="relative bg-white px-5 pb-6 dark:bg-neutral-900 sm:px-7">
               <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex items-end gap-4">
-                  {active.coverImage?.url || overview?.project?.logo?.url ? (
+                  {overview?.project?.logo?.url || active.project?.logo?.url || active.coverImage?.url ? (
                     <img
-                      src={active.coverImage?.url || overview?.project?.logo?.url}
+                      src={overview?.project?.logo?.url || active.project?.logo?.url || active.coverImage?.url}
                       alt=""
+                      onError={hideOnError}
                       className="h-20 w-20 shrink-0 rounded-2xl border-4 border-white bg-white object-contain shadow-lg ring-1 ring-black/5 dark:border-neutral-900"
                     />
                   ) : (
@@ -653,6 +734,9 @@ export default function AdminPortfolioPage() {
                             >
                               <span className="material-symbols-outlined text-[20px]">{STATUS_ICON[item.status] || STATUS_ICON['not-started']}</span>
                             </button>
+                            {item.image?.url ? (
+                              <img src={item.image.url} alt="" onError={hideOnError} className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-black/5" />
+                            ) : null}
                             <span className={`min-w-0 flex-1 truncate text-sm ${item.status === 'done' ? 'text-neutral-400 line-through decoration-neutral-300' : 'text-neutral-700 dark:text-neutral-200'}`}>
                               {item.title}
                             </span>
@@ -692,13 +776,42 @@ export default function AdminPortfolioPage() {
           {/* Edit info modal */}
           <Modal open={infoModal} title={<ModalTitle icon="edit">Edit Portfolio Info</ModalTitle>} onClose={() => setInfoModal(false)}>
             <form onSubmit={submitInfo} className="space-y-3">
-              <Input label="Logo URL" name="logoUrl" value={infoForm.logoUrl} onChange={(e) => setInfoForm((f) => ({ ...f, logoUrl: e.target.value }))} placeholder="https://... (shown instead of the initials avatar)" />
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Logo (shown instead of the initials avatar)</label>
+                {infoForm.logoPreview || infoForm.logo?.url ? (
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-16 w-16 shrink-0">
+                      <img
+                        src={infoForm.logoPreview || infoForm.logo.url}
+                        alt=""
+                        onError={hideOnError}
+                        className="h-16 w-16 rounded-xl border border-neutral-200 bg-white object-contain ring-1 ring-black/5 dark:border-neutral-700"
+                      />
+                      {infoStage === 'uploading' ? (
+                        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+                          <span className="material-symbols-outlined animate-spin text-[20px] text-white">progress_activity</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button type="button" variant="secondary" disabled={busy} onClick={clearLogo}>Remove</Button>
+                  </div>
+                ) : (
+                  <label className={`flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-neutral-200 px-3 py-2.5 text-xs font-semibold text-neutral-400 transition dark:border-neutral-700 ${busy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-primary/40 hover:bg-primary/5 hover:text-primary'}`}>
+                    <span className="material-symbols-outlined text-[16px]">upload</span>
+                    Upload logo
+                    <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={onLogoChange} />
+                  </label>
+                )}
+                {infoForm.logoError ? <p className="mt-1.5 text-xs font-medium text-rose-500">{infoForm.logoError}</p> : null}
+              </div>
               <Input label="Summary" name="summary" value={infoForm.summary} onChange={(e) => setInfoForm((f) => ({ ...f, summary: e.target.value }))} />
               <Input label="Live URL" name="liveUrl" value={infoForm.liveUrl} onChange={(e) => setInfoForm((f) => ({ ...f, liveUrl: e.target.value }))} placeholder="https://" />
               <Input label="Tags (comma separated)" name="tags" value={infoForm.tags} onChange={(e) => setInfoForm((f) => ({ ...f, tags: e.target.value }))} />
               <Select label="Status" name="status" options={PORTFOLIO_STATUS_OPTIONS} value={infoForm.status} onChange={(e) => setInfoForm((f) => ({ ...f, status: e.target.value }))} />
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setInfoModal(false)}>Cancel</Button>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                {infoStage === 'uploading' ? <span className="text-xs font-medium text-neutral-400">Uploading logo…</span> : null}
+                {infoStage === 'removing' ? <span className="text-xs font-medium text-neutral-400">Removing logo…</span> : null}
+                <Button type="button" variant="secondary" disabled={busy} onClick={() => setInfoModal(false)}>Cancel</Button>
                 <Button type="submit" loading={busy}>Save</Button>
               </div>
             </form>
@@ -760,8 +873,38 @@ export default function AdminPortfolioPage() {
                   onChange={(e) => setItemModal((s) => ({ ...s, status: e.target.value }))}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setItemModal(null)}>Cancel</Button>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Image (optional)</label>
+                {itemModal?.imagePreview || itemModal?.image?.url ? (
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-16 w-16 shrink-0">
+                      <img
+                        src={itemModal.imagePreview || itemModal.image.url}
+                        alt=""
+                        onError={hideOnError}
+                        className="h-16 w-16 rounded-lg object-cover ring-1 ring-black/5"
+                      />
+                      {itemStage === 'uploading' ? (
+                        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40">
+                          <span className="material-symbols-outlined animate-spin text-[20px] text-white">progress_activity</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button type="button" variant="secondary" disabled={busy} onClick={clearItemImage}>Remove</Button>
+                  </div>
+                ) : (
+                  <label className={`flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-neutral-200 px-3 py-2.5 text-xs font-semibold text-neutral-400 transition dark:border-neutral-700 ${busy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-primary/40 hover:bg-primary/5 hover:text-primary'}`}>
+                    <span className="material-symbols-outlined text-[16px]">upload</span>
+                    Upload image
+                    <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={onItemImageChange} />
+                  </label>
+                )}
+                {itemModal?.imageError ? <p className="mt-1.5 text-xs font-medium text-rose-500">{itemModal.imageError}</p> : null}
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                {itemStage === 'uploading' ? <span className="text-xs font-medium text-neutral-400">Uploading image…</span> : null}
+                {itemStage === 'removing' ? <span className="text-xs font-medium text-neutral-400">Removing image…</span> : null}
+                <Button type="button" variant="secondary" disabled={busy} onClick={() => setItemModal(null)}>Cancel</Button>
                 <Button type="submit" loading={busy}>Save</Button>
               </div>
             </form>
@@ -879,8 +1022,8 @@ export default function AdminPortfolioPage() {
                   <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
                   <div className="flex flex-1 flex-col p-4">
                     <div className="flex items-start gap-3">
-                      {p.coverImage?.url ? (
-                        <img src={p.coverImage.url} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-neutral-200 bg-white object-contain shadow-sm dark:border-neutral-700" />
+                      {p.project?.logo?.url || p.coverImage?.url ? (
+                        <img src={p.project?.logo?.url || p.coverImage.url} alt="" onError={hideOnError} className="h-11 w-11 shrink-0 rounded-xl border border-neutral-200 bg-white object-contain shadow-sm dark:border-neutral-700" />
                       ) : (
                         <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-sm font-black text-white shadow-sm`}>
                           {initials(p.projectName)}

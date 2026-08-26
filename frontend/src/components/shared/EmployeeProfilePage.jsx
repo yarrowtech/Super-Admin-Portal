@@ -332,7 +332,10 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
 
         {/* Hero card */}
         <Card>
-          <div className="h-28 rounded-t-2xl bg-linear-to-r from-violet-600 via-indigo-600 to-blue-500" />
+          <div
+            className="h-28 rounded-t-2xl"
+            style={{ background: 'linear-gradient(90deg, var(--portal-accent, #6366f1), var(--portal-accent-strong, var(--portal-accent, #4338ca)))' }}
+          />
           <Inner className="-mt-14">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex items-end gap-4">
@@ -374,7 +377,10 @@ const EmployeeProfilePage = ({ portalLabel = 'Team Member' }) => {
                 <span className="font-semibold text-neutral-700 dark:text-neutral-200">{completion}%</span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-                <div className="h-full rounded-full bg-linear-to-r from-violet-500 to-blue-500 transition-all" style={{ width: `${completion}%` }} />
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${completion}%`, background: 'linear-gradient(90deg, var(--portal-accent, #6366f1), var(--portal-accent-strong, var(--portal-accent, #4338ca)))' }}
+                />
               </div>
             </div>
           </Inner>

@@ -1,70 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
 import { findCanonicalProject } from '../../config/projectNames';
 import { QK } from '../../utils/queryKeys';
+import { statusToTone } from '../../utils/statusTone';
 import PortalHeader from '../common/PortalHeader';
-import KPICard from '../common/KPICard';
-
-const SECTION_META = {
-  dashboard: {
-    title: 'Media Command Center',
-    icon: 'campaign',
-  },
-  campaigns: {
-    title: 'Campaign Board',
-    subtitle: 'Plan launches, track status, and keep campaign ownership clear',
-    icon: 'ads_click',
-  },
-  content: {
-    title: 'Content Library',
-    subtitle: 'Creative assets, publish queue, and editorial readiness',
-    icon: 'gallery_thumbnail',
-  },
-  channels: {
-    title: 'Channel Strategy',
-    subtitle: 'Social, PR, paid, and community distribution planning',
-    icon: 'share',
-  },
-  approvals: {
-    title: 'Approvals Queue',
-    subtitle: 'Review, sign-off, and publishing control',
-    icon: 'fact_check',
-  },
-  analytics: {
-    title: 'Media Analytics',
-    subtitle: 'Performance signals and operational health',
-    icon: 'analytics',
-  },
-  settings: {
-    title: 'Media Settings',
-    subtitle: 'Permissions, process controls, and publishing guardrails',
-    icon: 'settings',
-  },
-};
-
-const MEDIA_SECTIONS = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'campaign', description: 'Executive media overview' },
-  { id: 'campaigns', label: 'Campaigns', icon: 'ads_click', description: 'Planning and launch tracking' },
-  { id: 'content', label: 'Content', icon: 'gallery_thumbnail', description: 'Editorial and asset flow' },
-  { id: 'channels', label: 'Channels', icon: 'share', description: 'Distribution and audience reach' },
-  { id: 'approvals', label: 'Approvals', icon: 'fact_check', description: 'Review and sign-off queue' },
-  { id: 'analytics', label: 'Analytics', icon: 'analytics', description: 'Performance and health metrics' },
-  { id: 'settings', label: 'Settings', icon: 'settings',      description: 'Controls and access rules' },
-  { id: 'support',  label: 'Support',  icon: 'support_agent', description: 'Get help and submit tickets' },
-];
-
-const cardClass = 'rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)]';
-const MEDIA_CACHE_TTL = 45 * 1000;
-
-const metricValue = (value) => {
-  if (value === null || value === undefined || value === '') return '0';
-  if (Array.isArray(value)) return String(value.length);
-  if (typeof value === 'object') return '1';
-  return String(value);
-};
+import StatusBadge from '../common/StatusBadge';
+import DataTable from '../ui/DataTable';
+import CreativeStatsGrid from './CreativeStatsGrid';
 
 const pickText = (...values) => {
   for (const value of values) {
@@ -74,43 +18,13 @@ const pickText = (...values) => {
   return '';
 };
 
-const statusTone = (status = '') => {
-  const value = String(status).toLowerCase();
-  if (value.includes('live') || value.includes('active') || value.includes('published')) {
-    return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-  }
-  if (value.includes('pending') || value.includes('review') || value.includes('draft')) {
-    return 'bg-amber-500/15 text-amber-200 border-amber-500/30';
-  }
-  if (value.includes('hold') || value.includes('blocked') || value.includes('paused')) {
-    return 'bg-red-500/15 text-red-200 border-red-500/30';
-  }
-  return 'bg-sky-500/15 text-sky-200 border-sky-500/30';
-};
-
-const CHART_COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#ec4899'];
-
-// Memoized so Recharts' (fairly expensive) internal layout/render work is
-// skipped whenever the dashboard re-renders for a reason unrelated to this
-// specific slice of `summary` — e.g. the project selector or an unrelated
-// query in the background revalidating.
-const StatusPieChart = React.memo(({ data, innerRadius, outerRadius, styledTooltip = false }) => (
-  <ResponsiveContainer width="100%" height="100%">
-    <PieChart>
-      <Pie data={data} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius={outerRadius} paddingAngle={4}>
-        {data.map((entry, index) => (
-          <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-        ))}
-      </Pie>
-      <Tooltip contentStyle={styledTooltip ? { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16 } : undefined} />
-    </PieChart>
-  </ResponsiveContainer>
-));
-
 const normalizeStatus = (value = '') => String(value || '').trim().toLowerCase();
 const toCount = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const arr = (value) => (Array.isArray(value) ? value : []);
-const pickValue = (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '-';
+const isWithinDays = (dateValue, days) => {
+  const t = dateValue ? new Date(dateValue).getTime() : 0;
+  return t && Date.now() - t <= days * 24 * 60 * 60 * 1000;
+};
 const buildProjectOptions = (projects = []) =>
   projects
     .map((project) => {
@@ -140,7 +54,10 @@ const formatTime = (value) =>
     ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : 'pending';
 
-const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProjectChange }) => {
+// Section is fixed: MediaPortal only ever mounts this component for the
+// 'dashboard' route — Campaigns/Channels/Analytics live in MediaWorkspace's
+// Creative sections instead, so this file only renders one view.
+const MediaDashboard = ({ selectedProjectId }) => {
   const { token, user } = useAuth();
   const [activeProjectId, setActiveProjectId] = useState('');
   const effectiveProjectId = selectedProjectId !== undefined ? selectedProjectId : activeProjectId;
@@ -183,7 +100,7 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
   // Client-side cache layer (same TanStack Query cache MediaWorkspace uses via
   // QK.media.*): revisiting the dashboard within the cache window, or after it
   // was already loaded elsewhere this session, reads from cache instead of
-  // re-firing all 8 requests.
+  // re-firing all requests.
   const projectParams = useMemo(
     () => (effectiveProjectId ? { projectId: effectiveProjectId } : {}),
     [effectiveProjectId]
@@ -191,7 +108,7 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
   const enabled = Boolean(token);
 
   const [
-    projectsQuery, dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery, approvalsQuery, reportingQuery,
+    projectsQuery, dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery, approvalsQuery,
   ] = useQueries({
     queries: [
       {
@@ -211,7 +128,6 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
       { queryKey: QK.media.content(projectParams), queryFn: () => departmentApi.getMediaContent(token, projectParams), enabled },
       { queryKey: QK.media.brandAssets(projectParams), queryFn: () => departmentApi.getMediaBrandAssets(token, projectParams), enabled },
       { queryKey: QK.media.approvals(projectParams), queryFn: () => departmentApi.getMediaApprovals(token, projectParams), enabled },
-      { queryKey: QK.media.reporting(projectParams), queryFn: () => departmentApi.getMediaReportingSummary(token, projectParams), enabled },
     ],
   });
 
@@ -229,9 +145,8 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
   const content = useMemo(() => arr(contentQuery.data?.data?.items), [contentQuery.data]);
   const brandAssets = useMemo(() => arr(brandAssetsQuery.data?.data?.items), [brandAssetsQuery.data]);
   const approvals = useMemo(() => arr(approvalsQuery.data?.data?.items || approvalsQuery.data?.data), [approvalsQuery.data]);
-  const reporting = reportingQuery.data?.data || null;
 
-  const dataQueries = [dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery, approvalsQuery, reportingQuery];
+  const dataQueries = [dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery, approvalsQuery];
   const loading = [projectsQuery, ...dataQueries].some((q) => q.isLoading);
   const error = projectsQuery.isError
     ? projectsQuery.error?.message || 'Failed to load Media portal data.'
@@ -254,488 +169,183 @@ const MediaDashboard = ({ activeSection = 'dashboard', selectedProjectId, onProj
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveProjectId(resolvedProjectId);
     }
-    if (activeSection !== 'dashboard' && !effectiveProjectId) {
-      onProjectChange?.(resolvedProjectId);
-    }
-  }, [projectsQuery.isSuccess, projects, effectiveProjectId, selectedProjectId, activeSection, onProjectChange]);
+  }, [projectsQuery.isSuccess, projects, effectiveProjectId, selectedProjectId]);
 
   const summary = useMemo(() => {
-    const permissions = Array.isArray(dashboard?.permissions) ? dashboard.permissions : [];
     const sourceItems = [...campaigns, ...content, ...brandAssets, ...approvals];
-    const statusBreakdown = Array.isArray(dashboard?.charts?.statusBreakdown) && dashboard.charts.statusBreakdown.length
-      ? dashboard.charts.statusBreakdown
-      : sourceItems.reduce((acc, row) => {
-          const status = pickValue(row?.status, row?.state, row?.approvalStatus, 'Draft');
-          const existing = acc.find((item) => item.name === status);
-          if (existing) existing.value += 1;
-          else acc.push({ name: status, value: 1 });
-          return acc;
-        }, []);
-    const moduleBreakdown = Array.isArray(dashboard?.charts?.moduleBreakdown) && dashboard.charts.moduleBreakdown.length
-      ? dashboard.charts.moduleBreakdown
-      : [
-          { name: 'Projects', value: projects.length },
-          { name: 'Assets', value: assets.length },
-          { name: 'Campaigns', value: campaigns.length },
-          { name: 'Content', value: content.length },
-          { name: 'Brand', value: brandAssets.length },
-          { name: 'Approvals', value: approvals.length },
-        ];
+    const publishAndDeliverables = [...assets, ...content, ...brandAssets];
     const activeCampaigns = campaigns.filter((row) => {
       const status = normalizeStatus(row?.status || row?.state);
       return status.includes('live') || status.includes('active') || status.includes('running');
     }).length;
-    const pendingCampaigns = campaigns.filter((row) => {
-      const status = normalizeStatus(row?.status || row?.state);
-      return status.includes('pending') || status.includes('review') || status.includes('draft');
+    const publishedRecently = publishAndDeliverables.filter((row) => {
+      const status = normalizeStatus(row?.status || row?.state || row?.approvalStatus);
+      const isPublished = status.includes('published') || status.includes('live') || status.includes('approved');
+      return isPublished && isWithinDays(row?.updatedAt || row?.createdAt, 7);
     }).length;
-    const publishedContent = content.filter((row) => {
-      const status = normalizeStatus(row?.status || row?.state);
-      return status.includes('published') || status.includes('live');
+    const assetsInReview = assets.filter((row) => {
+      const status = normalizeStatus(row?.status || row?.state || row?.approvalStatus);
+      return status.includes('pending') || status.includes('review');
     }).length;
-    const contentInReview = content.filter((row) => normalizeStatus(row?.status || row?.state).includes('review')).length;
-    const totalAssets = assets.length + brandAssets.length + content.length;
-    const totalProjects = projects.length;
-    const totalApprovals = approvals.length;
-    const projectCountLabel = dashboard?.kpis?.activeProjects ?? totalProjects;
-    const socialReach = toCount(dashboard?.kpis?.socialReach || sourceItems.length * 1200);
-    const socialEngagement = toCount(dashboard?.kpis?.socialEngagement || campaigns.length * 90 + content.length * 30);
-    const roi = typeof dashboard?.kpis?.marketingRoi === 'number' ? dashboard.kpis.marketingRoi : (campaigns.length ? ((activeCampaigns / campaigns.length) * 100) : 0);
-    const topOwners = sourceItems.reduce((acc, row) => {
-      const owner = pickValue(row?.owner, row?.assignedTo, row?.author, row?.lead, 'Unassigned');
-      const existing = acc.find((item) => item.label === owner);
-      if (existing) existing.value += 1;
-      else acc.push({ label: owner, value: 1 });
-      return acc;
-    }, []).sort((a, b) => b.value - a.value).slice(0, 5);
-    const recentItems = sourceItems
+    const pendingApprovals = toCount(dashboard?.kpis?.pendingApprovals ?? approvals.filter((row) => normalizeStatus(row?.status || row?.state).includes('pending')).length);
+
+    const needsAttention = sourceItems
+      .filter((row) => {
+        const status = normalizeStatus(row?.status || row?.state || row?.approvalStatus);
+        return status.includes('pending') || status.includes('review') || status.includes('reject') || status.includes('revision');
+      })
       .slice()
       .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
       .slice(0, 6);
-    const reportCount = Array.isArray(reporting?.auditRows)
-      ? reporting.auditRows.length
-      : Array.isArray(reporting?.recentItems)
-        ? reporting.recentItems.length
-        : 0;
+
+    const recentItems = sourceItems
+      .slice()
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+      .slice(0, 8);
 
     return {
-      permissions,
-      activeProjects: projectCountLabel,
+      activeProjects: toCount(dashboard?.kpis?.activeProjects ?? projects.length),
+      pendingApprovals,
+      assetsInReview,
+      publishedRecently,
       activeCampaigns,
-      pendingCampaigns,
-      publishedContent,
-      contentInReview,
       totalCampaigns: campaigns.length,
-      totalContent: content.length,
-      totalAssets,
-      totalApprovals,
-      statusBreakdown: statusBreakdown
-        .map((item) => ({
-          name: item.name || item._id || 'Unknown',
-          value: toCount(item.value ?? item.count ?? 0),
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 6),
-      moduleBreakdown: moduleBreakdown
-        .map((item) => ({
-          name: item.name || item._id || 'Unknown',
-          value: toCount(item.value ?? item.count ?? 0),
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 6),
-      topOwners,
+      needsAttention,
       recentItems,
-      reportCount,
-      socialReach,
-      socialEngagement,
-      roi,
-      roas: dashboard?.kpis?.roas || 0,
-      cpl: dashboard?.kpis?.cpl || 0,
-      totalBudget: dashboard?.kpis?.totalBudget || 0,
-      budgetUsed: dashboard?.kpis?.budgetUsed || 0,
-      budgetRemaining: dashboard?.kpis?.budgetRemaining || 0,
-      completedTasks: dashboard?.kpis?.completedTasks || 0,
-      pendingTasks: dashboard?.kpis?.pendingTasks || 0,
-      leadToCustomerConversion: dashboard?.kpis?.leadToCustomerConversion || 0,
-      upcomingDeadlines: dashboard?.kpis?.upcomingDeadlines || 0,
-      pendingApprovalsKpi: dashboard?.kpis?.pendingApprovals || 0,
-      message: dashboard?.message || 'Media operations center online.',
     };
-  }, [approvals, assets, brandAssets, campaigns, content, dashboard, projects, reporting]);
+  }, [approvals, assets, brandAssets, campaigns, content, dashboard, projects]);
 
-  const meta = SECTION_META[activeSection] || SECTION_META.dashboard;
   const lastSyncAt =
     dashboard?.updatedAt ||
     dashboard?.generatedAt ||
-    reporting?.updatedAt ||
-    reporting?.generatedAt ||
     summary.recentItems?.[0]?.updatedAt ||
-    summary.recentItems?.[0]?.modifiedAt ||
     summary.recentItems?.[0]?.createdAt ||
     new Date().toISOString();
   const lastSyncLabel = formatTime(lastSyncAt);
-  const renderEmptyCard = (title, description) => (
-    <article className={cardClass}>
-      <p className="text-sm font-semibold text-neutral-900">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
+
+  const activityColumns = [
+    {
+      key: 'title',
+      header: 'Item',
+      render: (item) => (
+        <div>
+          <p className="font-semibold text-neutral-900 dark:text-neutral-100">{pickText(item?.title, item?.name, item?.contentName, item?.assetName, 'Untitled item')}</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">{item?.projectName || item?.section || item?.type || 'Media record'}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (item) => <StatusBadge tone={statusToTone(pickText(item?.status, item?.state, item?.approvalStatus, 'Draft'))} label={pickText(item?.status, item?.state, item?.approvalStatus, 'Draft')} />,
+    },
+    { key: 'owner', header: 'Owner', render: (item) => pickText(item?.owner, item?.author, item?.assignedTo, item?.lead, 'Unassigned') },
+    {
+      key: 'updated',
+      header: 'Updated',
+      render: (item) => {
+        const updated = pickText(item?.updatedAt, item?.modifiedAt, item?.createdAt, '');
+        return updated ? new Date(updated).toLocaleDateString() : 'N/A';
+      },
+    },
+  ];
+
+  const renderNeedsAttention = () => (
+    <article className="app-card p-4 lg:p-5">
+      <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Needs Attention</h2>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">Pending approvals, reviews, and revisions across every module.</p>
+      {summary.needsAttention.length ? (
+        <ul className="mt-4 space-y-2">
+          {summary.needsAttention.map((item, index) => {
+            const title = pickText(item?.title, item?.name, item?.contentName, `Item ${index + 1}`);
+            const status = pickText(item?.status, item?.state, item?.approvalStatus, 'Pending');
+            return (
+              <li key={item?._id || item?.id || `${title}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{title}</p>
+                  <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{item?.projectName || 'Unassigned project'}</p>
+                </div>
+                <StatusBadge tone={statusToTone(status)} label={status} />
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">Nothing needs review right now.</p>
+      )}
     </article>
   );
 
-  const renderCampaigns = () => {
-    if (!campaigns.length) {
-      return (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {renderEmptyCard(
-            'No campaigns synced yet',
-            'Create a launch brief, assign a channel owner, and add the first campaign record to activate this board.'
-          )}
-          {renderEmptyCard(
-            'Recommended workflow',
-            'Brief -> creative review -> compliance check -> publish window -> post-launch analysis.'
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {campaigns.map((row, index) => {
-          const title = pickText(row?.title, row?.name, row?.campaignName, `Campaign ${index + 1}`);
-          const channel = pickText(row?.channel, row?.platform, row?.medium, 'Cross-channel');
-          const owner = pickText(row?.owner, row?.assignedTo, row?.lead, 'Unassigned');
-          const status = pickText(row?.status, row?.state, row?.progressState, 'Pending');
-          const objective = pickText(row?.objective, row?.goal, row?.description, 'No campaign summary available.');
-
-          return (
-            <article key={row?._id || row?.id || `${title}-${index}`} className={cardClass}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold text-neutral-900">{title}</p>
-                  <p className="mt-1 text-sm text-neutral-600">{channel}</p>
-                </div>
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
-                  {status}
-                </span>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-neutral-600">{objective}</p>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs text-neutral-500">
-                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1">Owner: {owner}</span>
-                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1">Channel: {channel}</span>
-                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1">Status: {status}</span>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderContent = () => {
-    if (!content.length) {
-      return (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {renderEmptyCard(
-            'Content library is empty',
-            'Add creative assets, copy drafts, and publish-ready media so the team can review one source of truth.'
-          )}
-          {renderEmptyCard(
-            'Asset standards',
-            'Use the same naming pattern for campaign, channel, status, and version to keep approvals clean.'
-          )}
-          {renderEmptyCard(
-            'Publishing rule',
-            'Only content with a completed review and channel owner should move into the publish queue.'
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {content.map((row, index) => {
-          const title = pickText(row?.title, row?.name, row?.contentName, row?.assetName, `Content ${index + 1}`);
-          const status = pickText(row?.status, row?.state, 'Draft');
-          const format = pickText(row?.format, row?.type, row?.channel, 'Digital');
-          const owner = pickText(row?.owner, row?.author, row?.assignedTo, 'Media team');
-          const updated = pickText(row?.updatedAt, row?.modifiedAt, row?.createdAt, '');
-
-          return (
-            <article key={row?._id || row?.id || `${title}-${index}`} className={cardClass}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold text-neutral-900">{title}</p>
-                  <p className="mt-1 text-sm text-neutral-600">{format}</p>
-                </div>
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
-                  {status}
-                </span>
-              </div>
-              <div className="mt-4 space-y-2 text-sm text-neutral-600">
-                <p>Owner: {owner}</p>
-                {updated ? <p>Updated: {updated}</p> : null}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderChannels = () => {
-    const channels = [
-      { name: 'Social Media', icon: 'forum', desc: 'Community updates, short-form content, and launch amplification.' },
-      { name: 'Brand Studio', icon: 'palette', desc: 'Visual identity, templates, and creative consistency.' },
-      { name: 'PR Desk', icon: 'newspaper', desc: 'Announcements, media relations, and public narratives.' },
-      { name: 'Performance', icon: 'ads_click', desc: 'Paid media, targeting, and conversion tracking.' },
-    ];
-
-    return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {channels.map((channel) => (
-          <article key={channel.name} className={cardClass}>
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-3xl text-cyan-600">{channel.icon}</span>
-              <div>
-                <p className="text-base font-semibold text-neutral-900">{channel.name}</p>
-                <p className="text-sm text-neutral-600">{channel.desc}</p>
-              </div>
+  const renderProjectProgress = () => (
+    <article className="app-card p-4 lg:p-5">
+      <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Project Progress</h2>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">Active projects assigned to this workspace.</p>
+      {projects.length ? (
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+          {projects.map((project) => (
+            <div key={project.value} className="flex min-w-40 shrink-0 flex-col gap-2 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+              <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{project.name}</p>
+              <StatusBadge tone={statusToTone(project.status)} label={project.status || 'Active'} />
             </div>
-          </article>
-        ))}
-      </div>
-    );
-  };
-
-  const renderApprovals = () => {
-    const steps = [
-      { label: 'Briefing', state: 'Ready' },
-      { label: 'Creative Review', state: 'Pending' },
-      { label: 'Compliance Check', state: 'Pending' },
-      { label: 'Publish', state: 'Queued' },
-    ];
-
-    return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {steps.map((step, index) => (
-          <article key={step.label} className={cardClass}>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Step {index + 1}</p>
-            <p className="mt-2 text-lg font-semibold text-neutral-900">{step.label}</p>
-            <p className="mt-3 text-sm text-neutral-600">{step.state}</p>
-          </article>
-        ))}
-      </div>
-    );
-  };
-
-  const renderAnalytics = () => {
-    const contentRatio = summary.totalContent ? Math.round((summary.publishedContent / summary.totalContent) * 100) : 0;
-    const campaignRatio = summary.totalCampaigns ? Math.round((summary.activeCampaigns / summary.totalCampaigns) * 100) : 0;
-
-    const metrics = [
-      ['Active Campaigns', summary.activeCampaigns, 'rocket_launch', 'green'],
-      ['Pending Reviews', summary.pendingCampaigns, 'hourglass_top', 'orange'],
-      ['Published Assets', summary.publishedContent, 'library_books', 'blue'],
-      ['Assets', summary.totalAssets, 'perm_media', 'purple'],
-      ['Approvals', summary.totalApprovals, 'fact_check', 'red'],
-      ['Permissions', summary.permissions.length, 'verified_user', 'indigo'],
-    ];
-
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {metrics.map(([label, value, icon, color]) => (
-            <KPICard
-              key={label}
-              title={label}
-              value={metricValue(value)}
-              icon={icon}
-              colorScheme={color}
-              subtitle={label === 'Active Campaigns' ? `${campaignRatio}% ACTIVE` : label === 'Published Assets' ? `${contentRatio}% PUBLISHED` : 'LIVE'}
-              compact
-              className="min-h-[150px]"
-            />
           ))}
         </div>
+      ) : (
+        <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">No projects assigned yet.</p>
+      )}
+    </article>
+  );
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <article className={cardClass}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-base font-semibold text-neutral-900">Operational Pulse</p>
-                <p className="text-sm text-neutral-600">Media throughput is driven by launch readiness and content approvals.</p>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                Healthy
-              </span>
-            </div>
-            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="rounded-[1.3rem] border border-neutral-200 bg-neutral-50 p-4">
-                <div className="mb-2 flex items-center justify-between text-sm text-neutral-600">
-                  <span>Campaign readiness</span>
-                  <span>{campaignRatio}%</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-neutral-200">
-                  <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500" style={{ width: `${campaignRatio}%` }} />
-                </div>
-              </div>
-              <div className="rounded-[1.3rem] border border-neutral-200 bg-neutral-50 p-4">
-                <div className="mb-2 flex items-center justify-between text-sm text-neutral-600">
-                  <span>Content publish rate</span>
-                  <span>{contentRatio}%</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-neutral-200">
-                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: `${contentRatio}%` }} />
-                </div>
-              </div>
-            </div>
-          </article>
+  const renderDashboard = () => (
+    <div className="space-y-4">
+      <CreativeStatsGrid
+        items={[
+          ['Active Projects', summary.activeProjects, 'folder_copy'],
+          ['Pending Approvals', summary.pendingApprovals, 'fact_check'],
+          ['Assets In Review', summary.assetsInReview, 'pending_actions'],
+          ['Recently Published', summary.publishedRecently, 'publish'],
+        ]}
+      />
 
-          <article className={cardClass}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-base font-semibold text-neutral-900">Portfolio split</p>
-                <p className="text-sm text-neutral-600">Modules and status across the media stack.</p>
-              </div>
-              <span className="text-xs text-neutral-500">Live</span>
-            </div>
-            <div className="mt-4 h-72">
-              <StatusPieChart data={summary.statusBreakdown} innerRadius={56} outerRadius={92} styledTooltip />
-            </div>
-          </article>
-        </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {renderNeedsAttention()}
+        {renderProjectProgress()}
       </div>
-    );
-  };
 
-  const renderDashboard = () => {
-    const contentRatio = summary.totalContent ? Math.round((summary.publishedContent / summary.totalContent) * 100) : 0;
-    const campaignRatio = summary.totalCampaigns ? Math.round((summary.activeCampaigns / summary.totalCampaigns) * 100) : 0;
-
-    return (
-      <div className="space-y-4">
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KPICard title="Active Projects" value={summary.activeProjects} icon="folder_copy" colorScheme="blue" subtitle="TOTAL" compact className="min-h-[150px]" />
-          <KPICard title="Campaigns" value={summary.totalCampaigns} icon="ads_click" colorScheme="green" subtitle={`${campaignRatio}% ACTIVE`} compact className="min-h-[150px]" />
-          <KPICard title="Content Assets" value={summary.totalContent} icon="gallery_thumbnail" colorScheme="orange" subtitle={`${contentRatio}% PUBLISHED`} compact className="min-h-[150px]" />
-          <KPICard title="Approvals" value={summary.totalApprovals} icon="fact_check" colorScheme="purple" subtitle="QUEUE" compact className="min-h-[150px]" />
-        </section>
-
-        <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm lg:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-neutral-900">Recent Media Activity</h2>
-              <p className="text-sm text-neutral-600">Latest campaigns, assets, approvals, and content updates.</p>
-            </div>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-neutral-200">
-            <table className="min-w-full divide-y divide-neutral-200 text-sm">
-              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-[0.2em] text-neutral-500">
-                <tr>
-                  <th className="px-4 py-3">Title</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Updated</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {summary.recentItems.length ? summary.recentItems.map((item) => {
-                  const title = pickText(item?.title, item?.name, item?.contentName, item?.assetName, 'Untitled item');
-                  const status = pickText(item?.status, item?.state, item?.approvalStatus, 'Draft');
-                  const owner = pickText(item?.owner, item?.author, item?.assignedTo, item?.lead, 'Unassigned');
-                  const updated = pickText(item?.updatedAt, item?.modifiedAt, item?.createdAt, '');
-                  return (
-                    <tr key={item?._id || item?.id || title}>
-                      <td className="px-4 py-3 font-medium text-neutral-900">
-                        <div>{title}</div>
-                        <div className="mt-1 text-xs text-neutral-500">{item?.section || item?.type || 'Media record'}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(status)}`}>
-                          {status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-neutral-700">{owner}</td>
-                      <td className="px-4 py-3 text-neutral-700">{updated ? new Date(updated).toLocaleDateString() : 'N/A'}</td>
-                    </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td className="px-4 py-8 text-center text-neutral-500" colSpan={4}>
-                      No media records available yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </div>
-    );
-  };
-
-  const renderSection = () => {
-    if (activeSection === 'dashboard') return renderDashboard();
-    if (activeSection === 'campaigns') return renderCampaigns();
-    if (activeSection === 'content') return renderContent();
-    if (activeSection === 'channels') return renderChannels();
-    if (activeSection === 'approvals') return renderApprovals();
-    if (activeSection === 'analytics') return renderAnalytics();
-
-    return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <article className={cardClass}>
-          <p className="text-sm font-semibold text-neutral-900">Access model</p>
-          <p className="mt-2 text-sm leading-6 text-neutral-600">
-            The Media portal is restricted to the media role and portal access policy. Use this space to keep role controls,
-            publishing rules, and creative approvals aligned.
-          </p>
-        </article>
-        <article className={cardClass}>
-          <p className="text-sm font-semibold text-neutral-900">Operational note</p>
-          <p className="mt-2 text-sm leading-6 text-neutral-600">
-            {user?.role ? `Signed in as ${user.role}.` : 'Signed in user details unavailable.'} Add structured campaign and content records to populate the boards.
-          </p>
-        </article>
-      </div>
-    );
-  };
+      <article className="app-card overflow-hidden p-4 lg:p-5">
+        <h2 className="mb-4 text-base font-bold text-neutral-900 dark:text-neutral-100">Recent Media Activity</h2>
+        <DataTable columns={activityColumns} rows={summary.recentItems} rowKey={(item) => item?._id || item?.id || item?.title} emptyTitle="No media records available yet" />
+      </article>
+    </div>
+  );
 
   return (
     <main className="portal-page">
       <div className="portal-page-inner">
         <PortalHeader
-          title={meta.title}
-          subtitle={meta.subtitle}
+          title="Media Command Center"
+          subtitle="Overview of your creative operations"
           user={user}
-          icon={meta.icon}
-          showSearch
+          icon="campaign"
+          showSearch={false}
           showNotifications
           showThemeToggle
-          searchPlaceholder="Search campaigns, content, channels..."
         >
-          <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] font-semibold">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live sync {lastSyncLabel}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
-              <span className="material-symbols-outlined text-[14px]">inventory_2</span>
-              {summary.totalAssets} assets
-            </span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-300">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            Live sync {lastSyncLabel}
+          </span>
         </PortalHeader>
 
         {loading ? (
-          <div className="h-56 animate-pulse rounded-2xl border border-neutral-200 bg-white" />
+          <div className="h-56 animate-pulse rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900" />
         ) : error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">{error}</div>
         ) : (
-          renderSection()
+          renderDashboard()
         )}
       </div>
     </main>
   );
 };
 
-export { MEDIA_SECTIONS };
 export default MediaDashboard;

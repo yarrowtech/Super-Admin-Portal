@@ -45,7 +45,7 @@ const buildThemeVars = (accent, isDark = false) => {
   };
 };
 
-const card = 'rounded-[16px] border border-[#DFE8E7] bg-white p-5 shadow-[0_8px_22px_rgba(23,35,35,0.045)] transition-all duration-200 hover:shadow-[0_12px_28px_rgba(23,35,35,0.07)] dark:border-[#294040] dark:bg-[#142020]';
+const card = 'rounded-[14px] border border-[#DFE8E7] bg-white p-5 shadow-[0_8px_22px_rgba(23,35,35,0.045)] transition-all duration-200 hover:shadow-[0_12px_28px_rgba(23,35,35,0.07)] dark:border-[#294040] dark:bg-[#142020]';
 const soft = 'rounded-xl border border-[#DFE8E7] bg-[#FAFCFC] p-4 transition-colors duration-200 dark:border-[#294040] dark:bg-[#192727]';
 const sectionTitle = 'text-[11px] font-black uppercase tracking-[0.12em]';
 const fieldLabel = 'text-[11px] font-bold uppercase tracking-[0.08em] text-[#667575] dark:text-[#91A4A2]';
@@ -1703,7 +1703,7 @@ const MediaProjectDetail = () => {
                   description="Monthly investment, estimated leads, calculated CPL, and channel status."
                   icon="payments"
                 />
-                <div className="mt-3 overflow-x-auto">
+                <div className={tableWrap}>
                   <table className="w-full min-w-[680px] border-collapse text-sm">
                     <thead>
                       <tr className={tableHead}>
@@ -1777,7 +1777,7 @@ const MediaProjectDetail = () => {
                   description="Targets, actuals, and calculated conversion between funnel stages."
                   icon="filter_alt"
                 />
-                <div className="mt-3 overflow-x-auto">
+                <div className={tableWrap}>
                   <table className="w-full min-w-[560px] border-collapse text-sm">
                     <thead>
                       <tr className={tableHead}>
@@ -1842,7 +1842,7 @@ const MediaProjectDetail = () => {
                   description="Planned and completed output by content format."
                   icon="edit_note"
                 />
-                <div className="mt-3 overflow-x-auto">
+                <div className={tableWrap}>
                   <table className="w-full min-w-[480px] border-collapse text-sm">
                     <thead>
                       <tr className={tableHead}>
@@ -1887,12 +1887,15 @@ const MediaProjectDetail = () => {
                 />
                 <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
                   {[
-                    { key: 'high', label: 'High Priority', draftKey: 'priorityHigh' },
-                    { key: 'medium', label: 'Medium Priority', draftKey: 'priorityMedium' },
-                    { key: 'low', label: 'Low Priority', draftKey: 'priorityLow' },
-                  ].map(({ key, label, draftKey }) => (
-                    <div key={key} className={soft}>
-                      <p className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100">{label}</p>
+                    { key: 'high', label: 'High Priority', draftKey: 'priorityHigh', dot: 'bg-rose-400 dark:bg-rose-500' },
+                    { key: 'medium', label: 'Medium Priority', draftKey: 'priorityMedium', dot: 'bg-amber-400 dark:bg-amber-500' },
+                    { key: 'low', label: 'Low Priority', draftKey: 'priorityLow', dot: 'bg-slate-400 dark:bg-slate-500' },
+                  ].map(({ key, label, draftKey, dot }) => (
+                    <div key={key} className={`${soft} min-h-[154px]`}>
+                      <p className="flex items-center gap-2 text-[13px] font-bold text-neutral-900 dark:text-neutral-100">
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+                        {label}
+                      </p>
                       <div className="mt-2">
                         {editing ? (
                           <textarea

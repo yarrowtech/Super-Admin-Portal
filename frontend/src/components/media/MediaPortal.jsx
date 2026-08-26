@@ -152,6 +152,7 @@ const MediaPortal = () => {
           collapsed ? 'md:ml-16' : 'md:ml-[250px]'
         } pt-16 md:pt-0`}
       >
+        <div className="mx-auto w-full max-w-380">
         {activeSection === 'dashboard' ? (
           <MediaDashboard
             activeSection={activeSection}
@@ -177,6 +178,7 @@ const MediaPortal = () => {
             onProjectChange={handleProjectChange}
           />
         )}
+        </div>
       </div>
     </div>
   );

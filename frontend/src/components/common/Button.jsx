@@ -30,6 +30,10 @@ const Button = ({
 
   const variants = {
     primary: 'bg-primary text-white hover:bg-primary/90 focus:ring-primary/50 shadow-sm',
+    // Uses the active portal's --portal-accent CSS var (set per-portal on the shell),
+    // so this variant always matches the current portal's identity color instead of
+    // the app-wide primary blue. Use this for the primary CTA on themed portal pages.
+    accent: 'bg-[var(--portal-accent)] text-white hover:opacity-90 focus:ring-[var(--portal-accent)]/40 shadow-sm',
     secondary: 'bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 focus:ring-neutral-300',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm',
     success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm',

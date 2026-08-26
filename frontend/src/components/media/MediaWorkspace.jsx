@@ -1,13 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { departmentApi } from '../../services/departments';
 import { QK } from '../../utils/queryKeys';
+import { statusToTone } from '../../utils/statusTone';
 import { findCanonicalProject } from '../../config/projectNames';
 import PortalHeader from '../common/PortalHeader';
+import Button from '../common/Button';
+import StatusBadge from '../common/StatusBadge';
+import DataTable from '../ui/DataTable';
 import MediaProjectList from './MediaProjectList';
 import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
+import ProjectSwitcher from './ProjectSwitcher';
+import CreativeToolbar from './CreativeToolbar';
+import CreativeStatsGrid from './CreativeStatsGrid';
 
 const MEDIA_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'campaign' },
@@ -177,26 +185,7 @@ const CREATIVE_DETAILS = {
   video: ['Video Production', 'Manage scripts, edits, cuts, review files, and publishing status.', 'videoType', 'Video types'],
   social: ['Social Desk', 'Plan posts, attach creatives, and capture platform performance.', 'platform', 'Platforms'],
 };
-const EXPORT_OPTIONS = ['PDF', 'Excel', 'CSV', 'PPT'];
-const COLORS = ['#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#a78bfa', '#ec4899'];
-
-const card = 'rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-neutral-800 dark:bg-neutral-900';
-const soft = 'rounded-[1.5rem] border border-slate-200 bg-[#fbfeff] p-4 dark:border-neutral-800 dark:bg-neutral-900/60';
-const glass = 'rounded-[1.75rem] border border-teal-200 bg-teal-50/80 p-5 dark:border-teal-900/60 dark:bg-teal-500/10';
-const tone = (status = '') => {
-  const v = String(status).toLowerCase();
-  if (v.includes('approved') || v.includes('live') || v.includes('published')) return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (v.includes('pending') || v.includes('review') || v.includes('draft')) return 'border-amber-300 bg-amber-50 text-amber-700';
-  if (v.includes('reject') || v.includes('revision') || v.includes('hold')) return 'border-rose-300 bg-rose-50 text-rose-700';
-  return 'border-teal-300 bg-teal-50 text-teal-700';
-};
 const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
-const money = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num(value));
-const average = (values) => {
-  const valid = values.map(num).filter((value) => value > 0);
-  if (!valid.length) return 0;
-  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
-};
 const bytes = (value) => {
   const n = num(value);
   if (!n) return '0 B';
@@ -205,16 +194,16 @@ const bytes = (value) => {
   return `${(n / 1024 ** idx).toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
 };
 const arr = (value) => (Array.isArray(value) ? value : []);
-const pick = (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '-';
 const toInputValue = (value) => (value === undefined || value === null ? '' : String(value));
 const recordStatus = (record) => String(record?.status || record?.state || record?.approvalStatus || '').trim().toLowerCase();
 
 const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onProjectChange }) => {
   const { token, user } = useAuth();
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const { confirm } = useConfirmDialog();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [dashboard, setDashboard] = useState(null);
   const [projects, setProjects] = useState([]);
   const [assets, setAssets] = useState([]);
   const [content, setContent] = useState([]);
@@ -222,12 +211,13 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [designItems, setDesignItems] = useState([]);
   const [videoItems, setVideoItems] = useState([]);
   const [socialPosts, setSocialPosts] = useState([]);
-  const [lastUpdated, setLastUpdated] = useState(null);
   const [activeProjectId, setActiveProjectId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [actionBusy, setActionBusy] = useState(false);
-  const [actionMessage, setActionMessage] = useState('');
+  const [sortOption, setSortOption] = useState('updated_desc');
+  const [selectedIds, setSelectedIds] = useState([]);
   const [editor, setEditor] = useState({ open: false, mode: 'create', section: 'assets', record: null });
   const [draft, setDraft] = useState({
     title: '',
@@ -300,7 +290,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const enableWorkspaceData = enabled && !isProjectHub;
 
   const [
-    projectsQuery, dashboardQuery, assetsQuery, contentQuery, brandAssetsQuery,
+    projectsQuery, assetsQuery, contentQuery, brandAssetsQuery,
     designQuery, videoQuery, socialQuery,
   ] = useQueries({
     queries: [
@@ -315,7 +305,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         staleTime: 0,
         refetchOnMount: 'always',
       },
-      { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.brandAssets(listParams), queryFn: () => departmentApi.getMediaBrandAssets(token, listParams), enabled: enableWorkspaceData },
@@ -332,7 +321,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const projectItems = arr(projectsQuery.data?.data?.items || projectsQuery.data?.data?.data?.items);
     setProjects(buildProjectOptions(projectItems));
   }, [projectsQuery.data]);
-  useEffect(() => { setDashboard(dashboardQuery.data?.data || null); }, [dashboardQuery.data]);
   useEffect(() => { setAssets(arr(assetsQuery.data?.data?.items)); }, [assetsQuery.data]);
   useEffect(() => { setContent(arr(contentQuery.data?.data?.items)); }, [contentQuery.data]);
   useEffect(() => { setBrandAssets(arr(brandAssetsQuery.data?.data?.items)); }, [brandAssetsQuery.data]);
@@ -341,13 +329,12 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   useEffect(() => { setSocialPosts(arr(socialQuery.data?.data?.items)); }, [socialQuery.data]);
 
   const anyLoading = [
-    projectsQuery, dashboardQuery, assetsQuery, contentQuery, brandAssetsQuery,
+    projectsQuery, assetsQuery, contentQuery, brandAssetsQuery,
     designQuery, videoQuery, socialQuery,
   ].some((q) => q.isLoading);
 
   useEffect(() => {
     setLoading(anyLoading);
-    if (!anyLoading) setLastUpdated(Date.now());
   }, [anyLoading]);
 
   // Mirrors the previous behaviour: a failure on the critical `projects` fetch
@@ -384,36 +371,19 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     }
   }, [activeSection, projects, effectiveProjectId, onProjectChange]);
 
-  const summary = useMemo(() => {
-    const kpis = dashboard?.kpis || {};
-    const recent = arr(dashboard?.charts?.recentItems);
-    const moduleRows = arr(dashboard?.charts?.moduleBreakdown);
-    const statusRows = arr(dashboard?.charts?.statusBreakdown);
-    return {
-      activeProjects: num(kpis.activeProjects ?? projects.length),
-      pendingApprovals: num(kpis.pendingApprovals),
-      assetStorage: kpis.assetStorageUsageLabel || bytes(kpis.assetStorageUsage),
-      productivity: num(kpis.teamProductivity),
-      socialReach: num(kpis.socialReach),
-      socialEngagement: num(kpis.socialEngagement),
-      published: num(kpis.contentProductionStatus?.published),
-      inReview: num(kpis.contentProductionStatus?.inReview),
-      deadlines: num(kpis.upcomingDeadlines),
-      recent,
-      moduleRows,
-      statusRows,
-    };
-  }, [dashboard, projects.length]);
-
   const projectOptions = useMemo(
     () => projects.filter((project) => project.value),
     [projects]
   );
-  const moduleCount = (section) => {
-    const key = MODULE_FOR_SECTION[section];
-    if (!key) return 0;
-    return num(summary.moduleRows.find((row) => String(row.name || row._id).toLowerCase() === key)?.value || 0);
-  };
+
+  const assetCategoryOptions = useMemo(() => {
+    const set = new Set();
+    assets.forEach((item) => {
+      const cat = String(item?.metadata?.assetType || item?.category || '').trim();
+      if (cat) set.add(cat);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [assets]);
 
   const updateProject = (projectId) => {
     onProjectChange?.(projectId);
@@ -458,7 +428,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   });
 
   const openEditor = (mode, section, record = null) => {
-    setActionMessage('');
     setEditor({ open: true, mode, section, record });
     setDraft(buildDraftFromRecord(record || {}, section));
   };
@@ -510,7 +479,13 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     return getRecordStatus(record).includes(statusFilter.toLowerCase());
   };
 
-  const filterRecords = (records = []) => records.filter((record) => matchesSearch(record) && matchesStatusFilter(record));
+  const matchesCategoryFilter = (record) => {
+    if (activeSection !== 'assets' || categoryFilter === 'all') return true;
+    const cat = String(record?.metadata?.assetType || record?.category || '').trim();
+    return cat === categoryFilter;
+  };
+
+  const filterRecords = (records = []) => records.filter((record) => matchesSearch(record) && matchesStatusFilter(record) && matchesCategoryFilter(record));
 
   const sectionStateSetter = (section) => {
     switch (section) {
@@ -608,16 +583,16 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       if (mode === 'edit') {
         const res = await departmentApi[config.updateFn](token, recordId, payload);
         saved = res?.data;
-        setActionMessage(`${config.label} updated.`);
+        toast.success(`${config.label} updated.`);
       } else {
         const res = await departmentApi[config.createFn](token, payload);
         saved = res?.data;
-        setActionMessage(`${config.label} created.`);
+        toast.success(`${config.label} created.`);
       }
       upsertLocalRecord(section, saved);
       closeEditor();
     } catch (err) {
-      setError(err.message || `Failed to save ${config.label.toLowerCase()}.`);
+      toast.error(err.message || `Failed to save ${config.label.toLowerCase()}.`);
     } finally {
       setActionBusy(false);
     }
@@ -627,19 +602,54 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const config = getSectionAction(section);
     const id = resolveRecordId(record);
     if (!config || !id) return;
-    const ok = window.confirm(`Delete this ${config.label.toLowerCase()}? This cannot be undone.`);
+    const ok = await confirm({
+      title: `Delete ${config.label}`,
+      message: `Delete this ${config.label.toLowerCase()}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
     if (!ok) return;
 
     setActionBusy(true);
     try {
       await departmentApi[config.deleteFn](token, id);
-      setActionMessage(`${config.label} deleted.`);
+      toast.success(`${config.label} deleted.`);
       removeLocalRecord(section, id);
     } catch (err) {
-      setError(err.message || `Failed to delete ${config.label.toLowerCase()}.`);
+      toast.error(err.message || `Failed to delete ${config.label.toLowerCase()}.`);
     } finally {
       setActionBusy(false);
     }
+  };
+
+  // Loops the single-record delete endpoint per selected id — no bulk delete API
+  // exists yet, so this stays client-side; each failure is reported individually.
+  const bulkDeleteRecords = async (section, records) => {
+    const config = getSectionAction(section);
+    if (!config || !records.length) return;
+    const ok = await confirm({
+      title: `Delete ${records.length} ${config.label.toLowerCase()}${records.length > 1 ? 's' : ''}`,
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    setActionBusy(true);
+    let failures = 0;
+    for (const record of records) {
+      const id = resolveRecordId(record);
+      if (!id) continue;
+      try {
+        await departmentApi[config.deleteFn](token, id);
+        removeLocalRecord(section, id);
+      } catch {
+        failures += 1;
+      }
+    }
+    setActionBusy(false);
+    if (failures) toast.error(`${failures} of ${records.length} could not be deleted.`);
+    else toast.success(`${records.length} ${config.label.toLowerCase()}${records.length > 1 ? 's' : ''} deleted.`);
   };
 
   const requestApproval = async (section, record) => {
@@ -649,10 +659,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     setActionBusy(true);
     try {
       await departmentApi[config.requestApprovalFn](token, id, {});
-      setActionMessage(`${config.label} sent for approval.`);
+      toast.success(`${config.label} sent for approval.`);
       patchLocalRecord(section, id, { approvalStatus: 'pending', status: 'In Review' });
     } catch (err) {
-      setError(err.message || `Failed to request approval for ${config.label.toLowerCase()}.`);
+      toast.error(err.message || `Failed to request approval for ${config.label.toLowerCase()}.`);
     } finally {
       setActionBusy(false);
     }
@@ -663,7 +673,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     setActionBusy(true);
     try {
       await departmentApi.decideMediaApproval(token, workflowId, { decision, remarks: '' });
-      setActionMessage(`Approval ${decision === 'approve' ? 'approved' : 'rejected'}.`);
+      toast.success(`Approval ${decision === 'approve' ? 'approved' : 'rejected'}.`);
       const nextStatus = decision === 'approve' ? 'Approved' : 'Needs Revision';
       const patch = { approvalStatus: decision === 'approve' ? 'approved' : 'rejected', status: nextStatus };
       const matchesWorkflow = (item) => item?.approvalWorkflowId === workflowId || item?.workflowId === workflowId;
@@ -671,28 +681,44 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         setter((prev) => prev.map((item) => (matchesWorkflow(item) ? { ...item, ...patch } : item)));
       });
     } catch (err) {
-      setError(err.message || 'Failed to update approval decision.');
+      toast.error(err.message || 'Failed to update approval decision.');
     } finally {
       setActionBusy(false);
     }
   };
 
-  const renderMetric = (label, value, icon, detail) => (
-    <article className="rounded-[1.5rem] border border-slate-200 bg-white p-4 transition-colors hover:border-teal-300 hover:bg-teal-50/40 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-teal-800 dark:hover:bg-teal-500/10">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-neutral-400">{label}</p>
-          <p className="mt-2 text-3xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
-        </div>
-        <span className="material-symbols-outlined rounded-2xl border border-teal-200 bg-teal-100 p-3 text-2xl text-teal-700 dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-          {icon}
-        </span>
-      </div>
-      {detail ? <p className="mt-3 text-sm text-slate-500 dark:text-neutral-400">{detail}</p> : null}
-    </article>
-  );
+  // Loops the single-record approve/reject endpoint per selected id, same reasoning
+  // as bulkDeleteRecords — no bulk decision API exists.
+  const bulkDecideApproval = async (records, decision) => {
+    const eligible = records.filter((item) => {
+      const workflowId = item?.approvalWorkflowId || item?.workflowId || item?.metadata?.approvalWorkflowId;
+      return workflowId && String(item?.approvalStatus || getRecordStatus(item) || '').toLowerCase() === 'pending';
+    });
+    if (!eligible.length) {
+      toast.warning('No selected items are pending approval.');
+      return;
+    }
+    setActionBusy(true);
+    let failures = 0;
+    for (const record of eligible) {
+      const workflowId = record?.approvalWorkflowId || record?.workflowId || record?.metadata?.approvalWorkflowId;
+      try {
+        await departmentApi.decideMediaApproval(token, workflowId, { decision, remarks: '' });
+        const nextStatus = decision === 'approve' ? 'Approved' : 'Needs Revision';
+        const patch = { approvalStatus: decision === 'approve' ? 'approved' : 'rejected', status: nextStatus };
+        const matchesWorkflow = (item) => item?.approvalWorkflowId === workflowId || item?.workflowId === workflowId;
+        [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts].forEach((setter) => {
+          setter((prev) => prev.map((item) => (matchesWorkflow(item) ? { ...item, ...patch } : item)));
+        });
+      } catch {
+        failures += 1;
+      }
+    }
+    setActionBusy(false);
+    if (failures) toast.error(`${failures} of ${eligible.length} could not be updated.`);
+    else toast.success(`${eligible.length} item${eligible.length > 1 ? 's' : ''} ${decision === 'approve' ? 'approved' : 'rejected'}.`);
+  };
 
-  const empty = (title, message) => <div className={soft}><p className="text-sm font-semibold text-slate-950 dark:text-neutral-100">{title}</p><p className="mt-2 text-sm leading-6 text-slate-600 dark:text-neutral-400">{message}</p></div>;
   const renderFileCell = (item) =>
     item?.storageUrl ? (
       <div className="flex items-center gap-2">
@@ -718,271 +744,56 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const sectionMeta = META[activeSection] || META.dashboard;
   const activeSectionAction = getSectionAction(activeSection);
 
-  const renderDashboard = () => (
-    <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[2rem] border border-teal-200 bg-[linear-gradient(135deg,rgba(8,47,73,0.98),rgba(15,118,110,0.92))]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_36%),radial-gradient(circle_at_bottom_left,rgba(202,138,4,0.12),transparent_28%)]" />
-        <div className="relative p-6 lg:p-8">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-4xl">
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-teal-200/40 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white">
-                  Media Command Center
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-teal-50">
-                  Project-linked operations
-                </span>
-              </div>
-              <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
-                Media production, approvals, campaigns, and reporting in one executive view.
-              </h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-teal-50/85 sm:text-lg">
-                Use this workspace to manage every asset, content piece, campaign, and media request with the same project association and approval discipline used across the portal.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-teal-50">Last sync: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : 'pending'}</span>
-                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-teal-50">Projects: {summary.activeProjects}</span>
-                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-teal-50">Approvals: {summary.pendingApprovals}</span>
-                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-teal-50">Deadlines: {summary.deadlines}</span>
-                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-teal-50">Storage: {summary.assetStorage}</span>
-              </div>
-            </div>
+  const SORT_OPTIONS = [
+    { value: 'updated_desc', label: 'Recently updated' },
+    { value: 'updated_asc', label: 'Oldest updated' },
+    { value: 'title_asc', label: 'Title A–Z' },
+  ];
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:w-[460px]">
-              {[
-                ['Active Projects', summary.activeProjects, 'folder_open', 'from-cyan-400 to-sky-500'],
-                ['Pending Approvals', summary.pendingApprovals, 'fact_check', 'from-amber-400 to-orange-500'],
-                ['Team Productivity', `${summary.productivity}%`, 'groups', 'from-fuchsia-400 to-violet-500'],
-              ].map(([label, value, icon, accent]) => (
-                <article key={label} className="rounded-[1.4rem] border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                  <div className={`inline-flex rounded-2xl bg-gradient-to-br ${accent} p-2 text-white shadow-lg`}>
-                    <span className="material-symbols-outlined text-xl">{icon}</span>
-                  </div>
-                  <p className="mt-4 text-2xl font-black text-white">{value}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-teal-50/70">{label}</p>
-                </article>
-              ))}
-            </div>
-          </div>
+  const sortRows = (rows) => {
+    const sorted = [...rows];
+    if (sortOption === 'title_asc') return sorted.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+    return sorted.sort((a, b) => {
+      const at = a?.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bt = b?.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return sortOption === 'updated_asc' ? at - bt : bt - at;
+    });
+  };
 
-          <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-            <article className={card}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">Operational mix</p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950">Where the media organization is actually working</h2>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {EXPORT_OPTIONS.map((option) => (
-                    <button key={option} type="button" className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50">
-                      Export {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
+  const getRowMenuItems = (section, item) => {
+    const id = resolveRecordId(item);
+    const config = getSectionAction(section);
+    const workflowId = item?.approvalWorkflowId || item?.workflowId || item?.metadata?.approvalWorkflowId;
+    const approvalState = String(item?.approvalStatus || getRecordStatus(item) || 'draft').toLowerCase();
+    const isPending = approvalState === 'pending';
+    const isApproved = approvalState === 'approved';
+    const canDecide = ['media_head', 'ceo', 'admin', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+    const canEdit = Boolean(config) && !isPending;
+    const canRequestApproval = Boolean(config) && !isPending && !isApproved;
+    const items = [];
 
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className={soft}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-white">Workflow status</p>
-                    <span className="text-xs text-neutral-400">records by stage</span>
-                  </div>
-                  <div className="mt-3 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={summary.statusRows}>
-                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                        <Tooltip contentStyle={{ background: '#020617', border: '1px solid rgba(148,163,184,0.25)', borderRadius: 16 }} />
-                        <Bar dataKey="value" fill="#22d3ee" radius={[10, 10, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className={soft}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-white">Module split</p>
-                    <span className="text-xs text-neutral-400">assets, content, approvals</span>
-                  </div>
-                  <div className="mt-3 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={summary.moduleRows} dataKey="value" nameKey="name" innerRadius={54} outerRadius={88} paddingAngle={3}>
-                          {summary.moduleRows.map((entry, index) => (
-                            <Cell key={entry.name || index} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ background: '#020617', border: '1px solid rgba(148,163,184,0.25)', borderRadius: 16 }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </article>
-
-            <article className={card}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Executive signals</p>
-                  <h2 className="mt-2 text-2xl font-black text-white">What needs attention now</h2>
-                </div>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-neutral-300">
-                  Live feed
-                </span>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {[
-                  ['Social Reach', summary.socialReach.toLocaleString(), Math.min(summary.socialReach / 100000, 100)],
-                  ['Social Engagement', summary.socialEngagement.toLocaleString(), Math.min(summary.socialEngagement / 5000, 100)],
-                  ['Upcoming Deadlines', summary.deadlines, Math.min(summary.deadlines * 10, 100)],
-                ].map(([label, value, pct]) => (
-                  <div key={label} className="rounded-[1.3rem] border border-white/10 bg-white/[0.04] p-4">
-                    <div className="flex items-center justify-between text-sm text-neutral-300">
-                      <span>{label}</span>
-                      <span className="font-semibold text-white">{value}</span>
-                    </div>
-                    <div className="mt-3 h-2 rounded-full bg-white/10">
-                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400" style={{ width: `${Math.max(8, Math.min(100, pct))}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {renderMetric('Assets', assets.length, 'image', 'Uploaded and versioned media items')}
-        {renderMetric('Content', content.length, 'draft', 'Blogs, copy, newsletters, and web content')}
-        {renderMetric('Brand Assets', brandAssets.length, 'brand_family', 'Guidelines, logos, and templates')}
-        {renderMetric('Social Posts', socialPosts.length, 'chat_bubble', 'Scheduled and published social content')}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <article className={card}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-white">Recent media activity</p>
-              <p className="text-xs text-neutral-400">Latest assets, content, campaigns, and approvals</p>
-            </div>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-neutral-300">
-              Updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : 'pending'}
-            </span>
-          </div>
-          <div className="mt-4 overflow-hidden rounded-[1.35rem] border border-white/10">
-            <table className="min-w-full divide-y divide-white/10 text-sm">
-              <thead className="bg-white/5 text-left text-xs uppercase tracking-[0.2em] text-neutral-400">
-                <tr><th className="px-4 py-3">Title</th><th className="px-4 py-3">Section</th><th className="px-4 py-3">Status</th></tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {summary.recent.length ? summary.recent.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-4 py-3 text-white">{item.title}</td>
-                    <td className="px-4 py-3 text-neutral-300">{item.section}</td>
-                    <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span></td>
-                  </tr>
-                )) : <tr><td className="px-4 py-8 text-center text-neutral-400" colSpan={3}>No media records available yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <article className={glass}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">Account controls</p>
-              <p className="text-xs text-neutral-400">Project context and operating mode</p>
-            </div>
-            <span className="material-symbols-outlined text-2xl text-cyan-300">tune</span>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <div className="rounded-[1.3rem] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Reach</p>
-              <p className="mt-2 text-3xl font-black text-white">{summary.socialReach.toLocaleString()}</p>
-            </div>
-            <div className="rounded-[1.3rem] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Engagement</p>
-              <p className="mt-2 text-3xl font-black text-white">{summary.socialEngagement.toLocaleString()}</p>
-            </div>
-            <div className="rounded-[1.3rem] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Content review</p>
-              <p className="mt-2 text-3xl font-black text-white">{summary.inReview}</p>
-            </div>
-          </div>
-        </article>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {[
-          ['Project linked', summary.activeProjects, 'folder_copy'],
-          ['Pending approvals', summary.pendingApprovals, 'fact_check'],
-          ['Deadline pressure', summary.deadlines, 'schedule'],
-        ].map(([label, value, icon]) => (
-          <article key={label} className={glass}>
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">{label}</p>
-              <span className="material-symbols-outlined text-cyan-300">{icon}</span>
-            </div>
-            <p className="mt-4 text-3xl font-black text-white">{value}</p>
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderTable = (items, columns, emptyTitle, emptyMessage, options = {}) => {
-    const rows = filterRecords(items);
-    const actionsEnabled = Boolean(options.rowActions);
-
-    return rows.length ? (
-      <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-neutral-800">
-        <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-neutral-800">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.2em] text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
-            <tr>
-              {columns.map((column) => <th key={column.label} className="px-4 py-3">{column.label}</th>)}
-              {actionsEnabled ? <th className="px-4 py-3">Actions</th> : null}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 bg-white dark:divide-neutral-800 dark:bg-neutral-900">
-            {rows.map((item) => (
-              <tr key={item._id || item.id || item.title}>
-                {columns.map((column) => (
-                  <td key={column.label} className="px-4 py-3 align-top text-neutral-700 dark:text-neutral-300">
-                    {column.render ? column.render(item) : pick(item?.[column.key], item?.metadata?.[column.key], '-')}
-                  </td>
-                ))}
-                {actionsEnabled ? (
-                  <td className="px-4 py-3 align-top text-neutral-700 dark:text-neutral-300">
-                    <div className="flex flex-wrap gap-2">
-                      {options.rowActions(item)}
-                    </div>
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ) : (
-      <div className="space-y-4">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <p className="text-lg font-black text-slate-950 dark:text-neutral-100">
-            {items.length ? 'No records match your filters' : emptyTitle}
-          </p>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-neutral-400">
-            {items.length ? 'Clear the search or status filter to restore the section rows.' : emptyMessage}
-          </p>
-        </div>
-        {options.emptyAccessory || null}
-      </div>
-    );
+    if (item?.storageUrl) {
+      items.push({ key: 'download', label: 'Download', icon: 'download', onClick: () => window.open(item.storageUrl, '_blank', 'noreferrer') });
+    }
+    if (canEdit) {
+      items.push({ key: 'edit', label: isApproved ? 'Create revision' : 'Edit', icon: isApproved ? 'content_copy' : 'edit', disabled: actionBusy, onClick: () => openEditor('edit', section, item) });
+    }
+    if (canRequestApproval) {
+      items.push({ key: 'request-approval', label: 'Request approval', icon: 'send', disabled: actionBusy, onClick: () => requestApproval(section, item) });
+    }
+    if (workflowId && isPending && canDecide) {
+      items.push({ key: 'approve', label: 'Approve', icon: 'check_circle', disabled: actionBusy, onClick: () => decideApproval(workflowId, 'approve') });
+      items.push({ key: 'reject', label: 'Reject', icon: 'cancel', tone: 'danger', disabled: actionBusy, onClick: () => decideApproval(workflowId, 'reject') });
+    }
+    if (config && !isPending) {
+      items.push({ key: 'delete', label: 'Delete', icon: 'delete', tone: 'danger', disabled: actionBusy || !id, onClick: () => deleteRecord(section, item) });
+    }
+    return items;
   };
 
   const renderCreativeSection = (section, records, columns, emptyTitle, emptyMessage) => {
-    const rows = filterRecords(records);
+    const filtered = filterRecords(records);
+    const rows = sortRows(filtered);
     const config = getSectionAction(section);
     const details = CREATIVE_DETAILS[section] || (META[section] || [config?.label || 'Records', 'Manage records for this section.']);
     const approvedCount = records.filter((item) => ['approved', 'live', 'published'].some((status) => getRecordStatus(item).includes(status))).length;
@@ -993,11 +804,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const metadataCount = metadataKey
       ? new Set(records.map((item) => String(item?.metadata?.[metadataKey] || item?.category || '').trim()).filter(Boolean)).size
       : 0;
-    const recentCount = records.filter((item) => {
-      const updatedAt = item?.updatedAt ? new Date(item.updatedAt).getTime() : 0;
-      return updatedAt && Date.now() - updatedAt <= 1000 * 60 * 60 * 24 * 7;
-    }).length;
-    const selectedProject = projectOptions.find((project) => project.value === effectiveProjectId);
     const metricItems = [
       ['Total', records.length, 'inventory_2'],
       ['In Review', inReviewCount, 'pending_actions'],
@@ -1006,160 +812,100 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       [metadataLabel, metadataCount, 'category'],
     ];
 
+    const filterChips = [
+      searchTerm.trim() ? { key: 'search', label: `Search: ${searchTerm.trim()}`, onRemove: () => setSearchTerm('') } : null,
+      statusFilter !== 'all' ? { key: 'status', label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter('all') } : null,
+      section === 'assets' && categoryFilter !== 'all' ? { key: 'category', label: `Category: ${categoryFilter}`, onRemove: () => setCategoryFilter('all') } : null,
+    ].filter(Boolean);
+    const clearFilters = () => {
+      setSearchTerm('');
+      setStatusFilter('all');
+      setCategoryFilter('all');
+    };
+
+    const selectedRecords = rows.filter((item) => selectedIds.includes(resolveRecordId(item)));
+
     return (
       <div className="space-y-4">
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                  Project: {selectedProject?.name || (effectiveProjectId ? 'Selected project' : 'All projects')}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                  Showing {rows.length} of {records.length}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                  {recentCount} updated this week
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => openEditor('create', section)}
-              disabled={actionBusy || !effectiveProjectId}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[18px]">add_circle</span>
-              {config?.create || 'Create record'}
-            </button>
-          </div>
+        <ProjectSwitcher projects={projectOptions} value={effectiveProjectId} onChange={updateProject} />
 
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {metricItems.map(([label, value, icon]) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/50">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-neutral-500">{label}</p>
-                  <span className="material-symbols-outlined text-[18px] text-teal-700 dark:text-teal-300">{icon}</span>
-                </div>
-                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-neutral-100">{value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        <CreativeToolbar
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder={`Search ${section}...`}
+          statusFilter={statusFilter}
+          onStatusChange={setStatusFilter}
+          statusOptions={STATUS_OPTIONS}
+          categoryFilter={section === 'assets' ? categoryFilter : undefined}
+          onCategoryChange={section === 'assets' ? setCategoryFilter : undefined}
+          categoryOptions={section === 'assets' ? assetCategoryOptions : undefined}
+          sortValue={sortOption}
+          onSortChange={setSortOption}
+          sortOptions={SORT_OPTIONS}
+          onRefresh={refreshData}
+          busy={actionBusy}
+          filterChips={filterChips}
+          onClearFilters={clearFilters}
+        />
+
+        <CreativeStatsGrid items={metricItems} />
 
         {!effectiveProjectId ? (
-          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
             Select a project before creating a new {String(config?.label || 'record').toLowerCase()}.
           </section>
         ) : null}
 
-        {renderTable(records, columns, emptyTitle, emptyMessage, {
-          rowActions: (item) => renderRowActions(section, item),
-        })}
+        {selectedRecords.length ? (
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--portal-accent)]/30 bg-[var(--portal-accent-soft)] px-4 py-2.5">
+            <p className="text-sm font-semibold text-[var(--portal-accent)]">{selectedRecords.length} selected</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => bulkDecideApproval(selectedRecords, 'approve')}
+                className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-neutral-900 dark:text-emerald-300"
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => bulkDeleteRecords(section, selectedRecords)}
+                className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900/60 dark:bg-neutral-900 dark:text-rose-300"
+              >
+                Delete
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        <div className="app-card overflow-hidden">
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={(item) => resolveRecordId(item) || item.title}
+            selectable
+            onSelectionChange={setSelectedIds}
+            rowActions={(item) => getRowMenuItems(section, item)}
+            emptyTitle={filtered.length ? 'No records match your filters' : emptyTitle}
+            emptyDescription={filtered.length ? 'Clear the search or filters to restore the section rows.' : emptyMessage}
+            emptyAction={!filtered.length && effectiveProjectId ? { label: config?.create || 'Create record', onClick: () => openEditor('create', section) } : undefined}
+          />
+        </div>
       </div>
     );
   };
 
   const renderProjectHub = () => <MediaProjectList projects={projectOptions} />;
 
-  const renderGeneric = (section) => {
-    const meta = META[section] || META.dashboard;
-
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {renderMetric('Records', moduleCount(section), meta[2])}
-          {renderMetric('Project Scope', summary.activeProjects, 'filter_alt')}
-          {renderMetric('Approvals', summary.pendingApprovals, 'verified')}
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {empty(meta[0], meta[1])}
-          {empty('Workflow', 'Draft -> project link -> approval -> publish -> report -> archive. Keep version history and audit trail attached to every update.')}
-        </div>
-      </div>
-    );
-  };
-
-  const renderRowActions = (section, item) => {
-    const id = resolveRecordId(item);
-    const config = getSectionAction(section);
-    const workflowId = item?.approvalWorkflowId || item?.workflowId || item?.metadata?.approvalWorkflowId;
-    const approvalState = String(item?.approvalStatus || getRecordStatus(item) || 'draft').toLowerCase();
-    const isPending = approvalState === 'pending';
-    const isApproved = approvalState === 'approved';
-    const canDecide = ['media_head', 'ceo', 'admin', 'super_admin'].includes(String(user?.role || '').toLowerCase());
-    const canEdit = Boolean(config) && !isPending;
-    const canRequestApproval = Boolean(config) && !isPending && !isApproved;
-
-    return (
-      <>
-        {canEdit ? (
-          <button
-            type="button"
-            disabled={actionBusy}
-            onClick={() => openEditor('edit', section, item)}
-            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
-          >
-            {isApproved ? 'Create revision' : 'Edit'}
-          </button>
-        ) : null}
-        {canRequestApproval ? (
-          <button
-            type="button"
-            disabled={actionBusy}
-            onClick={() => requestApproval(section, item)}
-            className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
-          >
-            Request approval
-          </button>
-        ) : null}
-        {config && !isPending ? (
-          <button
-            type="button"
-            disabled={actionBusy}
-            onClick={() => deleteRecord(section, item)}
-            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
-          >
-            Delete
-          </button>
-        ) : null}
-        {workflowId && isPending && canDecide ? (
-          <>
-            <button
-              type="button"
-              disabled={actionBusy}
-              onClick={() => decideApproval(workflowId, 'approve')}
-              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
-            >
-              Approve
-            </button>
-            <button
-              type="button"
-              disabled={actionBusy}
-              onClick={() => decideApproval(workflowId, 'reject')}
-              className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
-            >
-              Reject
-            </button>
-          </>
-        ) : null}
-        {!config && !workflowId ? <span className="text-xs text-neutral-500 dark:text-neutral-400">No actions</span> : null}
-        {isPending && !canDecide ? <span className="text-xs font-semibold text-amber-600 dark:text-amber-300">Awaiting approval</span> : null}
-        {isApproved ? <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">Approved</span> : null}
-        {approvalState === 'rejected' ? <span className="text-xs font-semibold text-rose-600 dark:text-rose-300">Needs revision</span> : null}
-        {!id ? <span className="text-xs text-neutral-500 dark:text-neutral-400">No ID</span> : null}
-      </>
-    );
-  };
-
   const renderSection = () => {
-    if (activeSection === 'dashboard') return renderDashboard();
     if (activeSection === 'projects') return renderProjectHub();
     if (activeSection === 'assets') return renderCreativeSection('assets', assets, [
       { key: 'title', label: 'Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || item.moduleType || 'Asset'}</p></div> },
       { key: 'assetType', label: 'Type', render: (item) => item?.metadata?.assetType || item.category || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'status', label: 'Status', render: (item) => <StatusBadge tone={statusToTone(item.status)} label={item.status} /> },
       { key: 'version', label: 'Version', render: (item) => item?.version?.current || 'v1.0' },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No assets uploaded yet', 'Upload images, logos, banners, PDFs, videos, or creative files to populate the DAM view.');
@@ -1168,7 +914,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'contentType', label: 'Type', render: (item) => item?.metadata?.contentType || item.category || '-' },
       { key: 'channel', label: 'Channel', render: (item) => item?.metadata?.channel || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'status', label: 'Status', render: (item) => <StatusBadge tone={statusToTone(item.status)} label={item.status} /> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No content pieces found', 'Use the content studio to manage blogs, articles, landing pages, newsletters, and press releases.');
@@ -1176,7 +922,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'title', label: 'Brand Asset', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Brand guide'}</p></div> },
       { key: 'brandArea', label: 'Area', render: (item) => item?.metadata?.brandArea || item.category || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'status', label: 'Status', render: (item) => <StatusBadge tone={statusToTone(item.status)} label={item.status} /> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No brand assets found', 'Store brand guidelines, logo variations, typography rules, palette references, and templates.');
@@ -1185,7 +931,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'format', label: 'Format', render: (item) => item?.metadata?.format || item.category || '-' },
       { key: 'dimensions', label: 'Size', render: (item) => item?.metadata?.dimensions || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'status', label: 'Status', render: (item) => <StatusBadge tone={statusToTone(item.status)} label={item.status} /> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No design requests found', 'Track banners, creatives, and layouts from intake through revision to final delivery.');
@@ -1194,7 +940,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'videoType', label: 'Type', render: (item) => item?.metadata?.videoType || item.category || '-' },
       { key: 'durationSeconds', label: 'Duration', render: (item) => item?.metadata?.durationSeconds ? `${item.metadata.durationSeconds}s` : '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'status', label: 'Status', render: (item) => <StatusBadge tone={statusToTone(item.status)} label={item.status} /> },
       { key: 'approvalStatus', label: 'Approval' },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No video items found', 'Track scripts, footage, edits, reviews, and publishing for every video production.');
@@ -1202,12 +948,12 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       { key: 'title', label: 'Social Post', render: (item) => <div><p className="font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p><p className="text-xs text-neutral-500 dark:text-neutral-400">{item.category || 'Social post'}</p></div> },
       { key: 'platform', label: 'Platform', render: (item) => item?.metadata?.platform || item.category || '-' },
       { key: 'projectName', label: 'Project' },
-      { key: 'status', label: 'Status', render: (item) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone(item.status)}`}>{item.status}</span> },
+      { key: 'status', label: 'Status', render: (item) => <StatusBadge tone={statusToTone(item.status)} label={item.status} /> },
       { key: 'reach', label: 'Reach', render: (item) => num(item?.metadata?.reach || item?.analytics?.reach).toLocaleString() },
       { key: 'engagement', label: 'Engagement', render: (item) => num(item?.metadata?.engagement || item?.analytics?.engagement).toLocaleString() },
       { key: 'file', label: 'File', render: renderFileCell },
     ], 'No social posts found', 'Plan and track scheduled posts, captions, and performance across every platform.');
-    return renderGeneric(activeSection);
+    return null;
   };
 
   const renderEditorModal = () => {
@@ -1380,7 +1126,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
   return (
     <main className="portal-page">
-      <div className="mx-auto w-full max-w-[1720px] p-3 sm:p-4 lg:p-6 2xl:p-8">
+      <div className="w-full space-y-4 p-3 sm:p-4 lg:p-6 2xl:p-8">
         <PortalHeader
           title={sectionMeta[0]}
           subtitle={sectionMeta[1]}
@@ -1390,120 +1136,19 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           showNotifications
           showThemeToggle
         >
-          <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[760px]">
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {!isProjectHub ? (
-                <div className="relative min-w-[220px] flex-1 xl:flex-none">
-                  <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400">search</span>
-                  <input
-                    type="search"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={`Search ${activeSection === 'dashboard' ? 'media records' : activeSection}...`}
-                    className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-[var(--portal-accent)]"
-                  />
-                </div>
-              ) : null}
-              {!isProjectHub ? (
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-950 outline-none focus:border-[var(--portal-accent)]"
-                >
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option === 'all' ? 'All Statuses' : option}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              {activeSectionAction && !CREATIVE_SECTION_IDS.has(activeSection) ? (
-                <button
-                  type="button"
-                  onClick={() => openEditor('create', activeSection)}
-                  disabled={actionBusy || !effectiveProjectId}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-teal-200 bg-teal-600 px-4 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  {activeSectionAction.create}
-                </button>
-              ) : null}
-              {!isProjectHub ? (
-                <button
-                  type="button"
-                  onClick={refreshData}
-                  disabled={actionBusy}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">refresh</span>
-                  Refresh
-                </button>
-              ) : null}
-            </div>
-            {activeSection !== 'projects' ? (
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm">
-                <div className="mb-2 flex items-center justify-between px-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Project scope</p>
-                  <button
-                    type="button"
-                    onClick={() => updateProject('')}
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                      !effectiveProjectId
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    All
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {projectOptions.map((project, index) => {
-                    const isActive = effectiveProjectId === project.value;
-                    const accentColors = ['#3b82f6', '#10b981', '#8b5cf6'];
-                    const accent = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(project.themeColor || '')
-                      ? project.themeColor
-                      : accentColors[index % accentColors.length];
-
-                    return (
-                      <button
-                        key={project.value || project.code}
-                        type="button"
-                        onClick={() => updateProject(project.value)}
-                        className={`group rounded-xl border p-3 text-left transition ${
-                          isActive
-                            ? 'border-teal-500 bg-teal-50 shadow-sm'
-                            : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm'
-                        }`}
-                      >
-                        <div className="h-1 w-full rounded-full" style={{ background: accent }} />
-                        <div className="mt-2 flex items-center gap-2">
-                          {project.logo?.url ? (
-                            <img src={project.logo.url} alt="" className="h-5 w-5 shrink-0 rounded-md object-cover" />
-                          ) : null}
-                          <p className="truncate text-sm font-black text-slate-950">{project.name || project.code}</p>
-                        </div>
-                        <p className="mt-1 truncate text-xs text-slate-500">{project.description || 'Project workspace'}</p>
-                      </button>
-                    );
-                  })}
-                  {!projectOptions.length ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs font-semibold text-slate-500 sm:col-span-3">
-                      No approved projects found.
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          {activeSectionAction && CREATIVE_SECTION_IDS.has(activeSection) ? (
+            <Button
+              variant="accent"
+              onClick={() => openEditor('create', activeSection)}
+              disabled={actionBusy || !effectiveProjectId}
+              icon={<span className="material-symbols-outlined text-[18px]">add_circle</span>}
+            >
+              {activeSectionAction.create}
+            </Button>
+          ) : null}
         </PortalHeader>
 
-        {actionMessage ? (
-          <section className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-            {actionMessage}
-          </section>
-        ) : null}
-
-        {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div> : renderSection()}
+        {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100 dark:border-neutral-800 dark:bg-neutral-900" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : renderSection()}
         {renderEditorModal()}
       </div>
     </main>

@@ -2,6 +2,7 @@ export { default as Button } from './Button';
 export { Card, CardBody, CardHeader } from './Card';
 export { default as DataTable } from './DataTable';
 export { default as Drawer } from './Drawer';
+export { default as DropdownMenu } from './DropdownMenu';
 export { default as EmptyState } from './EmptyState';
 export { default as ErrorState } from './ErrorState';
 export { default as Input } from './Input';

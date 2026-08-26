@@ -1,17 +1,11 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { buildProjectSlugMap } from '../../config/projectNames';
+import { statusToTone } from '../../utils/statusTone';
+import StatusBadge from '../common/StatusBadge';
 
 const ACCENTS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#f43f5e', '#06b6d4'];
 const HEX_RE = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i;
-
-const statusTone = (status = '') => {
-  const v = String(status).toLowerCase();
-  if (v.includes('active') || v.includes('progress') || v.includes('track')) return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (v.includes('hold') || v.includes('paused')) return 'border-amber-300 bg-amber-50 text-amber-700';
-  if (v.includes('complete') || v.includes('closed')) return 'border-slate-300 bg-slate-50 text-slate-600';
-  return 'border-teal-300 bg-teal-50 text-teal-700';
-};
 
 const MediaProjectList = ({ projects = [], onSelect }) => {
   const navigate = useNavigate();
@@ -37,7 +31,7 @@ const MediaProjectList = ({ projects = [], onSelect }) => {
             onClick={() =>
               onSelect ? onSelect(project) : navigate(`/media/dashboard/projects/${slugMap.get(project.value) || project.value}`)
             }
-            className="group flex flex-col rounded-[1.75rem] border border-slate-200 bg-white p-5 text-left shadow-[0_18px_50px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-[0_22px_60px_rgba(15,118,110,0.15)] dark:border-neutral-800 dark:bg-neutral-900"
+            className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
           >
             <div className="h-1.5 w-full rounded-full" style={{ background: accent }} />
             <div className="mt-3 flex items-start gap-3">
@@ -82,9 +76,7 @@ const MediaProjectList = ({ projects = [], onSelect }) => {
             ) : null}
 
             <div className="mt-4 flex items-center justify-between">
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusTone(project.status)}`}>
-                {project.status || 'active'}
-              </span>
+              <StatusBadge tone={statusToTone(project.status)} label={project.status || 'Active'} />
               <span className="inline-flex items-center gap-1 text-[12px] font-bold transition group-hover:gap-1.5" style={{ color: accent }}>
                 View plan
                 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>

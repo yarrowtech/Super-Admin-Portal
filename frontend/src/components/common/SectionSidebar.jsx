@@ -114,8 +114,12 @@ const SectionSidebar = ({
         <div className="space-y-0.5">
           {items.map((item, idx) => {
             const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-            const isActive = hasChildren ? isGroupActive(item, activeId) : activeId === item.id;
-            const groupActive = hasChildren && isActive;
+            // A group is never the *selected* page itself — only a leaf can be. When a
+            // descendant is active, the group should read as "open context", not "selected",
+            // so exactly one item in the tree ever gets the solid active fill.
+            const isActive = !hasChildren && activeId === item.id;
+            const groupHasActiveChild = hasChildren && isGroupActive(item, activeId);
+            const groupActive = groupHasActiveChild;
             const isOpen = openGroups[item.id] ?? false;
             // Groups always get a breathing-room break above them (a hairline rule
             // when collapsed-open state changes context) so sibling sections never
@@ -125,7 +129,10 @@ const SectionSidebar = ({
             // total is visible on the header itself, collapsed rail included. Once
             // the group is open, the children show their own badges instead.
             const groupBadge = hasChildren ? item.children.reduce((sum, child) => sum + (Number(child.badge) || 0), 0) : item.badge;
-            const showHeaderBadge = groupBadge > 0 && !isActive && !(hasChildren && isOpen && !collapsed);
+            const showHeaderBadge = groupBadge > 0 && !isActive && !groupHasActiveChild && !(hasChildren && isOpen && !collapsed);
+            // Icon reads "filled" whenever this item is the selected leaf, or is the
+            // group currently containing it — same signal the soft-tint background uses.
+            const iconFilled = isActive || groupHasActiveChild;
 
             return (
               <div
@@ -138,16 +145,17 @@ const SectionSidebar = ({
                   className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 ${
                     isActive
                       ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : hasChildren && isOpen
+                    : hasChildren && (groupHasActiveChild || isOpen)
                       ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
-                      : 'text-neutral-600 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+                      : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                   } ${collapsed ? 'justify-center px-0' : ''}`}
                   aria-label={collapsed ? item.label : undefined}
                   aria-expanded={hasChildren ? isOpen : undefined}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   <span
                     className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}
-                    style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+                    style={{ fontVariationSettings: `'FILL' ${iconFilled ? 1 : 0}` }}
                   >
                     {item.icon}
                   </span>
@@ -171,7 +179,7 @@ const SectionSidebar = ({
                       )}
                       {hasChildren ? (
                         <span
-                          className={`material-symbols-outlined shrink-0 text-[18px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${groupActive ? 'text-white/80' : hasChildren && isOpen ? 'text-[var(--portal-accent)]/70' : isActive ? 'text-white/80' : 'text-neutral-400'}`}
+                          className={`material-symbols-outlined shrink-0 text-[18px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${groupActive || isOpen ? 'text-[var(--portal-accent)]/70' : 'text-neutral-400'}`}
                         >
                           expand_more
                         </span>
@@ -180,7 +188,7 @@ const SectionSidebar = ({
                       ) : null}
                     </>
                   )}
-                  {collapsed && groupBadge > 0 && !isActive && (
+                  {collapsed && groupBadge > 0 && !isActive && !groupHasActiveChild && (
                     <span className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-0.5 text-[8px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
                       {groupBadge > 99 ? '99+' : groupBadge}
                     </span>
@@ -203,10 +211,11 @@ const SectionSidebar = ({
                               key={child.id}
                               type="button"
                               onClick={() => onSelect?.(child.id)}
+                              aria-current={childActive ? 'page' : undefined}
                               className={`relative flex w-full items-center gap-2 rounded-lg py-2 pl-2.5 pr-2 text-[13px] font-medium transition-all ${
                                 childActive
                                   ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                                  : 'text-neutral-500 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+                                  : 'text-neutral-500 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                               }`}
                             >
                               {childActive && (

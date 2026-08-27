@@ -302,6 +302,7 @@ const MediaDashboard = ({ selectedProjectId }) => {
   const renderDashboard = () => (
     <div className="space-y-4">
       <CreativeStatsGrid
+        columns={4}
         items={[
           ['Active Projects', summary.activeProjects, 'folder_copy'],
           ['Pending Approvals', summary.pendingApprovals, 'fact_check'],

@@ -111,6 +111,11 @@ const ThemeToggleButton = () => {
         .theme-switch__input:checked + .theme-switch__slider::before {
           transform: translateX(30px);
         }
+
+        .theme-switch__input:focus-visible + .theme-switch__slider {
+          outline: 2px solid var(--portal-accent, #4f46e5);
+          outline-offset: 2px;
+        }
       `}</style>
     </label>
   );

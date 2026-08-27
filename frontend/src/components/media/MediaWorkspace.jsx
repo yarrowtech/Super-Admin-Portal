@@ -962,8 +962,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     const sectionInfo = CREATIVE_DETAILS[editor.section] || META[editor.section] || [activeSectionAction.label, 'Manage this media record.', 'category'];
     const domainFields = DOMAIN_FIELDS[editor.section] || [];
     const sectionIcon = META[editor.section]?.[2] || MODULE_FOR_SECTION[editor.section] || 'edit_note';
-    const fieldClass = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
-    const textareaClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
+    const fieldClass = 'h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[var(--portal-accent)]/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
+    const textareaClass = 'w-full rounded-xl border border-neutral-200 bg-white px-3 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[var(--portal-accent)]/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
     const labelClass = 'text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-neutral-500';
     const updateDomainField = (key, value) => {
       setDraft((prev) => ({
@@ -1114,20 +1114,20 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex justify-end gap-2 border-t border-neutral-200 bg-white px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900">
             <div className="flex flex-wrap justify-end gap-2">
-              <button type="button" onClick={closeEditor} className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-800">
+              <Button type="button" variant="secondary" onClick={closeEditor}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="accent"
                 disabled={actionBusy || !draft.title.trim() || !effectiveProjectId}
                 onClick={() => persistRecord(editor.mode, editor.section, resolveRecordId(editor.record))}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 text-sm font-bold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                icon={<span className="material-symbols-outlined text-[18px]">{editor.mode === 'edit' ? 'save' : 'add_circle'}</span>}
               >
-                <span className="material-symbols-outlined text-[18px]">{editor.mode === 'edit' ? 'save' : 'add_circle'}</span>
                 {actionBusy ? 'Saving...' : editor.mode === 'edit' ? 'Save changes' : `Create ${activeSectionAction.label}`}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

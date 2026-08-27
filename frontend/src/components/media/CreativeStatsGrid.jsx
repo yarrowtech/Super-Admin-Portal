@@ -6,8 +6,13 @@ import KPICard from '../common/KPICard';
  * Files/Types). `items`: [{label, value, icon}]. Uses KPICard's `compact` mode so
  * five cards fit without the huge empty space the old hand-rolled metric cards had.
  */
-const CreativeStatsGrid = ({ items = [] }) => (
-  <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+const COLUMN_CLASSES = {
+  4: 'sm:grid-cols-2 xl:grid-cols-4',
+  5: 'lg:grid-cols-5',
+};
+
+const CreativeStatsGrid = ({ items = [], columns = 5 }) => (
+  <div className={`grid grid-cols-2 gap-3 ${COLUMN_CLASSES[columns] || COLUMN_CLASSES[5]}`}>
     {items.map(([label, value, icon]) => (
       <KPICard key={label} title={label} value={value} icon={icon} compact />
     ))}

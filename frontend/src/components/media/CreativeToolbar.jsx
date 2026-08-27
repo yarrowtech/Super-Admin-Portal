@@ -1,6 +1,7 @@
 import React from 'react';
+import Button from '../common/Button';
 
-const selectClass = 'h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-950 outline-none focus:border-[var(--portal-accent)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+const selectClass = 'h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[var(--portal-accent)]/10 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
 
 /**
  * One reusable toolbar for every Creative section: search + status + optional category
@@ -34,7 +35,7 @@ const CreativeToolbar = ({
           value={searchTerm}
           onChange={(e) => onSearchChange?.(e.target.value)}
           placeholder={searchPlaceholder}
-          className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-[var(--portal-accent)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+          className="h-10 w-full rounded-xl border border-neutral-200 bg-white pl-10 pr-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[var(--portal-accent)]/10 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
         />
       </div>
       {statusOptions.length ? (
@@ -60,15 +61,17 @@ const CreativeToolbar = ({
         </select>
       ) : null}
       {onRefresh ? (
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={onRefresh}
           disabled={busy}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+          icon={<span className="material-symbols-outlined text-[18px]">refresh</span>}
+          className="h-10"
         >
-          <span className="material-symbols-outlined text-[18px]">refresh</span>
           Refresh
-        </button>
+        </Button>
       ) : null}
     </div>
 

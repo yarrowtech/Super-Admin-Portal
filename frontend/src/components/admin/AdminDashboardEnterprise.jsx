@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/admin';
 import { QK } from '../../utils/queryKeys';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
 import StatusBadge from '../common/StatusBadge';
 import AttentionPanel from '../common/AttentionPanel';

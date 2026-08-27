@@ -10,7 +10,7 @@ import LegalDocManagement from './LegalDocManagement';
 import LSWLegalLibrary from './LSWLegalLibrary';
 import LawOpsPage from './pages/LawOpsPage';
 import LawContractsPage from './LawContractsPage';
-import { PortalHeader, KPICard, StatusBadge, AttentionPanel, QuickActions } from '../common';
+import { PortalHeader, WarmGreeting, KPICard, StatusBadge, AttentionPanel, QuickActions } from '../common';
 import { SectionCard, DataTable, CardSkeleton } from '../ui';
 import { statusToTone } from '../../utils/statusTone';
 
@@ -478,6 +478,8 @@ const LawDashboard = () => {
             {projectOptions.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </PortalHeader>
+
+        <WarmGreeting user={user} message="Wishing you a focused and productive day ahead." />
 
         {error && (
           <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">

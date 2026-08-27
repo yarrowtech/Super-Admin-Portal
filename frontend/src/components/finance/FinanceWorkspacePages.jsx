@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import Button from '../common/Button';
 import DataTable from '../ui/DataTable';
 import EmptyState from '../ui/EmptyState';
@@ -503,6 +504,8 @@ export const FinanceOverviewPage = () => {
             </div>
           }
         />
+
+        <WarmGreeting user={user} message="Wishing you a smooth and successful day." />
 
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
 

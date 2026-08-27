@@ -6,6 +6,7 @@ import { findCanonicalProject } from '../../config/projectNames';
 import { QK } from '../../utils/queryKeys';
 import { statusToTone } from '../../utils/statusTone';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import StatusBadge from '../common/StatusBadge';
 import AttentionPanel from '../common/AttentionPanel';
 import QuickActions from '../common/QuickActions';
@@ -353,6 +354,8 @@ const MediaDashboard = ({ selectedProjectId, onSectionChange }) => {
             Live sync {lastSyncLabel}
           </span>
         </PortalHeader>
+
+        <WarmGreeting user={user} message="Hope you have a creative and productive day." />
 
         {loading ? (
           <div className="h-56 animate-pulse rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900" />

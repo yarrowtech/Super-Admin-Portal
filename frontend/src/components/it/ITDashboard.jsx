@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { QK } from '../../utils/queryKeys';
 import statusToTone from '../../utils/statusTone';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
 import StatusBadge from '../common/StatusBadge';
 import AttentionPanel from '../common/AttentionPanel';
@@ -172,6 +173,8 @@ const ITDashboard = () => {
             </select>
           }
         />
+
+        <WarmGreeting user={user} message="Hope your work, tasks, and priorities stay on track today." />
 
         {/* ── Quick Actions ─────────────────────────────────────────── */}
         <QuickActions

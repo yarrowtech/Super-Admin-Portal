@@ -3,6 +3,7 @@ export { default as Button } from './Button';
 export { default as IconButton } from './IconButton';
 export { default as ThemeToggleButton } from './ThemeToggleButton';
 export { default as PortalHeader } from './PortalHeader';
+export { default as WarmGreeting } from './WarmGreeting';
 export { default as PortalSidebar } from './PortalSidebar';
 export { default as KPICard } from './KPICard';
 export { default as StatsCard } from './StatsCard';

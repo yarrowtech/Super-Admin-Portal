@@ -245,6 +245,8 @@ const AdminDashboardEnterprise = () => {
           primaryAction={{ label: 'Create User', icon: 'person_add', onClick: () => navigate('/admin/users') }}
         />
 
+        <WarmGreeting user={user} message="Wishing you a smooth day managing the platform." />
+
         <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard
             title="Registered Users"

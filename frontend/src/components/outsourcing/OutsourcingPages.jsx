@@ -8,6 +8,7 @@ import ThemeToggleButton from '../common/ThemeToggleButton';
 import { computeProfileCompletion } from '../../utils/outsourcingProfile';
 import { statusToTone } from '../../utils/statusTone';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
 import StatusBadge from '../common/StatusBadge';
 import AttentionPanel from '../common/AttentionPanel';
@@ -364,6 +365,8 @@ export const OutsourcingDashboardPage = () => {
         onRefresh={load}
         refreshing={loading}
       />
+
+      <WarmGreeting user={user} message="Hope your projects and partnerships move forward smoothly today." />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {kpis.map((k) => (

@@ -20,8 +20,8 @@ const UserDataTable = ({
   setPage,
   totalPages,
 }) => {
-  const [sortBy, setSortBy] = useState('firstName');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const sortBy = filters?.sortBy || 'createdAt';
+  const sortOrder = filters?.sortOrder || 'desc';
   // Below 768px the directory always renders as cards — a table can't fit that
   // narrow without truncating every column, so there's no toggle back to it there.
   const [isMobile, setIsMobile] = useState(
@@ -41,31 +41,15 @@ const UserDataTable = ({
 
   const handleSort = (field) => {
     if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+      setFilters((current) => ({ ...current, sortOrder: sortOrder === 'asc' ? 'desc' : 'asc' }));
     } else {
-      setSortBy(field);
-      setSortOrder('asc');
+      setFilters((current) => ({ ...current, sortBy: field, sortOrder: 'asc' }));
     }
   };
 
-  const joinedWithinDays = filters?.joinedWithin ? Number(filters.joinedWithin) : 0;
-
   const sortedUsers = useMemo(() => {
-    const filtered = joinedWithinDays
-      ? users.filter((u) => {
-          if (!u.createdAt) return false;
-          const ageMs = Date.now() - new Date(u.createdAt).getTime();
-          return ageMs >= 0 && ageMs <= joinedWithinDays * 24 * 60 * 60 * 1000;
-        })
-      : users;
-
-    return [...filtered].sort((a, b) => {
-      const aVal = a[sortBy] || '';
-      const bVal = b[sortBy] || '';
-      const modifier = sortOrder === 'asc' ? 1 : -1;
-      return aVal.toString().localeCompare(bVal.toString()) * modifier;
-    });
-  }, [sortBy, sortOrder, users, joinedWithinDays]);
+    return users;
+  }, [users]);
 
   const isLegacyEmployee = (role) => String(role || '').trim().toLowerCase() === 'employee';
 
@@ -89,7 +73,6 @@ const UserDataTable = ({
             </h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
               {sortedUsers.length} {sortedUsers.length === 1 ? 'user' : 'users'} found
-              {joinedWithinDays ? ` · filtered from ${users.length} on this page` : ''}
             </p>
           </div>
           <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:w-auto lg:flex lg:flex-wrap lg:items-center">
@@ -170,7 +153,7 @@ const UserDataTable = ({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setFilters({ search: '', role: '', isActive: '', accountStatus: '', joinedWithin: '' })}
+            onClick={() => setFilters({ search: '', department: '', role: '', isActive: '', accountStatus: '', joinedWithin: '', sortBy: 'createdAt', sortOrder: 'desc' })}
             icon={<span className="material-symbols-outlined">refresh</span>}
           >
             Clear all filters

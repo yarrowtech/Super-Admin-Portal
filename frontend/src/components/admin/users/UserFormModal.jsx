@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Button from '../../common/Button';
 
 const roles = [
@@ -20,13 +20,6 @@ const roles = [
 ];
 
 const departmentSuggestions = ['IT', 'Human Resources', 'Finance', 'Media', 'Law', 'Executive', 'Outsourcing'];
-const roleDepartments = {
-  admin: 'Administration', ceo: 'Executive', hr: 'Human Resources',
-  it_manager: 'IT', it_admin: 'IT', it_employee: 'IT', it_hr: 'IT',
-  finance_manager: 'Finance', finance_employee: 'Finance',
-  media_head: 'Media', media_sales: 'Media', media_marketing: 'Media',
-  law_head: 'Law', law_employee: 'Law', freelancer: 'Outsourcing',
-};
 const statusOptions = [
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
@@ -67,15 +60,24 @@ const UserFormModal = ({
   saving,
   roleOptions,
   departmentOptions,
+  inheritedDepartment = '',
+  rolesLoading = false,
+  rolesError = '',
   showAdminFields = true,
 }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const firstNameRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) firstNameRef.current?.focus();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const resolvedRoles = Array.isArray(roleOptions) && roleOptions.length > 0 ? roleOptions : roles;
+  const resolvedRoles = Array.isArray(roleOptions) ? roleOptions : roles;
   const resolvedDepartments =
     Array.isArray(departmentOptions) && departmentOptions.length > 0 ? departmentOptions : departmentSuggestions;
+  const rolePlaceholder = rolesLoading ? 'Loading roles...' : !form.department ? 'Select a department first' : resolvedRoles.length === 0 ? 'No roles configured' : 'Select role';
 
   const selectedPhoneCountry = phoneCountryOptions.find((country) => country.code === (form.phoneCountry || 'IN')) || phoneCountryOptions[0];
 
@@ -129,7 +131,7 @@ const UserFormModal = ({
               <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
                 <div className={fieldClass}>
                   <label className={labelClass}>First Name <span className="text-red-500">*</span></label>
-                  <input type="text" required value={form.firstName} onChange={(e) => setForm((prev) => ({ ...prev, firstName: e.target.value }))} className={inputClass} placeholder="Enter first name" aria-invalid={Boolean(fieldErrors.firstName)} />
+                  <input ref={firstNameRef} type="text" required value={form.firstName} onChange={(e) => setForm((prev) => ({ ...prev, firstName: e.target.value }))} className={inputClass} placeholder="Enter first name" aria-invalid={Boolean(fieldErrors.firstName)} />
                   <p className={fieldErrors.firstName ? errorClass : helperClass}>{fieldErrors.firstName || ''}</p>
                 </div>
                 <div className={fieldClass}>
@@ -221,26 +223,32 @@ const UserFormModal = ({
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
                 </span>
-                <h3 className="text-sm font-black uppercase tracking-wide text-neutral-900 dark:text-neutral-100">Role & Department</h3>
+                <h3 className="text-sm font-black uppercase tracking-wide text-neutral-900 dark:text-neutral-100">Access</h3>
               </div>
               <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
                 <div className={fieldClass}>
                   <label className={labelClass}>Department</label>
-                  <select value={form.department || ''} disabled={Boolean(roleDepartments[form.role])} onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-70`}>
-                    <option value="">Select department</option>
-                    {resolvedDepartments.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
-                  </select>
+                  {inheritedDepartment && !editingUser ? (
+                    <div className="flex h-11 items-center rounded-lg border border-primary/20 bg-primary/5 px-3.5 text-sm font-semibold text-neutral-900 dark:text-neutral-100" aria-label={`Department: ${inheritedDepartment}`}>
+                      <span className="material-symbols-outlined mr-2 text-lg text-primary">apartment</span>{inheritedDepartment}
+                    </div>
+                  ) : (
+                    <select value={form.department || ''} required onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value, role: '' }))} className={inputClass}>
+                      <option value="">Select department</option>
+                      {resolvedDepartments.map((dept) => { const value = typeof dept === 'string' ? dept : dept.name; return <option key={typeof dept === 'string' ? dept : dept.id} value={value}>{value}</option>; })}
+                    </select>
+                  )}
                   <p className={helperClass}></p>
                 </div>
                 <div className={fieldClass}>
                   <label className={labelClass}>System Role <span className="text-red-500">*</span></label>
-                  <select required value={form.role} onChange={(e) => { const role = e.target.value; setForm((prev) => ({ ...prev, role, department: roleDepartments[role] || prev.department })); }} className={inputClass}>
+                  <select required value={form.role} disabled={!form.department || rolesLoading || resolvedRoles.length === 0} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}>
                     <option value="" disabled>
-                      Select role
+                      {rolePlaceholder}
                     </option>
                     {resolvedRoles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
                   </select>
-                  <p className={helperClass}></p>
+                  <p className={rolesError ? errorClass : helperClass}>{rolesError || (form.department && !rolesLoading && resolvedRoles.length === 0 ? 'No roles configured for this department.' : '')}</p>
                 </div>
                 {showAdminFields ? <div className={fieldClass}>
                   <label className={labelClass}>Account Status</label>

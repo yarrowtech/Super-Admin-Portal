@@ -26,10 +26,17 @@ const CountBadge = ({ active, children }) => (
   </span>
 );
 
-const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
+const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts, departmentCatalog = [] }) => {
   const [openGroups, setOpenGroups] = useState({});
   const toggleGroup = (key) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   const groupCount = (roles) => roles.reduce((sum, role) => sum + (roleCounts[role] || 0), 0);
+  const catalogGroups = departmentCatalog.map((department) => ({
+    key: department.id,
+    label: department.name,
+    icon: 'apartment',
+    badge: 'bg-primary/10 text-primary',
+    subRoles: (department.roles || []).map((role) => ({ value: role.code, label: role.displayName })),
+  }));
 
   return (
     <div className="flex flex-col gap-3">
@@ -70,22 +77,22 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
         <div className="space-y-1.5">
           <button
             type="button"
-            onClick={() => setFilters({ ...filters, role: '' })}
-            className={filterButtonClass(filters.role === '')}
+            onClick={() => setFilters({ ...filters, department: '', role: '' })}
+            className={filterButtonClass(filters.department === '' && filters.role === '')}
           >
             <span className="font-medium">All Departments</span>
-            <CountBadge active={filters.role === ''}>{stats.totalUsers}</CountBadge>
+            <CountBadge active={filters.department === '' && filters.role === ''}>{stats.totalUsers}</CountBadge>
           </button>
 
-          {departmentGroups.map((group) => {
+          {(catalogGroups.length > 0 ? catalogGroups : departmentGroups).map((group) => {
             if (!group.subRoles) {
               const value = group.roles[0];
-              const active = filters.role === value;
+              const active = filters.department === group.label;
               return (
                 <button
                   key={group.key}
                   type="button"
-                  onClick={() => setFilters({ ...filters, role: value })}
+                  onClick={() => setFilters({ ...filters, department: group.label, role: '' })}
                   className={filterButtonClass(active)}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -99,8 +106,7 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
               );
             }
 
-            const groupRoleValue = group.subRoles.map((r) => r.value).join(',');
-            const groupActive = filters.role === groupRoleValue;
+            const groupActive = filters.department === group.label && !filters.role;
             const isOpen = openGroups[group.key] ?? false;
 
             return (
@@ -110,7 +116,7 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
                 }`}>
                   <button
                     type="button"
-                    onClick={() => setFilters({ ...filters, role: groupRoleValue })}
+                    onClick={() => setFilters({ ...filters, department: group.label, role: '' })}
                     className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-sm transition-all ${
                       groupActive
                         ? 'bg-gradient-to-r from-primary to-primary/80 text-white font-semibold'
@@ -147,7 +153,7 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
                         <button
                           key={sub.value}
                           type="button"
-                          onClick={() => setFilters({ ...filters, role: sub.value })}
+                          onClick={() => setFilters({ ...filters, department: group.label, role: sub.value })}
                           className={`flex min-h-9 w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
                             active
                               ? 'bg-primary/10 text-primary font-semibold'
@@ -234,7 +240,7 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts }) => {
           })}
         </div>
         <p className="mt-2 text-[11px] leading-4 text-neutral-400 dark:text-neutral-500">
-          Applies to the users currently loaded on this page.
+          Applied across the full server-side directory.
         </p>
       </SectionCard>
     </div>

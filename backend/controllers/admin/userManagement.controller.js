@@ -4,7 +4,7 @@ const User = require('../../models/auth/User');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const logService = require('../../services/log.service');
 const { ROLES } = require('../../config/roles');
-const { getDepartmentForRole } = require('../../utils/roleAllocation');
+const { getDepartmentForRole, isRoleValidForDepartment } = require('../../utils/roleAllocation');
 
 const USER_ACCOUNT_STATUSES = ['active', 'inactive', 'suspended', 'blocked', 'pending_verification'];
 
@@ -242,7 +242,7 @@ exports.getDashboard = async (req, res) => {
  */
 exports.getAllUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 10, role, isActive, accountStatus, department, search } = req.query;
+    const { page = 1, limit = 10, role, isActive, accountStatus, department, search, joinedWithin, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
     const query = {};
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
@@ -254,7 +254,14 @@ exports.getAllUsers = async (req, res) => {
     }
     if (isActive !== undefined) query.isActive = isActive === 'true';
     if (accountStatus) query.accountStatus = accountStatus;
-    if (department) query.department = { $regex: department, $options: 'i' };
+    if (department) {
+      const departmentPattern = String(department).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.department = { $regex: `^${departmentPattern}$`, $options: 'i' };
+    }
+    const joinedDays = Number(joinedWithin);
+    if (Number.isFinite(joinedDays) && joinedDays > 0 && joinedDays <= 3650) {
+      query.createdAt = { $gte: new Date(Date.now() - joinedDays * 24 * 60 * 60 * 1000) };
+    }
     if (search) {
       const searchPattern = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
@@ -265,11 +272,14 @@ exports.getAllUsers = async (req, res) => {
       ];
     }
 
+    const allowedSortFields = new Set(['firstName', 'lastName', 'email', 'role', 'department', 'createdAt', 'accountStatus']);
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : 'createdAt';
+    const safeSortOrder = String(sortOrder).toLowerCase() === 'asc' ? 1 : -1;
     const users = await User.find(query)
       .select('-password')
       .limit(safeLimit)
       .skip((safePage - 1) * safeLimit)
-      .sort({ createdAt: -1 });
+      .sort({ [safeSortBy]: safeSortOrder, _id: safeSortOrder });
 
     const count = await User.countDocuments(query);
 
@@ -371,6 +381,13 @@ exports.createUser = async (req, res) => {
         error: 'Employee role is deprecated. Choose a portal role such as freelancer, manager, hr, it, law, media, finance, sales, or research_operator.'
       });
     }
+    const resolvedDepartment = getDepartmentForRole(role, department);
+    if (!department || !isRoleValidForDepartment(role, department)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Selected role is not valid for this department'
+      });
+    }
 
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -394,7 +411,7 @@ exports.createUser = async (req, res) => {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: phone?.trim(),
-      department: getDepartmentForRole(role, department),
+      department: resolvedDepartment,
       isActive: selectedStatus === 'active',
       accountStatus: selectedStatus,
       permissions: selectedPermissions,
@@ -458,6 +475,9 @@ exports.updateUser = async (req, res) => {
     const previousRole = user.role;
     const previousPermissions = Array.isArray(user.permissions) ? [...user.permissions] : [];
 
+    const nextRole = role || user.role;
+    const nextDepartment = department || user.department;
+
     // Validate role if provided
     if (role) {
       const validRoles = Object.values(ROLES);
@@ -480,6 +500,13 @@ exports.updateUser = async (req, res) => {
         });
       }
       user.role = role;
+    }
+
+    if ((role || department) && !isRoleValidForDepartment(nextRole, nextDepartment)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Selected role is not valid for this department'
+      });
     }
 
     if (isLegacyEmployeeUser(user)) {

@@ -18,6 +18,7 @@ router.delete('/users/:id', requirePermission('users:delete'), controllers.users
 router.post('/users/:id/toggle-status', requirePermission('users:update'), controllers.users.toggleUserStatus);
 
 // Role management
+router.get('/roles/access-catalog', requirePermission('users:read'), controllers.roles.getAccessCatalog);
 router.get('/roles', controllers.roles.getRoles);
 router.post('/roles', controllers.roles.createRole);
 router.put('/roles/permissions', controllers.roles.updateRolePermissions);

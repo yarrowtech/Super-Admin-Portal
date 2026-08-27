@@ -15,11 +15,19 @@ export const adminApi = {
     if (params.accountStatus) queryParams.append('accountStatus', params.accountStatus);
     if (params.department) queryParams.append('department', params.department);
     if (params.search) queryParams.append('search', params.search);
+    if (params.joinedWithin) queryParams.append('joinedWithin', params.joinedWithin);
+    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
     const queryString = queryParams.toString();
     const url = `/api/dept/admin/users${queryString ? `?${queryString}` : ''}`;
 
     return apiClient.get(url, token, { cache: false });
+  },
+
+  getAccessCatalog: async (token, department) => {
+    const query = department ? `?department=${encodeURIComponent(department)}` : '';
+    return apiClient.get(`/api/dept/admin/roles/access-catalog${query}`, token);
   },
 
   getUserById: async (token, userId) => {

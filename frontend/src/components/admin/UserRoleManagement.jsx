@@ -12,7 +12,11 @@ import UserFormModal from './users/UserFormModal';
 import UserDataTable from './users/UserDataTable';
 import { getDepartmentChipLabel, getJoinedWithinLabel } from './users/userDirectoryMeta';
 
-const emptyFilters = { search: '', role: '', isActive: '', accountStatus: '', joinedWithin: '' };
+const readInitialFilters = () => {
+  const params = new URLSearchParams(window.location.search);
+  return { search: params.get('search') || '', department: params.get('department') || '', role: '', isActive: '', accountStatus: params.get('status') || '', joinedWithin: '', sortBy: 'createdAt', sortOrder: 'desc' };
+};
+const emptyFilters = { search: '', department: '', role: '', isActive: '', accountStatus: '', joinedWithin: '', sortBy: 'createdAt', sortOrder: 'desc' };
 
 const initialForm = {
   firstName: '',
@@ -38,9 +42,11 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, inactiveUsers: 0 });
   const [usersByRole, setUsersByRole] = useState([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => Math.max(Number(new URLSearchParams(window.location.search).get('page')) || 1, 1));
   const [totalPages, setTotalPages] = useState(1);
-  const [filters, setFilters] = useState(emptyFilters);
+  const [filters, setFilters] = useState(readInitialFilters);
+  const [accessCatalog, setAccessCatalog] = useState([]);
+  const [catalogError, setCatalogError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionState, setActionState] = useState({ saving: false, deletingId: null, togglingId: null });
@@ -61,9 +67,13 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
           page,
           limit: 10,
           role: filters.role || undefined,
+          department: filters.department || undefined,
           isActive: filters.isActive !== '' ? filters.isActive : undefined,
           accountStatus: filters.accountStatus || undefined,
           search: filters.search || undefined,
+          joinedWithin: filters.joinedWithin || undefined,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
         }),
         userApi.getDashboard(token, { forceRefresh: true }),
       ]);
@@ -104,7 +114,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [token, page, filters, selectedUser, userApi]);
+  }, [token, page, filters, userApi]);
 
   useEffect(() => {
     fetchUsers();
@@ -112,7 +122,25 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
   useEffect(() => {
     setPage(1);
-  }, [filters.search, filters.role, filters.isActive, filters.accountStatus]);
+  }, [filters.search, filters.department, filters.role, filters.isActive, filters.accountStatus, filters.joinedWithin]);
+
+  useEffect(() => {
+    if (!token) return;
+    userApi.getAccessCatalog(token).then((result) => {
+      setAccessCatalog(result?.data?.departments || []);
+      setCatalogError('');
+    }).catch((err) => setCatalogError(err.message || 'Unable to load department roles'));
+  }, [token, userApi]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.department) params.set('department', filters.department);
+    if (filters.search) params.set('search', filters.search);
+    if (filters.accountStatus) params.set('status', filters.accountStatus);
+    if (page > 1) params.set('page', String(page));
+    const query = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+  }, [filters.department, filters.search, filters.accountStatus, page]);
 
   const roleCounts = useMemo(() => {
     return usersByRole.reduce((acc, entry) => {
@@ -121,17 +149,14 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     }, {});
   }, [usersByRole]);
 
-  const hasLegacyEmployeeUsers = useMemo(
-    () => users.some((user) => String(user?.role || '').toLowerCase() === 'employee'),
-    [users]
-  );
-
   const activeFilterChips = useMemo(() => {
     const chips = [];
     if (filters.search) {
       chips.push({ key: 'search', label: `Search: "${filters.search}"`, onRemove: () => setFilters((f) => ({ ...f, search: '' })) });
     }
-    if (filters.role) {
+    if (filters.department) {
+      chips.push({ key: 'department', label: filters.department, onRemove: () => setFilters((f) => ({ ...f, department: '', role: '' })) });
+    } else if (filters.role) {
       chips.push({ key: 'role', label: getDepartmentChipLabel(filters.role), onRemove: () => setFilters((f) => ({ ...f, role: '' })) });
     }
     if (filters.isActive) {
@@ -160,7 +185,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
   const openCreateModal = () => {
     setEditingUser(null);
-    setForm(initialForm);
+    setForm({ ...initialForm, department: filters.department || '' });
     setFormError('');
     setFormTouched(false);
     setIsModalOpen(true);
@@ -250,8 +275,8 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
         payload.password = form.password.trim();
       }
 
-      if (!payload.firstName || !payload.lastName || !payload.email || !payload.role) {
-        setFormError('Please fill first name, last name, and email.');
+      if (!payload.firstName || !payload.lastName || !payload.email || !payload.department || !payload.role) {
+        setFormError('Please fill all required identity and access fields.');
         setActionState((prev) => ({ ...prev, saving: false }));
         return;
       }
@@ -277,7 +302,8 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       // fresh fetchUsers() via the filters-driven effect below — no need to
       // call it explicitly, since doing so here would still use the stale
       // (pre-update) filters closure.
-      setFilters(emptyFilters);
+      setPage(1);
+      await fetchUsers();
     } catch (err) {
       setFormError(err.message || 'Unable to save user');
     } finally {
@@ -511,6 +537,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
                 setFilters={setFilters}
                 stats={stats}
                 roleCounts={roleCounts}
+                departmentCatalog={accessCatalog}
               />
             </div>
 
@@ -548,6 +575,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
           setFilters={setFilters}
           stats={stats}
           roleCounts={roleCounts}
+          departmentCatalog={accessCatalog}
         />
       </FilterDrawer>
 
@@ -562,6 +590,11 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
         formError={formError}
         formTouched={formTouched}
         saving={actionState.saving}
+        inheritedDepartment={!editingUser ? filters.department : ''}
+        departmentOptions={accessCatalog}
+        roleOptions={(accessCatalog.find((department) => department.name === form.department)?.roles || []).map((role) => ({ value: role.code, label: role.displayName }))}
+        rolesLoading={!catalogError && accessCatalog.length === 0}
+        rolesError={catalogError}
       />
     </main>
   );

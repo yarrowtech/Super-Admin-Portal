@@ -2,6 +2,7 @@ const logger = require('../../utils/logger');
 const Role = require('../../models/auth/Role');
 const RolePermission = require('../../models/admin/RolePermission');
 const { ROLES, ROLE_PERMISSIONS } = require('../../config/roles');
+const { buildAccessCatalog } = require('../../utils/roleAllocation');
 
 exports.createRole = async (req, res) => {
   try {
@@ -80,6 +81,20 @@ exports.getRoles = async (req, res) => {
       error: 'Failed to fetch roles',
       details: error.message,
     });
+  }
+};
+
+exports.getAccessCatalog = async (req, res) => {
+  try {
+    const departments = buildAccessCatalog(Object.values(ROLES));
+    const requestedDepartment = String(req.query.department || '').trim().toLowerCase();
+    const filtered = requestedDepartment
+      ? departments.filter((item) => item.id === requestedDepartment || item.name.toLowerCase() === requestedDepartment)
+      : departments;
+    return res.status(200).json({ success: true, data: { departments: filtered } });
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to fetch department role catalogue');
+    return res.status(500).json({ success: false, error: 'Failed to fetch department role catalogue' });
   }
 };
 

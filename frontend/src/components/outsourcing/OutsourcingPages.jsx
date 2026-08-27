@@ -1,10 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
 import { useOutsourcingSocket } from '../../hooks/useOutsourcingSocket';
 import FreelancerDashboard from './FreelancerDashboard';
 import ThemeToggleButton from '../common/ThemeToggleButton';
 import { computeProfileCompletion } from '../../utils/outsourcingProfile';
+import { statusToTone } from '../../utils/statusTone';
+import PortalHeader from '../common/PortalHeader';
+import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import AttentionPanel from '../common/AttentionPanel';
+import QuickActions from '../common/QuickActions';
+import SectionCard from '../ui/SectionCard';
+import DataTable from '../ui/DataTable';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design System
@@ -153,6 +162,15 @@ const avatarBg = (s = '') => {
 const initials = (u) =>
   `${(u?.firstName || '')[0] || ''}${(u?.lastName || '')[0] || ''}`.toUpperCase() || (u?.email || 'U')[0].toUpperCase();
 
+// Module-level (not called during render) so the "now" comparison doesn't
+// trip the impure-function-during-render rule inside a useMemo body.
+const isWithinNextDays = (dateValue, days) => {
+  if (!dateValue) return false;
+  const t = new Date(dateValue).getTime();
+  const now = Date.now();
+  return t >= now && t <= now + days * 24 * 60 * 60 * 1000;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
@@ -164,84 +182,246 @@ export const OutsourcingDashboardPage = () => {
     String(user?.metadata?.outsourcingType || '').toLowerCase().includes('worker') ||
     String(user?.metadata?.outsourcingType || '').toLowerCase().includes('freelan');
 
-  if (isWorker) return <FreelancerDashboard token={token} user={user} />;
-
+  // All hooks below are declared unconditionally (Rules of Hooks) — the
+  // isWorker branch renders <FreelancerDashboard /> further down instead of
+  // returning early here. The fetch effect still no-ops for workers (see
+  // `if (isWorker) return;` inside it), so a freelancer/worker session still
+  // never calls these admin-only endpoints, matching the original behavior.
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState({ dashboard: null, jobs: null, contracts: null, logs: null });
+  const [lastUpdated, setLastUpdated] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      const [d, j, c, l] = await Promise.allSettled([
-        outsourcingApi.getDashboard(token),
-        outsourcingApi.getJobs(token),
-        outsourcingApi.getContracts(token),
-        outsourcingApi.getTimeLogs(token)
-      ]);
-      setData(d.status === 'fulfilled' ? d.value?.data : null);
-      setJobs(j.status === 'fulfilled' ? j.value?.data || [] : []);
-      setContracts(c.status === 'fulfilled' ? c.value?.data || [] : []);
-      setLogs(l.status === 'fulfilled' ? l.value?.data || [] : []);
-      setLoading(false);
-    })();
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [d, j, c, l] = await Promise.allSettled([
+      outsourcingApi.getDashboard(token),
+      outsourcingApi.getJobs(token),
+      outsourcingApi.getContracts(token),
+      outsourcingApi.getTimeLogs(token)
+    ]);
+    setData(d.status === 'fulfilled' ? d.value?.data : null);
+    setJobs(j.status === 'fulfilled' ? j.value?.data || [] : []);
+    setContracts(c.status === 'fulfilled' ? c.value?.data || [] : []);
+    setLogs(l.status === 'fulfilled' ? l.value?.data || [] : []);
+    setErrors({
+      dashboard: d.status === 'rejected' ? (d.reason?.message || 'Failed to load dashboard summary') : null,
+      jobs: j.status === 'rejected' ? (j.reason?.message || 'Failed to load jobs') : null,
+      contracts: c.status === 'rejected' ? (c.reason?.message || 'Failed to load contracts') : null,
+      logs: l.status === 'rejected' ? (l.reason?.message || 'Failed to load time logs') : null,
+    });
+    setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    setLoading(false);
   }, [token]);
 
+  useEffect(() => {
+    if (isWorker) return;
+    load();
+  }, [load, isWorker]);
+
+  const pendingLogs = useMemo(() => logs.filter((l) => l.verificationStatus === 'pending'), [logs]);
+  const approvedLogs = useMemo(() => logs.filter((l) => l.verificationStatus === 'approved'), [logs]);
+  const activeContracts = useMemo(() => contracts.filter((c) => c.status === 'active'), [contracts]);
+
   const kpis = [
-    { label: 'Total Jobs', value: jobs.length, icon: 'work', accent: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-    { label: 'Active Contracts', value: contracts.filter((c) => c.status === 'active').length, icon: 'contract', accent: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
-    { label: 'Pending Logs', value: logs.filter((l) => l.verificationStatus === 'pending').length, icon: 'pending_actions', accent: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
-    { label: 'Freelancers', value: data?.users?.freelancers || data?.users?.workers || 0, icon: 'group', accent: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' },
+    {
+      key: 'jobs', label: 'Total Jobs', value: jobs.length, icon: 'work', tone: 'info',
+      context: errors.jobs ? 'Failed to load jobs' : 'Across all statuses',
+    },
+    {
+      key: 'contracts', label: 'Active Contracts', value: activeContracts.length, icon: 'contract', tone: 'success',
+      context: errors.contracts ? 'Failed to load contracts' : `${contracts.length} total`,
+    },
+    {
+      key: 'logs', label: 'Pending Logs', value: pendingLogs.length, icon: 'pending_actions', tone: 'warning',
+      context: errors.logs ? 'Failed to load time logs' : 'Awaiting verification',
+    },
+    {
+      key: 'freelancers', label: 'Freelancers', value: data?.users?.freelancers || data?.users?.workers || 0, icon: 'group', tone: 'accent',
+      context: errors.dashboard ? 'Failed to load summary' : 'Assigned freelancers',
+    },
   ];
+
+  // Attention list is built only from real, already-fetched records — each
+  // item maps to an actual job/log/contract needing admin follow-up, not a
+  // fabricated signal. Jobs: unassigned (pending, no assignee) or rejected by
+  // the freelancer. Logs: awaiting verification. Contracts: active with a real
+  // endDate landing within the next 14 days.
+  const attentionItems = useMemo(() => {
+    const toneRank = { danger: 0, warning: 1, info: 2, neutral: 3 };
+    // Each entry pairs the panel item with its own sort key, so the sort key
+    // never has to live on (and be stripped back off) the final item object.
+    const entries = [];
+
+    jobs.forEach((j) => {
+      if (j.acceptanceStatus === 'rejected') {
+        entries.push({
+          sortDate: j.rejectedAt || j.updatedAt,
+          item: {
+            id: `job-rejected-${j._id}`,
+            label: j.title,
+            context: j.rejectionReason ? `Rejected: ${j.rejectionReason}` : 'Rejected by freelancer — needs reassignment',
+            tone: 'danger',
+            statusLabel: 'Rejected',
+            actionLabel: 'Review job',
+            onAction: () => navigate('/outsourcing/jobs'),
+          },
+        });
+      } else if (j.status === 'pending' && !j.assignedFreelancer) {
+        entries.push({
+          sortDate: j.createdAt,
+          item: {
+            id: `job-unassigned-${j._id}`,
+            label: j.title,
+            context: 'Awaiting freelancer assignment',
+            tone: 'warning',
+            statusLabel: 'Unassigned',
+            actionLabel: 'Assign',
+            onAction: () => navigate('/outsourcing/jobs'),
+          },
+        });
+      }
+    });
+
+    pendingLogs.forEach((l) => {
+      const freelancerName = [l.freelancer?.firstName, l.freelancer?.lastName].filter(Boolean).join(' ') || l.freelancer?.email || 'Freelancer';
+      entries.push({
+        sortDate: l.logDate,
+        item: {
+          id: `log-${l._id}`,
+          label: l.job?.title || 'Time log',
+          context: `${freelancerName} logged ${l.hours}h on ${l.logDate ? new Date(l.logDate).toLocaleDateString() : 'an unknown date'}`,
+          tone: 'warning',
+          statusLabel: 'Pending verification',
+          actionLabel: 'Review',
+          onAction: () => navigate('/outsourcing/time-logs'),
+        },
+      });
+    });
+
+    activeContracts
+      .filter((c) => isWithinNextDays(c.endDate, 14))
+      .forEach((c) => {
+        entries.push({
+          sortDate: c.endDate,
+          item: {
+            id: `contract-${c._id}`,
+            label: c.job?.title || 'Contract',
+            context: `Ends ${new Date(c.endDate).toLocaleDateString()}`,
+            tone: 'warning',
+            statusLabel: 'Expiring soon',
+            actionLabel: 'View',
+            onAction: () => navigate('/outsourcing/contracts'),
+          },
+        });
+      });
+
+    return entries
+      .sort((a, b) => (toneRank[a.item.tone] - toneRank[b.item.tone]) || (new Date(b.sortDate || 0) - new Date(a.sortDate || 0)))
+      .map((entry) => entry.item);
+  }, [jobs, pendingLogs, activeContracts, navigate]);
+
+  const attentionError = errors.jobs && errors.logs && errors.contracts ? 'Unable to load attention data' : null;
+
+  const jobColumns = [
+    {
+      key: 'title',
+      header: 'Job',
+      render: (j) => (
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{j.title}</p>
+          <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{j?.assignedFreelancer?.email || 'Unassigned'}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (j) => <StatusBadge tone={statusToTone(j.status)} label={String(j.status || 'unknown').replace(/_/g, ' ')} />,
+    },
+  ];
+
+  const logHealthRows = [
+    { label: 'Pending Verification', value: pendingLogs.length, tone: 'warning' },
+    { label: 'Approved Logs', value: approvedLogs.length, tone: 'success' },
+    { label: 'Total Contracts', value: contracts.length, tone: 'neutral' },
+  ];
+
+  if (isWorker) return <FreelancerDashboard token={token} user={user} />;
 
   return (
     <div className="space-y-5">
-      <OutsourcingPageHdr title="Outsourcing Dashboard" subtitle="Jobs, contracts, and work logs overview" icon="dashboard" accent="#6366f1" />
+      <PortalHeader
+        title="Outsourcing Dashboard"
+        subtitle="Jobs, contracts, and work logs overview"
+        icon="dashboard"
+        user={user}
+        lastUpdated={lastUpdated}
+        onRefresh={load}
+        refreshing={loading}
+      />
+
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {kpis.map((k) => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} accentIcon={k.accent} loading={loading} />)}
+        {kpis.map((k) => (
+          <KPICard key={k.key} title={k.label} value={k.value} icon={k.icon} tone={k.tone} priority="primary" context={k.context} />
+        ))}
       </div>
+
+      <QuickActions
+        actions={[
+          { label: 'View Jobs', icon: 'work', onClick: () => navigate('/outsourcing/jobs') },
+          { label: 'View Contracts', icon: 'contract', onClick: () => navigate('/outsourcing/contracts') },
+        ]}
+      />
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Card>
-          <Inner>
-            <SectionHdr title="Recent Jobs" />
-            {loading ? <Skeleton rows={3} /> : jobs.length === 0 ? (
-              <EmptyState icon="work" title="No jobs yet" subtitle="Create jobs from the admin panel." />
-            ) : (
-              <div className="space-y-2">
-                {jobs.slice(0, 5).map((j) => (
-                  <div key={j._id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 p-3 dark:border-neutral-800">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-neutral-900 dark:text-white">{j.title}</p>
-                      <p className="text-xs text-neutral-500">{j?.assignedFreelancer?.email || 'Unassigned'}</p>
-                    </div>
-                    <Pill value={j.status} />
-                  </div>
-                ))}
+        <AttentionPanel
+          title="Needs Attention"
+          items={attentionItems}
+          loading={loading}
+          error={attentionError}
+          onRetry={load}
+          emptyTitle="Nothing needs attention"
+          emptyDescription="No unassigned jobs, pending logs, or contracts expiring soon."
+        />
+
+        <SectionCard
+          title="Log Health"
+          icon="fact_check"
+          loading={loading}
+          error={errors.logs || errors.contracts}
+          onRetry={load}
+        >
+          <div className="space-y-2">
+            {logHealthRows.map((r) => (
+              <div key={r.label} className="flex items-center justify-between rounded-xl border border-neutral-100 px-4 py-3 text-sm dark:border-neutral-800">
+                <span className="text-neutral-600 dark:text-neutral-300">{r.label}</span>
+                <StatusBadge tone={r.tone} label={String(r.value)} dot={false} />
               </div>
-            )}
-          </Inner>
-        </Card>
-        <Card>
-          <Inner>
-            <SectionHdr title="Log Health" />
-            {loading ? <Skeleton rows={3} /> : (
-              <div className="space-y-2">
-                {[
-                  { label: 'Pending Verification', value: logs.filter((l) => l.verificationStatus === 'pending').length, color: 'text-amber-600' },
-                  { label: 'Approved Logs', value: logs.filter((l) => l.verificationStatus === 'approved').length, color: 'text-emerald-600' },
-                  { label: 'Total Contracts', value: contracts.length, color: 'text-neutral-800 dark:text-neutral-100' },
-                ].map((r) => (
-                  <div key={r.label} className="flex items-center justify-between rounded-xl border border-neutral-100 px-4 py-3 text-sm dark:border-neutral-800">
-                    <span className="text-neutral-600 dark:text-neutral-300">{r.label}</span>
-                    <span className={`text-base font-bold ${r.color}`}>{r.value}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Inner>
-        </Card>
+            ))}
+          </div>
+        </SectionCard>
       </div>
+
+      <SectionCard
+        title="Recent Jobs"
+        icon="work"
+        loading={loading}
+        error={errors.jobs}
+        onRetry={load}
+        empty={!loading && !errors.jobs && jobs.length === 0}
+        emptyIcon="work"
+        emptyTitle="No jobs yet"
+        emptyDescription="Create jobs from the admin panel."
+        noBodyPadding
+        action={{ label: 'View all', onClick: () => navigate('/outsourcing/jobs') }}
+      >
+        <DataTable columns={jobColumns} rows={jobs.slice(0, 5)} rowKey="_id" emptyTitle="No jobs yet" />
+      </SectionCard>
     </div>
   );
 };

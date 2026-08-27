@@ -5,6 +5,11 @@ import Button from '../common/Button';
 import DataTable from '../ui/DataTable';
 import EmptyState from '../ui/EmptyState';
 import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import AttentionPanel from '../common/AttentionPanel';
+import QuickActions from '../common/QuickActions';
+import SectionCard from '../ui/SectionCard';
+import { statusToTone } from '../../utils/statusTone';
 import { financeApi } from '../../services/finance';
 import { useAuth } from '../../context/AuthContext';
 
@@ -163,6 +168,29 @@ const SkeletonBlock = () => (
 
 const FINANCE_DEPARTMENTS = ['IT', 'HR', 'Media', 'Law', 'Executive', 'Outsourcing'];
 
+// Overview-only KPI classification. dashboard.kpis[] carries no explicit importance
+// flag, so priority/polarity are assigned by domain judgement (see task notes).
+const PRIMARY_FINANCE_KPI_LABELS = new Set(['Total Cash', 'Outstanding Receivables', 'Pending Approvals', 'Total Expenses']);
+const FINANCE_KPI_TREND_POLARITY = {
+  'Total Cash': 'higherIsBetter',
+  'Total Budget': 'higherIsBetter',
+  'Total Expenses': 'lowerIsBetter',
+  'Pending Requests': 'lowerIsBetter',
+  'Pending Approvals': 'lowerIsBetter',
+  'Pending Payments': 'lowerIsBetter',
+  'Outstanding Receivables': 'lowerIsBetter',
+  'Outstanding Payables': 'lowerIsBetter',
+};
+const FINANCE_KPI_TONE = {
+  'Total Cash': 'accent',
+  'Total Budget': 'info',
+  'Total Expenses': 'warning',
+  'Pending Requests': 'warning',
+  'Pending Approvals': 'warning',
+  'Pending Payments': 'warning',
+  'Outstanding Payables': 'warning',
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // Overview
 // ════════════════════════════════════════════════════════════════════════════
@@ -172,7 +200,7 @@ export const FinanceOverviewPage = () => {
   const navigate = useNavigate();
   const [departmentScope, setDepartmentScope] = useState('All Departments');
   const [dashboardSearch, setDashboardSearch] = useState('');
-  const { loading, error, data } = useAsync(async () => {
+  const { loading, error, data, refetch } = useAsync(async () => {
     const [dashboardRes, invoicesRes, expensesRes, profitLossRes, balanceSheetRes] = await Promise.allSettled([
       financeApi.getDashboard(token),
       financeApi.getInvoices(token),
@@ -186,6 +214,16 @@ export const FinanceOverviewPage = () => {
       expenses: expensesRes.status === 'fulfilled' ? toList(unwrap(expensesRes.value)) : [],
       profitLoss: profitLossRes.status === 'fulfilled' ? unwrap(profitLossRes.value) : { revenue: 0, expenses: 0, netIncome: 0 },
       balanceSheet: balanceSheetRes.status === 'fulfilled' ? unwrap(balanceSheetRes.value) : { assets: 0, liabilities: 0, equity: 0 },
+      // Per-source failure reasons from Promise.allSettled — lets the Overview surface
+      // a real error on just the section(s) whose backing call failed, instead of the
+      // whole page silently rendering zeros.
+      errors: {
+        dashboard: dashboardRes.status === 'rejected' ? (dashboardRes.reason?.message || 'Failed to load the finance dashboard feed') : null,
+        invoices: invoicesRes.status === 'rejected' ? (invoicesRes.reason?.message || 'Failed to load invoices') : null,
+        expenses: expensesRes.status === 'rejected' ? (expensesRes.reason?.message || 'Failed to load expenses') : null,
+        profitLoss: profitLossRes.status === 'rejected' ? (profitLossRes.reason?.message || 'Failed to load profit & loss') : null,
+        balanceSheet: balanceSheetRes.status === 'rejected' ? (balanceSheetRes.reason?.message || 'Failed to load the balance sheet') : null,
+      },
     };
   }, [token]);
 
@@ -194,6 +232,7 @@ export const FinanceOverviewPage = () => {
   const expenses = data.expenses || [];
   const profitLoss = data.profitLoss || { revenue: 0, expenses: 0, netIncome: 0 };
   const balanceSheet = data.balanceSheet || { assets: 0, liabilities: 0, equity: 0 };
+  const sourceErrors = data.errors || {};
   const roleExperience = dashboard.roleExperience || (String(user?.role || '').toLowerCase() === 'finance_employee' ? 'employee' : 'head');
   const isFinanceHead = roleExperience === 'head';
   const departments = ['All Departments', 'IT', 'HR', 'Media', 'Law', 'Executive', 'Outsourcing'];
@@ -297,50 +336,66 @@ export const FinanceOverviewPage = () => {
     };
   }, [balanceSheet, expenseSummary.totalAmount, profitLoss]);
 
-  const backendKpis = useMemo(() => (dashboard.kpis || []).map((item) => ({
-    label: item.label,
-    icon:
-      item.label === 'Total Cash' ? 'account_balance'
-        : item.label === 'Total Budget' ? 'account_balance_wallet'
-          : item.label === 'Total Expenses' ? 'request_quote'
-            : item.label === 'Pending Requests' ? 'assignment'
-              : item.label === 'Pending Approvals' ? 'approval'
-                : item.label === 'Pending Payments' ? 'payments'
-                  : item.label === 'Outstanding Receivables' ? 'receipt_long'
-                    : 'receipt',
-    value: typeof item.value === 'number' ? formatCurrency(item.value) : item.value,
-    subtitle: `${Number(item.changePercent || 0).toFixed(1)}% vs prev`,
-    trend: { direction: item.trend === 'down' ? 'down' : 'up', value: item.trend === 'down' ? 'Down' : 'Up' },
-    drillDown: item.drillDown,
-  })), [dashboard.kpis]);
+  const backendKpis = useMemo(() => (dashboard.kpis || []).map((item) => {
+    const polarity = FINANCE_KPI_TREND_POLARITY[item.label] || 'higherIsBetter';
+    const direction = item.trend === 'down' ? 'down' : 'up';
+    const trendTone = direction === 'up'
+      ? (polarity === 'higherIsBetter' ? 'positive' : 'negative')
+      : (polarity === 'higherIsBetter' ? 'negative' : 'positive');
+    const changePercent = Number(item.changePercent || 0);
+    return {
+      label: item.label,
+      icon:
+        item.label === 'Total Cash' ? 'account_balance'
+          : item.label === 'Total Budget' ? 'account_balance_wallet'
+            : item.label === 'Total Expenses' ? 'request_quote'
+              : item.label === 'Pending Requests' ? 'assignment'
+                : item.label === 'Pending Approvals' ? 'approval'
+                  : item.label === 'Pending Payments' ? 'payments'
+                    : item.label === 'Outstanding Receivables' ? 'receipt_long'
+                      : 'receipt',
+      value: typeof item.value === 'number' ? formatCurrency(item.value) : item.value,
+      trend: { direction, value: `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%`, tone: trendTone },
+      drillDown: item.drillDown,
+      priority: PRIMARY_FINANCE_KPI_LABELS.has(item.label) ? 'primary' : 'secondary',
+      tone: item.label === 'Outstanding Receivables'
+        ? (invoiceMetrics.overdueAmount > 0 ? 'danger' : 'accent')
+        : (FINANCE_KPI_TONE[item.label] || 'accent'),
+    };
+  }), [dashboard.kpis, invoiceMetrics.overdueAmount]);
 
   const kpis = useMemo(() => (backendKpis.length ? backendKpis : [
     {
       label: 'Revenue',
       icon: 'trending_up',
       value: formatCurrency(financeSummary.revenue),
-      subtitle: `${invoices.length} invoices`,
-      trend: financeSummary.revenue > 0 ? { direction: 'up', value: 'Booked' } : undefined,
+      context: `${invoices.length} invoice${invoices.length === 1 ? '' : 's'} booked`,
+      priority: 'primary',
+      tone: 'accent',
     },
     {
       label: 'Expenses',
       icon: 'request_quote',
       value: formatCurrency(financeSummary.totalExpenses),
-      subtitle: `${expenseSummary.pendingCount} pending`,
+      context: `${expenseSummary.pendingCount} pending review`,
+      priority: 'secondary',
+      tone: 'warning',
     },
     {
       label: 'Net Income',
       icon: 'account_balance_wallet',
       value: formatCurrency(financeSummary.net),
-      subtitle: `${financeSummary.margin.toFixed(1)}% margin`,
-      trend: financeSummary.net >= 0 ? { direction: 'up', value: 'Profit' } : { direction: 'down', value: 'Loss' },
+      context: `${financeSummary.margin.toFixed(1)}% margin`,
+      priority: 'primary',
+      tone: financeSummary.net >= 0 ? 'success' : 'danger',
     },
     {
       label: 'Receivables',
       icon: 'pending_actions',
       value: formatCurrency(invoiceMetrics.outstandingAmount),
-      subtitle: `${invoiceMetrics.overdueCount} overdue`,
-      trend: invoiceMetrics.overdueAmount > 0 ? { direction: 'down', value: 'Risk' } : undefined,
+      context: invoiceMetrics.overdueCount > 0 ? `${invoiceMetrics.overdueCount} overdue` : 'No overdue invoices',
+      priority: 'primary',
+      tone: invoiceMetrics.overdueAmount > 0 ? 'danger' : 'accent',
     },
   ]), [backendKpis, expenseSummary.pendingCount, financeSummary, invoiceMetrics, invoices.length]);
 
@@ -363,29 +418,47 @@ export const FinanceOverviewPage = () => {
     [expenses]
   );
 
-  const controlItems = [
+  // Same underlying data/counts as the previous hand-rolled "controls" cards, now
+  // rendered through the shared AttentionPanel.
+  const attentionItems = [
     {
+      id: 'overdue-ar',
       label: 'Overdue AR',
-      value: formatCurrency(invoiceMetrics.overdueAmount),
-      detail: `${invoiceMetrics.overdueCount} invoices need follow-up`,
-      icon: 'warning',
-      tone: invoiceMetrics.overdueAmount > 0 ? 'text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/50' : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/50',
+      context: `${invoiceMetrics.overdueCount} invoice${invoiceMetrics.overdueCount === 1 ? '' : 's'} need follow-up`,
+      tone: invoiceMetrics.overdueAmount > 0 ? 'danger' : 'neutral',
+      statusLabel: formatCurrency(invoiceMetrics.overdueAmount),
+      actionLabel: invoiceMetrics.overdueAmount > 0 ? 'Review' : undefined,
+      onAction: invoiceMetrics.overdueAmount > 0 ? () => navigate('/finance/dashboard/invoices') : undefined,
     },
     {
+      id: 'pending-expense-review',
       label: 'Pending Expense Review',
-      value: formatCurrency(expenseSummary.pendingAmount),
-      detail: `${expenseSummary.pendingCount} submissions waiting`,
-      icon: 'rate_review',
-      tone: expenseSummary.pendingCount > 0 ? 'text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/50' : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/50',
+      context: `${expenseSummary.pendingCount} submission${expenseSummary.pendingCount === 1 ? '' : 's'} waiting`,
+      tone: expenseSummary.pendingCount > 0 ? 'warning' : 'neutral',
+      statusLabel: formatCurrency(expenseSummary.pendingAmount),
+      actionLabel: expenseSummary.pendingCount > 0 ? 'Review' : undefined,
+      onAction: expenseSummary.pendingCount > 0 ? () => navigate('/finance/dashboard/expenses') : undefined,
     },
     {
+      id: 'liquidity-ratio',
       label: 'Liquidity Ratio',
-      value: financeSummary.liquidity.toFixed(2),
-      detail: `${formatCurrency(financeSummary.assets)} assets`,
-      icon: 'waterfall_chart',
-      tone: financeSummary.liquidity >= 1 ? 'text-sky-700 bg-sky-50 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900/50' : 'text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/50',
+      context: `${formatCurrency(financeSummary.assets)} assets vs ${formatCurrency(financeSummary.liabilities)} liabilities`,
+      tone: financeSummary.liquidity >= 1 ? 'info' : 'danger',
+      statusLabel: financeSummary.liquidity.toFixed(2),
+      actionLabel: financeSummary.liquidity < 1 ? 'View' : undefined,
+      onAction: financeSummary.liquidity < 1 ? () => navigate('/finance/dashboard/reports') : undefined,
     },
   ];
+  const controlsError = sourceErrors.invoices || sourceErrors.expenses || sourceErrors.balanceSheet || null;
+
+  // Capped at 3 per the shared QuickActions contract; Reports stays reachable via
+  // the header's "Reports" button so no capability is dropped.
+  const quickActionItems = [
+    { label: 'Billing', icon: 'receipt_long', onClick: () => navigate('/finance/dashboard/invoices') },
+    { label: 'Payments', icon: 'payments', onClick: () => navigate('/finance/dashboard/payments') },
+    { label: 'Expenses', icon: 'request_quote', onClick: () => navigate('/finance/dashboard/expenses') },
+  ];
+
   const pendingRequests = dashboard.pendingRequests || [];
   const approvalQueue = dashboard.approvalQueue || [];
   const paymentQueue = dashboard.paymentQueue || [];
@@ -438,111 +511,132 @@ export const FinanceOverviewPage = () => {
         ) : (
           <>
             <section className="portal-kpi-grid">
-              {kpis.map((item) => (
-                <button key={item.label} type="button" onClick={() => item.drillDown && navigate(item.drillDown)} className="min-w-0 text-left">
-                  <KPICard title={item.label} value={item.value} icon={item.icon} subtitle={item.subtitle} trend={item.trend} />
-                </button>
-              ))}
+              {kpis.map((item) => {
+                const cardEl = (
+                  <KPICard
+                    title={item.label}
+                    value={item.value}
+                    icon={item.icon}
+                    trend={item.trend}
+                    context={item.context}
+                    tone={item.tone}
+                    priority={item.priority}
+                  />
+                );
+                return item.drillDown ? (
+                  <button key={item.label} type="button" onClick={() => navigate(item.drillDown)} className="min-w-0 text-left">
+                    {cardEl}
+                  </button>
+                ) : (
+                  <div key={item.label} className="min-w-0">
+                    {cardEl}
+                  </div>
+                );
+              })}
             </section>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr
-                    title={isFinanceHead ? 'Approval Center' : 'My Work Queue'}
-                    subtitle={isFinanceHead ? 'Controlled requests waiting for Finance Head decision' : 'Assigned requests, verifications and missing information'}
-                    action={<Pill value={isFinanceHead ? 'Finance Head' : 'Finance Employee'} />}
-                  />
-                  <div className="space-y-3">
-                    {primaryQueue.length === 0 ? (
-                      <EmptyState icon={isFinanceHead ? 'approval' : 'assignment_turned_in'} title={isFinanceHead ? 'No pending approvals' : 'No assigned finance work'} />
-                    ) : primaryQueue.slice(0, 5).map((item) => (
-                      <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{item.requestId}</p>
-                            <Pill value={item.type || item.status} />
-                            {item.approvalRequired && <Pill value="Approval Required" />}
-                          </div>
+              <SectionCard
+                title={isFinanceHead ? 'Approval Center' : 'My Work Queue'}
+                icon={isFinanceHead ? 'approval' : 'assignment_turned_in'}
+                description={isFinanceHead ? 'Controlled requests waiting for Finance Head decision' : 'Assigned requests, verifications and missing information'}
+                error={sourceErrors.dashboard}
+                onRetry={refetch}
+                empty={primaryQueue.length === 0}
+                emptyIcon={isFinanceHead ? 'approval' : 'assignment_turned_in'}
+                emptyTitle={isFinanceHead ? 'No pending approvals' : 'No assigned finance work'}
+              >
+                <div className="mb-3">
+                  <StatusBadge tone="info" label={isFinanceHead ? 'Finance Head' : 'Finance Employee'} dot={false} />
+                </div>
+                <div className="space-y-3">
+                  {primaryQueue.slice(0, 5).map((item) => (
+                    <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{item.requestId}</p>
+                          <StatusBadge tone={statusToTone(item.type || item.status)} label={item.type || item.status} dot={false} />
+                          {item.approvalRequired && <StatusBadge tone="warning" label="Approval Required" dot={false} />}
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                          {item.department || 'Finance'} - {item.requester || item.budgetImpact || 'Workflow'} - {fmtDateOnly(item.submittedDate || item.submittedAt)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                        <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(item.amount)}</p>
+                        <Button
+                          size="sm"
+                          variant={isFinanceHead ? 'primary' : 'secondary'}
+                          onClick={() => navigate(isFinanceHead ? '/finance/dashboard/approvals' : '/finance/dashboard/expenses')}
+                        >
+                          {isFinanceHead ? 'Decide' : 'Review'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="Department Financial Overview"
+                icon="domain"
+                description="Budget, spend, reservations and risk by department"
+                action={{ label: 'Open Profiles', onClick: () => navigate('/finance/dashboard/project-overview') }}
+                error={sourceErrors.dashboard}
+                onRetry={refetch}
+                empty={scopedDepartmentRows.length === 0}
+                emptyIcon="domain"
+                emptyTitle="No department finance data"
+              >
+                <div className="space-y-3">
+                  {scopedDepartmentRows.map((row) => (
+                    <button
+                      key={row.department}
+                      type="button"
+                      onClick={() => navigate(`/finance/dashboard/project-overview?department=${encodeURIComponent(row.department)}`)}
+                      className="w-full rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-800"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{row.department}</p>
                           <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                            {item.department || 'Finance'} - {item.requester || item.budgetImpact || 'Workflow'} - {fmtDateOnly(item.submittedDate || item.submittedAt)}
+                            Spent {formatCurrency(row.spent)} of {formatCurrency(row.budget)} - Reserved {formatCurrency(row.reserved)}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
-                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(item.amount)}</p>
-                          <Button
-                            size="sm"
-                            variant={isFinanceHead ? 'primary' : 'secondary'}
-                            onClick={() => navigate(isFinanceHead ? '/finance/dashboard/approvals' : '/finance/dashboard/expenses')}
-                          >
-                            {isFinanceHead ? 'Decide' : 'Review'}
-                          </Button>
-                        </div>
+                        <StatusBadge tone={statusToTone(row.status)} label={row.status} dot={false} />
                       </div>
-                    ))}
-                  </div>
+                      <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-3">
+                        <div className="h-2 overflow-hidden rounded-full bg-white dark:bg-neutral-950">
+                          <div
+                            className={`h-full rounded-full ${row.utilization >= 100 ? 'bg-rose-500' : row.utilization >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.min(Math.max(Number(row.utilization || 0), 3), 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-black text-neutral-700 dark:text-neutral-300">{row.utilization}%</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                        <span className="rounded-lg bg-white px-2 py-1 text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300">{row.pendingRequests} requests</span>
+                        <span className="rounded-lg bg-white px-2 py-1 text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300">{row.pendingInvoices} invoices</span>
+                        <span className="rounded-lg bg-white px-2 py-1 text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300">{row.pendingPayments} payments</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              </section>
-
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr title="Department Financial Overview" subtitle="Budget, spend, reservations and risk by department" action={<Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard/project-overview')}>Open Profiles</Button>} />
-                  {scopedDepartmentRows.length === 0 ? <EmptyState icon="domain" title="No department finance data" /> : (
-                    <div className="space-y-3">
-                      {scopedDepartmentRows.map((row) => (
-                        <button
-                          key={row.department}
-                          type="button"
-                          onClick={() => navigate(`/finance/dashboard/project-overview?department=${encodeURIComponent(row.department)}`)}
-                          className="w-full rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-800"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{row.department}</p>
-                              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                                Spent {formatCurrency(row.spent)} of {formatCurrency(row.budget)} - Reserved {formatCurrency(row.reserved)}
-                              </p>
-                            </div>
-                            <Pill value={row.status} />
-                          </div>
-                          <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-3">
-                            <div className="h-2 overflow-hidden rounded-full bg-white dark:bg-neutral-950">
-                              <div
-                                className={`h-full rounded-full ${row.utilization >= 100 ? 'bg-rose-500' : row.utilization >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                                style={{ width: `${Math.min(Math.max(Number(row.utilization || 0), 3), 100)}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-black text-neutral-700 dark:text-neutral-300">{row.utilization}%</span>
-                          </div>
-                          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                            <span className="rounded-lg bg-white px-2 py-1 text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300">{row.pendingRequests} requests</span>
-                            <span className="rounded-lg bg-white px-2 py-1 text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300">{row.pendingInvoices} invoices</span>
-                            <span className="rounded-lg bg-white px-2 py-1 text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300">{row.pendingPayments} payments</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>
+              </SectionCard>
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.9fr]">
-              <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-                <div className="border-b border-neutral-100 p-5 dark:border-neutral-800 lg:p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Cash Position</p>
-                      <h2 className="mt-1 text-2xl font-black tracking-tight text-neutral-950 dark:text-neutral-100">{formatCurrency(financeSummary.assets - financeSummary.liabilities)}</h2>
-                      <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Assets less liabilities, backed by current balance sheet data.</p>
-                    </div>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
-                      <span className="material-symbols-outlined text-[16px]">verified</span>
-                      Finance live
-                    </span>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-4">
+                <SectionCard
+                  title="Cash Position"
+                  icon="account_balance"
+                  description="Assets less liabilities, backed by current balance sheet data."
+                  error={sourceErrors.balanceSheet}
+                  onRetry={refetch}
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Net Position</p>
+                  <h3 className="mt-1 text-2xl font-black tracking-tight text-neutral-950 dark:text-neutral-100">{formatCurrency(financeSummary.assets - financeSummary.liabilities)}</h3>
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {[
                       { label: 'Assets', value: financeSummary.assets, icon: 'account_balance' },
                       { label: 'Liabilities', value: financeSummary.liabilities, icon: 'receipt' },
@@ -557,10 +651,16 @@ export const FinanceOverviewPage = () => {
                       </div>
                     ))}
                   </div>
-                </div>
+                </SectionCard>
 
-                <div className={inner}>
-                  <SectionHdr title="Receivables aging" subtitle="Open invoice balances by overdue band" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{outstandingInvoices.length} open invoices</p>} />
+                <SectionCard
+                  title="Receivables Aging"
+                  icon="pending_actions"
+                  description="Open invoice balances by overdue band"
+                  error={sourceErrors.invoices}
+                  onRetry={refetch}
+                >
+                  <p className="mb-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400">{outstandingInvoices.length} open invoices</p>
                   <div className="space-y-3">
                     {agingBuckets.map((bucket) => (
                       <div key={bucket.label} className="grid grid-cols-[72px_1fr_auto] items-center gap-3">
@@ -578,149 +678,145 @@ export const FinanceOverviewPage = () => {
                       </div>
                     ))}
                   </div>
-                </div>
-              </section>
+                </SectionCard>
+              </div>
 
-              <section className="space-y-4">
-                <div className={card}>
-                  <div className={inner}>
-                    <SectionHdr title="Controls that need attention" subtitle="Operational finance exceptions" />
-                    <div className="space-y-3">
-                      {controlItems.map((item) => (
-                        <div key={item.label} className={`rounded-xl border p-4 ${item.tone}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-xs font-black uppercase tracking-wide opacity-80">{item.label}</p>
-                              <p className="mt-1 truncate text-xl font-black">{item.value}</p>
-                              <p className="mt-1 text-xs opacity-80">{item.detail}</p>
-                            </div>
-                            <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <div className="space-y-4">
+                <AttentionPanel
+                  title="Controls Needing Attention"
+                  items={attentionItems}
+                  error={controlsError ? { message: controlsError } : null}
+                  onRetry={refetch}
+                  maxItems={3}
+                  emptyTitle="No control exceptions"
+                  emptyDescription="Overdue AR, expense review and liquidity checks are all clear."
+                />
 
-                <div className={card}>
-                  <div className={inner}>
-                    <SectionHdr title="Quick actions" subtitle="Jump into daily finance work" />
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { label: 'Billing', icon: 'receipt_long', path: '/finance/dashboard/invoices' },
-                        { label: 'Payments', icon: 'payments', path: '/finance/dashboard/payments' },
-                        { label: 'Expenses', icon: 'request_quote', path: '/finance/dashboard/expenses' },
-                        { label: 'Reports', icon: 'bar_chart', path: '/finance/dashboard/reports' },
-                      ].map((item) => (
-                        <button
-                          key={item.label}
-                          type="button"
-                          onClick={() => navigate(item.path)}
-                          className="flex min-h-[76px] items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/30"
-                        >
-                          <span className="material-symbols-outlined flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[20px] text-emerald-700 shadow-sm dark:bg-neutral-950 dark:text-emerald-300">{item.icon}</span>
-                          <span className="text-sm font-black text-neutral-800 dark:text-neutral-100">{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </section>
+                <SectionCard title="Quick Actions" icon="bolt" description="Jump into daily finance work">
+                  <QuickActions actions={quickActionItems} />
+                </SectionCard>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr title="Recent invoices" subtitle="Latest billing activity" action={<Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard/invoices')}>Open Billing</Button>} />
-                  {recentInvoices.length === 0 ? <EmptyState icon="receipt_long" title="No invoices yet" /> : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[620px] text-left">
-                        <thead>
-                          <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-                            <th className="py-2 pr-3">Client</th>
-                            <th className="px-3 py-2">Due</th>
-                            <th className="px-3 py-2">Status</th>
-                            <th className="py-2 pl-3 text-right">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {recentInvoices.map((invoice) => (
-                            <tr key={invoice._id || invoice.id || invoice.invoiceNumber} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
-                              <td className="py-3 pr-3">
-                                <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{invoice.clientName || invoice.customerName || 'Client'}</p>
-                                <p className="text-xs text-neutral-500 dark:text-neutral-400">{invoice.invoiceNumber || invoice.reference || 'Invoice'}</p>
-                              </td>
-                              <td className="px-3 py-3 text-sm text-neutral-600 dark:text-neutral-300">{fmtDateOnly(invoice.dueDate)}</td>
-                              <td className="px-3 py-3"><Pill value={invoiceStatusLabel(invoice)} /></td>
-                              <td className="py-3 pl-3 text-right text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(getInvoiceTotal(invoice))}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+              <SectionCard
+                title="Recent Invoices"
+                icon="receipt_long"
+                description="Latest billing activity"
+                action={{ label: 'Open Billing', onClick: () => navigate('/finance/dashboard/invoices') }}
+                error={sourceErrors.invoices}
+                onRetry={refetch}
+                empty={recentInvoices.length === 0}
+                emptyIcon="receipt_long"
+                emptyTitle="No invoices yet"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-left">
+                    <thead>
+                      <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+                        <th className="py-2 pr-3">Client</th>
+                        <th className="px-3 py-2">Due</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="py-2 pl-3 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentInvoices.map((invoice) => (
+                        <tr key={invoice._id || invoice.id || invoice.invoiceNumber} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
+                          <td className="py-3 pr-3">
+                            <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{invoice.clientName || invoice.customerName || 'Client'}</p>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">{invoice.invoiceNumber || invoice.reference || 'Invoice'}</p>
+                          </td>
+                          <td className="px-3 py-3 text-sm text-neutral-600 dark:text-neutral-300">{fmtDateOnly(invoice.dueDate)}</td>
+                          <td className="px-3 py-3"><StatusBadge tone={statusToTone(invoiceStatusLabel(invoice))} label={invoiceStatusLabel(invoice)} dot={false} /></td>
+                          <td className="py-3 pl-3 text-right text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(getInvoiceTotal(invoice))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </section>
+              </SectionCard>
 
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr title="Expense control" subtitle="Largest expenses and review status" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{expenses.length} entries</p>} />
-                  <div className="space-y-3">
-                    {topExpenses.length === 0 ? <EmptyState icon="request_quote" title="No expenses recorded" /> : topExpenses.map((expense) => (
-                      <div key={expense._id || expense.id || expense.title} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{expense.title || expense.category || 'Expense'}</p>
-                          <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{expense.department || 'Finance'} - {fmtDateOnly(expense.createdAt || expense.date)}</p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(expense.amount)}</p>
-                          <Pill value={expense.status || 'submitted'} />
-                        </div>
+              <SectionCard
+                title="Expense Control"
+                icon="request_quote"
+                description={`Largest expenses and review status — ${expenses.length} entries`}
+                action={{ label: 'Open Expenses', onClick: () => navigate('/finance/dashboard/expenses') }}
+                error={sourceErrors.expenses}
+                onRetry={refetch}
+                empty={topExpenses.length === 0}
+                emptyIcon="request_quote"
+                emptyTitle="No expenses recorded"
+              >
+                <div className="space-y-3">
+                  {topExpenses.map((expense) => (
+                    <div key={expense._id || expense.id || expense.title} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{expense.title || expense.category || 'Expense'}</p>
+                        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{expense.department || 'Finance'} - {fmtDateOnly(expense.createdAt || expense.date)}</p>
                       </div>
-                    ))}
-                  </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(expense.amount)}</p>
+                        <StatusBadge tone={statusToTone(expense.status || 'submitted')} label={expense.status || 'submitted'} dot={false} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </section>
+              </SectionCard>
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr title="Payment Queue" subtitle="Prepared payments and reconciliation work" action={<Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard/payments')}>Open Payments</Button>} />
-                  <div className="space-y-3">
-                    {paymentQueue.length === 0 ? <EmptyState icon="payments" title="No pending payments" /> : paymentQueue.slice(0, 5).map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{payment.paymentId} - {payment.payee}</p>
-                          <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{payment.method || 'bank'} - account {payment.accountMasked}</p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(payment.amount)}</p>
-                          <Pill value={payment.status} />
-                        </div>
+              <SectionCard
+                title="Payment Queue"
+                icon="payments"
+                description="Prepared payments and reconciliation work"
+                action={{ label: 'Open Payments', onClick: () => navigate('/finance/dashboard/payments') }}
+                error={sourceErrors.dashboard}
+                onRetry={refetch}
+                empty={paymentQueue.length === 0}
+                emptyIcon="payments"
+                emptyTitle="No pending payments"
+              >
+                <div className="space-y-3">
+                  {paymentQueue.slice(0, 5).map((payment) => (
+                    <div key={payment.id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{payment.paymentId} - {payment.payee}</p>
+                        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{payment.method || 'bank'} - account {payment.accountMasked}</p>
                       </div>
-                    ))}
-                  </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(payment.amount)}</p>
+                        <StatusBadge tone={statusToTone(payment.status)} label={payment.status} dot={false} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </section>
+              </SectionCard>
 
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr title="Recent Audit Activity" subtitle="Important finance actions are traceable" action={<Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard/activity')}>Open Audit</Button>} />
-                  <div className="space-y-3">
-                    {recentAuditActivity.length === 0 ? <EmptyState icon="policy" title="No audit events yet" /> : recentAuditActivity.slice(0, 6).map((event) => (
-                      <div key={event._id || event.id} className="grid grid-cols-[36px_1fr_auto] items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
-                        <span className="material-symbols-outlined flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[18px] text-emerald-700 dark:bg-neutral-950 dark:text-emerald-300">policy</span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{String(event.action || 'Finance action').replace(/_/g, ' ')}</p>
-                          <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{event.actorRole || 'System'} - {event.resourceType || 'finance'} {event.resourceId || ''}</p>
-                        </div>
-                        <p className="text-right text-xs font-semibold text-neutral-500 dark:text-neutral-400">{fmtDate(event.createdAt)}</p>
+              <SectionCard
+                title="Recent Audit Activity"
+                icon="policy"
+                description="Important finance actions are traceable"
+                action={{ label: 'Open Audit', onClick: () => navigate('/finance/dashboard/activity') }}
+                error={sourceErrors.dashboard}
+                onRetry={refetch}
+                empty={recentAuditActivity.length === 0}
+                emptyIcon="policy"
+                emptyTitle="No audit events yet"
+              >
+                <div className="space-y-3">
+                  {recentAuditActivity.slice(0, 6).map((event) => (
+                    <div key={event._id || event.id} className="grid grid-cols-[36px_1fr_auto] items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
+                      <span className="material-symbols-outlined flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[18px] text-emerald-700 dark:bg-neutral-950 dark:text-emerald-300">policy</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{String(event.action || 'Finance action').replace(/_/g, ' ')}</p>
+                        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{event.actorRole || 'System'} - {event.resourceType || 'finance'} {event.resourceId || ''}</p>
                       </div>
-                    ))}
-                  </div>
+                      <p className="text-right text-xs font-semibold text-neutral-500 dark:text-neutral-400">{fmtDate(event.createdAt)}</p>
+                    </div>
+                  ))}
                 </div>
-              </section>
+              </SectionCard>
             </div>
           </>
         )}

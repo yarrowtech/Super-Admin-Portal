@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   ResponsiveContainer,
   BarChart,
@@ -17,8 +18,13 @@ import {
 } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/admin';
+import { QK } from '../../utils/queryKeys';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import AttentionPanel from '../common/AttentionPanel';
+import QuickActions from '../common/QuickActions';
+import SectionCard from '../ui/SectionCard';
 import Button from '../common/Button';
 
 const roleLabels = {
@@ -37,42 +43,43 @@ const roleLabels = {
 };
 
 const COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#22d3ee', '#fb7185', '#facc15', '#818cf8'];
+const OTHER_SLICE_COLOR = '#94a3b8';
+
+const HEALTH_LABEL = { good: 'Good', warning: 'Watch', critical: 'Critical' };
+const HEALTH_TONE = { good: 'success', warning: 'warning', critical: 'danger' };
 
 const formatDate = (value) => {
   if (!value) return 'Never';
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const formatDateTime = (value) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+};
+
 const formatPct = (value) => `${Number(value || 0).toFixed(0)}%`;
 
-const AdminDashboard = () => {
+const AdminDashboardEnterprise = () => {
   const navigate = useNavigate();
   const { token, user } = useAuth();
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [period, setPeriod] = useState('30d');
 
-  useEffect(() => {
-    let alive = true;
-    const fetchDashboard = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const response = await adminApi.getDashboard(token);
-        if (alive) setDashboardData(response?.data || null);
-      } catch (err) {
-        if (alive) setError(err.message || 'Failed to load dashboard data');
-      } finally {
-        if (alive) setLoading(false);
-      }
-    };
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: QK.admin.dashboard(),
+    queryFn: () => adminApi.getDashboard(token),
+    enabled: Boolean(token),
+  });
 
-    if (token) fetchDashboard();
-    return () => {
-      alive = false;
-    };
-  }, [token]);
+  const dashboardData = data?.data || null;
 
   const metrics = useMemo(() => {
     const totalUsers = dashboardData?.totalUsers || 0;
@@ -86,29 +93,38 @@ const AdminDashboard = () => {
       activeRate,
       totalDepartments: dashboardData?.totalDepartments || 0,
       newUsersLast7Days: dashboardData?.summary?.newUsersLast7Days || 0,
-      roleCoverage: dashboardData?.summary?.roleCoverage || 0,
       systemHealth: dashboardData?.summary?.systemHealth || 'good',
       employeeCount: dashboardData?.workforce?.employees || 0,
       managerCount: dashboardData?.workforce?.managers || 0,
       outsourcingOpenJobs: dashboardData?.workforce?.externalWorkload?.openJobs || 0,
+      activeContracts: dashboardData?.workforce?.externalWorkload?.activeContracts || 0,
+      pendingLogs: dashboardData?.workforce?.externalWorkload?.pendingLogs || 0,
     };
   }, [dashboardData]);
 
-  const usersByRole = dashboardData?.usersByRole || [];
-  const departmentStats = dashboardData?.departmentStats || [];
-  const recentUsers = dashboardData?.users?.recent || [];
-  const maxRoleCount = Math.max(...usersByRole.map((item) => item.count), 1);
-  const maxDeptCount = Math.max(...departmentStats.map((item) => item.count), 1);
-
-  const rolePie = usersByRole.slice(0, 6).map((row) => ({
-    name: roleLabels[row._id] || row._id || 'Unknown',
-    value: row.count || 0,
-  }));
+  const usersByRole = useMemo(() => dashboardData?.usersByRole || [], [dashboardData]);
+  const departmentStats = useMemo(() => dashboardData?.departmentStats || [], [dashboardData]);
+  const recentUsers = useMemo(() => dashboardData?.users?.recent || [], [dashboardData]);
+  const topDepartment = dashboardData?.insights?.topDepartment || null;
+  const largestRole = dashboardData?.insights?.largestRole || null;
+  const generatedAt = dashboardData?.summary?.generatedAt;
 
   const departmentBars = departmentStats.slice(0, 8).map((row) => ({
     name: row._id,
     value: row.count,
   }));
+
+  // Pie charts read poorly past ~6 slices — fold the long tail into "Other".
+  const departmentPie = useMemo(() => {
+    if (departmentStats.length === 0) return [];
+    if (departmentStats.length <= 6) {
+      return departmentStats.map((row) => ({ name: row._id, value: row.count }));
+    }
+    const sorted = [...departmentStats].sort((a, b) => b.count - a.count);
+    const top = sorted.slice(0, 5);
+    const otherTotal = sorted.slice(5).reduce((sum, row) => sum + row.count, 0);
+    return [...top.map((row) => ({ name: row._id, value: row.count })), { name: 'Other', value: otherTotal }];
+  }, [departmentStats]);
 
   const recentActivityTrend = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, index) => {
@@ -126,19 +142,52 @@ const AdminDashboard = () => {
     }));
   }, [recentUsers]);
 
-  const roleBreakdown = usersByRole.map((item) => ({
+  const roleBreakdown = useMemo(() => usersByRole.map((item) => ({
     name: roleLabels[item._id] || item._id,
     count: item.count,
-  }));
+  })), [usersByRole]);
 
-  const topInsights = useMemo(() => [
-    `Active rate ${formatPct(metrics.activeRate)}`,
-    `New users ${metrics.newUsersLast7Days}`,
-    `Role coverage ${metrics.roleCoverage}`,
-    `Uptime ${dashboardData?.summary?.systemHealth === 'critical' ? 'needs review' : 'healthy'}`,
-  ], [dashboardData?.summary?.systemHealth, metrics.activeRate, metrics.newUsersLast7Days, metrics.roleCoverage]);
+  // Only ever built from fields the API genuinely returns — no placeholder items.
+  const attentionItems = useMemo(() => {
+    const items = [];
 
-  if (loading) {
+    if (metrics.systemHealth === 'critical' || metrics.systemHealth === 'warning') {
+      items.push({
+        id: 'system-health',
+        label: metrics.systemHealth === 'critical' ? 'Platform health is critical' : 'Platform health needs review',
+        context: `Active-user rate is ${formatPct(metrics.activeRate)}`,
+        tone: metrics.systemHealth === 'critical' ? 'danger' : 'warning',
+        actionLabel: 'Review users',
+        onAction: () => navigate('/admin/users'),
+      });
+    }
+
+    if (metrics.inactiveUsers > 0) {
+      items.push({
+        id: 'inactive-users',
+        label: 'Inactive user accounts',
+        context: `${metrics.inactiveUsers} of ${metrics.totalUsers} accounts are inactive`,
+        tone: 'warning',
+        actionLabel: 'Review users',
+        onAction: () => navigate('/admin/users'),
+      });
+    }
+
+    if (metrics.pendingLogs > 0) {
+      items.push({
+        id: 'pending-time-logs',
+        label: 'Outsourcing time logs pending verification',
+        context: `${metrics.pendingLogs} log${metrics.pendingLogs === 1 ? '' : 's'} awaiting review`,
+        tone: 'warning',
+        actionLabel: 'Review logs',
+        onAction: () => navigate('/admin/outsourcing/dashboard'),
+      });
+    }
+
+    return items;
+  }, [metrics, navigate]);
+
+  if (isLoading) {
     return (
       <main className="portal-page">
         <div className="portal-page-inner">
@@ -161,7 +210,7 @@ const AdminDashboard = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <main className="portal-page p-4 dark:bg-neutral-900">
         <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center">
@@ -170,10 +219,10 @@ const AdminDashboard = () => {
               <span className="material-symbols-outlined text-3xl text-red-600">error</span>
               <div className="min-w-0">
                 <p className="font-semibold text-red-900 dark:text-red-200">Error Loading Dashboard</p>
-                <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
+                <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error?.message || 'Failed to load dashboard data'}</p>
               </div>
             </div>
-            <Button variant="danger" size="sm" className="mt-4 min-h-11" onClick={() => window.location.reload()}>
+            <Button variant="danger" size="sm" className="mt-4 min-h-11" onClick={() => refetch()}>
               Retry
             </Button>
           </div>
@@ -190,67 +239,92 @@ const AdminDashboard = () => {
           subtitle="Executive platform overview"
           user={user}
           icon="dashboard"
-          showNotifications
-          showThemeToggle
-        >
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            {['7d', '30d', '90d'].map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setPeriod(item)}
-                className={`min-h-9 rounded-lg px-3 text-xs font-bold uppercase transition-colors ${
-                  period === item
-                    ? 'bg-primary text-white'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
-                }`}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </PortalHeader>
+          lastUpdated={formatDateTime(generatedAt)}
+          onRefresh={refetch}
+          refreshing={isFetching}
+          primaryAction={{ label: 'Create User', icon: 'person_add', onClick: () => navigate('/admin/users') }}
+        />
 
         <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KPICard title="Registered Users" value={metrics.totalUsers} icon="group" colorScheme="blue" subtitle="TOTAL" compact className="min-h-[150px]" />
-          <KPICard title="Active Accounts" value={metrics.activeUsers} icon="verified_user" colorScheme="green" subtitle={`${metrics.activeRate}% ACTIVE`} compact className="min-h-[150px]" />
-          <KPICard title="Departments" value={metrics.totalDepartments} icon="corporate_fare" colorScheme="purple" subtitle="MODULES" compact className="min-h-[150px]" />
-          <KPICard title="System Health" value={metrics.systemHealth} icon="monitor_heart" colorScheme={metrics.systemHealth === 'critical' ? 'red' : metrics.systemHealth === 'warning' ? 'orange' : 'green'} subtitle="PLATFORM" compact className="min-h-[150px]" />
+          <KPICard
+            title="Registered Users"
+            value={metrics.totalUsers}
+            icon="group"
+            priority="primary"
+            context={metrics.newUsersLast7Days > 0 ? `+${metrics.newUsersLast7Days} in the last 7 days` : 'No new signups in the last 7 days'}
+          />
+          <KPICard
+            title="Active Accounts"
+            value={metrics.activeUsers}
+            icon="verified_user"
+            tone="success"
+            priority="primary"
+            context={`${formatPct(metrics.activeRate)} of total users`}
+          />
+          <KPICard
+            title="Departments"
+            value={metrics.totalDepartments}
+            icon="corporate_fare"
+            priority="primary"
+            context={topDepartment ? `Largest: ${topDepartment._id}` : undefined}
+          />
+          <KPICard
+            title="System Health"
+            value={HEALTH_LABEL[metrics.systemHealth] || metrics.systemHealth}
+            icon="monitor_heart"
+            tone={HEALTH_TONE[metrics.systemHealth] || 'neutral'}
+            priority="primary"
+            context={`Based on ${formatPct(metrics.activeRate)} active-user rate`}
+            tooltip="Derived from the active-user rate: 70%+ is good, 40-70% needs review, below 40% is critical."
+          />
         </section>
 
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <KPICard title="Employees" value={metrics.employeeCount} icon="badge" compact />
-          <KPICard title="Managers" value={metrics.managerCount} icon="supervisor_account" compact />
-          <KPICard title="Outsourcing Open Jobs" value={metrics.outsourcingOpenJobs} icon="work" compact />
+          <KPICard title="Employees" value={metrics.employeeCount} icon="badge" priority="secondary" />
+          <KPICard title="Managers" value={metrics.managerCount} icon="supervisor_account" priority="secondary" />
+          <KPICard
+            title="Outsourcing Open Jobs"
+            value={metrics.outsourcingOpenJobs}
+            icon="work"
+            priority="secondary"
+            context={metrics.activeContracts > 0 ? `${metrics.activeContracts} active contract${metrics.activeContracts === 1 ? '' : 's'}` : undefined}
+          />
         </section>
+
+        <div className="mb-4">
+          <AttentionPanel
+            title="Needs Attention"
+            items={attentionItems}
+            emptyTitle="Nothing needs attention"
+            emptyDescription="Users, departments, and outsourcing workload are all in healthy ranges."
+          />
+        </div>
 
         <section className="mb-4">
           <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase text-primary">Executive Focus</p>
-                <h2 className="mt-1 text-xl font-black text-neutral-900 dark:text-neutral-100 sm:text-2xl">Decision signals</h2>
-                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                  Monitor users, departments, roles, security posture, and workforce health from one analytics workspace.
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                size="md"
-                className="min-h-11"
-                onClick={() => navigate('/admin/users')}
-                icon={<span className="material-symbols-outlined text-lg">person_add</span>}
-              >
-                Create User
-              </Button>
+            <div>
+              <p className="text-sm font-semibold uppercase text-primary">Executive Focus</p>
+              <h2 className="mt-1 text-xl font-black text-neutral-900 dark:text-neutral-100 sm:text-2xl">Decision signals</h2>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                Monitor users, departments, roles, and workforce health from one analytics workspace.
+              </p>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {topInsights.map((item) => (
-                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-[11px] font-semibold text-neutral-700 dark:border-neutral-800 dark:bg-neutral-800/60 dark:text-neutral-200">
-                  {item}
-                </div>
-              ))}
+              <KPICard title="Active Rate" value={formatPct(metrics.activeRate)} icon="percent" tone="info" priority="secondary" />
+              <KPICard title="New Users (7d)" value={metrics.newUsersLast7Days} icon="person_add" tone="info" priority="secondary" />
+              {topDepartment && (
+                <KPICard title="Top Department" value={topDepartment.count} icon="apartment" priority="secondary" context={topDepartment._id} />
+              )}
+              {largestRole && (
+                <KPICard
+                  title="Largest Role"
+                  value={largestRole.count}
+                  icon="shield_person"
+                  priority="secondary"
+                  context={roleLabels[largestRole._id] || largestRole._id}
+                />
+              )}
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -266,7 +340,7 @@ const AdminDashboard = () => {
                     <LineChart data={recentActivityTrend}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
                       <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} />
+                      <YAxis stroke="#94a3b8" fontSize={12} allowDecimals={false} />
                       <Tooltip />
                       <Line type="monotone" dataKey="newUsers" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
                     </LineChart>
@@ -282,150 +356,124 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={departmentBars}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#16a34a" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {departmentBars.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={departmentBars}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                        <YAxis stroke="#94a3b8" fontSize={12} allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#16a34a" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-neutral-400 dark:text-neutral-500">
+                      No department data yet.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
-
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-7 lg:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Role Distribution</h2>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Current user allocation by RBAC role.</p>
+          <div className="xl:col-span-7">
+            <SectionCard
+              title="Role Distribution"
+              description="Current user allocation by RBAC role."
+              empty={roleBreakdown.length === 0}
+              emptyTitle="No roles yet"
+              emptyDescription="Roles will appear here once users are assigned."
+              noBodyPadding
+            >
+              <div className="h-80 p-4 lg:p-5">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={roleBreakdown} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
+                    <XAxis type="number" stroke="#94a3b8" fontSize={12} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" width={120} stroke="#94a3b8" fontSize={12} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" fill="#2563eb" radius={[0, 8, 8, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            </div>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={roleBreakdown} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.16)" />
-                  <XAxis type="number" stroke="#94a3b8" fontSize={12} />
-                  <YAxis type="category" dataKey="name" width={120} stroke="#94a3b8" fontSize={12} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="count" fill="#2563eb" radius={[0, 8, 8, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
+            </SectionCard>
+          </div>
 
-          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-5 lg:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Department Mix</h2>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Share of users by department.</p>
+          <div className="xl:col-span-5">
+            <SectionCard
+              title="Department Mix"
+              description="Share of users by department."
+              empty={departmentPie.length === 0}
+              emptyTitle="No department data"
+              emptyDescription="Assign departments to users to see the breakdown here."
+              noBodyPadding
+            >
+              <div className="h-80 p-4 lg:p-5">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={departmentPie} dataKey="value" nameKey="name" outerRadius={110} innerRadius={62} paddingAngle={3} label>
+                      {departmentPie.map((entry, index) => (
+                        <Cell key={entry.name} fill={entry.name === 'Other' ? OTHER_SLICE_COLOR : COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            </div>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={departmentStats.slice(0, 8)} dataKey="count" nameKey="_id" outerRadius={110} innerRadius={62} paddingAngle={3} label>
-                    {departmentStats.slice(0, 8).map((entry, index) => (
-                      <Cell key={entry._id} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
+            </SectionCard>
+          </div>
         </section>
 
         <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <article className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-7 lg:p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Recent Users</h2>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Latest accounts created in the system.</p>
-              </div>
-              <Button variant="secondary" size="sm" className="min-h-10" onClick={() => navigate('/admin/users')}>
-                Manage
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {recentUsers.length > 0 ? recentUsers.map((item) => {
-                const initials = `${item.firstName?.[0] || ''}${item.lastName?.[0] || ''}`.toUpperCase() || '?';
-                return (
-                  <div key={item._id || item.email} className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary dark:bg-primary/20">{initials}</div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{item.firstName} {item.lastName}</p>
-                      <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{item.email}</p>
+          <div className="xl:col-span-7">
+            <SectionCard
+              title="Recent Users"
+              description="Latest accounts created in the system."
+              action={{ label: 'Manage', onClick: () => navigate('/admin/users') }}
+              empty={recentUsers.length === 0}
+              emptyTitle="No recent users"
+              emptyDescription="New accounts will appear here as they're created."
+            >
+              <div className="space-y-3">
+                {recentUsers.map((item) => {
+                  const initials = `${item.firstName?.[0] || ''}${item.lastName?.[0] || ''}`.toUpperCase() || '?';
+                  return (
+                    <div key={item._id || item.email} className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary dark:bg-primary/20">{initials}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{item.firstName} {item.lastName}</p>
+                        <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{item.email}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <StatusBadge tone={item.isActive ? 'success' : 'neutral'} label={item.isActive ? 'Active' : 'Inactive'} />
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">{roleLabels[item.role] || item.role} &middot; {formatDate(item.createdAt)}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold capitalize text-neutral-700 dark:text-neutral-200">{roleLabels[item.role] || item.role}</p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400">{formatDate(item.createdAt)}</p>
-                    </div>
-                  </div>
-                );
-              }) : (
-                <p className="rounded-lg border border-neutral-200 p-4 text-sm text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">No recent users available.</p>
-              )}
-            </div>
-          </article>
-
-          <aside className="space-y-4 xl:col-span-5">
-            <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Security Posture</h2>
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20">
-                  <p className="text-xs font-bold uppercase text-green-700 dark:text-green-300">Auth</p>
-                  <p className="mt-1 text-sm font-semibold text-green-900 dark:text-green-100">Protected Routes</p>
-                </div>
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
-                  <p className="text-xs font-bold uppercase text-blue-700 dark:text-blue-300">RBAC</p>
-                  <p className="mt-1 text-sm font-semibold text-blue-900 dark:text-blue-100">Permissions Active</p>
-                </div>
-                <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-800 dark:bg-orange-900/20">
-                  <p className="text-xs font-bold uppercase text-orange-700 dark:text-orange-300">Review</p>
-                  <p className="mt-1 text-sm font-semibold text-orange-900 dark:text-orange-100">{metrics.inactiveUsers} inactive users</p>
-                </div>
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/60">
-                  <p className="text-xs font-bold uppercase text-neutral-500 dark:text-neutral-400">Sessions</p>
-                  <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">JWT Enabled</p>
-                </div>
+                  );
+                })}
               </div>
-            </section>
+            </SectionCard>
+          </div>
 
-            <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 lg:p-5">
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Quick Actions</h2>
-              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {[
-                  ['person_add', 'Add User', '/admin/users'],
-                  ['download', 'Export Users', '/admin/users'],
-                  ['security', 'Security', '/admin/security'],
-                  ['bar_chart', 'Reports', '/admin/reports'],
-                ].map(([icon, label, route]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => navigate(route)}
-                    className="flex min-h-11 items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-700 transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-primary/10"
-                  >
-                    <span className="material-symbols-outlined text-lg">{icon}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </section>
+          <aside className="xl:col-span-5">
+            <SectionCard title="Quick Actions">
+              <QuickActions
+                actions={[
+                  { label: 'Export Users', icon: 'download', onClick: () => navigate('/admin/users') },
+                  { label: 'Security', icon: 'security', onClick: () => navigate('/admin/security') },
+                  { label: 'Reports', icon: 'bar_chart', onClick: () => navigate('/admin/reports') },
+                ]}
+              />
+            </SectionCard>
           </aside>
         </section>
-
       </div>
     </main>
   );
 };
 
-export default AdminDashboard;
+export default AdminDashboardEnterprise;

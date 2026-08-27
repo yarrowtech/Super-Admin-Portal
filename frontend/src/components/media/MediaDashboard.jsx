@@ -7,7 +7,10 @@ import { QK } from '../../utils/queryKeys';
 import { statusToTone } from '../../utils/statusTone';
 import PortalHeader from '../common/PortalHeader';
 import StatusBadge from '../common/StatusBadge';
+import AttentionPanel from '../common/AttentionPanel';
+import QuickActions from '../common/QuickActions';
 import DataTable from '../ui/DataTable';
+import SectionCard from '../ui/SectionCard';
 import CreativeStatsGrid from './CreativeStatsGrid';
 
 const pickText = (...values) => {
@@ -57,7 +60,7 @@ const formatTime = (value) =>
 // Section is fixed: MediaPortal only ever mounts this component for the
 // 'dashboard' route — Campaigns/Channels/Analytics live in MediaWorkspace's
 // Creative sections instead, so this file only renders one view.
-const MediaDashboard = ({ selectedProjectId }) => {
+const MediaDashboard = ({ selectedProjectId, onSectionChange }) => {
   const { token, user } = useAuth();
   const [activeProjectId, setActiveProjectId] = useState('');
   const effectiveProjectId = selectedProjectId !== undefined ? selectedProjectId : activeProjectId;
@@ -227,6 +230,38 @@ const MediaDashboard = ({ selectedProjectId }) => {
     new Date().toISOString();
   const lastSyncLabel = formatTime(lastSyncAt);
 
+  // AttentionPanel items, built from the same pre-sorted needsAttention list —
+  // no new data, just reshaped to the panel's {id,label,context,tone,statusLabel}
+  // contract. Statuses here are always pending/review/reject/revision (see the
+  // needsAttention filter above), so statusToTone only ever yields warning/danger.
+  const attentionItems = useMemo(
+    () =>
+      summary.needsAttention.map((item, index) => {
+        const title = pickText(item?.title, item?.name, item?.contentName, `Item ${index + 1}`);
+        const status = pickText(item?.status, item?.state, item?.approvalStatus, 'Pending');
+        return {
+          id: item?._id || item?.id || `${title}-${index}`,
+          label: title,
+          context: item?.projectName || 'Unassigned project',
+          tone: statusToTone(status),
+          statusLabel: status,
+        };
+      }),
+    [summary.needsAttention]
+  );
+
+  // Only wired to sections that genuinely exist in MediaWorkspace's
+  // MEDIA_SECTIONS (see MediaWorkspace.jsx) and are reachable via the
+  // onSectionChange prop MediaPortal already passes down.
+  const quickActions =
+    typeof onSectionChange === 'function'
+      ? [
+          { label: 'Review Assets', icon: 'perm_media', onClick: () => onSectionChange('assets') },
+          { label: 'Manage Content', icon: 'edit_note', onClick: () => onSectionChange('content') },
+          { label: 'View Projects', icon: 'folder_copy', onClick: () => onSectionChange('projects') },
+        ]
+      : [];
+
   const activityColumns = [
     {
       key: 'title',
@@ -254,51 +289,6 @@ const MediaDashboard = ({ selectedProjectId }) => {
     },
   ];
 
-  const renderNeedsAttention = () => (
-    <article className="app-card p-4 lg:p-5">
-      <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Needs Attention</h2>
-      <p className="text-sm text-neutral-500 dark:text-neutral-400">Pending approvals, reviews, and revisions across every module.</p>
-      {summary.needsAttention.length ? (
-        <ul className="mt-4 space-y-2">
-          {summary.needsAttention.map((item, index) => {
-            const title = pickText(item?.title, item?.name, item?.contentName, `Item ${index + 1}`);
-            const status = pickText(item?.status, item?.state, item?.approvalStatus, 'Pending');
-            return (
-              <li key={item?._id || item?.id || `${title}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{title}</p>
-                  <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{item?.projectName || 'Unassigned project'}</p>
-                </div>
-                <StatusBadge tone={statusToTone(status)} label={status} />
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">Nothing needs review right now.</p>
-      )}
-    </article>
-  );
-
-  const renderProjectProgress = () => (
-    <article className="app-card p-4 lg:p-5">
-      <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Project Progress</h2>
-      <p className="text-sm text-neutral-500 dark:text-neutral-400">Active projects assigned to this workspace.</p>
-      {projects.length ? (
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
-          {projects.map((project) => (
-            <div key={project.value} className="flex min-w-40 shrink-0 flex-col gap-2 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-              <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{project.name}</p>
-              <StatusBadge tone={statusToTone(project.status)} label={project.status || 'Active'} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">No projects assigned yet.</p>
-      )}
-    </article>
-  );
-
   const renderDashboard = () => (
     <div className="space-y-4">
       <CreativeStatsGrid
@@ -311,15 +301,38 @@ const MediaDashboard = ({ selectedProjectId }) => {
         ]}
       />
 
+      {quickActions.length > 0 && <QuickActions actions={quickActions} />}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {renderNeedsAttention()}
-        {renderProjectProgress()}
+        <AttentionPanel
+          title="Needs Attention"
+          items={attentionItems}
+          emptyTitle="Nothing needs review right now"
+          emptyDescription="Every pending approval, review, and revision is caught up."
+        />
+
+        <SectionCard
+          title="Project Progress"
+          icon="folder_copy"
+          description="Active projects assigned to this workspace."
+          empty={!projects.length}
+          emptyIcon="folder_off"
+          emptyTitle="No projects assigned yet"
+        >
+          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            {projects.map((project) => (
+              <div key={project.value} className="flex min-w-40 shrink-0 flex-col gap-2 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{project.name}</p>
+                <StatusBadge tone={statusToTone(project.status)} label={project.status || 'Active'} />
+              </div>
+            ))}
+          </div>
+        </SectionCard>
       </div>
 
-      <article className="app-card overflow-hidden p-4 lg:p-5">
-        <h2 className="mb-4 text-base font-bold text-neutral-900 dark:text-neutral-100">Recent Media Activity</h2>
+      <SectionCard title="Recent Media Activity" icon="history" noBodyPadding empty={!summary.recentItems.length} emptyTitle="No media records available yet">
         <DataTable columns={activityColumns} rows={summary.recentItems} rowKey={(item) => item?._id || item?.id || item?.title} emptyTitle="No media records available yet" />
-      </article>
+      </SectionCard>
     </div>
   );
 

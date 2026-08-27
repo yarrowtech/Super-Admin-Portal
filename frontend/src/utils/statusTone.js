@@ -12,7 +12,7 @@
  */
 export const statusToTone = (status = '') => {
   const value = String(status).toLowerCase();
-  if (value.includes('inactive') || value.includes('unassigned') || value.includes('archiv') || (value.includes('draft') && !value.includes('review'))) return 'neutral';
+  if (value.includes('inactive') || value.includes('unassigned') || value.includes('archiv') || value.includes('cancel') || (value.includes('draft') && !value.includes('review'))) return 'neutral';
   if (
     value.includes('approved') || value.includes('live') || value.includes('published') || value.includes('active') ||
     value.includes('completed') || value.includes('healthy') || value.includes('paid') || value.includes('resolved') ||

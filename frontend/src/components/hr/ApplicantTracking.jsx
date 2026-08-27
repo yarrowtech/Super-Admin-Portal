@@ -52,33 +52,21 @@ export default function ApplicantTracking() {
   const [filterJobId, setFilterJobId] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showApplyModal, setShowApplyModal] = useState(null); // applicant object being updated
-
-  const DEMO_JOBS = [
-    { _id: 'demo1', title: 'Senior Frontend Developer', department: 'IT', location: 'Remote', type: 'full-time', experience: '3-5 years', salaryRange: '₹8L–₹14L', status: 'open', openings: 2, closingDate: '2026-07-30', createdBy: { firstName: 'HR', lastName: 'Admin' } },
-    { _id: 'demo2', title: 'HR Business Partner', department: 'HR', location: 'Company HQ', type: 'full-time', experience: '2-4 years', salaryRange: '₹5L–₹9L', status: 'open', openings: 1, closingDate: '2026-07-15', createdBy: { firstName: 'HR', lastName: 'Admin' } },
-    { _id: 'demo3', title: 'Marketing Lead', department: 'Media', location: 'Company HQ', type: 'full-time', experience: '4+ years', salaryRange: '₹10L–₹16L', status: 'closed', openings: 1, closingDate: '2026-06-01', createdBy: { firstName: 'HR', lastName: 'Admin' } },
-  ];
-  const DEMO_APPLICANTS = [
-    { _id: 'da1', name: 'Srijon Sarkar', email: 'srijon@example.com', position: 'Senior Frontend Developer', department: 'IT', status: 'interview', appliedDate: '2026-06-01', source: 'external' },
-    { _id: 'da2', name: 'Anshika Pathak', email: 'anshika@example.com', position: 'Marketing Lead', department: 'Media', status: 'hired', appliedDate: '2026-05-20', source: 'external' },
-    { _id: 'da3', name: 'Santu Paramanik', email: 'santu@example.com', position: 'HR Business Partner', department: 'HR', status: 'screening', appliedDate: '2026-06-05', source: 'internal' },
-    { _id: 'da4', name: 'Koushik Bala', email: 'koushik@example.com', position: 'Senior Frontend Developer', department: 'IT', status: 'applied', appliedDate: '2026-06-08', source: 'external' },
-  ];
+  const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setError('');
     try {
       const [jobsRes, applicantsRes] = await Promise.all([
         safeFetch(() => hrApi.getJobPosts(token)),
         safeFetch(() => hrApi.getApplicants(token)),
       ]);
-      setJobs(jobsRes?.data?.length ? jobsRes.data : DEMO_JOBS);
-      const appData = applicantsRes?.data?.applicants || applicantsRes?.data || [];
-      setApplicants(appData.length ? appData : DEMO_APPLICANTS);
+      setJobs(jobsRes?.data || []);
+      setApplicants(applicantsRes?.data?.applicants || applicantsRes?.data || []);
     } catch (err) {
-      setJobs(DEMO_JOBS);
-      setApplicants(DEMO_APPLICANTS);
+      setError(err?.message || 'Unable to load recruitment data.');
     } finally {
       setLoading(false);
     }
@@ -117,14 +105,12 @@ export default function ApplicantTracking() {
     setSaving(true);
     setFormError('');
     try {
-      if (editingJob && !editingJob._id.startsWith('demo')) {
+      if (editingJob) {
         await hrApi.updateJobPost(editingJob._id, jobForm, token);
         toast?.success?.('Job updated');
-      } else if (!editingJob) {
+      } else {
         await hrApi.createJobPost(jobForm, token);
         toast?.success?.('Job posted');
-      } else {
-        toast?.info?.('Demo mode — changes not saved to server');
       }
       setShowJobForm(false);
       loadData();
@@ -136,7 +122,6 @@ export default function ApplicantTracking() {
   };
 
   const handleCloseJob = async (job) => {
-    if (job._id.startsWith('demo')) { toast?.info?.('Demo mode'); return; }
     try {
       await hrApi.updateJobPost(job._id, { status: 'closed' }, token);
       toast?.success?.('Job closed');
@@ -147,7 +132,6 @@ export default function ApplicantTracking() {
   };
 
   const handleDeleteJob = async (job) => {
-    if (job._id.startsWith('demo')) { toast?.info?.('Demo mode'); return; }
     try {
       await hrApi.deleteJobPost(job._id, token);
       toast?.success?.('Job deleted');
@@ -158,10 +142,6 @@ export default function ApplicantTracking() {
   };
 
   const handleMoveApplicant = async (applicant, newStatus) => {
-    if (applicant._id.startsWith('demo')) {
-      setApplicants(prev => prev.map(a => a._id === applicant._id ? { ...a, status: newStatus } : a));
-      return;
-    }
     try {
       await hrApi.updateApplicant(applicant._id, { status: newStatus }, token);
       toast?.success?.(`Moved to ${newStatus}`);
@@ -223,11 +203,21 @@ export default function ApplicantTracking() {
         )}
       </div>
 
+      {error && !loading && (
+        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-950/20">
+          <span className="material-symbols-outlined text-red-600 dark:text-red-400">error</span>
+          <p className="flex-1 text-sm font-medium text-red-800 dark:text-red-200">Unable to load recruitment data. {error}</p>
+          <button onClick={loadData} className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-transparent dark:text-red-300">
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-neutral-400">
           <span className="material-symbols-outlined animate-spin text-3xl">progress_activity</span>
         </div>
-      ) : tab === 0 ? (
+      ) : error ? null : tab === 0 ? (
         /* ─── JOB POSTINGS ─── */
         <div className="space-y-3">
           {jobs.length === 0 ? (

@@ -18,6 +18,7 @@ const defaultFilters = {
   startDate: '',
   endDate: '',
   status: '',
+  employee: '',
   search: '',
 };
 
@@ -78,6 +79,7 @@ const Attendance = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [employeeOptions, setEmployeeOptions] = useState([]);
 
   const fetchAttendance = async () => {
     if (!token) return;
@@ -90,6 +92,7 @@ const Attendance = () => {
         status: filters.status || undefined,
         startDate: filters.startDate || undefined,
         endDate: filters.endDate || undefined,
+        employee: filters.employee || undefined,
       });
       const payload = res?.data || {};
       setRecords(payload.attendance || []);
@@ -106,7 +109,17 @@ const Attendance = () => {
   useEffect(() => {
     fetchAttendance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, page, filters.status, filters.startDate, filters.endDate]);
+  }, [token, page, filters.status, filters.startDate, filters.endDate, filters.employee]);
+
+  useEffect(() => {
+    if (!token) return;
+    hrApi.getEmployees(token, { limit: 500 })
+      .then((res) => {
+        const list = res?.data?.employees || res?.data?.users || (Array.isArray(res?.data) ? res.data : []);
+        setEmployeeOptions(list);
+      })
+      .catch(() => setEmployeeOptions([]));
+  }, [token]);
 
   useEffect(() => {
     setSelectedRecordIds([]);
@@ -322,6 +335,18 @@ const Attendance = () => {
                 <option value="on-leave">On Leave</option>
                 <option value="absent">Absent</option>
               </select>
+              <select
+                value={filters.employee}
+                onChange={(e) => handleFilterChange('employee', e.target.value)}
+                className="h-10 min-w-40 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+              >
+                <option value="">All Employees</option>
+                {employeeOptions.map((employee) => (
+                  <option key={employee._id || employee.id} value={employee._id || employee.id}>
+                    {`${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.email}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <input
@@ -361,7 +386,7 @@ const Attendance = () => {
               >
                 Yesterday
               </button>
-              {(filters.startDate || filters.endDate || filters.status) && (
+              {(filters.startDate || filters.endDate || filters.status || filters.employee) && (
                 <button
                   onClick={() => setFilters({ ...defaultFilters })}
                   className="text-sm font-semibold text-primary hover:underline"

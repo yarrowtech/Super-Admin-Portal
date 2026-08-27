@@ -1047,6 +1047,7 @@ exports.getTasks = async (req, res) => {
     const tasks = await Task.find(query)
       .populate('assignedTo', 'firstName lastName email department')
       .populate('assignedBy', 'firstName lastName email')
+      .populate('project', 'name projectCode')
       .sort({ createdAt: -1 })
       .limit(limitNum)
       .skip((pageNum - 1) * limitNum)

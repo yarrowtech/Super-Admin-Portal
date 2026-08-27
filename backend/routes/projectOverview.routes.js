@@ -193,8 +193,54 @@ const listProjects = async (query = {}) => {
       virtual: true,
     }));
   const allItems = [...items, ...registryItems];
+  const pageItems = allItems.slice(skip, skip + limit);
+
+  // Server-side task progress rollup (Phase 2B) — one aggregation for the
+  // whole page instead of an N+1 query per project. Non-breaking: the
+  // existing `progress` field (manually set, used by older UI) is left
+  // untouched; this adds a separate `taskProgress` block that's only
+  // populated for real (non-virtual) projects with at least one task.
+  const realIds = pageItems.map((item) => item?._id).filter(Boolean);
+  let countsByProject = new Map();
+  if (realIds.length) {
+    const rows = await Task.aggregate([
+      { $match: { project: { $in: realIds } } },
+      { $group: { _id: { project: '$project', status: '$status' }, count: { $sum: 1 } } },
+    ]);
+    countsByProject = rows.reduce((map, row) => {
+      const key = String(row._id.project);
+      const entry = map.get(key) || { pending: 0, 'in-progress': 0, review: 0, completed: 0, cancelled: 0 };
+      entry[row._id.status] = row.count;
+      map.set(key, entry);
+      return map;
+    }, new Map());
+  }
+
+  const withTaskProgress = pageItems.map((item) => {
+    const counts = item?._id ? countsByProject.get(String(item._id)) : null;
+    if (!counts) return item;
+    const pending = counts.pending || 0;
+    const inProgress = counts['in-progress'] || 0;
+    const review = counts.review || 0;
+    const completed = counts.completed || 0;
+    const cancelled = counts.cancelled || 0;
+    const nonCancelledTotal = pending + inProgress + review + completed;
+    return {
+      ...item,
+      taskProgress: {
+        totalTasks: pending + inProgress + review + completed + cancelled,
+        pendingTasks: pending,
+        inProgressTasks: inProgress,
+        reviewTasks: review,
+        completedTasks: completed,
+        cancelledTasks: cancelled,
+        progressPercent: nonCancelledTotal ? Math.round((completed / nonCancelledTotal) * 100) : null,
+      },
+    };
+  });
+
   return {
-    items: allItems.slice(skip, skip + limit),
+    items: withTaskProgress,
     pagination: { page, limit, total: allItems.length, totalPages: Math.ceil(allItems.length / limit) || 1 },
   };
 };

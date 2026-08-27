@@ -10,6 +10,15 @@ const Notice = require('../../models/common/Notification');
 const Performance = require('../../models/hr/StaffWorkReport');
 const WorkReport = require('../../models/hr/StaffWorkReport');
 const Complaint = require('../../models/hr/Complaint');
+// NOTE: Department, Designation, BiometricEnrollment, Interview, Offer,
+// PolicyDocument, PolicyAcknowledgement, and ExitInterview below are
+// intentionally left aliased to EmployeeRecord — confirmed (Phase 1/2A audit)
+// to have zero live callers anywhere in the frontend (no page, no dashboard
+// aggregation references them). Rewriting them with no UI to exercise them
+// would be unverifiable, fake-looking functionality; they're documented
+// technical debt instead. Holiday, AppraisalCycle, and AppraisalReview were
+// promoted to real models because they ARE read by live pages (Holiday
+// Calendar; the HR Dashboard's "Active cycles"/"Reviews" tile).
 const Department = require('../../models/hr/EmployeeRecord');
 const Task = require('../../models/common/Task');
 const Designation = require('../../models/hr/EmployeeRecord');
@@ -17,12 +26,12 @@ const EmployeeDocument = require('../../models/employee/EmployeeDocument');
 const BiometricEnrollment = require('../../models/hr/EmployeeRecord');
 const LeavePolicy = require('../../models/hr/LeavePolicy');
 const LeaveBalance = require('../../models/hr/LeaveBalance');
-const Holiday = require('../../models/hr/EmployeeRecord');
+const Holiday = require('../../models/hr/Holiday');
 const JobPost = require('../../models/hr/JobPost');
 const Interview = require('../../models/hr/EmployeeRecord');
 const Offer = require('../../models/hr/EmployeeRecord');
-const AppraisalCycle = require('../../models/hr/EmployeeRecord');
-const AppraisalReview = require('../../models/hr/EmployeeRecord');
+const AppraisalCycle = require('../../models/hr/AppraisalCycle');
+const AppraisalReview = require('../../models/hr/AppraisalReview');
 const PolicyDocument = require('../../models/hr/EmployeeRecord');
 const PolicyAcknowledgement = require('../../models/hr/EmployeeRecord');
 const SupportTicket = require('../../models/common/Notification');
@@ -1345,6 +1354,7 @@ exports.getTasks = async (req, res) => {
     const tasks = await Task.find(filters)
       .populate('assignedTo', 'firstName lastName email department')
       .populate('assignedBy', 'firstName lastName email')
+      .populate('project', 'name projectCode')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
@@ -2853,7 +2863,7 @@ exports.getHolidays = async (req, res) => {
 
 exports.createHoliday = async (req, res) => {
   try {
-    const holiday = await Holiday.create(req.body);
+    const holiday = await Holiday.create({ ...req.body, createdBy: req.user?._id });
     res.status(201).json({
       success: true,
       message: 'Holiday created successfully',

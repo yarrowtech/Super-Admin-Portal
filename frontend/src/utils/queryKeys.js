@@ -52,6 +52,13 @@ export const QK = {
     detail:  (id)                         => ['tasks', 'detail', id],
     my:      (params = {})                => ['tasks', 'my', params],
     buckets: (params = {})                => ['tasks', 'buckets', params],
+    // Shared task domain layer (Phase 2B) — one Task model, reused by the
+    // IT Manager / HR / Employee portals. `board` is the single data source
+    // for BOTH the Kanban board and list view (same query, same cache entry
+    // — switching views never re-fetches). `portalDetail` backs the
+    // detail-drawer fetch on portals that support it (employee only today).
+    board:        (portal, filters = {})  => ['tasks', portal, 'board', filters],
+    portalDetail: (portal, taskId)        => ['tasks', portal, 'detail', taskId],
   },
 
   // ── HR ───────────────────────────────────────────────────────────────
@@ -81,23 +88,29 @@ export const QK = {
 
   // ── Manager ──────────────────────────────────────────────────────────
   manager: {
-    root:      ()                         => ['manager'],
-    dashboard: ()                         => ['manager', 'dashboard'],
-    team:      (params = {})              => ['manager', 'team', params],
-    reports:   (params = {})              => ['manager', 'reports', params],
-    workboard: (params = {})              => ['manager', 'workboard', params],
+    root:          ()                     => ['manager'],
+    dashboard:     ()                     => ['manager', 'dashboard'],
+    team:          (params = {})          => ['manager', 'team', params],
+    reports:       (params = {})          => ['manager', 'reports', params],
+    workboard:     (params = {})          => ['manager', 'workboard', params],
+    projects:      (params = {})          => ['manager', 'projects', params],
+    workReviews:   (params = {})          => ['manager', 'workReviews', params],
+    leaveRequests: (params = {})          => ['manager', 'leaveRequests', params],
   },
 
   // ── Employee ─────────────────────────────────────────────────────────
   employee: {
-    root:      ()                         => ['employee'],
-    dashboard: ()                         => ['employee', 'dashboard'],
-    profile:   ()                         => ['employee', 'profile'],
-    projects:  (params = {})              => ['employee', 'projects', params],
-    tasks:     (params = {})              => ['employee', 'tasks', params],
-    leave:     (params = {})              => ['employee', 'leave', params],
-    documents: (params = {})              => ['employee', 'documents', params],
-    team:      ()                         => ['employee', 'team'],
+    root:           ()                    => ['employee'],
+    dashboard:      ()                     => ['employee', 'dashboard'],
+    profile:        ()                     => ['employee', 'profile'],
+    projects:       (params = {})          => ['employee', 'projects', params],
+    tasks:          (params = {})          => ['employee', 'tasks', params],
+    attendance:     (params = {})          => ['employee', 'attendance', params],
+    leave:          (params = {})          => ['employee', 'leave', params],
+    documents:      (params = {})          => ['employee', 'documents', params],
+    team:           ()                     => ['employee', 'team'],
+    jobOpenings:    ()                     => ['employee', 'jobOpenings'],
+    myApplications: ()                     => ['employee', 'myApplications'],
   },
 
   // ── CEO ──────────────────────────────────────────────────────────────

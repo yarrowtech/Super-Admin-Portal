@@ -11,9 +11,14 @@ const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewa
 const { attachOptionalProjectContext } = require('../middlewares/project.middleware');
 const { ROLES } = require('../config/roles');
 
-// All routes require authentication and HR role
+// All routes require authentication and HR role.
+// IT_MANAGER is intentionally excluded: the frontend's HR_PORTAL_ROLES
+// (frontend/src/utils/rbac.js), its derived baseRoleAccess map, and the
+// allow('hr') route guard all agree HR access is hr/it_hr (+platform admin)
+// only — it_manager's real portal is 'manager'. This previously let an
+// it_manager call the HR API directly even though the UI never exposed it.
 router.use(authenticate);
-router.use(authorize(ROLES.HR, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT_MANAGER, ROLES.IT_HR));
+router.use(authorize(ROLES.HR, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT_HR));
 router.use(authorizePortalAccess('hr'));
 router.use(attachOptionalProjectContext);
 router.use(cacheGetResponses('hr', { tags: ['employees', 'departments', 'dashboard'] }));

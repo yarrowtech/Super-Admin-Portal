@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useHrDashboard } from '../../features/hr/hooks/useHrDashboard';
 import { HrErrorState, HrLoadingState } from '../../features/hr/components/HrStates';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -31,7 +32,6 @@ const HRDashboard = () => {
     attendanceCtaLabel,
     canCheckIn,
     canCheckOut,
-    currentTime,
     summary,
     advancedMetrics,
     aiInsights,
@@ -90,33 +90,13 @@ const workUpdateStatusLabels = {
     return <HrErrorState message={error} onRetry={refreshDashboard} />;
   }
 
-  const getGreeting = () => {
-    const hour = currentTime ? currentTime.getHours() : new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
-  const getTimeDisplay = () => {
-    const now = currentTime || new Date();
-    const day = now.toLocaleDateString(undefined, { weekday: 'long' });
-    const date = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    const time = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
-    return { day, date, time };
-  };
-
-  const { day: dayName, date: dateLabel, time: timeLabel } = getTimeDisplay();
-  const greetingLabel = getGreeting();
-  const userName = user?.firstName || user?.name || 'HR Manager';
-
   return (
     <main className="portal-page">
       <div className="portal-page-inner">
 
         <PortalHeader
           title="HR Dashboard"
-          subtitle={`${greetingLabel}, ${userName} · ${dayName} ${dateLabel}`}
+          subtitle="Workforce operations, recruitment, attendance, and approvals"
           icon="badge"
           user={user}
           actions={
@@ -138,6 +118,8 @@ const workUpdateStatusLabels = {
             </button>
           }
         />
+
+        <WarmGreeting user={user} message="Here's today's workforce activity and pending actions." />
 
         {/* Attendance feedback */}
         {(attendanceAction.error || attendanceAction.message) && (

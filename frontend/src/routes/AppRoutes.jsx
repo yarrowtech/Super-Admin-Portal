@@ -101,6 +101,7 @@ import {
   EmployeeDashboardPage,
   EmployeeTasksPage,
   EmployeeProjectsPage,
+  EmployeeJobsPage,
   EmployeeAttendancePage,
   EmployeeLeavePage,
   EmployeeTeamPage,
@@ -348,7 +349,7 @@ export default function AppRoutes() {
           <Route path="team" element={<EmployeeTeamPage />} />
           <Route path="profile" element={<EmployeeProfileRoute />} />
           <Route path="chat" element={<EmployeeChatPage />} />
-          <Route path="jobs" element={<EmployeeProjectsPage />} />
+          <Route path="jobs" element={<EmployeeJobsPage />} />
         </Route>
 
         <Route

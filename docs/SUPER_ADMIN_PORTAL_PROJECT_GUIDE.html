@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Super Admin Portal — Project & Deployment Guide</title>
+<style>
+@page{size:A4;margin:16mm 15mm 17mm}*{box-sizing:border-box}body{margin:0;font:10.2pt/1.45 "Segoe UI",Arial,sans-serif;color:#172033;background:#fff}h1,h2,h3{color:#102a56;margin:0 0 8px}h1{font-size:29pt;line-height:1.08}h2{font-size:18pt;border-bottom:2px solid #2f6fed;padding-bottom:5px;margin-top:22px}h3{font-size:12.5pt;margin-top:15px}.cover{height:255mm;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(145deg,#102a56,#275ec4);color:white;margin:-16mm -15mm -17mm;padding:25mm}.cover h1{color:white}.cover .tag{font-size:14pt;color:#dce8ff;margin:12px 0 30px}.cover .meta{border-left:4px solid #5ee0c2;padding-left:14px;color:#eaf1ff}.callout{background:#eef4ff;border-left:4px solid #2f6fed;padding:10px 12px;margin:10px 0}.warn{background:#fff7e8;border-left-color:#e49a22}.ok{background:#ebfbf5;border-left-color:#20a77a}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{border:1px solid #dbe3f0;border-radius:7px;padding:10px;break-inside:avoid}.card h3{margin-top:0}.pill{display:inline-block;background:#e8f0ff;color:#174da8;padding:2px 7px;border-radius:10px;margin:2px;font-size:8.5pt}table{width:100%;border-collapse:collapse;margin:8px 0 13px;font-size:9pt;break-inside:auto}th{background:#173c78;color:white;text-align:left}th,td{padding:6px 7px;border:1px solid #ccd6e5;vertical-align:top}tr{break-inside:avoid}code,pre{font-family:Consolas,monospace}code{background:#edf1f6;padding:1px 3px;border-radius:3px}pre{background:#111c30;color:#eef5ff;padding:10px;border-radius:6px;white-space:pre-wrap;font-size:8.5pt;break-inside:avoid}ul,ol{padding-left:19px;margin:5px 0 10px}.page{break-before:page}.diagram{font:8.6pt/1.35 Consolas,monospace;background:#f3f6fa;border:1px solid #d4deeb;padding:11px;white-space:pre-wrap}.small{font-size:8.5pt;color:#536174}.toc td{border:0;border-bottom:1px dotted #b8c4d5}.footer-note{margin-top:20px;color:#657287;font-size:8.5pt}.check li{margin-bottom:4px}
+</style></head><body>
+<section class="cover"><div class="pill" style="width:max-content;background:#5ee0c2;color:#0a3150">TECHNICAL PROJECT DOCUMENT</div><h1>Super Admin Portal</h1><div class="tag">Features, technology stack, architecture, security, setup, and complete deployment guide</div><div class="meta"><b>Purpose:</b> Reference blueprint for building a related project<br><b>Repository reviewed:</b> Full frontend and backend codebase<br><b>Prepared:</b> 27 August 2026<br><b>Confidentiality:</b> No live secrets or credentials included</div></section>
+
+<h2>Executive summary</h2><p>The Super Admin Portal is a multi-role enterprise operations platform. A single React application presents specialized workspaces for super administrators, administrators, executives, HR, managers, employees, finance, IT, law, media, sales, and freelancers. A modular Express API provides authentication, authorization, business workflows, reporting, file handling, real-time chat/notifications, caching, auditability, and cross-project integrations.</p>
+<div class="callout ok"><b>Core value:</b> one secured control plane for people, departments, projects, approvals, reporting, communications, and connected products, while keeping credentials and upstream service calls on the backend.</div>
+<table class="toc"><tr><td>1. Product scope and feature catalogue</td><td>2</td></tr><tr><td>2. Technology stack</td><td>5</td></tr><tr><td>3. Architecture, data, and integrations</td><td>6</td></tr><tr><td>4. Security and quality attributes</td><td>8</td></tr><tr><td>5. Local setup and configuration</td><td>9</td></tr><tr><td>6. Production deployment</td><td>11</td></tr><tr><td>7. Verification, operations, troubleshooting</td><td>14</td></tr><tr><td>8. Reusable blueprint for another project</td><td>16</td></tr></table>
+
+<h2 class="page">1. Product scope and feature catalogue</h2>
+<h3>Role and access model</h3><p>The backend defines a hierarchy and explicit permissions. Roles include <code>super_admin</code>, <code>admin</code>, <code>ceo</code>, <code>hr</code>, IT manager/admin/employee/HR, finance manager/employee, media head/sales/marketing, law head/employee, and <code>freelancer</code>. UI route guards improve navigation, but backend middleware remains the authority.</p>
+<table><tr><th>Portal / audience</th><th>Main capabilities</th></tr>
+<tr><td>Super Admin</td><td>Global dashboard; company controls; portal access; feature flags; system health; users, departments and settings; logs, security and audit visibility; portfolio and project oversight.</td></tr>
+<tr><td>Admin</td><td>User CRUD and export; role/permission management; department overview; workflows; reports and analytics; sales submissions/questions; projects; legal registry; support center; outsourcing administration.</td></tr>
+<tr><td>CEO</td><td>Executive KPIs; department statistics; employee and project updates; revenue/product/media/sales analytics; reports; legal approvals; notifications and chat.</td></tr>
+<tr><td>HR</td><td>Employee directory and records; recruitment/applicants/job posts; attendance; leave balances, policy and approvals; performance/appraisal; work reports; complaints, notices, holidays; tasks, communication and outsourcing tracking.</td></tr>
+<tr><td>Manager</td><td>Operations dashboard; project and team management; work approval board; tasks; leave approval; reports and exports; recruitment, products, outsourcing and team chat.</td></tr>
+<tr><td>Employee</td><td>Personal dashboard; assigned projects/tasks; attendance; job browsing; leave requests; employee documents; team directory, profile and chat.</td></tr>
+<tr><td>Finance</td><td>Accounts, budgets, cost centers, vendors, clients, expenses, invoices/notes, payments, payroll, journal entries, compliance, approval workflows, audit logs and financial reports.</td></tr>
+<tr><td>IT</td><td>IT dashboard; assets and tickets; infrastructure/support/security workflows; department settings, support, projects and reporting.</td></tr>
+<tr><td>Law</td><td>Contracts; legal documents and version history; compliance/regulatory tracking; litigation/cases; IP; risk and advisory; policy review/approval; reporting and audit support.</td></tr>
+<tr><td>Media & Sales</td><td>Media projects and workspace; campaigns, assets, deadlines and approvals; marketing plans; sales questionnaires/submissions; revenue and team analytics.</td></tr>
+<tr><td>Freelancer / Outsourcing</td><td>Dashboard, jobs, contracts, milestones, payments, work sessions/time logs, profile, support, project cards, EdifyEight teacher/material administration, and EFNBMMS administration.</td></tr></table>
+
+<h3>Shared platform features</h3><div class="grid">
+<div class="card"><h3>Identity & governance</h3><ul><li>JWT access and refresh tokens</li><li>Sessions, password flows and external auth</li><li>Role hierarchy and granular permissions</li><li>Project/workspace access enforcement</li><li>Audit and activity logs</li></ul></div>
+<div class="card"><h3>Collaboration</h3><ul><li>Real-time chat over Socket.IO</li><li>Notifications and dashboard events</li><li>Support ticket flows</li><li>Tasks, workflows and approvals</li><li>Role-specific communication views</li></ul></div>
+<div class="card"><h3>Data & insight</h3><ul><li>Role-specific dashboards and KPI cards</li><li>Charts, filters, pagination and exports</li><li>Reports and department statistics</li><li>Cache policies and invalidation</li><li>Structured operational logging</li></ul></div>
+<div class="card"><h3>User experience</h3><ul><li>Responsive portal layouts</li><li>Dark/light theme and reusable UI kit</li><li>Offline banner and local cache support</li><li>Loading, empty and error states</li><li>Optimistic mutations and query prefetching</li></ul></div></div>
+
+<h3>Project workspace</h3><p>The backend is the authoritative catalogue for HOUSE OF MUSA products: MATEBID, THE BETTER PASS, EDIFYEIGHT, YARROWTECH (EEC-B2B, EFNBMMS, ESPORTSM, ERMS, EHC, SMARTFARMING), HIREME, ARTBLOCK, and GREENBAR. Shared workspace APIs return both the hierarchy and the authenticated user's access envelope.</p>
+
+<h2 class="page">2. Technology stack</h2>
+<table><tr><th>Layer</th><th>Technology</th><th>Responsibility</th></tr>
+<tr><td>Frontend</td><td>React 19, React DOM, React Router 7</td><td>Single-page application, portal routing, protected/role routes.</td></tr>
+<tr><td>Build & styling</td><td>Vite 7, Tailwind CSS 4, PostCSS, Autoprefixer</td><td>Fast development/build pipeline and responsive styling.</td></tr>
+<tr><td>Server state</td><td>TanStack React Query 5</td><td>Fetching, cache, retry, invalidation, pagination and optimistic updates.</td></tr>
+<tr><td>Visualization</td><td>Recharts 3; Three.js, React Three Fiber/Drei</td><td>Business charts and optional 3D/interactive visuals.</td></tr>
+<tr><td>Backend</td><td>Node.js 18.18+, Express 4</td><td>REST API, middleware chain, domain modules and integrations.</td></tr>
+<tr><td>Database</td><td>MongoDB with Mongoose 8</td><td>Users, roles, operations, finance, HR, legal, outsourcing and system data.</td></tr>
+<tr><td>Real time</td><td>Socket.IO 4</td><td>Chat, notifications and live dashboard updates.</td></tr>
+<tr><td>Cache</td><td>Redis 6 client; in-memory fallback</td><td>Dashboard/list/reference caches, locks, metrics and invalidation.</td></tr>
+<tr><td>Files</td><td>Multer, Cloudinary</td><td>Upload validation and hosted document/media storage.</td></tr>
+<tr><td>Security</td><td>JWT, bcryptjs, Helmet, rate limiting, mongo sanitize, validators, CORS</td><td>Authentication, password hashing, secure headers, abuse/input protection.</td></tr>
+<tr><td>Logging/jobs</td><td>Pino/Pino HTTP, node-cron</td><td>Structured logs, request context, scheduled legal/operational tasks.</td></tr>
+<tr><td>Testing/docs</td><td>Node test runner, Swagger output, Postman collection, checklist scripts</td><td>Infrastructure/access tests, API exploration and role verification.</td></tr>
+<tr><td>Hosting</td><td>Render, Vercel, MongoDB Atlas, optional Redis/Cloudinary</td><td>API hosting, static SPA hosting and managed production services.</td></tr></table>
+
+<h2 class="page">3. Architecture, data, and integrations</h2>
+<div class="diagram">Browser
+  React/Vite SPA
+  ├─ route guards + portal layouts
+  ├─ React Query API cache
+  └─ Socket.IO client
+          │ HTTPS / WSS
+          ▼
+Express API (single backend service)
+  ├─ security + request context + authentication
+  ├─ role / permission / project access middleware
+  ├─ routes → controllers → services → Mongoose models
+  ├─ Socket.IO rooms: chat, notifications, dashboards
+  ├─ Redis cache (in-memory fallback)
+  ├─ Cloudinary file storage
+  └─ backend-only adapters → EdifyEight / EFNBMMS / connected portals
+          │
+          ▼
+      MongoDB Atlas</div>
+<h3>Backend organization</h3><ul><li><code>routes/</code> exposes feature endpoints and attaches middleware.</li><li><code>controllers/</code> translates HTTP input/output and delegates work.</li><li><code>services/</code> contains business rules, workflows, exports, proxying and notifications.</li><li><code>models/</code> contains Mongoose schemas grouped by domain.</li><li><code>modules/</code> encapsulates richer domains such as finance, media, law, IT and chat.</li><li><code>middlewares/</code> handles auth, roles, permissions, validation, uploads, audit, cache headers/invalidation and errors.</li><li><code>infrastructure/cache/</code>, <code>logger/</code>, <code>sockets/</code> and <code>jobs/</code> provide cross-cutting runtime services.</li></ul>
+<h3>Important data domains</h3><p>Auth and governance; organization and departments; common projects/tasks/messages/notifications; HR and performance; employees; managers; finance; legal; IT; media/sales; outsourcing; portfolio/support; super-admin control and system health.</p>
+<h3>EdifyEight gateway pattern</h3><p>The browser calls only this portal's API using the user JWT. The backend checks workspace/feature permissions and calls EdifyEight's protected internal teacher and study-material APIs with a private service token. This prevents service credentials and internal endpoints from reaching the browser. EFNBMMS uses a separate adapter and route.</p>
+<div class="callout"><b>Reusable integration rule:</b> catalogue entry → backend adapter/proxy → authorization middleware → audit logging → upstream error mapping → frontend consumes only the local API.</div>
+
+<h2 class="page">4. Security and quality attributes</h2>
+<table><tr><th>Concern</th><th>Current design</th><th>Production recommendation</th></tr>
+<tr><td>Authentication</td><td>JWT access/refresh configuration, sessions, password hashing.</td><td>Use long random secrets, rotate them, enforce HTTPS, short access-token TTL and revocable refresh sessions.</td></tr>
+<tr><td>Authorization</td><td>Roles, hierarchy, permissions, workspace/project middleware.</td><td>Test every write endpoint for deny-by-default behavior; remove temporary freelancer bypasses.</td></tr>
+<tr><td>Input/API</td><td>Validators, Mongo sanitization, upload middleware, rate limits.</td><td>Add size/type limits per endpoint and centralized validation schemas.</td></tr>
+<tr><td>Browser boundary</td><td>CORS allow-list, Helmet, backend-only upstream credentials.</td><td>Set exact production origins; never use wildcard CORS with credentials.</td></tr>
+<tr><td>Auditability</td><td>Audit/activity/system logs and request context using Pino.</td><td>Centralize logs, define retention, alert on auth failures and privileged actions.</td></tr>
+<tr><td>Availability</td><td>Health endpoint, compression, cache fallback, optional warm ping.</td><td>Use managed Redis for multiple instances; monitor DB/cache/upstream health.</td></tr>
+<tr><td>Secrets</td><td>Environment-based configuration and example templates.</td><td>Keep real <code>.env</code> files out of Git; use host secret stores and rotate anything previously exposed.</td></tr></table>
+<div class="callout warn"><b>Security note:</b> this guide intentionally lists variable names only. Never paste live MongoDB credentials, JWT secrets, Cloudinary secrets, or integration tokens into documentation or frontend variables.</div>
+
+<h2 class="page">5. Local setup and configuration</h2>
+<h3>Prerequisites</h3><ul><li>Node.js 18.18 or newer and npm</li><li>MongoDB locally or an Atlas connection</li><li>Optional Redis and Cloudinary accounts</li><li>Connected-project URLs/tokens only when those integrations are tested</li></ul>
+<h3>Backend</h3><pre>cd backend
+copy .env.example .env
+npm install
+npm run dev
+
+# Verify
+# http://localhost:5000/health</pre>
+<h3>Frontend</h3><pre>cd frontend
+copy .env.example .env
+npm install
+npm run dev
+
+# Default Vite URL: http://localhost:5173</pre>
+<h3>Configuration inventory</h3>
+<table><tr><th>Group</th><th>Variables</th><th>Required?</th></tr>
+<tr><td>Core</td><td><code>NODE_ENV</code>, <code>PORT</code>, <code>MONGO_URI</code>, <code>CORS_ORIGIN</code></td><td>Mongo URI and production CORS are required.</td></tr>
+<tr><td>Authentication</td><td><code>JWT_SECRET</code>, <code>JWT_REFRESH_SECRET</code>, expiry values</td><td>Secrets required in production.</td></tr>
+<tr><td>Cache</td><td><code>CACHE_ENABLED</code>, <code>REDIS_URL</code>, timeouts, locks and TTL variables</td><td>Redis optional for one instance; recommended for scale-out.</td></tr>
+<tr><td>Files</td><td><code>CLOUDINARY_CLOUD_NAME</code>, <code>CLOUDINARY_API_KEY</code>, <code>CLOUDINARY_API_SECRET</code></td><td>Required for real hosted uploads.</td></tr>
+<tr><td>Integrations</td><td>Portal URLs, shared secret, EFNBMMS URL/token, EdifyEight URL/teacher URL/material URL/token</td><td>Required only for enabled integrations.</td></tr>
+<tr><td>Operations</td><td><code>LOG_LEVEL</code>, registration switch, Render keep-alive settings</td><td>Optional/tunable.</td></tr>
+<tr><td>Frontend</td><td><code>VITE_API_URL</code>, optional outsourcing URL, <code>VITE_LOG_LEVEL</code></td><td>API URL required in deployment.</td></tr></table>
+<p class="small">Only variables prefixed with <code>VITE_</code> are embedded into the browser build. They must never contain secrets.</p>
+
+<h2 class="page">6. Production deployment</h2>
+<h3>Recommended topology</h3><ul><li><b>MongoDB Atlas:</b> managed database.</li><li><b>Render Web Service:</b> backend from <code>backend/</code>.</li><li><b>Vercel:</b> frontend static build from <code>frontend/</code>.</li><li><b>Optional managed Redis:</b> shared cache for multiple backend instances.</li><li><b>Cloudinary:</b> persistent uploaded assets.</li></ul>
+<h3>Step 1 — database</h3><ol><li>Create an Atlas project, cluster, database user and least-privilege network rule.</li><li>Obtain the hosted connection string and set <code>MONGO_URI</code>.</li><li>If migrating local data, use <code>mongodump</code> and <code>mongorestore</code>; validate counts before switching traffic.</li><li>Create indexes and back up the database before production use.</li></ol>
+<h3>Step 2 — backend on Render</h3><p>The checked-in <code>render.yaml</code> defines a Node web service rooted at <code>backend</code>, using <code>npm install</code>, <code>npm start</code>, and health path <code>/health</code>.</p>
+<pre>Root directory: backend
+Build command:  npm install
+Start command:  npm start
+Health check:   /health</pre>
+<p>Set production environment variables in Render, not in Git. Minimum: <code>NODE_ENV=production</code>, hosted <code>MONGO_URI</code>, frontend <code>CORS_ORIGIN</code>, unique JWT secrets, and required integration credentials. Add Cloudinary and Redis configuration when used.</p>
+<h3>Step 3 — frontend on Vercel</h3><pre>Root directory:   frontend
+Build command:    npm run build
+Output directory: dist
+VITE_API_URL:     https://your-backend-service.onrender.com</pre>
+<p>The checked-in <code>vercel.json</code> rewrites all SPA paths to <code>index.html</code>, allowing direct links such as <code>/outsourcing/edifyeight</code>.</p>
+<h3>Step 4 — final CORS wiring</h3><ol><li>After Vercel provides the public frontend URL, set it as the backend's exact <code>CORS_ORIGIN</code>.</li><li>For several approved domains, use the comma-separated format supported by the backend.</li><li>Redeploy/restart the backend.</li><li>Test both HTTP requests and Socket.IO connections from the production domain.</li></ol>
+<h3>Step 5 — connected services</h3><p>Replace every localhost upstream URL with a deployed HTTPS endpoint. Ensure EdifyEight's backend has the matching service token. Keep the token only in both servers' secret stores. Configure EFNBMMS independently.</p>
+
+<h2 class="page">7. Verification, operations, troubleshooting</h2>
+<h3>Release acceptance checklist</h3><ul class="check"><li>□ Backend <code>/health</code> returns success and database state <code>connected</code>.</li><li>□ Frontend loads from a direct nested route and refreshes without 404.</li><li>□ Login, refresh token, logout and denied-role behavior work.</li><li>□ Super Admin/Admin/CEO/HR/Manager/Employee/department/freelancer smoke paths work.</li><li>□ User/role changes and privileged writes create appropriate audit records.</li><li>□ Chat and notifications connect over production WebSocket transport.</li><li>□ Upload/open/delete works using hosted storage.</li><li>□ EdifyEight teacher/material CRUD and EFNBMMS calls work without exposing service tokens.</li><li>□ Reports/exports, pagination, search and dashboard data work.</li><li>□ Logs contain request context but no passwords, tokens or sensitive payloads.</li><li>□ Backup/restore and rollback procedures are documented and tested.</li></ul>
+<h3>Common failures</h3>
+<table><tr><th>Symptom</th><th>Likely cause</th><th>Resolution</th></tr><tr><td>CORS error</td><td>Frontend domain absent/mismatched.</td><td>Set exact domain in <code>CORS_ORIGIN</code>, then redeploy backend.</td></tr><tr><td>API calls target localhost</td><td>Vite build used wrong/missing API URL.</td><td>Set <code>VITE_API_URL</code> in Vercel and rebuild.</td></tr><tr><td>Empty production data</td><td>Backend points to a different/empty database.</td><td>Check <code>MONGO_URI</code>; migrate/seed deliberately.</td></tr><tr><td>EdifyEight unavailable</td><td>Local upstream URL, token mismatch, or upstream down.</td><td>Use deployed HTTPS URLs; synchronize server-side tokens; check upstream health.</td></tr><tr><td>Uploads disappear/fail</td><td>Cloudinary not configured or local ephemeral storage used.</td><td>Set all Cloudinary variables and verify upload limits.</td></tr><tr><td>Inconsistent cache</td><td>Several instances using in-memory cache.</td><td>Provision shared Redis and confirm invalidation/namespace settings.</td></tr><tr><td>Nested route 404</td><td>SPA fallback missing or wrong root.</td><td>Confirm <code>vercel.json</code>, root directory and output folder.</td></tr></table>
+<h3>Operational baseline</h3><p>Monitor availability, response latency, error rate, database connectivity, Redis state, socket connections, external-service failures, authentication failures, privileged changes, storage usage and backup success. Use structured log aggregation and alert thresholds. Patch dependencies regularly and run role/access tests before every release.</p>
+
+<h2 class="page">8. Reusable blueprint for another project</h2>
+<h3>Suggested implementation order</h3><ol><li><b>Foundation:</b> define domains, user roles, permission vocabulary and ownership boundaries.</li><li><b>Platform:</b> create frontend shell, backend structure, configuration validation, database connection, error format and logging.</li><li><b>Identity:</b> implement users, password hashing, tokens/sessions, route guards and deny-by-default authorization.</li><li><b>Core workflows:</b> build one complete vertical slice through route, controller, service, model, UI and tests.</li><li><b>Shared services:</b> notifications, audit, uploads, reporting, cache and real-time communication.</li><li><b>Integrations:</b> introduce backend-only adapters with timeouts, token handling, authorization and audit.</li><li><b>Operations:</b> health/readiness endpoints, deployment manifests, backups, observability and rollback.</li></ol>
+<h3>Recommended reusable structure</h3><div class="diagram">project/
+├─ frontend/
+│  └─ src/{app,api,components,features,hooks,layouts,routes,services,utils}
+├─ backend/
+│  ├─ config/ controllers/ routes/ services/ models/
+│  ├─ middlewares/ modules/ infrastructure/ sockets/ logger/ jobs/
+│  └─ scripts/ __tests__/
+├─ docs/
+├─ render.yaml
+└─ README.md</div>
+<h3>Decisions to improve in the next project</h3><ul><li>Define a single canonical frontend routing configuration to avoid duplicated menu/navigation sources.</li><li>Use domain modules consistently across all backend features.</li><li>Generate and version an OpenAPI specification from route schemas.</li><li>Add integration/E2E tests for authentication, every role boundary, uploads, sockets and external adapters.</li><li>Add CI gates for lint, tests, dependency scanning and build.</li><li>Use migrations/controlled seeds, explicit API versioning, idempotency for sensitive writes, and standardized pagination/errors.</li><li>Separate readiness from liveness checks and include dependency health without leaking internals.</li><li>Use a secrets manager, short-lived credentials where possible, CSP, cookie strategy review, and formal retention policies.</li></ul>
+<div class="callout ok"><b>Definition of done for the next project:</b> a feature is complete only when authorization, validation, audit, loading/error states, tests, observability, documentation and deployment configuration are included—not only the screen and endpoint.</div>
+
+<h3>Repository evidence used</h3><p class="small">Frontend/backend package manifests; routing and role configuration; route/controller/service/model structure; cache, logging and socket infrastructure; environment examples; Render and Vercel manifests; deployment and architecture documents; tests, scripts, Swagger output and Postman collection. This document describes the inspected repository as of the preparation date.</p>
+<p class="footer-note">Super Admin Portal — Features, Technology Stack & Deployment Guide • Generated for internal project reuse</p>
+</body></html>

@@ -1,6 +1,11 @@
 // Shared role/department lookups for the User Directory (filter sidebar, table, and
 // active-filter chips). Kept in one place so the three views can't drift out of sync.
 
+// ROLE_LABELS/getRoleLabel now live in utils/roleLabels.js (shared with every sidebar's role
+// badge) — imported and re-exported here so existing imports from this file keep working unchanged.
+import { ROLE_LABELS, getRoleLabel } from '../../../utils/roleLabels';
+export { ROLE_LABELS, getRoleLabel };
+
 // Department-wise grouping, matching the SUPER ADMIN / CEO / HR / IT / FINANCE / MEDIA / LAW /
 // OUTSOURCING hierarchy. Single-role departments filter directly on click; multi-role
 // departments (IT, Finance, Media, Law) expand to let you filter by the whole department
@@ -63,26 +68,7 @@ export const ROLE_ICONS = {
   employee: 'person',
 };
 
-export const ROLE_LABELS = {
-  admin: 'Super Admin',
-  ceo: 'CEO',
-  hr: 'HR',
-  it_manager: 'IT Manager',
-  it_admin: 'IT Admin',
-  it_employee: 'IT Employee',
-  it_hr: 'IT HR',
-  finance_manager: 'Finance Manager',
-  finance_employee: 'Finance Employee',
-  media_head: 'Media Head',
-  media_sales: 'Media Sales',
-  media_marketing: 'Media Marketing',
-  law_head: 'Law Head',
-  law_employee: 'Law Employee',
-  freelancer: 'Freelancer',
-};
-
 export const getRoleIcon = (role) => ROLE_ICONS[role] || 'person';
-export const getRoleLabel = (role) => ROLE_LABELS[role] || role?.replace(/_/g, ' ') || 'N/A';
 
 // Quick presets for the "Joined" filter. Applied client-side against whatever
 // page of users is currently loaded (the directory list is paginated server-side).

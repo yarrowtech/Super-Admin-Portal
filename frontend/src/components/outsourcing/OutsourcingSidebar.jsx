@@ -23,7 +23,6 @@ const outsourcingFooterItems = [
 
 const sidebarProps = {
   brandingTitle: 'Outsourcing Portal',
-  brandingSubtitle: 'Freelance & Contracts',
   brandingIcon: 'work',
   navItems: outsourcingNavItems,
   footerItems: outsourcingFooterItems,

@@ -40,10 +40,10 @@ const MediaHeadTeamAnalytics = () => {
 
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader title="Team Analytics" subtitle="Detailed breakdown of what each Media Marketing user has produced" icon="analytics" />
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="mb-5 grid grid-cols-1 gap-3 xs:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <KPICard title="Active Contributors" value={activeContributors} icon="groups" tone="accent" compact />
           <KPICard title="Total Work Items" value={totalItems} icon="perm_media" tone="info" compact />
           <KPICard title="Pending Approvals" value={totalPending} icon="fact_check" tone="warning" compact />
@@ -69,7 +69,9 @@ const MediaHeadTeamAnalytics = () => {
                   <button
                     type="button"
                     onClick={() => setExpandedId(expanded ? '' : u.id)}
-                    className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left"
+                    aria-expanded={expanded}
+                    aria-controls={`team-row-${u.id}`}
+                    className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]/40"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent)]/15 text-sm font-bold text-[var(--portal-accent)]">
@@ -92,7 +94,7 @@ const MediaHeadTeamAnalytics = () => {
                   </button>
 
                   {expanded && (
-                    <div className="border-t border-neutral-100 p-4 dark:border-neutral-800">
+                    <div id={`team-row-${u.id}`} className="border-t border-neutral-100 p-4 dark:border-neutral-800">
                       {sections.length > 0 && (
                         <div className="mb-4">
                           <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-neutral-400">Work by type</p>

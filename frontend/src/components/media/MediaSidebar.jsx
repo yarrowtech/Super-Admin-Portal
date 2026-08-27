@@ -40,7 +40,6 @@ const MediaSidebar = ({ activeSection, onSelect, sections = [] }) => {
   return (
     <SectionSidebar
       title="Media Portal"
-      subtitle="Creative operations command center"
       icon="campaign"
       items={groupedItems}
       activeId={activeSection}

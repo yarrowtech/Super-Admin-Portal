@@ -21,7 +21,6 @@ const EmployeePortal = () => {
     <aside className={`fixed left-0 top-0 z-[1000] hidden h-screen md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
       <PortalSidebar
         brandingTitle="Employee Portal"
-        brandingSubtitle="Employee workspace"
         brandingIcon="badge"
         user={user}
         navItems={navItems}

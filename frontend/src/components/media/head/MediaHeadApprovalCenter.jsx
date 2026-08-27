@@ -68,7 +68,7 @@ const MediaHeadApprovalCenter = () => {
 
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader title="Approval Center" subtitle="Review and decide pending media approval requests" icon="fact_check" />
 
         <div className="mb-5 flex flex-wrap items-center gap-2">
@@ -77,9 +77,10 @@ const MediaHeadApprovalCenter = () => {
               key={status || 'all'}
               type="button"
               onClick={() => setStatusFilter(status)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+              aria-pressed={statusFilter === status}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]/40 ${
                 statusFilter === status
-                  ? 'bg-primary text-white'
+                  ? 'bg-[var(--portal-accent)] text-white'
                   : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700'
               }`}
             >
@@ -100,9 +101,10 @@ const MediaHeadApprovalCenter = () => {
               <Button variant="secondary" size="sm" onClick={() => refetch()}>Try Again</Button>
             </div>
           ) : workflows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-              <span className="material-symbols-outlined text-4xl text-neutral-300 dark:text-neutral-600">fact_check</span>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-10 text-center">
+              <span className="material-symbols-outlined text-3xl text-neutral-300 dark:text-neutral-600">fact_check</span>
               <p className="font-semibold text-neutral-600 dark:text-neutral-300">No {statusFilter || ''} approvals</p>
+              <p className="text-xs text-neutral-400">Nothing waiting on a decision right now.</p>
             </div>
           ) : (
             <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -128,10 +130,16 @@ const MediaHeadApprovalCenter = () => {
                     </div>
                     {workflow.status === 'pending' && (
                       <div className="flex shrink-0 items-center gap-2">
-                        <Button variant="secondary" size="sm" loading={decidingId === workflow._id} onClick={() => handleDecide(workflow, 'reject')}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          loading={decidingId === workflow._id}
+                          onClick={() => handleDecide(workflow, 'reject')}
+                          className="text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        >
                           Reject
                         </Button>
-                        <Button variant="primary" size="sm" loading={decidingId === workflow._id} onClick={() => handleDecide(workflow, 'approve')}>
+                        <Button variant="success" size="sm" loading={decidingId === workflow._id} onClick={() => handleDecide(workflow, 'approve')}>
                           Approve
                         </Button>
                       </div>

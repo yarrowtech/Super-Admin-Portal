@@ -41,18 +41,18 @@ const MediaHeadDeadlineCenter = () => {
 
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader title="Deadline Center" subtitle="Every project and milestone deadline across the department, sorted by urgency" icon="event_upcoming" />
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="mb-5 grid grid-cols-1 gap-3 xs:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <button type="button" onClick={() => setBucketFilter(bucketFilter === 'overdue' ? '' : 'overdue')} className="text-left">
-            <KPICard title="Overdue" value={counts.overdue} icon="error" compact className={bucketFilter === 'overdue' ? 'ring-2 ring-primary' : ''} />
+            <KPICard title="Overdue" value={counts.overdue} icon="error" tone="danger" compact className={bucketFilter === 'overdue' ? 'ring-2 ring-primary' : ''} />
           </button>
           <button type="button" onClick={() => setBucketFilter(bucketFilter === 'today' ? '' : 'today')} className="text-left">
-            <KPICard title="Due Today" value={counts.today} icon="today" compact className={bucketFilter === 'today' ? 'ring-2 ring-primary' : ''} />
+            <KPICard title="Due Today" value={counts.today} icon="today" tone="warning" compact className={bucketFilter === 'today' ? 'ring-2 ring-primary' : ''} />
           </button>
           <button type="button" onClick={() => setBucketFilter(bucketFilter === 'thisWeek' ? '' : 'thisWeek')} className="text-left">
-            <KPICard title="This Week" value={counts.thisWeek} icon="date_range" compact className={bucketFilter === 'thisWeek' ? 'ring-2 ring-primary' : ''} />
+            <KPICard title="This Week" value={counts.thisWeek} icon="date_range" tone="info" compact className={bucketFilter === 'thisWeek' ? 'ring-2 ring-primary' : ''} />
           </button>
           <button type="button" onClick={() => setBucketFilter(bucketFilter === 'later' ? '' : 'later')} className="text-left">
             <KPICard title="Later" value={counts.later} icon="event" compact className={bucketFilter === 'later' ? 'ring-2 ring-primary' : ''} />
@@ -65,11 +65,12 @@ const MediaHeadDeadlineCenter = () => {
               {[1, 2, 3, 4].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-neutral-100 dark:bg-neutral-800" />)}
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-              <span className="material-symbols-outlined text-4xl text-neutral-300 dark:text-neutral-600">event_available</span>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-10 text-center">
+              <span className="material-symbols-outlined text-3xl text-neutral-300 dark:text-neutral-600">event_available</span>
               <p className="font-semibold text-neutral-600 dark:text-neutral-300">
                 {bucketFilter ? `No items due ${BUCKET_LABEL[bucketFilter].toLowerCase()}` : 'No upcoming deadlines'}
               </p>
+              <p className="text-xs text-neutral-400">You're all caught up.</p>
             </div>
           ) : (
             <div className="divide-y divide-neutral-100 dark:divide-neutral-800">

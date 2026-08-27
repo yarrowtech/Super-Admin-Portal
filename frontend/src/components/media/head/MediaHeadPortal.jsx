@@ -84,8 +84,8 @@ const MediaHeadPortal = () => {
     >
       <div className="flex h-full w-full">
         <MobilePortalNav
-          title="Media Head"
-          subtitle="Department Command Center"
+          title="Media Portal"
+          subtitle="Department Control"
           icon="workspace_premium"
           items={mediaHeadMobileItems.map((item) => ({
             ...item,

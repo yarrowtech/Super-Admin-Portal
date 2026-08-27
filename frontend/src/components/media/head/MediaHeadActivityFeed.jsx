@@ -40,7 +40,7 @@ const MediaHeadActivityFeed = () => {
 
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader title="Department Activity" subtitle="Recent approval requests and decisions across Media" icon="history" />
 
         <div className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -55,9 +55,10 @@ const MediaHeadActivityFeed = () => {
               <Button variant="secondary" size="sm" onClick={() => refetch()}>Try Again</Button>
             </div>
           ) : activity.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-              <span className="material-symbols-outlined text-4xl text-neutral-300 dark:text-neutral-600">history</span>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-10 text-center">
+              <span className="material-symbols-outlined text-3xl text-neutral-300 dark:text-neutral-600">history</span>
               <p className="font-semibold text-neutral-600 dark:text-neutral-300">No recent department activity</p>
+              <p className="text-xs text-neutral-400">Approvals and decisions will show up here as they happen.</p>
             </div>
           ) : (
             <div className="divide-y divide-neutral-100 p-2 dark:divide-neutral-800">

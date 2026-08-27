@@ -10,6 +10,7 @@ import StatusBadge from '../../common/StatusBadge';
 import Button from '../../common/Button';
 
 const arr = (value) => (Array.isArray(value) ? value : []);
+const editHistoryInitials = (name = '') => name.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || '?';
 
 const MediaHeadDashboard = ({ onNavigate }) => {
   const { user, token } = useAuth();
@@ -103,7 +104,7 @@ const MediaHeadDashboard = ({ onNavigate }) => {
 
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader
           title="Media Department Overview"
           subtitle="Monitor performance, projects, sales, marketing, and key actions across the Media Department"
@@ -113,7 +114,7 @@ const MediaHeadDashboard = ({ onNavigate }) => {
         />
 
         {/* KPI Row */}
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="mb-5 grid grid-cols-1 gap-3 xs:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <KPICard title="Active Projects" value={activeProjectsCount} icon="folder_open" compact />
           <KPICard title="Pending Approvals" value={pendingApprovals.length || kpis.pendingApprovals || 0} icon="fact_check" compact />
           <KPICard title="Total Leads" value={sales.totalLeads ?? 0} subtitle={sales.newThisWeek ? `+${sales.newThisWeek} this week` : undefined} icon="query_stats" compact />
@@ -138,7 +139,7 @@ const MediaHeadDashboard = ({ onNavigate }) => {
               {needsAttention.map((item) => (
                 <div key={item.key} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/50">
                   <div className="flex min-w-0 items-center gap-3">
-                    <StatusBadge tone={item.priority} label={item.priority === 'danger' ? 'High' : item.priority === 'warning' ? 'Medium' : 'Info'} />
+                    <StatusBadge tone={item.priority} label={item.priority === 'danger' ? 'High' : item.priority === 'warning' ? 'Medium' : 'Low'} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{item.title}</p>
                       <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{item.label} · {item.meta}</p>
@@ -168,22 +169,29 @@ const MediaHeadDashboard = ({ onNavigate }) => {
             <div className="space-y-2">
               {planActivity.map((item) => (
                 <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/50">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                      {item.actorName}
-                      {item.actorRole && <span className="ml-1.5 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">{item.actorRole}</span>}
-                      {' '}edited the <span style={{ color: 'var(--portal-accent)' }}>{item.projectName}</span> plan
-                    </p>
-                    {item.changedSections?.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {item.changedSections.map((section) => (
-                          <span key={section} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-500 ring-1 ring-inset ring-neutral-200 dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-700">
-                            {section}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <p className="mt-1 truncate text-xs text-neutral-500 dark:text-neutral-400">{item.time ? new Date(item.time).toLocaleString() : ''}</p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent)]/15 text-xs font-bold text-[var(--portal-accent)]">
+                      {editHistoryInitials(item.actorName)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                        {item.actorName}
+                        {item.actorRole && <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">{item.actorRole}</span>}
+                      </p>
+                      <p className="truncate text-xs text-neutral-600 dark:text-neutral-400">
+                        Edited <span className="font-semibold" style={{ color: 'var(--portal-accent)' }}>{item.projectName}</span> plan
+                      </p>
+                      {item.changedSections?.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {item.changedSections.map((section) => (
+                            <span key={section} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-500 ring-1 ring-inset ring-neutral-200 dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-700">
+                              {section}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="mt-1 truncate text-xs text-neutral-400 dark:text-neutral-500">{item.time ? new Date(item.time).toLocaleString() : ''}</p>
+                    </div>
                   </div>
                   {item.projectId && (
                     <Button variant="secondary" size="sm" onClick={() => navigate(`/media/head/projects/${item.projectId}`)} className="shrink-0">

@@ -31,6 +31,10 @@ const buildProjectOptions = (projectItems = []) =>
         label: name,
         value,
         team: arr(project?.team),
+        // This is a management/oversight view, not a creative-brand context — every
+        // card uses the portal's own teal accent instead of MediaProjectList's
+        // decorative per-index rainbow palette, which has no semantic meaning here.
+        themeColor: '#0f766e',
       };
     })
     .filter(Boolean);
@@ -52,7 +56,7 @@ const MediaHeadProjectList = () => {
 
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader title="Projects" subtitle="Click a project to open its full media & marketing plan" icon="folder_copy" />
 
         {isLoading ? (

@@ -10,7 +10,6 @@ const ITSidebar = ({ activeSection, onSelect, sections = [] }) => {
   return (
     <SectionSidebar
       title="IT Portal"
-      subtitle="Executive technology control center"
       icon="memory"
       items={sections}
       activeId={activeSection}

@@ -24,7 +24,7 @@ const ManagerPortal = () => {
   const signOut = async () => { await logout(); navigate('/login', { replace: true }); };
 
   return <AppLayout
-    sidebar={<aside className={`fixed left-0 top-0 z-[1000] hidden h-screen md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}><PortalSidebar brandingTitle="IT Manager" brandingSubtitle={`${user?.department || 'IT'} operations`} brandingIcon="manage_accounts" user={user} navItems={managerMenu} currentPath={location.pathname} onLogout={signOut} /></aside>}
+    sidebar={<aside className={`fixed left-0 top-0 z-[1000] hidden h-screen md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}><PortalSidebar brandingTitle="IT Manager" brandingIcon="manage_accounts" user={user} navItems={managerMenu} currentPath={location.pathname} onLogout={signOut} /></aside>}
     title="IT Manager Portal"
     subtitle={`${user?.department || 'IT'} team operations`}
     mobileIcon="manage_accounts"

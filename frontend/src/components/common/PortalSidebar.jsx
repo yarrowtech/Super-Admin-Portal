@@ -1,6 +1,8 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useSidebar } from '../../context/SidebarContext';
+import SidebarPortalIdentity from './SidebarPortalIdentity';
+import SidebarUserCard from './SidebarUserCard';
 
 /* ─── Tooltip for mini mode ─────────────────────────────────────── */
 const MiniTooltip = memo(({ label }) => (
@@ -97,7 +99,6 @@ const GroupButton = memo(({ item, collapsed, isActive, isOpen, onToggle }) => (
 /* ─── Main PortalSidebar ─────────────────────────────────────────── */
 const PortalSidebar = ({
   brandingTitle = 'Portal',
-  brandingSubtitle = 'Management System',
   brandingIcon = 'dashboard',
   showBranding = true,
   user,
@@ -146,20 +147,17 @@ const PortalSidebar = ({
       className={`flex h-screen shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-white shadow-sidebar transition-[width] duration-300 ease-out-expo dark:border-neutral-800 dark:bg-neutral-950 ${sidebarW}`}
     >
       {/* ── Branding / Collapse toggle ── */}
-      <div className={`flex h-16 shrink-0 items-center border-b border-neutral-100 dark:border-neutral-800 ${collapsed ? 'justify-center py-3.5' : 'gap-3 px-4 py-3.5'}`}>
-        {showBranding && !collapsed && (
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--portal-accent)] to-[var(--portal-accent)]/70 text-white shadow-md">
-              <span className="material-symbols-outlined text-[20px]">{brandingIcon}</span>
+      {forceExpanded ? (
+        <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-neutral-100 px-3 py-3.5 dark:border-neutral-800">
+          {showBranding && (
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--portal-accent)] to-[var(--portal-accent)]/70 text-white shadow-md">
+                <span className="material-symbols-outlined text-[20px]">{brandingIcon}</span>
+              </div>
+              <p className="min-w-0 truncate text-[15px] font-semibold leading-none text-neutral-900 dark:text-neutral-100">{brandingTitle}</p>
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold leading-tight text-neutral-900 dark:text-neutral-100">{brandingTitle}</p>
-              <p className="truncate text-[11px] leading-tight text-neutral-400 dark:text-neutral-500">{brandingSubtitle}</p>
-            </div>
-          </div>
-        )}
-        {/* Collapse toggle (desktop) / Close (mobile off-canvas) */}
-        {forceExpanded ? (
+          )}
+          {/* Mobile off-canvas variant closes instead of collapsing */}
           <button
             type="button"
             onClick={onClose}
@@ -169,52 +167,17 @@ const PortalSidebar = ({
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={toggle}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 ${collapsed ? '' : 'ml-auto'}`}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <span className="material-symbols-outlined text-[18px]">
-              {collapsed ? 'menu_open' : 'menu'}
-            </span>
-          </button>
-        )}
-      </div>
-
-      {/* ── User Info ── */}
-      {user && !collapsed && (
-        <div className="shrink-0 px-3 py-2.5">
-          <div className="flex items-center gap-2.5 rounded-xl bg-neutral-50 px-3 py-2.5 dark:bg-neutral-900">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent)]/15 text-xs font-bold text-[var(--portal-accent)]">
-              {user.firstName?.[0]}{user.lastName?.[0]}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">
-                {user.firstName} {user.lastName}
-              </p>
-              <p className="truncate text-[11px] text-neutral-400 dark:text-neutral-500">{user.email}</p>
-            </div>
-            {user.role && (
-              <span className="shrink-0 rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--portal-accent)]">
-                {user.role}
-              </span>
-            )}
-          </div>
         </div>
+      ) : (
+        <SidebarPortalIdentity
+          icon={brandingIcon}
+          title={showBranding ? brandingTitle : ''}
+          collapsed={collapsed}
+          onToggleCollapse={toggle}
+        />
       )}
 
-      {/* User avatar in mini mode */}
-      {user && collapsed && (
-        <div className="group relative flex shrink-0 justify-center py-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-accent)]/15 text-xs font-bold text-[var(--portal-accent)]">
-            {user.firstName?.[0]}{user.lastName?.[0]}
-          </div>
-          <MiniTooltip label={`${user.firstName} ${user.lastName} · ${user.role || ''}`} />
-        </div>
-      )}
+      <SidebarUserCard user={user} collapsed={collapsed} />
 
       {/* Section divider */}
       {!collapsed && (

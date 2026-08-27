@@ -199,10 +199,8 @@ const AdminSidebar = () => {
 
       <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg lg:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
         <PortalSidebar
-          showBranding={false}
-          brandingTitle=""
-          brandingSubtitle=""
-          brandingIcon=""
+          brandingTitle="Super Admin Portal"
+          brandingIcon="admin_panel_settings"
           user={user}
           navItems={resolvedNavItems}
           currentPath={location.pathname}
@@ -223,8 +221,7 @@ const AdminSidebar = () => {
           />
           <div className="animate-in slide-in-from-left relative h-full w-[min(280px,86vw)] shadow-2xl duration-300 ease-out">
             <PortalSidebar
-              brandingTitle="Admin Portal"
-              brandingSubtitle="Enterprise controls"
+              brandingTitle="Super Admin Portal"
               brandingIcon="admin_panel_settings"
               user={user}
               navItems={resolvedNavItems}

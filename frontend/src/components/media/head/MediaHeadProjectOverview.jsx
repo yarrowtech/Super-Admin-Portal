@@ -71,22 +71,22 @@ const MediaHeadProjectOverview = () => {
 
   return (
     <main className="portal-page h-[calc(100vh-4rem)]">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader title="Project Overview" subtitle="Department-wide project health, ownership, and deadlines" icon="folder_open" />
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+        <div className="mb-5 grid grid-cols-1 gap-3 xs:grid-cols-2 sm:gap-4 lg:grid-cols-5">
           <button type="button" onClick={() => setStatusFilter('')} className="text-left">
             <KPICard title="Total" value={counts.total} icon="folder_open" compact className={!statusFilter ? 'ring-2 ring-primary' : ''} />
           </button>
           <button type="button" onClick={() => setStatusFilter('in-progress')} className="text-left">
-            <KPICard title="Active" value={counts.active} icon="play_circle" compact className={statusFilter === 'in-progress' ? 'ring-2 ring-primary' : ''} />
+            <KPICard title="Active" value={counts.active} icon="play_circle" tone="info" compact className={statusFilter === 'in-progress' ? 'ring-2 ring-primary' : ''} />
           </button>
           <button type="button" onClick={() => setStatusFilter('planning')} className="text-left">
             <KPICard title="Planning" value={counts.planning} icon="draft" compact className={statusFilter === 'planning' ? 'ring-2 ring-primary' : ''} />
           </button>
-          <KPICard title="At Risk" value={counts.atRisk} icon="warning" compact />
+          <KPICard title="At Risk" value={counts.atRisk} icon="warning" tone="danger" compact />
           <button type="button" onClick={() => setStatusFilter('completed')} className="text-left">
-            <KPICard title="Completed" value={counts.completed} icon="check_circle" compact className={statusFilter === 'completed' ? 'ring-2 ring-primary' : ''} />
+            <KPICard title="Completed" value={counts.completed} icon="check_circle" tone="success" compact className={statusFilter === 'completed' ? 'ring-2 ring-primary' : ''} />
           </button>
         </div>
 
@@ -141,7 +141,7 @@ const MediaHeadProjectOverview = () => {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-                              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                              <div className="h-full rounded-full bg-[var(--portal-accent)]" style={{ width: `${progress}%` }} />
                             </div>
                             <span className="text-xs text-neutral-500">{progress}%</span>
                           </div>
@@ -150,7 +150,7 @@ const MediaHeadProjectOverview = () => {
                         <td className="px-4 py-3 text-xs text-neutral-500">{project.deadline ? new Date(project.deadline).toLocaleDateString() : '—'}</td>
                         <td className="px-4 py-3 text-right">
                           <Button variant="ghost" size="sm" onClick={() => navigate(`/media/head/projects/${project._id}`)}>
-                            Open
+                            Open <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                           </Button>
                         </td>
                       </tr>

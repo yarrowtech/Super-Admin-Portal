@@ -72,7 +72,6 @@ const LawSidebar = () => {
       <div className={`fixed left-0 top-0 z-1000 hidden h-screen shadow-lg md:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
         <PortalSidebar
           brandingTitle="Law Portal"
-          brandingSubtitle="Legal Department"
           brandingIcon="gavel"
           user={user}
           navItems={lawNavWithProject}
@@ -97,7 +96,6 @@ const LawSidebar = () => {
           <div className="relative h-full w-[min(250px,86vw)] shadow-2xl">
             <PortalSidebar
               brandingTitle="Law Portal"
-              brandingSubtitle="Legal Department"
               brandingIcon="gavel"
               user={user}
               navItems={lawNavWithProject}

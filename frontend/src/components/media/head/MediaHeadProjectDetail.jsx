@@ -238,7 +238,7 @@ const MediaHeadProjectDetail = () => {
 
   return (
     <div
-      className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef6f4_45%,#f6f8fb_100%)] font-display text-neutral-800 dark:bg-background-dark dark:text-neutral-100"
+      className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef6f4_45%,#f6f8fb_100%)] font-display text-neutral-800 dark:bg-none dark:bg-background-dark dark:text-neutral-100"
       style={MEDIA_THEME}
     >
       <div className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">

@@ -1,8 +1,12 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { portfolioApi } from '../../services/portfolio';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
+import { useToast } from '../../context/ToastContext';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
+import Button from '../common/Button';
+import { SectionEyebrow } from './PortfolioOverviewPanel';
 
 // Swipeable / click-through "Strategy Playbook" — a richer presentation-style
 // content type (Overview, Goals, Roadmap, Strategy...) distinct from the
@@ -56,6 +60,8 @@ const groupsToText = (groups = []) =>
 const emptyBlockForm = { mode: 'add', slideId: null, blockId: null, title: '', icon: '', subtitle: '', badgeNumber: '', footer: '', tone: 'neutral', type: 'list', textValue: '', itemsText: '', groupsText: '', useGroups: false };
 
 export default function PortfolioPlaybook({ portfolio, token, editable = false, onUpdate }) {
+  const { confirm } = useConfirmDialog();
+  const toast = useToast();
   const slides = [...(portfolio?.playbook || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
   const [rawIndex, setActiveIndex] = useState(0);
   const activeIndex = Math.min(rawIndex, Math.max(0, slides.length - 1));
@@ -69,10 +75,34 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const dragRef = useRef({ startX: 0, dragging: false });
+  const slideRefs = useRef([]);
+  const [trackHeight, setTrackHeight] = useState(null);
+
+  // The carousel track lays every slide out side by side in one flex row, so
+  // without this its height defaults to the tallest slide (e.g. Strategy) even
+  // while a much shorter slide (e.g. Legal) is the one actually showing — this
+  // measures just the active slide and animates the viewport to match it.
+  useLayoutEffect(() => {
+    const activeEl = slideRefs.current[activeIndex];
+    if (!activeEl) return undefined;
+    const measure = () => setTrackHeight(activeEl.scrollHeight);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(activeEl);
+    return () => observer.disconnect();
+  });
 
   if (!portfolio) return null;
 
   const handleSyncMarketingPlan = async () => {
+    const ok = await confirm({
+      title: 'Sync from Marketing Plan?',
+      message: 'This overwrites Overview, Goals, Roadmap & Strategy with the latest content from the Marketing Plan. Any manual edits to those slides will be replaced.',
+      confirmLabel: 'Sync',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setSyncing(true);
     setError('');
     setSyncMessage('');
@@ -80,8 +110,10 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
       const res = await portfolioApi.syncFromMarketingPlan(token, portfolio._id);
       onUpdate?.(res.data);
       setSyncMessage('Synced Overview, Goals, Roadmap & Strategy from the Marketing Plan.');
+      toast.success('Synced from Marketing Plan.');
     } catch (err) {
       setError(err?.message || 'Failed to sync from Marketing Plan');
+      toast.error(err?.message || 'Failed to sync from Marketing Plan');
     }
     setSyncing(false);
   };
@@ -131,8 +163,10 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
       handleUpdated(res);
       setActiveIndex(slides.length);
       setTemplateGallery(false);
+      toast.success('Slide added.');
     } catch (err) {
       setError(err?.message || 'Failed to add slide from template');
+      toast.error(err?.message || 'Failed to add slide from template');
     }
     setBusy(false);
   };
@@ -150,21 +184,32 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
       handleUpdated(res);
       if (slideModal.mode === 'add') setActiveIndex(slides.length);
       setSlideModal(null);
+      toast.success(slideModal.mode === 'add' ? 'Slide added.' : 'Slide renamed.');
     } catch (err) {
       setError(err?.message || 'Failed to save slide');
+      toast.error(err?.message || 'Failed to save slide');
     }
     setBusy(false);
   };
 
   const handleDeleteSlide = async (slide) => {
-    if (!window.confirm(`Delete the "${slide.title}" slide and all its content?`)) return;
+    const blockCount = (slide.blocks || []).length;
+    const ok = await confirm({
+      title: 'Delete slide?',
+      message: `"${slide.title}"${blockCount ? ` contains ${blockCount} block${blockCount === 1 ? '' : 's'}` : ''}. This action cannot be undone.`,
+      confirmLabel: 'Delete slide',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await portfolioApi.removePlaybookSlide(token, portfolio._id, slide._id);
       handleUpdated(res);
       setActiveIndex(0);
+      toast.success('Slide deleted.');
     } catch (err) {
       setError(err?.message || 'Failed to delete slide');
+      toast.error(err?.message || 'Failed to delete slide');
     }
     setBusy(false);
   };
@@ -221,20 +266,30 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
         : await portfolioApi.updatePlaybookBlock(token, portfolio._id, blockModal.slideId, blockModal.blockId, payload);
       handleUpdated(res);
       setBlockModal(null);
+      toast.success(blockModal.mode === 'add' ? 'Block added.' : 'Block updated.');
     } catch (err) {
       setError(err?.message || 'Failed to save block');
+      toast.error(err?.message || 'Failed to save block');
     }
     setBusy(false);
   };
 
   const handleDeleteBlock = async (slideId, block) => {
-    if (!window.confirm(`Remove "${block.title}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete block?',
+      message: `"${block.title}" will be permanently removed from this slide.`,
+      confirmLabel: 'Delete block',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await portfolioApi.removePlaybookBlock(token, portfolio._id, slideId, block._id);
       handleUpdated(res);
+      toast.success('Block deleted.');
     } catch (err) {
       setError(err?.message || 'Failed to remove block');
+      toast.error(err?.message || 'Failed to remove block');
     }
     setBusy(false);
   };
@@ -244,22 +299,19 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 px-4 pt-4 dark:border-neutral-800 sm:px-5">
-        <div>
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400">Strategy Playbook</h2>
-          <div className="mt-1 h-0.5 w-8 rounded-full bg-gradient-to-r from-primary to-violet-500" />
-        </div>
+        <SectionEyebrow>Strategy Playbook</SectionEyebrow>
         {editable ? (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={handleSyncMarketingPlan}
               disabled={syncing}
-              title="Pull Overview, Goals, Roadmap & Strategy from this project's Marketing Plan in the Media portal"
-              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-100 disabled:opacity-60 dark:text-neutral-400 dark:hover:bg-neutral-800"
+              title="Pull Overview, Goals, Roadmap & Strategy from this project's Marketing Plan in the Media portal — overwrites existing content in those slides"
+              icon={<span className={`material-symbols-outlined text-lg ${syncing ? 'animate-spin-slow' : ''}`}>sync</span>}
             >
-              <span className={`material-symbols-outlined text-[16px] ${syncing ? 'animate-spin-slow' : ''}`}>sync</span>
               {syncing ? 'Syncing…' : 'Sync from Marketing Plan'}
-            </button>
+            </Button>
             <button
               type="button"
               onClick={openAddSlide}
@@ -299,41 +351,50 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
       ) : (
         <>
           {/* Slide tabs — click-by-click navigation */}
-          <div className="flex items-center gap-2 overflow-x-auto px-4 py-3 sm:px-5">
-            {slides.map((slide, index) => (
-              <button
-                key={slide._id}
-                type="button"
-                onClick={() => setActiveIndex(index)}
-                className={`group inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-all duration-200 ${
-                  index === activeIndex
-                    ? 'bg-primary text-white shadow-[0_4px_14px_-4px_rgba(79,70,229,0.6)]'
-                    : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
-                }`}
-              >
-                {slide.title}
-                {editable && index === activeIndex ? (
-                  <span className="ml-1 inline-flex items-center gap-0.5">
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); openRenameSlide(slide); }}
-                      className="flex h-5 w-5 items-center justify-center rounded-md hover:bg-white/20"
-                    >
-                      <span className="material-symbols-outlined text-[13px]">edit</span>
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); handleDeleteSlide(slide); }}
-                      className="flex h-5 w-5 items-center justify-center rounded-md hover:bg-white/20"
-                    >
-                      <span className="material-symbols-outlined text-[13px]">close</span>
-                    </span>
-                  </span>
-                ) : null}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+              {slides.map((slide, index) => (
+                <button
+                  key={slide._id}
+                  type="button"
+                  onClick={() => setActiveIndex(index)}
+                  className={`inline-flex shrink-0 items-center rounded-xl px-3 py-2 text-sm font-semibold transition-all duration-200 ${
+                    index === activeIndex
+                      ? 'bg-primary text-white shadow-[0_4px_14px_-4px_rgba(79,70,229,0.6)]'
+                      : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  {slide.title}
+                </button>
+              ))}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {slides.length > 1 ? (
+                <span className="text-xs font-semibold text-neutral-400">{activeIndex + 1} / {slides.length}</span>
+              ) : null}
+              {editable ? (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => openRenameSlide(slides[activeIndex])}
+                    title="Rename slide"
+                    aria-label="Rename slide"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSlide(slides[activeIndex])}
+                    title="Delete slide"
+                    aria-label="Delete slide"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {/* Swipeable / draggable viewport */}
@@ -361,13 +422,18 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
               </>
             ) : null}
 
-            <div className="overflow-hidden px-2 sm:px-8" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
+            <div
+              className="overflow-hidden px-2 transition-[height] duration-300 ease-out-expo sm:px-8"
+              style={trackHeight != null ? { height: trackHeight } : undefined}
+              onPointerDown={onPointerDown}
+              onPointerUp={onPointerUp}
+            >
               <div
-                className="flex transition-transform duration-300 ease-out-expo"
+                className="flex items-start transition-transform duration-300 ease-out-expo"
                 style={{ transform: `translateX(-${activeIndex * 100}%)` }}
               >
-                {slides.map((slide) => (
-                  <div key={slide._id} className="w-full shrink-0 px-0.5">
+                {slides.map((slide, index) => (
+                  <div key={slide._id} ref={(el) => { slideRefs.current[index] = el; }} className="w-full shrink-0 px-0.5">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {[...(slide.blocks || [])].sort((a, b) => (a.order || 0) - (b.order || 0)).map((block) => (
                         <PlaybookBlockCard
@@ -459,8 +525,8 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
         <form onSubmit={submitSlide} className="space-y-3">
           <Input label="Slide title" name="title" value={slideModal?.title || ''} onChange={(e) => setSlideModal((s) => ({ ...s, title: e.target.value }))} autoFocus />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setSlideModal(null)} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300">Cancel</button>
-            <button type="submit" disabled={busy} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60">Save</button>
+            <Button type="button" variant="secondary" onClick={() => setSlideModal(null)}>Cancel</Button>
+            <Button type="submit" loading={busy}>{slideModal?.mode === 'add' ? 'Add slide' : 'Save changes'}</Button>
           </div>
         </form>
       </Modal>
@@ -525,8 +591,8 @@ export default function PortfolioPlaybook({ portfolio, token, editable = false, 
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setBlockModal(null)} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300">Cancel</button>
-              <button type="submit" disabled={busy} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60">Save</button>
+              <Button type="button" variant="secondary" onClick={() => setBlockModal(null)}>Cancel</Button>
+              <Button type="submit" loading={busy}>{blockModal.mode === 'add' ? 'Add block' : 'Save changes'}</Button>
             </div>
           </form>
         ) : null}

@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
+import { useToast } from '../../context/ToastContext';
 import { portfolioApi } from '../../services/portfolio';
 import PortalHeader from '../common/PortalHeader';
 import Button from '../common/Button';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
-import PortfolioOverviewPanel from '../shared/PortfolioOverviewPanel';
+import PortfolioOverviewPanel, { SectionEyebrow } from '../shared/PortfolioOverviewPanel';
 import PortfolioPlaybook from '../shared/PortfolioPlaybook';
+import ProgressBar from '../ui/ProgressBar';
 
 const STATUS_OPTIONS = [
   { value: 'not-started', label: 'Not started' },
@@ -59,17 +62,20 @@ const PORTFOLIO_STATUS_BADGE = {
 };
 
 // Distinct accent per pillar — cycles so any number of pillars still reads as a
-// coherent set rather than a single flat color.
+// coherent set rather than a single flat color. Purely decorative identity, not
+// status — kept to a cool/violet spectrum that doesn't overlap with the app's real
+// status hues (emerald=success, amber=warning, rose=danger, sky=info) so a card's
+// accent is never mistaken for a health/status signal next to the status badge.
 const PILLAR_ACCENTS = [
   { grad: 'from-indigo-500 to-violet-500', bar: 'bg-indigo-500', soft: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-600 dark:text-indigo-300' },
-  { grad: 'from-sky-500 to-cyan-500', bar: 'bg-sky-500', soft: 'bg-sky-50 dark:bg-sky-500/10', text: 'text-sky-600 dark:text-sky-300' },
-  { grad: 'from-emerald-500 to-teal-500', bar: 'bg-emerald-500', soft: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-300' },
-  { grad: 'from-amber-500 to-orange-500', bar: 'bg-amber-500', soft: 'bg-amber-50 dark:bg-amber-500/10', text: 'text-amber-600 dark:text-amber-300' },
+  { grad: 'from-blue-500 to-cyan-500', bar: 'bg-blue-500', soft: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-300' },
+  { grad: 'from-violet-500 to-purple-500', bar: 'bg-violet-500', soft: 'bg-violet-50 dark:bg-violet-500/10', text: 'text-violet-600 dark:text-violet-300' },
   { grad: 'from-fuchsia-500 to-pink-500', bar: 'bg-fuchsia-500', soft: 'bg-fuchsia-50 dark:bg-fuchsia-500/10', text: 'text-fuchsia-600 dark:text-fuchsia-300' },
-  { grad: 'from-rose-500 to-red-500', bar: 'bg-rose-500', soft: 'bg-rose-50 dark:bg-rose-500/10', text: 'text-rose-600 dark:text-rose-300' },
+  { grad: 'from-purple-500 to-indigo-500', bar: 'bg-purple-500', soft: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-600 dark:text-purple-300' },
+  { grad: 'from-cyan-500 to-blue-500', bar: 'bg-cyan-500', soft: 'bg-cyan-50 dark:bg-cyan-500/10', text: 'text-cyan-600 dark:text-cyan-300' },
 ];
 
-const CARD_ACCENTS = ['from-indigo-500 to-violet-500', 'from-sky-500 to-cyan-500', 'from-emerald-500 to-teal-500', 'from-amber-500 to-orange-500'];
+const CARD_ACCENTS = ['from-indigo-500 to-violet-500', 'from-blue-500 to-cyan-500', 'from-violet-500 to-purple-500', 'from-fuchsia-500 to-pink-500'];
 
 const DOT_PATTERN = {
   backgroundImage: 'radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1px)',
@@ -120,12 +126,6 @@ const ProgressRing = ({ value = 0, size = 64, stroke = 6, colorClass = 'text-whi
     </div>
   );
 };
-
-const ProgressBar = ({ value = 0, colorClass = 'bg-primary' }) => (
-  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-    <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
-  </div>
-);
 
 const ModalTitle = ({ icon, children }) => (
   <span className="inline-flex items-center gap-2">
@@ -187,6 +187,8 @@ const SUPER_ADMIN_ROLES = ['super_admin', 'superadmin'];
 
 export default function AdminPortfolioPage() {
   const { token, user } = useAuth();
+  const { confirm } = useConfirmDialog();
+  const toast = useToast();
   const canDelete = SUPER_ADMIN_ROLES.includes(String(user?.role || '').toLowerCase());
 
   const [loading, setLoading] = useState(true);
@@ -198,6 +200,8 @@ export default function AdminPortfolioPage() {
 
   const [activeId, setActiveId] = useState(null);
   const [busy, setBusy] = useState(false);
+  const playbookRef = useRef(null);
+  const pillarsRef = useRef(null);
   const [infoStage, setInfoStage] = useState(''); // '' | 'uploading' | 'removing' — image sub-step feedback
   const [itemStage, setItemStage] = useState('');
 
@@ -298,7 +302,13 @@ export default function AdminPortfolioPage() {
 
   const handleSeedAllProjects = async () => {
     if (creatableProjects.length === 0) return;
-    if (!window.confirm(`Create a digital portfolio (with the default pillar template) for all ${creatableProjects.length} project(s) without one?`)) return;
+    const ok = await confirm({
+      title: 'Create portfolios for all projects?',
+      message: `This creates a digital portfolio (with the default pillar template) for all ${creatableProjects.length} project(s) without one.`,
+      confirmLabel: 'Create portfolios',
+      tone: 'warning',
+    });
+    if (!ok) return;
     setBusy(true);
     setError('');
     const created = [];
@@ -315,8 +325,12 @@ export default function AdminPortfolioPage() {
       setPortfolios((prev) => [...created, ...prev]);
       const createdIds = new Set(created.map((p) => String(p.project?._id || p.project)));
       setAvailableProjects((prev) => prev.map((p) => (createdIds.has(String(p._id)) ? { ...p, hasPortfolio: true } : p)));
+      toast.success(`Created ${created.length} portfolio${created.length === 1 ? '' : 's'}.`);
     }
-    if (failed.length) setError(`Some portfolios could not be created: ${failed.join('; ')}`);
+    if (failed.length) {
+      setError(`Some portfolios could not be created: ${failed.join('; ')}`);
+      toast.error(`${failed.length} portfolio${failed.length === 1 ? '' : 's'} could not be created.`);
+    }
     setBusy(false);
   };
 
@@ -338,8 +352,10 @@ export default function AdminPortfolioPage() {
       );
       setCreateModal(false);
       setActiveId(res.data._id);
+      toast.success('Portfolio created.');
     } catch (err) {
       setError(err?.message || 'Failed to create portfolio');
+      toast.error(err?.message || 'Failed to create portfolio');
     }
     setBusy(false);
   };
@@ -396,15 +412,23 @@ export default function AdminPortfolioPage() {
 
       upsertPortfolioInList(res.data);
       setInfoModal(false);
+      toast.success('Portfolio updated.');
     } catch (err) {
       setError(err?.message || 'Failed to update portfolio');
+      toast.error(err?.message || 'Failed to update portfolio');
     }
     setBusy(false);
     setInfoStage('');
   };
 
   const handleDeletePortfolio = async (portfolio) => {
-    if (!window.confirm(`Delete the digital portfolio for "${portfolio.projectName}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: 'Delete portfolio?',
+      message: `"${portfolio.projectName}" and all of its playbook slides and pillars will be permanently deleted. This action cannot be undone.`,
+      confirmLabel: 'Delete portfolio',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await portfolioApi.remove(token, portfolio._id);
@@ -413,8 +437,10 @@ export default function AdminPortfolioPage() {
         prev.map((p) => (p._id === String(portfolio.project?._id || portfolio.project) ? { ...p, hasPortfolio: false } : p))
       );
       if (activeId === portfolio._id) setActiveId(null);
+      toast.success('Portfolio deleted.');
     } catch (err) {
       setError(err?.message || 'Failed to delete portfolio');
+      toast.error(err?.message || 'Failed to delete portfolio');
     }
     setBusy(false);
   };
@@ -436,21 +462,32 @@ export default function AdminPortfolioPage() {
         : await portfolioApi.updateSection(token, active._id, sectionModal.sectionId, payload);
       upsertPortfolioInList(res.data);
       setSectionModal(null);
+      toast.success(sectionModal.mode === 'add' ? 'Pillar created.' : 'Pillar updated.');
     } catch (err) {
       setError(err?.message || 'Failed to save pillar');
+      toast.error(err?.message || 'Failed to save pillar');
     }
     setBusy(false);
   };
 
   const handleDeleteSection = async (section) => {
     if (!active) return;
-    if (!window.confirm(`Remove the "${section.title}" pillar and all its items?`)) return;
+    const itemCount = (section.items || []).length;
+    const ok = await confirm({
+      title: 'Delete pillar?',
+      message: `"${section.title}"${itemCount ? ` contains ${itemCount} item${itemCount === 1 ? '' : 's'}` : ''}. This action cannot be undone.`,
+      confirmLabel: 'Delete pillar',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await portfolioApi.removeSection(token, active._id, section._id);
       upsertPortfolioInList(res.data);
+      toast.success('Pillar deleted.');
     } catch (err) {
       setError(err?.message || 'Failed to remove pillar');
+      toast.error(err?.message || 'Failed to remove pillar');
     }
     setBusy(false);
   };
@@ -515,8 +552,10 @@ export default function AdminPortfolioPage() {
 
       upsertPortfolioInList(res.data);
       setItemModal(null);
+      toast.success(itemModal.mode === 'add' ? 'Item added.' : 'Item updated.');
     } catch (err) {
       setError(err?.message || 'Failed to save item');
+      toast.error(err?.message || 'Failed to save item');
     }
     setBusy(false);
     setItemStage('');
@@ -524,13 +563,21 @@ export default function AdminPortfolioPage() {
 
   const handleDeleteItem = async (sectionId, item) => {
     if (!active) return;
-    if (!window.confirm(`Remove "${item.title}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete item?',
+      message: `"${item.title}" will be permanently removed from this pillar.`,
+      confirmLabel: 'Delete item',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await portfolioApi.removeItem(token, active._id, sectionId, item._id);
       upsertPortfolioInList(res.data);
+      toast.success('Item deleted.');
     } catch (err) {
       setError(err?.message || 'Failed to remove item');
+      toast.error(err?.message || 'Failed to remove item');
     }
     setBusy(false);
   };
@@ -572,34 +619,34 @@ export default function AdminPortfolioPage() {
 
           {/* Hero */}
           <div className="relative overflow-hidden rounded-3xl border border-neutral-200 shadow-card dark:border-neutral-800">
-            <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-primary via-primary-600 to-violet-700 sm:h-36">
+            <div className="relative h-20 w-full overflow-hidden bg-gradient-to-br from-primary via-primary-600 to-violet-700 sm:h-24">
               <div className="absolute inset-0 opacity-40" style={DOT_PATTERN} />
               <div className="absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-              <div className="absolute right-6 top-6 hidden items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-md ring-1 ring-white/20 sm:flex">
-                <ProgressRing value={activePct} size={48} stroke={5} />
+              <div className="absolute right-6 top-5 hidden items-center gap-2.5 rounded-xl bg-white/10 px-3 py-2 backdrop-blur-md ring-1 ring-white/20 sm:flex">
+                <ProgressRing value={activePct} size={36} stroke={4} />
                 <div className="pr-1">
-                  <p className="text-xs font-semibold text-white/80">Completion</p>
-                  <p className="text-sm font-black text-white">{countDone(active)}/{activeTotalItems} items</p>
+                  <p className="text-[11px] font-semibold text-white/80">Completion</p>
+                  <p className="text-xs font-black text-white">{countDone(active)}/{activeTotalItems} items</p>
                 </div>
               </div>
             </div>
-            <div className="relative bg-white px-5 pb-6 dark:bg-neutral-900 sm:px-7">
-              <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="relative bg-white px-5 pb-5 dark:bg-neutral-900 sm:px-7">
+              <div className="-mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex items-end gap-4">
                   {overview?.project?.logo?.url || active.project?.logo?.url || active.coverImage?.url ? (
                     <img
                       src={overview?.project?.logo?.url || active.project?.logo?.url || active.coverImage?.url}
                       alt=""
                       onError={hideOnError}
-                      className="h-20 w-20 shrink-0 rounded-2xl border-4 border-white bg-white object-contain shadow-lg ring-1 ring-black/5 dark:border-neutral-900"
+                      className="h-16 w-16 shrink-0 rounded-2xl border-4 border-white bg-white object-contain shadow-lg ring-1 ring-black/5 dark:border-neutral-900"
                     />
                   ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-primary to-violet-600 text-xl font-black text-white shadow-lg ring-1 ring-black/5 dark:border-neutral-900">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-primary to-violet-600 text-lg font-black text-white shadow-lg ring-1 ring-black/5 dark:border-neutral-900">
                       {initials(active.projectName)}
                     </div>
                   )}
                   <div className="pb-1">
-                    <h1 className="text-xl font-black tracking-tight text-neutral-900 dark:text-white sm:text-2xl">{active.projectName}</h1>
+                    <h1 className="text-lg font-black tracking-tight text-neutral-900 dark:text-white sm:text-xl">{active.projectName}</h1>
                     <p className="text-sm font-semibold text-neutral-400">{active.projectCode}</p>
                   </div>
                 </div>
@@ -615,7 +662,7 @@ export default function AdminPortfolioPage() {
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-col gap-4 border-t border-neutral-100 pt-5 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-4 flex flex-col gap-4 border-t border-neutral-100 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${PORTFOLIO_STATUS_BADGE[active.status] || PORTFOLIO_STATUS_BADGE.draft}`}>
                     {active.status}
@@ -633,22 +680,24 @@ export default function AdminPortfolioPage() {
                   ) : null}
                 </div>
                 <div className="flex items-center gap-3 sm:hidden">
-                  <ProgressRing value={activePct} size={44} stroke={5} colorClass="text-primary" trackClass="stroke-neutral-200 dark:stroke-neutral-800" labelClass="text-neutral-900 dark:text-white" />
+                  <ProgressRing value={activePct} size={40} stroke={4} colorClass="text-primary" trackClass="stroke-neutral-200 dark:stroke-neutral-800" labelClass="text-neutral-900 dark:text-white" />
                   <p className="text-xs text-neutral-400">{countDone(active)} of {activeTotalItems} items done</p>
                 </div>
               </div>
 
-              {active.summary ? <p className="mt-4 max-w-3xl text-sm leading-6 text-neutral-600 dark:text-neutral-400">{active.summary}</p> : null}
+              {active.summary ? <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600 dark:text-neutral-400">{active.summary}</p> : null}
             </div>
           </div>
 
-          <PortfolioPlaybook
-            key={active._id}
-            portfolio={active}
-            token={token}
-            editable
-            onUpdate={upsertPortfolioInList}
-          />
+          <div ref={playbookRef}>
+            <PortfolioPlaybook
+              key={active._id}
+              portfolio={active}
+              token={token}
+              editable
+              onUpdate={upsertPortfolioInList}
+            />
+          </div>
 
           <PortfolioOverviewPanel
             portfolio={active}
@@ -657,12 +706,14 @@ export default function AdminPortfolioPage() {
             token={token}
             editable
             onUpdate={upsertPortfolioInList}
+            onReviewBlocks={() => playbookRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            onReviewPillars={() => pillarsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
           />
 
+          <div ref={pillarsRef} className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400">Pillars</h2>
-              <div className="mt-1 h-0.5 w-8 rounded-full bg-gradient-to-r from-primary to-violet-500" />
+              <SectionEyebrow>Pillars</SectionEyebrow>
               <p className="mt-2 text-xs text-neutral-400">{sortedSections.length} pillar{sortedSections.length === 1 ? '' : 's'} · {activeTotalItems} tracked items</p>
             </div>
             <Button variant="secondary" size="sm" onClick={openAddSection} icon={<span className="material-symbols-outlined text-lg">add</span>}>
@@ -699,10 +750,10 @@ export default function AdminPortfolioPage() {
                         <h3 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{section.title}</h3>
                       </div>
                       <div className="flex shrink-0 items-center gap-0.5">
-                        <button type="button" onClick={() => openRenameSection(section)} className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Rename pillar">
+                        <button type="button" onClick={() => openRenameSection(section)} title="Rename pillar" className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Rename pillar">
                           <span className="material-symbols-outlined text-[15px]">edit</span>
                         </button>
-                        <button type="button" onClick={() => handleDeleteSection(section)} className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete pillar">
+                        <button type="button" onClick={() => handleDeleteSection(section)} title="Delete pillar" className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete pillar">
                           <span className="material-symbols-outlined text-[15px]">delete</span>
                         </button>
                       </div>
@@ -746,10 +797,10 @@ export default function AdminPortfolioPage() {
                               </a>
                             ) : null}
                             <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                              <button type="button" onClick={() => openEditItem(section._id, item)} className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-700 dark:hover:text-neutral-200" aria-label="Edit item">
+                              <button type="button" onClick={() => openEditItem(section._id, item)} title="Edit item" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-700 dark:hover:text-neutral-200" aria-label="Edit item">
                                 <span className="material-symbols-outlined text-[14px]">edit</span>
                               </button>
-                              <button type="button" onClick={() => handleDeleteItem(section._id, item)} className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete item">
+                              <button type="button" onClick={() => handleDeleteItem(section._id, item)} title="Delete item" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete item">
                                 <span className="material-symbols-outlined text-[14px]">close</span>
                               </button>
                             </div>
@@ -772,6 +823,7 @@ export default function AdminPortfolioPage() {
               })}
             </div>
           )}
+          </div>
 
           {/* Edit info modal */}
           <Modal open={infoModal} title={<ModalTitle icon="edit">Edit Portfolio Info</ModalTitle>} onClose={() => setInfoModal(false)}>
@@ -812,7 +864,7 @@ export default function AdminPortfolioPage() {
                 {infoStage === 'uploading' ? <span className="text-xs font-medium text-neutral-400">Uploading logo…</span> : null}
                 {infoStage === 'removing' ? <span className="text-xs font-medium text-neutral-400">Removing logo…</span> : null}
                 <Button type="button" variant="secondary" disabled={busy} onClick={() => setInfoModal(false)}>Cancel</Button>
-                <Button type="submit" loading={busy}>Save</Button>
+                <Button type="submit" loading={busy}>Save changes</Button>
               </div>
             </form>
           </Modal>
@@ -836,7 +888,7 @@ export default function AdminPortfolioPage() {
               />
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="secondary" onClick={() => setSectionModal(null)}>Cancel</Button>
-                <Button type="submit" loading={busy}>Save</Button>
+                <Button type="submit" loading={busy}>{sectionModal?.mode === 'add' ? 'Add pillar' : 'Save changes'}</Button>
               </div>
             </form>
           </Modal>
@@ -905,7 +957,7 @@ export default function AdminPortfolioPage() {
                 {itemStage === 'uploading' ? <span className="text-xs font-medium text-neutral-400">Uploading image…</span> : null}
                 {itemStage === 'removing' ? <span className="text-xs font-medium text-neutral-400">Removing image…</span> : null}
                 <Button type="button" variant="secondary" disabled={busy} onClick={() => setItemModal(null)}>Cancel</Button>
-                <Button type="submit" loading={busy}>Save</Button>
+                <Button type="submit" loading={busy}>{itemModal?.mode === 'add' ? 'Add item' : 'Save changes'}</Button>
               </div>
             </form>
           </Modal>
@@ -1092,7 +1144,7 @@ export default function AdminPortfolioPage() {
             <Input label="Tags (comma separated)" name="tags" value={createForm.tags} onChange={(e) => setCreateForm((f) => ({ ...f, tags: e.target.value }))} />
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="secondary" onClick={() => setCreateModal(false)}>Cancel</Button>
-              <Button type="submit" loading={busy} disabled={!createForm.project}>Create</Button>
+              <Button type="submit" loading={busy} disabled={!createForm.project}>Create portfolio</Button>
             </div>
           </form>
         </Modal>

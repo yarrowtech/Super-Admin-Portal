@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { portfolioApi } from '../../services/portfolio';
+import { useToast } from '../../context/ToastContext';
 import Modal from '../ui/Modal';
+import ProgressBar from '../ui/ProgressBar';
 
 // The Digital Portfolio's "Command Center" — a read-only project snapshot
 // combining project basics, a live rollup from Media/Law, and signals
@@ -63,12 +65,6 @@ const isBlockFilled = (block) => {
 
 const findSlide = (playbook, pattern) => (playbook || []).find((s) => pattern.test(s.title || ''));
 
-const ProgressBar = ({ value = 0, colorClass = 'bg-primary' }) => (
-  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-    <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
-  </div>
-);
-
 const ShimmerBlock = ({ className = '' }) => (
   <div className={`relative overflow-hidden bg-neutral-100 dark:bg-neutral-900 ${className}`}>
     <div className="absolute inset-0 animate-shimmer bg-shimmer-gradient bg-[length:200%_100%] dark:bg-shimmer-dark" />
@@ -82,7 +78,7 @@ const StatBox = ({ label, value }) => (
   </div>
 );
 
-const MetricCard = ({ label, value, colorClass }) => (
+const MetricCard = ({ label, value, colorClass, caption }) => (
   <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card ring-1 ring-black/[0.02] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]">
     <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">{label}</p>
     {typeof value === 'number' ? (
@@ -93,12 +89,16 @@ const MetricCard = ({ label, value, colorClass }) => (
     ) : (
       <p className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-sm font-bold ${value.tone}`}>{value.label}</p>
     )}
+    {caption ? <p className="mt-2 text-[11px] text-neutral-400">{caption}</p> : null}
   </div>
 );
 
-const SectionEyebrow = ({ children }) => (
+// One shared "section eyebrow" heading — used for Portfolio Health, Key Goals,
+// Needs Attention, Key Highlights here, and (via export) the Pillars/Strategy
+// Playbook headings elsewhere, so every section title in this feature stays in sync.
+export const SectionEyebrow = ({ children }) => (
   <div>
-    <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400">{children}</h2>
+    <h2 className="text-base font-bold tracking-wide text-neutral-700 dark:text-neutral-200">{children}</h2>
     <div className="mt-1 h-0.5 w-8 rounded-full bg-gradient-to-r from-primary to-violet-500" />
   </div>
 );
@@ -153,7 +153,8 @@ const DetailRow = ({ label, value }) => {
 // Hides a broken image instead of showing the browser's broken-icon placeholder.
 const hideOnError = (e) => { e.currentTarget.style.display = 'none'; };
 
-export default function PortfolioOverviewPanel({ portfolio, overview, loading, token, editable = false, onUpdate }) {
+export default function PortfolioOverviewPanel({ portfolio, overview, loading, token, editable = false, onUpdate, onReviewBlocks, onReviewPillars }) {
+  const toast = useToast();
   const [addingSlide, setAddingSlide] = useState('');
   const [previewItem, setPreviewItem] = useState(null); // { kind: 'media'|'contract'|'document', ...record }
   const [previewImageFailed, setPreviewImageFailed] = useState(false);
@@ -169,9 +170,9 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
     try {
       const res = await portfolioApi.addPlaybookSlideFromTemplate(token, portfolio._id, key);
       onUpdate?.(res.data);
-    } catch {
-      // surfaced implicitly by the slide simply not appearing; keep this
-      // quick-action low-friction rather than adding another error banner
+      toast.success('Slide added.');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to add slide');
     }
     setAddingSlide('');
   };
@@ -237,11 +238,11 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
   }
   const emptyBlockCount = allBlocks.length - filledBlocks.length;
   if (emptyBlockCount > 0) {
-    attentionItems.push({ icon: 'edit_note', tone: 'neutral', text: `${emptyBlockCount} playbook block${emptyBlockCount === 1 ? '' : 's'} still need${emptyBlockCount === 1 ? 's' : ''} information` });
+    attentionItems.push({ icon: 'edit_note', tone: 'neutral', text: `${emptyBlockCount} playbook block${emptyBlockCount === 1 ? '' : 's'} still need${emptyBlockCount === 1 ? 's' : ''} information`, onReview: onReviewBlocks, reviewLabel: 'Review incomplete blocks' });
   }
   const untouchedPillars = sections.filter((s) => (s.items || []).length > 0 && s.items.every((i) => i.status === 'not-started'));
   if (untouchedPillars.length > 0) {
-    attentionItems.push({ icon: 'schedule', tone: 'neutral', text: `${untouchedPillars.length} pillar${untouchedPillars.length === 1 ? '' : 's'} not started yet` });
+    attentionItems.push({ icon: 'schedule', tone: 'neutral', text: `${untouchedPillars.length} pillar${untouchedPillars.length === 1 ? '' : 's'} not started yet`, onReview: onReviewPillars, reviewLabel: 'Review pillars' });
   }
   if (playbook.length === 0) {
     attentionItems.push({ icon: 'auto_stories', tone: 'neutral', text: 'No Strategy Playbook slides yet' });
@@ -251,8 +252,8 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
     <div className="space-y-4">
       {/* Split completion metrics — deliberately separate, not one blended number */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <MetricCard label="Information Completeness" value={infoCompleteness} colorClass="bg-primary" />
-        <MetricCard label="Execution Progress" value={executionProgress} colorClass={executionProgress === 100 ? 'bg-emerald-500' : 'bg-violet-500'} />
+        <MetricCard label="Information Completeness" value={infoCompleteness} colorClass="bg-primary" caption="Required playbook sections filled in" />
+        <MetricCard label="Execution Progress" value={executionProgress} colorClass={executionProgress === 100 ? 'bg-emerald-500' : 'bg-violet-500'} caption="Pillar checklist items completed" />
         <MetricCard label="Overall Health" value={health} />
       </div>
 
@@ -357,7 +358,18 @@ export default function PortfolioOverviewPanel({ portfolio, overview, loading, t
               attentionItems.map((item, i) => (
                 <div key={i} className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-sm ${item.tone === 'warning' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300' : 'text-neutral-600 dark:text-neutral-300'}`}>
                   <span className="material-symbols-outlined mt-0.5 text-[16px]">{item.icon}</span>
-                  {item.text}
+                  <div className="min-w-0">
+                    <p>{item.text}</p>
+                    {item.onReview ? (
+                      <button
+                        type="button"
+                        onClick={item.onReview}
+                        className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                      >
+                        {item.reviewLabel} <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))
             )}

@@ -975,7 +975,7 @@ const MediaProjectDetail = () => {
       style={themeVars}
     >
       <main className="portal-page">
-        <div className="portal-page-inner mx-auto max-w-[1440px] space-y-4 px-4 py-5 sm:px-6 lg:px-8">
+        <div className="portal-page-inner portal-page-inner--media space-y-4">
           <nav className="flex items-center gap-1.5 px-1 text-[12px] font-semibold text-[#93A0A0] dark:text-[#91A4A2]">
             <button type="button" onClick={() => navigate(projectsHome)} className="transition-colors hover:text-[#172323] dark:hover:text-[#F1F7F6]">
               {portalLabel}

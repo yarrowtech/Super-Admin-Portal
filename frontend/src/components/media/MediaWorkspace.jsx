@@ -1018,21 +1018,32 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                     </label>
                     <label className="space-y-2">
                       <span className={labelClass}>Project</span>
-                      <select
-                        value={effectiveProjectId || ''}
-                        onChange={(e) => {
-                          const projectId = e.target.value;
-                          const project = projectOptions.find((item) => item.value === projectId);
-                          updateProject(projectId);
-                          setDraft((prev) => ({ ...prev, projectName: project?.name || prev.projectName }));
-                        }}
-                        className={fieldClass}
-                      >
-                        <option className="text-slate-950" value="">Select project</option>
-                        {projectOptions.map((project) => (
-                          <option className="text-slate-950" key={project.value} value={project.value}>{project.name}</option>
-                        ))}
-                      </select>
+                      {effectiveProjectId ? (
+                        <div className={`${fieldClass} flex items-center justify-between gap-2 bg-slate-50 text-slate-600 dark:bg-neutral-900 dark:text-neutral-300`}>
+                          <span className="truncate">
+                            {projectOptions.find((item) => item.value === effectiveProjectId)?.name || draft.projectName || 'Selected project'}
+                          </span>
+                          <span className="material-symbols-outlined shrink-0 text-[16px] text-slate-400 dark:text-neutral-500" title="Set from the project you already selected">
+                            lock
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const projectId = e.target.value;
+                            const project = projectOptions.find((item) => item.value === projectId);
+                            updateProject(projectId);
+                            setDraft((prev) => ({ ...prev, projectName: project?.name || prev.projectName }));
+                          }}
+                          className={fieldClass}
+                        >
+                          <option className="text-slate-950" value="">Select project</option>
+                          {projectOptions.map((project) => (
+                            <option className="text-slate-950" key={project.value} value={project.value}>{project.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </label>
                     <label className="space-y-2 md:col-span-2">
                       <span className={labelClass}>Description</span>
@@ -1126,7 +1137,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
   return (
     <main className="portal-page">
-      <div className="w-full space-y-4 p-3 sm:p-4 lg:p-6 2xl:p-8">
+      <div className="portal-page-inner portal-page-inner--media space-y-4">
         <PortalHeader
           title={sectionMeta[0]}
           subtitle={sectionMeta[1]}

@@ -34,11 +34,11 @@ const Button = ({
     // so this variant always matches the current portal's identity color instead of
     // the app-wide primary blue. Use this for the primary CTA on themed portal pages.
     accent: 'bg-[var(--portal-accent)] text-white hover:opacity-90 focus:ring-[var(--portal-accent)]/40 shadow-sm',
-    secondary: 'bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 focus:ring-neutral-300',
+    secondary: 'bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 focus:ring-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700 dark:hover:bg-neutral-700',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm',
     success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm',
     outline: 'bg-transparent text-primary border-2 border-primary hover:bg-primary/10 focus:ring-primary/50',
-    ghost: 'bg-transparent text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-300',
+    ghost: 'bg-transparent text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-300 dark:text-neutral-300 dark:hover:bg-neutral-800',
     warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-400 shadow-sm',
   };
 

@@ -246,6 +246,13 @@ button {
   .portal-page-inner {
     @apply mx-auto w-full max-w-[1680px] p-4 sm:p-5 lg:p-6;
   }
+
+  /* Media Portal-specific content width — narrower than the app-wide default so
+     Dashboard/Projects/Assets/Brand/Content/Design/Video/Social all share one
+     consistent, less sprawling column instead of three different widths. */
+  .portal-page-inner--media {
+    @apply max-w-[1320px];
+  }
 }
 
 * {

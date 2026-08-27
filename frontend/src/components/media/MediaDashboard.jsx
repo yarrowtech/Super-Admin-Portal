@@ -204,7 +204,11 @@ const MediaDashboard = ({ selectedProjectId }) => {
       .slice(0, 8);
 
     return {
-      activeProjects: toCount(dashboard?.kpis?.activeProjects ?? projects.length),
+      // Use the workspace's assigned-project count (same source as the Project
+      // Progress panel below), not dashboard.kpis.activeProjects — that KPI is
+      // scoped to whichever single project is currently selected and undercounts
+      // when multiple projects are assigned but only one has Media records.
+      activeProjects: projects.length,
       pendingApprovals,
       assetsInReview,
       publishedRecently,
@@ -320,7 +324,7 @@ const MediaDashboard = ({ selectedProjectId }) => {
 
   return (
     <main className="portal-page">
-      <div className="portal-page-inner">
+      <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader
           title="Media Command Center"
           subtitle="Overview of your creative operations"

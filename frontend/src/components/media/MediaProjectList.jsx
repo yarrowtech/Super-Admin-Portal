@@ -21,7 +21,7 @@ const MediaProjectList = ({ projects = [], onSelect }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
       {projects.map((project, index) => {
         const accent = HEX_RE.test(project.themeColor || '') ? project.themeColor : ACCENTS[index % ACCENTS.length];
         return (
@@ -31,7 +31,7 @@ const MediaProjectList = ({ projects = [], onSelect }) => {
             onClick={() =>
               onSelect ? onSelect(project) : navigate(`/media/dashboard/projects/${slugMap.get(project.value) || project.value}`)
             }
-            className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+            className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)]/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]/40 dark:border-neutral-800 dark:bg-neutral-900"
           >
             <div className="h-1.5 w-full rounded-full" style={{ background: accent }} />
             <div className="mt-3 flex items-start gap-3">

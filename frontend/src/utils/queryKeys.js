@@ -212,6 +212,27 @@ export const QK = {
     payments:  (params = {})              => ['outsourcing', 'payments', params],
   },
 
+  // ── Digital Portfolios — hierarchy (Foundation phase) ───────────────────
+  portfolioHierarchy: {
+    root:         ()                       => ['portfolioHierarchy'],
+    brands:       ()                       => ['portfolioHierarchy', 'brands'],
+    tree:         (portfolioId)            => ['portfolioHierarchy', 'tree', portfolioId],
+    groups:       (portfolioId)            => ['portfolioHierarchy', 'groups', portfolioId],
+    group:        (groupId)                => ['portfolioHierarchy', 'group', groupId],
+    categories:   (groupId)                => ['portfolioHierarchy', 'categories', groupId],
+    category:     (categoryId)             => ['portfolioHierarchy', 'category', categoryId],
+    categoryStats:(categoryId)             => ['portfolioHierarchy', 'categoryStats', categoryId],
+    assets:       (categoryId, params={})  => ['portfolioHierarchy', 'assets', categoryId, params],
+    asset:        (assetId)                => ['portfolioHierarchy', 'asset', assetId],
+    assetVersions:(assetId)                => ['portfolioHierarchy', 'assetVersions', assetId],
+    assetHistory: (assetId, cursor=null)   => ['portfolioHierarchy', 'assetHistory', assetId, cursor],
+    tasks:        (categoryId, params={})  => ['portfolioHierarchy', 'tasks', categoryId, params],
+    activity:     (categoryId, params={})  => ['portfolioHierarchy', 'activity', categoryId, params],
+    files:        (categoryId, params={})  => ['portfolioHierarchy', 'files', categoryId, params],
+    metrics:      (categoryId, params={})  => ['portfolioHierarchy', 'metrics', categoryId, params],
+    health:       (categoryId)             => ['portfolioHierarchy', 'health', categoryId],
+  },
+
   // ── Reports / Analytics (cross-portal) ────────────────────────────────
   reports: {
     root:    ()                           => ['reports'],

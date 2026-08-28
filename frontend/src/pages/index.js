@@ -145,3 +145,7 @@ export const AdminSettingsPage      = lazy(() => import('../components/admin/Adm
 
 // ── Digital Portfolios (cross-portal read-only viewer) ───────────────────────
 export const PortfolioViewerPage    = lazy(() => import('../components/shared/PortfolioViewerPage'));
+
+// ── Digital Portfolios — hierarchy workspace (Foundation phase) ──────────────
+export const PortfolioCategoryWorkspacePage = lazy(() => import('../components/admin/portfolio/CategoryWorkspacePage'));
+export const PortfolioAssetDetailPage       = lazy(() => import('../components/admin/portfolio/AssetDetailPage'));

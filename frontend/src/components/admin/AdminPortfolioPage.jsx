@@ -11,6 +11,7 @@ import Select from '../ui/Select';
 import PortfolioOverviewPanel, { SectionEyebrow } from '../shared/PortfolioOverviewPanel';
 import PortfolioPlaybook from '../shared/PortfolioPlaybook';
 import ProgressBar from '../ui/ProgressBar';
+import PortfolioGroupsPanel from './portfolio/PortfolioGroupsPanel';
 
 const STATUS_OPTIONS = [
   { value: 'not-started', label: 'Not started' },
@@ -47,12 +48,6 @@ const STATUS_LABEL = {
   'not-started': 'Not started',
   'in-progress': 'In progress',
   done: 'Done',
-};
-
-const nextStatus = (status) => {
-  if (status === 'not-started') return 'in-progress';
-  if (status === 'in-progress') return 'done';
-  return 'not-started';
 };
 
 const PORTFOLIO_STATUS_BADGE = {
@@ -203,16 +198,12 @@ export default function AdminPortfolioPage() {
   const playbookRef = useRef(null);
   const pillarsRef = useRef(null);
   const [infoStage, setInfoStage] = useState(''); // '' | 'uploading' | 'removing' — image sub-step feedback
-  const [itemStage, setItemStage] = useState('');
 
   const [createModal, setCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({ project: '', summary: '', liveUrl: '', tags: '' });
 
   const [infoModal, setInfoModal] = useState(false);
   const [infoForm, setInfoForm] = useState({ summary: '', liveUrl: '', tags: '', status: 'active', logo: null, logoFile: null, logoPreview: '', removeLogo: false });
-
-  const [sectionModal, setSectionModal] = useState(null); // { mode: 'add'|'rename', sectionId?, title }
-  const [itemModal, setItemModal] = useState(null); // { mode:'add'|'edit', sectionId, itemId?, title, notes, link, status, image, imageFile, imagePreview, removeImage }
 
   const active = useMemo(() => portfolios.find((p) => p._id === activeId) || null, [portfolios, activeId]);
 
@@ -445,158 +436,14 @@ export default function AdminPortfolioPage() {
     setBusy(false);
   };
 
-  // ---- Section CRUD ----
-
-  const openAddSection = () => setSectionModal({ mode: 'add', title: '', description: '' });
-  const openRenameSection = (section) => setSectionModal({ mode: 'rename', sectionId: section._id, title: section.title, description: section.description || '' });
-
-  const submitSection = async (e) => {
-    e.preventDefault();
-    if (!active || !sectionModal?.title?.trim()) return;
-    setBusy(true);
-    setError('');
-    try {
-      const payload = { title: sectionModal.title.trim(), description: sectionModal.description || '' };
-      const res = sectionModal.mode === 'add'
-        ? await portfolioApi.addSection(token, active._id, payload)
-        : await portfolioApi.updateSection(token, active._id, sectionModal.sectionId, payload);
-      upsertPortfolioInList(res.data);
-      setSectionModal(null);
-      toast.success(sectionModal.mode === 'add' ? 'Pillar created.' : 'Pillar updated.');
-    } catch (err) {
-      setError(err?.message || 'Failed to save pillar');
-      toast.error(err?.message || 'Failed to save pillar');
-    }
-    setBusy(false);
-  };
-
-  const handleDeleteSection = async (section) => {
-    if (!active) return;
-    const itemCount = (section.items || []).length;
-    const ok = await confirm({
-      title: 'Delete pillar?',
-      message: `"${section.title}"${itemCount ? ` contains ${itemCount} item${itemCount === 1 ? '' : 's'}` : ''}. This action cannot be undone.`,
-      confirmLabel: 'Delete pillar',
-      tone: 'danger',
-    });
-    if (!ok) return;
-    setBusy(true);
-    try {
-      const res = await portfolioApi.removeSection(token, active._id, section._id);
-      upsertPortfolioInList(res.data);
-      toast.success('Pillar deleted.');
-    } catch (err) {
-      setError(err?.message || 'Failed to remove pillar');
-      toast.error(err?.message || 'Failed to remove pillar');
-    }
-    setBusy(false);
-  };
-
-  // ---- Item CRUD ----
-
-  const openAddItem = (sectionId) =>
-    setItemModal({ mode: 'add', sectionId, title: '', notes: '', link: '', status: 'not-started', image: null, imageFile: null, imagePreview: '', imageError: '', removeImage: false });
-  const openEditItem = (sectionId, item) =>
-    setItemModal({
-      mode: 'edit',
-      sectionId,
-      itemId: item._id,
-      title: item.title,
-      notes: item.notes || '',
-      link: item.link || '',
-      status: item.status,
-      image: item.image || null,
-      imageFile: null,
-      imagePreview: '',
-      imageError: '',
-      removeImage: false,
-    });
-
-  const onItemImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const validationError = validateImageFile(file);
-    if (validationError) {
-      setItemModal((s) => ({ ...s, imageError: validationError }));
-    } else {
-      setItemModal((s) => ({ ...s, imageFile: file, imagePreview: URL.createObjectURL(file), imageError: '', removeImage: false }));
-    }
-    e.target.value = '';
-  };
-  const clearItemImage = () => setItemModal((s) => ({ ...s, imageFile: null, imagePreview: '', imageError: '', image: null, removeImage: true }));
-
-  const submitItem = async (e) => {
-    e.preventDefault();
-    if (!active || !itemModal?.title?.trim()) return;
-    setBusy(true);
-    setError('');
-    try {
-      const payload = { title: itemModal.title.trim(), notes: itemModal.notes, link: itemModal.link, status: itemModal.status };
-      let res = itemModal.mode === 'add'
-        ? await portfolioApi.addItem(token, active._id, itemModal.sectionId, payload)
-        : await portfolioApi.updateItem(token, active._id, itemModal.sectionId, itemModal.itemId, payload);
-
-      let itemId = itemModal.itemId;
-      if (itemModal.mode === 'add') {
-        const section = res.data.sections.find((s) => s._id === itemModal.sectionId);
-        itemId = section?.items?.[section.items.length - 1]?._id;
-      }
-
-      if (itemModal.imageFile && itemId) {
-        setItemStage('uploading');
-        res = await portfolioApi.uploadItemImage(token, active._id, itemModal.sectionId, itemId, itemModal.imageFile);
-      } else if (itemModal.removeImage && itemModal.mode === 'edit') {
-        setItemStage('removing');
-        res = await portfolioApi.removeItemImage(token, active._id, itemModal.sectionId, itemId);
-      }
-
-      upsertPortfolioInList(res.data);
-      setItemModal(null);
-      toast.success(itemModal.mode === 'add' ? 'Item added.' : 'Item updated.');
-    } catch (err) {
-      setError(err?.message || 'Failed to save item');
-      toast.error(err?.message || 'Failed to save item');
-    }
-    setBusy(false);
-    setItemStage('');
-  };
-
-  const handleDeleteItem = async (sectionId, item) => {
-    if (!active) return;
-    const ok = await confirm({
-      title: 'Delete item?',
-      message: `"${item.title}" will be permanently removed from this pillar.`,
-      confirmLabel: 'Delete item',
-      tone: 'danger',
-    });
-    if (!ok) return;
-    setBusy(true);
-    try {
-      const res = await portfolioApi.removeItem(token, active._id, sectionId, item._id);
-      upsertPortfolioInList(res.data);
-      toast.success('Item deleted.');
-    } catch (err) {
-      setError(err?.message || 'Failed to remove item');
-      toast.error(err?.message || 'Failed to remove item');
-    }
-    setBusy(false);
-  };
-
-  const cycleItemStatus = async (sectionId, item) => {
-    if (!active) return;
-    try {
-      const res = await portfolioApi.updateItem(token, active._id, sectionId, item._id, { status: nextStatus(item.status) });
-      upsertPortfolioInList(res.data);
-    } catch (err) {
-      setError(err?.message || 'Failed to update status');
-    }
-  };
+  // Section/Item (legacy pillar) CRUD has moved to PortfolioGroupsPanel,
+  // which talks to the new Group/Category/Asset hierarchy API instead of the
+  // embedded sections[]/items[] fields these handlers used to mutate.
 
   // ---- Render: detail view ----
   if (active) {
     const activePct = completionPct(active);
     const activeTotalItems = countItems(active);
-    const sortedSections = [...(active.sections || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
 
     return (
       <main className="portal-page">
@@ -632,7 +479,7 @@ export default function AdminPortfolioPage() {
             </div>
             <div className="relative bg-white px-5 pb-5 dark:bg-neutral-900 sm:px-7">
               <div className="-mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div className="flex items-end gap-4">
+                <div className="flex min-w-0 items-end gap-4">
                   {overview?.project?.logo?.url || active.project?.logo?.url || active.coverImage?.url ? (
                     <img
                       src={overview?.project?.logo?.url || active.project?.logo?.url || active.coverImage?.url}
@@ -645,9 +492,9 @@ export default function AdminPortfolioPage() {
                       {initials(active.projectName)}
                     </div>
                   )}
-                  <div className="pb-1">
-                    <h1 className="text-lg font-black tracking-tight text-neutral-900 dark:text-white sm:text-xl">{active.projectName}</h1>
-                    <p className="text-sm font-semibold text-neutral-400">{active.projectCode}</p>
+                  <div className="min-w-0 pb-1">
+                    <h1 className="truncate text-lg font-black tracking-tight text-neutral-900 dark:text-white sm:text-xl">{active.projectName}</h1>
+                    <p className="truncate text-sm font-semibold text-neutral-400">{active.projectCode}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pb-1">
@@ -710,120 +557,7 @@ export default function AdminPortfolioPage() {
             onReviewPillars={() => pillarsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
           />
 
-          <div ref={pillarsRef} className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <SectionEyebrow>Pillars</SectionEyebrow>
-              <p className="mt-2 text-xs text-neutral-400">{sortedSections.length} pillar{sortedSections.length === 1 ? '' : 's'} · {activeTotalItems} tracked items</p>
-            </div>
-            <Button variant="secondary" size="sm" onClick={openAddSection} icon={<span className="material-symbols-outlined text-lg">add</span>}>
-              Add Pillar
-            </Button>
-          </div>
-
-          {sortedSections.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-10 text-center dark:border-neutral-700 dark:bg-neutral-900">
-              <span className="material-symbols-outlined mb-2 text-3xl text-neutral-300 dark:text-neutral-700">view_column</span>
-              <p className="text-sm font-semibold text-neutral-600 dark:text-neutral-300">No pillars yet.</p>
-              <Button size="sm" className="mt-4" onClick={openAddSection} icon={<span className="material-symbols-outlined text-lg">add</span>}>
-                Add your first pillar
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {sortedSections.map((section, index) => {
-                const accent = PILLAR_ACCENTS[index % PILLAR_ACCENTS.length];
-                const sectionItems = [...(section.items || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
-                const sectionDone = sectionItems.filter((i) => i.status === 'done').length;
-                const sectionPct = sectionItems.length === 0 ? 0 : Math.round((sectionDone / sectionItems.length) * 100);
-                return (
-                  <div
-                    key={section._id}
-                    className="animate-slide-up flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card ring-1 ring-black/[0.02] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_-15px_rgba(15,23,42,0.25)] dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/[0.03]"
-                  >
-                    <div className={`h-1.5 w-full bg-gradient-to-r ${accent.grad}`} />
-                    <div className="flex items-center justify-between gap-2 px-4 pt-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${accent.soft} ${accent.text}`}>
-                          <span className="material-symbols-outlined text-[16px]">view_column</span>
-                        </span>
-                        <h3 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{section.title}</h3>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <button type="button" onClick={() => openRenameSection(section)} title="Rename pillar" className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Rename pillar">
-                          <span className="material-symbols-outlined text-[15px]">edit</span>
-                        </button>
-                        <button type="button" onClick={() => handleDeleteSection(section)} title="Delete pillar" className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete pillar">
-                          <span className="material-symbols-outlined text-[15px]">delete</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {section.description ? (
-                      <p className="px-4 pt-1.5 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{section.description}</p>
-                    ) : null}
-
-                    <div className="px-4 pb-1 pt-2.5">
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-neutral-400">
-                        <span>{sectionDone}/{sectionItems.length} done</span>
-                        <span>{sectionPct}%</span>
-                      </div>
-                      <div className="mt-1"><ProgressBar value={sectionPct} colorClass={accent.bar} /></div>
-                    </div>
-
-                    <div className="flex-1 space-y-0.5 p-2.5">
-                      {sectionItems.length === 0 ? (
-                        <p className="px-2 py-3 text-center text-xs text-neutral-400">No items yet.</p>
-                      ) : (
-                        sectionItems.map((item) => (
-                          <div key={item._id} className="group flex items-center gap-2 rounded-xl px-2 py-1.5 transition hover:bg-neutral-50 dark:hover:bg-neutral-800/60">
-                            <button
-                              type="button"
-                              onClick={() => cycleItemStatus(section._id, item)}
-                              title={`${STATUS_LABEL[item.status]} — click to change`}
-                              className={`flex shrink-0 items-center justify-center transition hover:scale-110 ${STATUS_ICON_COLOR[item.status] || STATUS_ICON_COLOR['not-started']}`}
-                            >
-                              <span className="material-symbols-outlined text-[20px]">{STATUS_ICON[item.status] || STATUS_ICON['not-started']}</span>
-                            </button>
-                            {item.image?.url ? (
-                              <img src={item.image.url} alt="" onError={hideOnError} className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-black/5" />
-                            ) : null}
-                            <span className={`min-w-0 flex-1 truncate text-sm ${item.status === 'done' ? 'text-neutral-400 line-through decoration-neutral-300' : 'text-neutral-700 dark:text-neutral-200'}`}>
-                              {item.title}
-                            </span>
-                            {item.link ? (
-                              <a href={item.link} target="_blank" rel="noreferrer" className="shrink-0 text-neutral-300 transition hover:text-primary" aria-label="Open link">
-                                <span className="material-symbols-outlined text-[15px]">link</span>
-                              </a>
-                            ) : null}
-                            <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                              <button type="button" onClick={() => openEditItem(section._id, item)} title="Edit item" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-700 dark:hover:text-neutral-200" aria-label="Edit item">
-                                <span className="material-symbols-outlined text-[14px]">edit</span>
-                              </button>
-                              <button type="button" onClick={() => handleDeleteItem(section._id, item)} title="Delete item" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20" aria-label="Delete item">
-                                <span className="material-symbols-outlined text-[14px]">close</span>
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="p-2.5 pt-0">
-                      <button
-                        type="button"
-                        onClick={() => openAddItem(section._id)}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-400 transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-neutral-700"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">add</span>
-                        Add item
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          </div>
+          <PortfolioGroupsPanel portfolioId={active._id} token={token} pillarsRef={pillarsRef} />
 
           {/* Edit info modal */}
           <Modal open={infoModal} title={<ModalTitle icon="edit">Edit Portfolio Info</ModalTitle>} onClose={() => setInfoModal(false)}>
@@ -869,98 +603,6 @@ export default function AdminPortfolioPage() {
             </form>
           </Modal>
 
-          {/* Section add/rename modal */}
-          <Modal open={Boolean(sectionModal)} title={<ModalTitle icon={sectionModal?.mode === 'add' ? 'add' : 'edit'}>{sectionModal?.mode === 'add' ? 'Add Pillar' : 'Rename Pillar'}</ModalTitle>} onClose={() => setSectionModal(null)}>
-            <form onSubmit={submitSection} className="space-y-3">
-              <Input
-                label="Pillar title"
-                name="title"
-                value={sectionModal?.title || ''}
-                onChange={(e) => setSectionModal((s) => ({ ...s, title: e.target.value }))}
-                autoFocus
-              />
-              <Input
-                label="Purpose / summary (optional)"
-                name="description"
-                value={sectionModal?.description || ''}
-                onChange={(e) => setSectionModal((s) => ({ ...s, description: e.target.value }))}
-                placeholder="What this pillar covers and why it matters"
-              />
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setSectionModal(null)}>Cancel</Button>
-                <Button type="submit" loading={busy}>{sectionModal?.mode === 'add' ? 'Add pillar' : 'Save changes'}</Button>
-              </div>
-            </form>
-          </Modal>
-
-          {/* Item add/edit modal */}
-          <Modal open={Boolean(itemModal)} title={<ModalTitle icon={itemModal?.mode === 'add' ? 'add_task' : 'edit'}>{itemModal?.mode === 'add' ? 'Add Item' : 'Edit Item'}</ModalTitle>} onClose={() => setItemModal(null)}>
-            <form onSubmit={submitItem} className="space-y-3">
-              <Input
-                label="Title"
-                name="title"
-                value={itemModal?.title || ''}
-                onChange={(e) => setItemModal((s) => ({ ...s, title: e.target.value }))}
-                autoFocus
-              />
-              <Input
-                label="Notes"
-                name="notes"
-                value={itemModal?.notes || ''}
-                onChange={(e) => setItemModal((s) => ({ ...s, notes: e.target.value }))}
-              />
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input
-                  label="Link"
-                  name="link"
-                  value={itemModal?.link || ''}
-                  onChange={(e) => setItemModal((s) => ({ ...s, link: e.target.value }))}
-                  placeholder="https://"
-                />
-                <Select
-                  label="Status"
-                  name="status"
-                  options={STATUS_OPTIONS}
-                  value={itemModal?.status || 'not-started'}
-                  onChange={(e) => setItemModal((s) => ({ ...s, status: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Image (optional)</label>
-                {itemModal?.imagePreview || itemModal?.image?.url ? (
-                  <div className="flex items-center gap-3">
-                    <div className="relative h-16 w-16 shrink-0">
-                      <img
-                        src={itemModal.imagePreview || itemModal.image.url}
-                        alt=""
-                        onError={hideOnError}
-                        className="h-16 w-16 rounded-lg object-cover ring-1 ring-black/5"
-                      />
-                      {itemStage === 'uploading' ? (
-                        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40">
-                          <span className="material-symbols-outlined animate-spin text-[20px] text-white">progress_activity</span>
-                        </div>
-                      ) : null}
-                    </div>
-                    <Button type="button" variant="secondary" disabled={busy} onClick={clearItemImage}>Remove</Button>
-                  </div>
-                ) : (
-                  <label className={`flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-neutral-200 px-3 py-2.5 text-xs font-semibold text-neutral-400 transition dark:border-neutral-700 ${busy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-primary/40 hover:bg-primary/5 hover:text-primary'}`}>
-                    <span className="material-symbols-outlined text-[16px]">upload</span>
-                    Upload image
-                    <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={onItemImageChange} />
-                  </label>
-                )}
-                {itemModal?.imageError ? <p className="mt-1.5 text-xs font-medium text-rose-500">{itemModal.imageError}</p> : null}
-              </div>
-              <div className="flex items-center justify-end gap-2 pt-2">
-                {itemStage === 'uploading' ? <span className="text-xs font-medium text-neutral-400">Uploading image…</span> : null}
-                {itemStage === 'removing' ? <span className="text-xs font-medium text-neutral-400">Removing image…</span> : null}
-                <Button type="button" variant="secondary" disabled={busy} onClick={() => setItemModal(null)}>Cancel</Button>
-                <Button type="submit" loading={busy}>{itemModal?.mode === 'add' ? 'Add item' : 'Save changes'}</Button>
-              </div>
-            </form>
-          </Modal>
         </div>
       </main>
     );

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
 import Button from './Button';
 
@@ -6,7 +7,9 @@ const Drawer = ({ open, title, children, onClose, side = 'right', className }) =
 
   const placement = side === 'left' ? 'justify-start' : 'justify-end';
 
-  return (
+  // Portaled to <body> so the `fixed` overlay always resolves against the
+  // viewport, never a transformed ancestor (see Modal.jsx).
+  return createPortal(
     <div className={cn('fixed inset-0 z-50 flex bg-black/50', placement)} role="dialog" aria-modal="true">
       <aside className={cn('h-full w-full max-w-md overflow-y-auto bg-white shadow-2xl dark:bg-neutral-900', className)}>
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
@@ -17,7 +20,8 @@ const Drawer = ({ open, title, children, onClose, side = 'right', className }) =
         </div>
         <div className="p-4">{children}</div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

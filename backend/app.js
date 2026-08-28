@@ -237,6 +237,7 @@ app.use("/api/legal", routes.legalDocRoutes);
 app.use("/api/portal-support", routes.portalSupportRoutes);
 app.use("/api/logs", routes.logRoutes);
 app.use("/api/portfolios", routes.portfolioRoutes);
+app.use("/api/portfolio-hierarchy", routes.portfolioHierarchyRoutes);
 
 logger.info({ routeCount: countExpressRoutes(app) }, "Routes loaded");
 

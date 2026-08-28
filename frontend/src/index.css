@@ -162,7 +162,12 @@ button {
   }
 
   .app-page-enter {
-    animation: erp-page-enter 320ms ease-out both;
+    /* `backwards`, not `both`: `both` retains the final keyframe's
+       `transform: translateY(0)` forever, and any non-`none` transform turns
+       this element into the containing block for every `position: fixed`
+       descendant — which mis-anchors modals/toasts/dialogs to this element
+       instead of the viewport once the page is scrolled. */
+    animation: erp-page-enter 320ms ease-out backwards;
   }
 
   .app-modal {
@@ -238,6 +243,20 @@ button {
     @apply text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400;
   }
 
+  /* ── Portal horizontal tab strip ──────────────────────────── */
+  /* Scrolls sideways on narrow screens instead of wrapping into several
+     stacked rows (which eats vertical space); wraps normally from `sm` up. */
+  .portal-tab-strip {
+    @apply -mx-4 flex gap-2 overflow-x-auto px-4 pb-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0;
+    scrollbar-width: none;
+  }
+  .portal-tab-strip::-webkit-scrollbar {
+    display: none;
+  }
+  .portal-tab-strip > * {
+    @apply shrink-0 whitespace-nowrap;
+  }
+
   /* ── Portal page shell (content area wrapper) ─────────────── */
   .portal-page {
     @apply flex-1 overflow-y-auto;
@@ -297,7 +316,10 @@ button {
   padding: var(--erp-space-16);
   width: 100%;
   min-width: 0;
-  animation: erp-page-enter 320ms ease-out both;
+  /* `backwards`, not `both` — see the note on `.app-page-enter`. `both` would
+     leave a permanent `transform` here, trapping every `position: fixed`
+     modal/toast/dialog inside `.portal-content` instead of the viewport. */
+  animation: erp-page-enter 320ms ease-out backwards;
 }
 
 @media (min-width: 768px) {
@@ -517,5 +539,8 @@ button {
 }
 
 .app-pop-enter {
-  animation: erp-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  /* `backwards`, not `both` — `both` would retain `transform: scale(1)` after
+     the pop finishes, trapping any `position: fixed` descendant. End state
+     equals the natural state, so this is visually identical. */
+  animation: erp-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }

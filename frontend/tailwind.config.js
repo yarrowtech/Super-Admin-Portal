@@ -145,14 +145,21 @@ export default {
         },
       },
       animation: {
+        // Transform-based entrance animations use `backwards`, NOT `both`:
+        // `both` retains the final keyframe's transform forever, and any
+        // lingering non-`none` transform makes that element the containing
+        // block for its `position: fixed` descendants — which mis-anchors
+        // modals/overlays to the wrapper instead of the viewport once the
+        // page is scrolled. Their end state already equals the natural
+        // (no-animation) state, so `backwards` is visually identical.
         "fade-in":        "fade-in 200ms ease-out both",
-        "slide-up":       "slide-up 280ms ease-out both",
-        "slide-down":     "slide-down 280ms ease-out both",
-        "slide-in-right": "slide-in-right 280ms ease-out both",
-        "scale-in":       "scale-in 200ms ease-out both",
+        "slide-up":       "slide-up 280ms ease-out backwards",
+        "slide-down":     "slide-down 280ms ease-out backwards",
+        "slide-in-right": "slide-in-right 280ms ease-out backwards",
+        "scale-in":       "scale-in 200ms ease-out backwards",
         "toast-enter":    "toast-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both",
         "toast-exit":     "toast-exit 200ms ease-in both",
-        "counter-up":     "counter-up 400ms ease-out both",
+        "counter-up":     "counter-up 400ms ease-out backwards",
         "spin-slow":      "spin-slow 2s linear infinite",
         "pulse-soft":     "pulse-soft 2s ease-in-out infinite",
         "shimmer":        "shimmer 1.6s linear infinite",

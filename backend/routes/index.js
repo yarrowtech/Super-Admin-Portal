@@ -34,3 +34,4 @@ exports.portalSupportRoutes = require("./portalSupport.routes");
 exports.legalDocRoutes = require("./legalDocument.v2.routes");
 exports.logRoutes = require("./log.routes");
 exports.portfolioRoutes = require("./portfolio.routes");
+exports.portfolioHierarchyRoutes = require("../modules/portfolio/portfolioHierarchy.routes");

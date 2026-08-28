@@ -94,6 +94,8 @@ import {
   AdminSettingsPage,
   AdminPortfolioPage,
   PortfolioViewerPage,
+  PortfolioCategoryWorkspacePage,
+  PortfolioAssetDetailPage,
   OutsourcingProjectsPage,
   OutsourcingEfnbmmsAdminManagementPage,
   OutsourcingEdifyEightWorkspacePage,
@@ -749,6 +751,26 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.ADMIN}>
               <PrivateRoute roles={adminRoles}>
                 {withPortal(AdminLayout, AdminPortfolioPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/admin/digital-portfolio/:portfolioId/category/:categoryId"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, PortfolioCategoryWorkspacePage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/admin/digital-portfolio/:portfolioId/category/:categoryId/asset/:assetId"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, PortfolioAssetDetailPage)}
               </PrivateRoute>
             </PortalRoute>
           }

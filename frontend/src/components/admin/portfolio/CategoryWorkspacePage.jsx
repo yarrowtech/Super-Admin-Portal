@@ -1,107 +1,137 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../../context/AuthContext';
-import { useToast } from '../../../context/ToastContext';
 import { portfolioHierarchyApi } from '../../../services/portfolioHierarchy';
-import { QK } from '../../../utils/queryKeys';
-import PortalHeader from '../../common/PortalHeader';
-import Button from '../../common/Button';
-import DataTable from '../../ui/DataTable';
-import EmptyState from '../../ui/EmptyState';
-import Modal from '../../ui/Modal';
-import Input from '../../ui/Input';
-import { isOverdue } from './portfolioStatus';
-import { StatusPill, PriorityPill } from './PortfolioStatusPills';
+import { QK, cachePolicyFor } from '../../../utils/queryKeys';
+import DropdownMenu from '../../ui/DropdownMenu';
+import Skeleton from '../../ui/Skeleton';
+import PortfolioBreadcrumb from './PortfolioBreadcrumb';
+import { UserAvatar } from './UserPicker';
+import { HealthPill } from './PortfolioStatusPills';
+import { timeAgo } from './portfolioStatus';
+import { getAccent } from './portfolioTheme';
+import CategoryOverviewTab from './tabs/CategoryOverviewTab';
+import CategoryAssetsTab from './tabs/CategoryAssetsTab';
+import AssetCreateDrawer from './tabs/AssetCreateDrawer';
+import CategoryTasksTab from './tabs/CategoryTasksTab';
+import CategoryActivityTab from './tabs/CategoryActivityTab';
+import CategoryFilesTab from './tabs/CategoryFilesTab';
+import CategoryMetricsTab from './tabs/CategoryMetricsTab';
+import CategorySettingsTab from './tabs/CategorySettingsTab';
 
 const unwrap = (res) => res?.data ?? res ?? {};
-
-const fmtDate = (v) => {
-  if (!v) return '—';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-};
-
-const ownerName = (owner) => {
-  if (!owner || typeof owner !== 'object') return '—';
-  return `${owner.firstName || ''} ${owner.lastName || ''}`.trim() || owner.email || '—';
-};
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'assets', label: 'Assets' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'files', label: 'Files' },
+  { id: 'metrics', label: 'Metrics' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 const CategoryWorkspacePage = () => {
   const { portfolioId, categoryId } = useParams();
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
-  const toast = useToast();
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchParams, setSearchParams] = useSearchParams();
-  const [createModal, setCreateModal] = useState(null);
-
-  const page = Math.max(1, Number(searchParams.get('page') || 1));
-  const search = searchParams.get('search') || '';
-  const status = searchParams.get('status') || '';
-  const priority = searchParams.get('priority') || '';
-
-  const setParam = (key, val) => {
-    const next = new URLSearchParams(searchParams);
-    if (val) next.set(key, val); else next.delete(key);
-    next.set('page', '1');
-    setSearchParams(next);
-  };
+  const [createOpen, setCreateOpen] = useState(false);
 
   const categoryQuery = useQuery({
     queryKey: QK.portfolioHierarchy.category(categoryId),
     queryFn: () => portfolioHierarchyApi.getCategory(token, categoryId),
     enabled: Boolean(token && categoryId),
+    ...cachePolicyFor(QK.portfolioHierarchy.category(categoryId)),
   });
   const category = unwrap(categoryQuery.data);
 
-  const statsQuery = useQuery({
-    queryKey: QK.portfolioHierarchy.categoryStats(categoryId),
-    queryFn: () => portfolioHierarchyApi.getCategoryStats(token, categoryId),
+  const groupQuery = useQuery({
+    queryKey: QK.portfolioHierarchy.group(category.groupId),
+    queryFn: () => portfolioHierarchyApi.getGroup(token, category.groupId),
+    enabled: Boolean(token && category.groupId),
+    ...cachePolicyFor(QK.portfolioHierarchy.group(category.groupId)),
+  });
+  const group = unwrap(groupQuery.data);
+
+  // Same query (and cache entry) CategoryOverviewTab uses for the Overview tab
+  // body — sharing it here means the header's health pill / % complete never
+  // triggers a second round trip when that tab is the active one, and both
+  // read from one in-flight request when it isn't.
+  const overviewQuery = useQuery({
+    queryKey: QK.portfolioHierarchy.overview(categoryId),
+    queryFn: () => portfolioHierarchyApi.getCategoryOverview(token, categoryId),
     enabled: Boolean(token && categoryId),
+    ...cachePolicyFor(QK.portfolioHierarchy.overview(categoryId)),
   });
-  const stats = unwrap(statsQuery.data);
+  const overview = unwrap(overviewQuery.data);
+  const health = overview.health || {};
+  const pct = overview.execution?.pct ?? 0;
 
-  const assetsParams = { page, limit: 10, search, status, priority };
-  const assetsQuery = useQuery({
-    queryKey: QK.portfolioHierarchy.assets(categoryId, assetsParams),
-    queryFn: () => portfolioHierarchyApi.getAssets(token, categoryId, assetsParams),
-    enabled: Boolean(token && categoryId) && activeTab === 'assets',
-  });
-  const assetsData = unwrap(assetsQuery.data);
-  const assetRows = assetsData.items || [];
+  const accent = getAccent(category.accent);
+  const owner = category.ownerId && typeof category.ownerId === 'object' ? category.ownerId : null;
 
-  const createAssetMutation = useMutation({
-    mutationFn: (body) => portfolioHierarchyApi.createAsset(token, categoryId, body),
-    onSuccess: (res) => {
-      toast.success('Asset created.');
-      setCreateModal(null);
-      queryClient.invalidateQueries({ queryKey: QK.portfolioHierarchy.assets(categoryId, {}) });
-      queryClient.invalidateQueries({ queryKey: QK.portfolioHierarchy.categoryStats(categoryId) });
-      const created = unwrap(res);
-      if (created?._id) navigate(`/admin/digital-portfolio/${portfolioId}/category/${categoryId}/asset/${created._id}`);
-    },
-    onError: (err) => toast.error(err?.message || 'Failed to create asset'),
-  });
+  const openAsset = (assetId) => navigate(`/admin/digital-portfolio/${portfolioId}/category/${categoryId}/asset/${assetId}`);
+
+  if (categoryQuery.isLoading) {
+    return <main className="portal-page"><div className="portal-page-inner"><Skeleton className="h-40 rounded-2xl" /></div></main>;
+  }
 
   return (
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
-        <PortalHeader
-          title={category.title || 'Category Workspace'}
-          subtitle={category.purpose || category.description || 'No category purpose has been added yet.'}
-          icon={category.icon || 'folder_open'}
-          user={user}
-        >
-          <Button variant="primary" size="sm" onClick={() => setCreateModal({ title: '', assetType: category.defaultAssetType || '', dueDate: '' })}>New Asset</Button>
-        </PortalHeader>
+        <PortfolioBreadcrumb
+          items={[
+            { label: 'Digital Portfolios', to: '/admin/digital-portfolio' },
+            { label: group.title || '…' },
+            { label: category.title || 'Category' },
+          ]}
+        />
+
+        <header className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 lg:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${accent.soft} ${accent.text}`}>
+                <span className="material-symbols-outlined text-[22px]">{category.icon || 'folder_open'}</span>
+              </span>
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-black tracking-tight text-neutral-900 dark:text-white sm:text-xl">{category.title}</h1>
+                <p className="mt-1 max-w-2xl text-sm text-neutral-500 dark:text-neutral-400">
+                  {category.purpose || category.description || 'No purpose has been added for this category yet.'}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <HealthPill value={health.status} />
+                  <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{pct}% Complete</span>
+                  {owner && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                      <UserAvatar user={owner} size={18} />
+                      Owner: {owner.name || `${owner.firstName || ''} ${owner.lastName || ''}`.trim() || owner.email}
+                    </span>
+                  )}
+                  <span className="text-xs text-neutral-400">Last updated {timeAgo(category.updatedAt)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-600"
+              >
+                <span className="material-symbols-outlined text-lg">add</span>
+                New Asset
+              </button>
+              <DropdownMenu
+                items={[
+                  { label: 'Edit settings', icon: 'settings', onClick: () => setActiveTab('settings') },
+                ]}
+              />
+            </div>
+          </div>
+        </header>
 
         <div className="portal-tab-strip border-b border-neutral-200 dark:border-neutral-800">
           {TABS.map((tab) => (
@@ -116,100 +146,31 @@ const CategoryWorkspacePage = () => {
           ))}
         </div>
 
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {[
-              { label: 'Total Assets', value: stats.total ?? 0 },
-              { label: 'Published', value: stats.byStatus?.published || 0 },
-              { label: 'Needs Review', value: stats.needsReview || 0 },
-              { label: 'Overdue', value: stats.overdue || 0 },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-                <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{item.label}</p>
-                <p className="mt-2 text-2xl font-black tracking-tight text-neutral-900 dark:text-white">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
+        {activeTab === 'overview' && <CategoryOverviewTab categoryId={categoryId} onGoToTab={setActiveTab} />}
         {activeTab === 'assets' && (
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 lg:p-6">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-              <input
-                value={search}
-                onChange={(e) => setParam('search', e.target.value)}
-                placeholder="Search assets…"
-                className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm dark:border-neutral-700 dark:bg-neutral-900 sm:w-auto sm:min-w-[16rem]"
-              />
-              <div className="grid grid-cols-2 gap-3 sm:flex sm:w-auto">
-                <select value={status} onChange={(e) => setParam('status', e.target.value)} className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900 sm:w-auto">
-                  <option value="">All Status</option>
-                  <option value="backlog">Backlog</option>
-                  <option value="draft">Draft</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="in_review">In Review</option>
-                  <option value="changes_requested">Changes Requested</option>
-                  <option value="approved">Approved</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-                <select value={priority} onChange={(e) => setParam('priority', e.target.value)} className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900 sm:w-auto">
-                  <option value="">All Priority</option>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
-                </select>
-              </div>
-              <Button variant="primary" size="sm" className="w-full sm:ml-auto sm:w-auto" onClick={() => setCreateModal({ title: '' })} icon={<span className="material-symbols-outlined text-lg">add</span>}>
-                New Asset
-              </Button>
-            </div>
-            <DataTable
-              columns={[
-                { key: 'title', header: 'Title', render: (r) => (
-                  <span className="font-semibold text-neutral-900 dark:text-white">
-                    {r.title}
-                    {isOverdue(r) ? <span className="ml-2 text-xs font-semibold text-rose-500">Overdue</span> : null}
-                  </span>
-                ) },
-                { key: 'assetType', header: 'Type', render: (r) => r.assetType || '—' },
-                { key: 'status', header: 'Status', render: (r) => <StatusPill value={r.status} /> },
-                { key: 'priority', header: 'Priority', render: (r) => <PriorityPill value={r.priority} /> },
-                { key: 'ownerId', header: 'Owner', render: (r) => ownerName(r.ownerId) },
-                { key: 'dueDate', header: 'Due', render: (r) => fmtDate(r.dueDate) },
-                { key: 'updatedAt', header: 'Updated', render: (r) => fmtDate(r.updatedAt) },
-              ]}
-              rows={assetRows}
-              rowKey="_id"
-              loading={assetsQuery.isLoading}
-              emptyTitle="No assets yet"
-              emptyDescription="Create your first asset in this category."
-              emptyAction={{ label: 'New Asset', onClick: () => setCreateModal({ title: '' }) }}
-              onRowClick={(r) => navigate(`/admin/digital-portfolio/${portfolioId}/category/${categoryId}/asset/${r._id}`)}
-            />
-          </section>
+          <CategoryAssetsTab
+            portfolioId={portfolioId}
+            categoryId={categoryId}
+            searchParams={searchParams}
+            setSearchParams={setSearchParams}
+            onOpenAsset={openAsset}
+            onNewAsset={() => setCreateOpen(true)}
+          />
         )}
-
+        {activeTab === 'tasks' && <CategoryTasksTab portfolioId={portfolioId} categoryId={categoryId} />}
+        {activeTab === 'activity' && <CategoryActivityTab categoryId={categoryId} />}
+        {activeTab === 'files' && <CategoryFilesTab portfolioId={portfolioId} categoryId={categoryId} />}
+        {activeTab === 'metrics' && <CategoryMetricsTab portfolioId={portfolioId} categoryId={categoryId} />}
+        {activeTab === 'settings' && <CategorySettingsTab portfolioId={portfolioId} categoryId={categoryId} category={category} />}
       </div>
 
-      <Modal open={Boolean(createModal)} title="New Asset" onClose={() => setCreateModal(null)}>
-        {createModal ? (
-          <form
-            className="space-y-3"
-            onSubmit={(e) => { e.preventDefault(); if (createModal.title.trim() && createModal.assetType?.trim()) createAssetMutation.mutate(createModal); }}
-          >
-            <Input label="Asset title" name="assetTitle" value={createModal.title} onChange={(e) => setCreateModal((f) => ({ ...f, title: e.target.value }))} required autoFocus />
-            <Input label="Asset type" name="assetType" value={createModal.assetType || ''} onChange={(e) => setCreateModal((f) => ({ ...f, assetType: e.target.value }))} required />
-            <Input type="date" label="Due date" name="dueDate" value={createModal.dueDate || ''} onChange={(e) => setCreateModal((f) => ({ ...f, dueDate: e.target.value }))} />
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button type="button" variant="secondary" onClick={() => setCreateModal(null)}>Cancel</Button>
-              <Button type="submit" loading={createAssetMutation.isPending}>Create asset</Button>
-            </div>
-          </form>
-        ) : null}
-      </Modal>
+      <AssetCreateDrawer
+        open={createOpen}
+        onClose={(newAssetId) => { setCreateOpen(false); if (newAssetId) openAsset(newAssetId); }}
+        portfolioId={portfolioId}
+        categoryId={categoryId}
+        category={category}
+      />
     </main>
   );
 };

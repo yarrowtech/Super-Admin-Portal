@@ -4,6 +4,8 @@ const files = require('./portfolioFile.service');
 const activity = require('./portfolioActivity.service');
 const health = require('./portfolioHealth.service');
 const metrics = require('./portfolioMetric.service');
+const comments = require('./portfolioComment.service');
+const relations = require('./portfolioRelation.service');
 
 // Thin HTTP layer — all business logic lives in portfolioHierarchy.service.js.
 // Response envelope matches the existing backend/controllers/portfolio.controller.js
@@ -48,6 +50,8 @@ exports.restoreCategory = handle(async (req) => service.restoreCategoryFromArchi
 exports.trashCategory = handle(async (req) => service.trashCategory(req.params.categoryId, actor(req)));
 exports.restoreCategoryFromTrash = handle(async (req) => service.restoreCategoryFromTrash(req.params.categoryId, actor(req)));
 exports.getCategoryStats = handle(async (req) => service.getCategoryStats(req.params.categoryId));
+exports.getCategoryOverview = handle(async (req) => service.getCategoryOverview(req.params.categoryId));
+exports.listAssignees = handle(async (req) => service.listAssignees(req.query));
 
 // ---- Assets ----
 exports.listAssets = handle(async (req) => service.listAssets(req.params.categoryId, req.query));
@@ -63,6 +67,7 @@ exports.restoreAsset = handle(async (req) => service.restoreAsset(req.params.ass
 exports.listAssetVersions = handle(async (req) => service.listAssetVersions(req.params.assetId));
 exports.restoreAssetVersion = handle(async (req) => service.restoreAssetVersion(req.params.assetId, req.params.versionId, actor(req)));
 exports.listAssetHistory = handle(async (req) => service.listAssetHistory(req.params.assetId, req.query));
+exports.getAssetTransitions = handle(async (req) => service.getAssetTransitions(req.params.assetId));
 
 // ---- Portfolio rollup ----
 exports.getPortfolioTree = handle(async (req) => service.getPortfolioTree(req.params.portfolioId));
@@ -81,4 +86,21 @@ exports.fileVersions = handle(async (req) => files.listVersions(req.params.fileI
 exports.archiveFile = handle(async (req) => files.archiveFile(req.params.fileId, actor(req)));
 exports.metricDefinitions = handle(async () => metrics.listDefinitions());
 exports.categoryMetrics = handle(async (req) => metrics.getMetrics(req.params.categoryId, req.query));
+exports.categoryMetricsTimeseries = handle(async (req) => metrics.getTimeseries(req.params.categoryId, req.query));
+exports.categoryMetricsByAsset = handle(async (req) => metrics.getByAsset(req.params.categoryId, req.query));
 exports.upsertMetric = handle(async (req) => metrics.upsertMetric(req.params.categoryId, req.body, actor(req)));
+exports.importMetricsCsv = handle(async (req) => {
+  if (!req.file) throw Object.assign(new Error('A CSV file is required'), { statusCode: 400 });
+  return metrics.importCsv(req.params.categoryId, req.file.buffer, actor(req));
+});
+
+// ---- Comments ----
+exports.listComments = handle(async (req) => comments.listComments(req.params.assetId));
+exports.createComment = handle(async (req) => { req._successStatus = 201; return comments.createComment(req.params.assetId, req.body, actor(req)); });
+exports.updateComment = handle(async (req) => comments.updateComment(req.params.commentId, req.body, actor(req)));
+exports.deleteComment = handle(async (req) => comments.deleteComment(req.params.commentId, actor(req)));
+
+// ---- Relations ----
+exports.listRelations = handle(async (req) => relations.listRelations(req.params.assetId));
+exports.createRelation = handle(async (req) => { req._successStatus = 201; return relations.createRelation(req.params.assetId, req.body, actor(req)); });
+exports.deleteRelation = handle(async (req) => relations.deleteRelation(req.params.relationId, actor(req)));

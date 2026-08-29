@@ -14,6 +14,7 @@ const BASE = '/api/portfolio-hierarchy';
 
 export const portfolioHierarchyApi = {
   getBrands: (token) => apiClient.get(`${BASE}/brands`, token, { cache: false }),
+  getAssignees: (token, search = '') => apiClient.get(buildUrl(`${BASE}/assignees`, { search }), token, { cache: false }),
 
   // Groups
   getGroups: (token, portfolioId) => apiClient.get(`${BASE}/portfolios/${portfolioId}/groups`, token, { cache: false }),
@@ -30,6 +31,7 @@ export const portfolioHierarchyApi = {
   getCategories: (token, groupId) => apiClient.get(`${BASE}/groups/${groupId}/categories`, token, { cache: false }),
   getCategory: (token, categoryId) => apiClient.get(`${BASE}/categories/${categoryId}`, token, { cache: false }),
   getCategoryStats: (token, categoryId) => apiClient.get(`${BASE}/categories/${categoryId}/stats`, token, { cache: false }),
+  getCategoryOverview: (token, categoryId) => apiClient.get(`${BASE}/categories/${categoryId}/overview`, token, { cache: false }),
   createCategory: (token, groupId, body) => apiClient.post(`${BASE}/groups/${groupId}/categories`, body, token),
   updateCategory: (token, categoryId, body) => apiClient.patch(`${BASE}/categories/${categoryId}`, body, token),
   archiveCategory: (token, categoryId) => apiClient.post(`${BASE}/categories/${categoryId}/archive`, {}, token),
@@ -48,16 +50,44 @@ export const portfolioHierarchyApi = {
   getAssetVersions: (token, assetId) => apiClient.get(`${BASE}/assets/${assetId}/versions`, token, { cache: false }),
   restoreAssetVersion: (token, assetId, versionId) => apiClient.post(`${BASE}/assets/${assetId}/restore-version/${versionId}`, {}, token),
   getAssetHistory: (token, assetId, params = {}) => apiClient.get(buildUrl(`${BASE}/assets/${assetId}/history`, params), token, { cache: false }),
+  getAssetTransitions: (token, assetId) => apiClient.get(`${BASE}/assets/${assetId}/transitions`, token, { cache: false }),
 
+  // Tasks
   getTasks: (token, categoryId, params = {}) => apiClient.get(buildUrl(`${BASE}/categories/${categoryId}/tasks`, params), token, { cache: false }),
   createTask: (token, categoryId, body) => apiClient.post(`${BASE}/categories/${categoryId}/tasks`, body, token),
   updateTask: (token, taskId, body) => apiClient.patch(`${BASE}/tasks/${taskId}`, body, token),
+  moveTask: (token, taskId, body) => apiClient.post(`${BASE}/tasks/${taskId}/move`, body, token),
   archiveTask: (token, taskId) => apiClient.post(`${BASE}/tasks/${taskId}/archive`, {}, token),
+
+  // Activity / health
   getCategoryActivity: (token, categoryId, params = {}) => apiClient.get(buildUrl(`${BASE}/categories/${categoryId}/activity`, params), token, { cache: false }),
   getCategoryHealth: (token, categoryId) => apiClient.get(`${BASE}/categories/${categoryId}/health`, token, { cache: false }),
+  getPortfolioHealth: (token, portfolioId) => apiClient.get(`${BASE}/portfolios/${portfolioId}/health`, token, { cache: false }),
+
+  // Files
   getFiles: (token, categoryId, params = {}) => apiClient.get(buildUrl(`${BASE}/categories/${categoryId}/files`, params), token, { cache: false }),
+  getFileVersions: (token, fileId) => apiClient.get(`${BASE}/files/${fileId}/versions`, token, { cache: false }),
   uploadFile: (token, categoryId, formData) => apiClient.upload(`${BASE}/categories/${categoryId}/files`, formData, token),
+  replaceFile: (token, fileId, formData) => apiClient.upload(`${BASE}/files/${fileId}/replace`, formData, token),
+  updateFile: (token, fileId, body) => apiClient.patch(`${BASE}/files/${fileId}`, body, token),
   archiveFile: (token, fileId) => apiClient.post(`${BASE}/files/${fileId}/archive`, {}, token),
+
+  // Metrics
+  getMetricDefinitions: (token) => apiClient.get(`${BASE}/metric-definitions`, token, { cache: false }),
   getMetrics: (token, categoryId, params = {}) => apiClient.get(buildUrl(`${BASE}/categories/${categoryId}/metrics`, params), token, { cache: false }),
+  getMetricsTimeseries: (token, categoryId, params = {}) => apiClient.get(buildUrl(`${BASE}/categories/${categoryId}/metrics/timeseries`, params), token, { cache: false }),
+  getMetricsByAsset: (token, categoryId, params = {}) => apiClient.get(buildUrl(`${BASE}/categories/${categoryId}/metrics/by-asset`, params), token, { cache: false }),
   addMetric: (token, categoryId, body) => apiClient.post(`${BASE}/categories/${categoryId}/metrics`, body, token),
+  importMetricsCsv: (token, categoryId, formData) => apiClient.upload(`${BASE}/categories/${categoryId}/metrics/import`, formData, token),
+
+  // Comments
+  getComments: (token, assetId) => apiClient.get(`${BASE}/assets/${assetId}/comments`, token, { cache: false }),
+  createComment: (token, assetId, body) => apiClient.post(`${BASE}/assets/${assetId}/comments`, body, token),
+  updateComment: (token, commentId, body) => apiClient.patch(`${BASE}/comments/${commentId}`, body, token),
+  deleteComment: (token, commentId) => apiClient.delete(`${BASE}/comments/${commentId}`, token),
+
+  // Relations
+  getRelations: (token, assetId) => apiClient.get(`${BASE}/assets/${assetId}/relations`, token, { cache: false }),
+  createRelation: (token, assetId, body) => apiClient.post(`${BASE}/assets/${assetId}/relations`, body, token),
+  deleteRelation: (token, relationId) => apiClient.delete(`${BASE}/relations/${relationId}`, token),
 };

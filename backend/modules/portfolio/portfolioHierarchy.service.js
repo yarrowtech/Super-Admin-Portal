@@ -8,21 +8,19 @@ const PortfolioAssetVersion = require('../../models/portfolio/PortfolioAssetVers
 const ActivityLog = require('../../models/auth/ActivityLog');
 const User = require('../../models/auth/User');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
+const {
+  allowedTransitions,
+  canTransition,
+  SEMANTIC_STATUS_ACTION,
+  DEFAULT_WORKFLOW_KEY,
+  getWorkflow: getWorkflowPreset,
+} = require('./portfolioWorkflow');
+const { computeCategoryHealth } = require('./portfolioHealth.service');
 
-// ---- Status workflow (spec §7 "Default general workflow", hardcoded for the
-// Foundation phase — a real configurable Workflow collection can replace this
-// map later without an asset-schema migration). ----
-const ASSET_STATUS_TRANSITIONS = {
-  backlog: ['draft', 'archived'],
-  draft: ['backlog', 'in_progress', 'archived'],
-  in_progress: ['draft', 'in_review', 'archived'],
-  in_review: ['in_progress', 'changes_requested', 'approved', 'archived'],
-  changes_requested: ['in_progress', 'archived'],
-  approved: ['in_review', 'scheduled', 'published', 'archived'],
-  scheduled: ['approved', 'published', 'archived'],
-  published: ['archived'],
-  archived: ['draft'],
-};
+// Status workflow now lives in portfolioWorkflow.js as named presets (a category
+// picks one via `workflowKey`). ASSET_STATUS_TRANSITIONS is kept as a re-export
+// of the default preset for any caller still importing it directly.
+const ASSET_STATUS_TRANSITIONS = getWorkflowPreset(DEFAULT_WORKFLOW_KEY).transitions;
 
 class NotFoundError extends Error {
   constructor(message) {
@@ -52,7 +50,7 @@ const validUserId = async (id, label) => {
 const ASSET_CONTENT_FIELDS = [
   'title', 'assetType', 'description', 'priority', 'ownerId', 'reviewerId', 'tags',
   'targetAudience', 'market', 'channel', 'campaign',
-  'summary', 'content', 'cta', 'headline', 'seoTitle', 'metaDescription', 'keywords', 'notes',
+  'summary', 'content', 'cta', 'headline', 'seoTitle', 'metaDescription', 'keywords', 'angle', 'notes',
   'startDate', 'dueDate', 'reviewDate', 'publishDate', 'scheduleDate',
 ];
 
@@ -104,7 +102,7 @@ const createGroup = async (portfolioId, body, actor) => {
   assertId(portfolioId, 'portfolio id');
   const portfolio = await Portfolio.findById(portfolioId).select('_id');
   if (!portfolio) throw new NotFoundError('Portfolio not found');
-  const { title, description, icon, brandCode } = body;
+  const { title, description, purpose, icon, accent, brandCode } = body;
   if (!title || !String(title).trim()) throw new ValidationError('Group title is required');
 
   const count = await PortfolioGroup.countDocuments({ portfolioId, deletedAt: null });
@@ -113,8 +111,11 @@ const createGroup = async (portfolioId, body, actor) => {
     brandCode: brandCode || '',
     title: title.trim(),
     description: description || '',
+    purpose: purpose || '',
     icon: icon || 'view_column',
-    order: count,
+    accent: accent || 'indigo',
+    ownerId: await validUserId(body.ownerId, 'owner'),
+    order: body.order !== undefined ? Number(body.order) : count,
     createdBy: actor?.id,
     updatedBy: actor?.id,
   });
@@ -133,12 +134,15 @@ const getGroup = (groupId) => findGroupOrThrow(groupId);
 
 const updateGroup = async (groupId, body, actor) => {
   const group = await findGroupOrThrow(groupId);
-  const { title, description, icon, order, brandCode } = body;
+  const { title, description, purpose, icon, accent, order, brandCode } = body;
   if (title !== undefined) group.title = title;
   if (description !== undefined) group.description = description;
+  if (purpose !== undefined) group.purpose = purpose;
   if (icon !== undefined) group.icon = icon;
+  if (accent !== undefined) group.accent = accent;
   if (order !== undefined) group.order = order;
   if (brandCode !== undefined) group.brandCode = brandCode;
+  if (body.ownerId !== undefined) group.ownerId = await validUserId(body.ownerId, 'owner');
   group.updatedBy = actor?.id;
   await group.save();
   await audit(actor, 'PORTFOLIO_GROUP_UPDATED', 'PortfolioGroup', group._id, { fields: Object.keys(body || {}) });
@@ -231,7 +235,13 @@ const findCategoryOrThrow = async (categoryId) => {
   return category;
 };
 
-const getCategory = (categoryId) => findCategoryOrThrow(categoryId);
+const getCategory = async (categoryId) => {
+  await findCategoryOrThrow(categoryId); // 404s before the populated read below
+  return PortfolioCategory.findById(categoryId)
+    .populate('ownerId', 'firstName lastName email profileImage')
+    .populate('reviewerId', 'firstName lastName email profileImage')
+    .lean();
+};
 
 const updateCategory = async (categoryId, body, actor) => {
   const category = await findCategoryOrThrow(categoryId);
@@ -320,6 +330,61 @@ const getCategoryStats = async (categoryId) => {
   return buildCategoryStats(categoryId);
 };
 
+// Rich Overview-tab payload (spec §4): counters, execution breakdown, health
+// (delegated to portfolioHealth.service so the number shown here can never
+// disagree with the number returned by GET /categories/:id/health), a short
+// needs-attention list with reasons, upcoming deadlines, and recent activity.
+const getCategoryOverview = async (categoryId) => {
+  await findCategoryOrThrow(categoryId);
+  const now = new Date();
+
+  const [stats, health, overdueAssets, blockedAssets, upcoming, activityFeed] = await Promise.all([
+    buildCategoryStats(categoryId),
+    computeCategoryHealth(categoryId),
+    PortfolioAsset.find({
+      categoryId, deletedAt: null, dueDate: { $lt: now }, status: { $nin: ['published', 'measuring', 'archived'] },
+    }).select('title dueDate status').sort({ dueDate: 1 }).limit(5).lean(),
+    PortfolioAsset.find({ categoryId, deletedAt: null, status: 'blocked' }).select('title status updatedAt').sort({ updatedAt: -1 }).limit(5).lean(),
+    PortfolioAsset.find({
+      categoryId, deletedAt: null, dueDate: { $gte: now }, status: { $nin: ['published', 'measuring', 'archived'] },
+    }).select('title dueDate status').sort({ dueDate: 1 }).limit(5).lean(),
+    // eslint-disable-next-line global-require -- avoids a require cycle at module-load time
+    require('./portfolioActivity.service').listCategoryActivity(categoryId, { limit: 8 }),
+  ]);
+
+  const byStatus = stats.byStatus || {};
+  const counts = {
+    total: stats.total,
+    published: byStatus.published || 0,
+    inProgress: byStatus.in_progress || 0,
+    needsReview: byStatus.in_review || 0,
+    overdue: stats.overdue,
+    blocked: byStatus.blocked || 0,
+  };
+  const executionByStatus = {
+    published: byStatus.published || 0,
+    approved: byStatus.approved || 0,
+    in_review: byStatus.in_review || 0,
+    in_progress: byStatus.in_progress || 0,
+    draft: byStatus.draft || 0,
+  };
+  const pct = stats.total === 0 ? 0 : Math.round(((byStatus.published || 0) / stats.total) * 100);
+
+  const needsAttention = [
+    ...overdueAssets.map((a) => ({ _id: a._id, title: a.title, reason: 'overdue', detail: a.dueDate })),
+    ...blockedAssets.map((a) => ({ _id: a._id, title: a.title, reason: 'blocked', detail: a.updatedAt })),
+  ].slice(0, 6);
+
+  return {
+    counts,
+    execution: { pct, byStatus: executionByStatus },
+    health,
+    needsAttention,
+    upcomingDeadlines: upcoming,
+    recentActivity: activityFeed.items,
+  };
+};
+
 // ==================== Assets ====================
 
 const ASSET_LIST_FIELDS = '_id title assetType status priority ownerId reviewerId dueDate updatedAt createdAt tags channel campaign';
@@ -332,17 +397,38 @@ const listAssets = async (categoryId, params = {}) => {
   if (params.status) filter.status = params.status;
   if (params.priority) filter.priority = params.priority;
   if (params.owner) filter.ownerId = params.owner;
+  if (params.reviewer) filter.reviewerId = params.reviewer;
+  if (params.due === 'overdue') filter.dueDate = { $lt: new Date(), $ne: null };
+  else if (params.due === '7d') filter.dueDate = { $gte: new Date(), $lte: new Date(Date.now() + 7 * 864e5) };
+  else if (params.due === 'none') filter.dueDate = null;
   if (params.search) {
     const re = new RegExp(String(params.search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     filter.$or = [{ title: re }, { description: re }, { tags: re }];
   }
 
+  const sortableFields = new Set(['title', 'priority', 'dueDate', 'updatedAt', 'createdAt']);
+  const sortField = sortableFields.has(params.sortField) ? params.sortField : 'updatedAt';
+  const sortDir = params.sortDir === '1' ? 1 : -1;
+
+  const populate = (q) => q.populate('ownerId', 'firstName lastName email profileImage').populate('reviewerId', 'firstName lastName email profileImage');
+
+  if (sortField === 'priority') {
+    // Priority has a severity order (low < medium < high < critical), not an
+    // alphabetical one — .sort() can't express that, so rank in application
+    // code. Categories stay small enough (dozens to low hundreds of assets)
+    // for an unpaginated fetch here to be cheap.
+    const PRIORITY_RANK = { low: 0, medium: 1, high: 2, critical: 3 };
+    const all = await populate(PortfolioAsset.find(filter).select(ASSET_LIST_FIELDS)).lean();
+    all.sort((a, b) => (PRIORITY_RANK[a.priority] ?? 0) - (PRIORITY_RANK[b.priority] ?? 0));
+    if (sortDir === -1) all.reverse();
+    const total = all.length;
+    const items = all.slice((page - 1) * limit, (page - 1) * limit + limit);
+    return { items, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+  }
+
   const [items, total] = await Promise.all([
-    PortfolioAsset.find(filter)
-      .select(ASSET_LIST_FIELDS)
-      .populate('ownerId', 'firstName lastName email')
-      .populate('reviewerId', 'firstName lastName email')
-      .sort({ updatedAt: -1 })
+    populate(PortfolioAsset.find(filter).select(ASSET_LIST_FIELDS))
+      .sort({ [sortField]: sortDir })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
@@ -357,21 +443,41 @@ const createAsset = async (categoryId, body, actor) => {
   const { title } = body;
   if (!title || !String(title).trim()) throw new ValidationError('Asset title is required');
 
+  const assetType = body.assetType || category.defaultAssetType || '';
+  const priority = body.priority || category.defaultPriority || 'medium';
+  const ownerId = body.ownerId !== undefined ? await validUserId(body.ownerId, 'owner') : category.ownerId || null;
+  const reviewerId = body.reviewerId !== undefined ? await validUserId(body.reviewerId, 'reviewer') : category.reviewerId || null;
+  const dueDate = body.dueDate || null;
+  const campaign = body.campaign || '';
+
+  const required = category.requiredFields || {};
+  const missing = [];
+  if (required.owner && !ownerId) missing.push('owner');
+  if (required.reviewer && !reviewerId) missing.push('reviewer');
+  if (required.dueDate && !dueDate) missing.push('due date');
+  if (required.campaign && !campaign) missing.push('campaign');
+  if (required.assetType && !assetType) missing.push('asset type');
+  if (missing.length) throw new ValidationError(`This category requires: ${missing.join(', ')}`);
+
   const asset = await PortfolioAsset.create({
     categoryId: category._id,
     groupId: category.groupId,
     portfolioId: category.portfolioId,
     title: title.trim(),
-    assetType: body.assetType || '',
+    assetType,
     description: body.description || '',
-    priority: body.priority || 'medium',
-    ownerId: body.ownerId || null,
+    status: body.status && ASSET_STATUS_TRANSITIONS[body.status] !== undefined ? body.status : 'backlog',
+    priority,
+    ownerId,
+    reviewerId,
+    dueDate,
+    campaign,
     tags: Array.isArray(body.tags) ? body.tags : [],
     createdBy: actor?.id,
     updatedBy: actor?.id,
   });
   await audit(actor, 'ASSET_CREATED', 'PortfolioAsset', asset._id, { categoryId, title: asset.title });
-  return asset;
+  return findAssetOrThrow(asset._id);
 };
 
 const findAssetOrThrow = async (assetId) => {
@@ -389,6 +495,9 @@ const updateAsset = async (assetId, body, actor) => {
   const asset = await findAssetOrThrow(assetId);
   const changedFields = [];
   const previousOwner = asset.ownerId?._id ? String(asset.ownerId._id) : (asset.ownerId ? String(asset.ownerId) : null);
+
+  if (body.ownerId !== undefined) body.ownerId = await validUserId(body.ownerId, 'owner');
+  if (body.reviewerId !== undefined) body.reviewerId = await validUserId(body.reviewerId, 'reviewer');
 
   ASSET_CONTENT_FIELDS.forEach((field) => {
     if (body[field] === undefined) return;
@@ -414,10 +523,10 @@ const updateAsset = async (assetId, body, actor) => {
 
 const changeAssetStatus = async (assetId, nextStatus, actor) => {
   const asset = await findAssetOrThrow(assetId);
-  const allowed = ASSET_STATUS_TRANSITIONS[asset.status] || [];
+  const category = await findCategoryOrThrow(asset.categoryId);
   if (asset.status === nextStatus) throw new ValidationError(`Asset is already ${nextStatus}`);
-  if (!allowed.includes(nextStatus)) {
-    throw new ValidationError(`Cannot move status from "${asset.status}" to "${nextStatus}"`);
+  if (!canTransition(category.workflowKey, asset.status, nextStatus)) {
+    throw new ValidationError(`Cannot move status from "${asset.status}" to "${nextStatus}" under this category's workflow`);
   }
   const previousStatus = asset.status;
   asset.status = nextStatus;
@@ -425,7 +534,40 @@ const changeAssetStatus = async (assetId, nextStatus, actor) => {
   asset.updatedBy = actor?.id;
   await asset.save();
   await audit(actor, 'STATUS_CHANGED', 'PortfolioAsset', asset._id, { from: previousStatus, to: nextStatus, version: asset.currentVersion });
+  // Semantic alias on top of the generic STATUS_CHANGED event (spec §22), so the
+  // Activity feed can read "Requested review" / "Approved" / "Published" etc.
+  const semanticAction = SEMANTIC_STATUS_ACTION[nextStatus];
+  if (semanticAction) {
+    await audit(actor, semanticAction, 'PortfolioAsset', asset._id, { from: previousStatus, to: nextStatus });
+  }
   return findAssetOrThrow(asset._id);
+};
+
+// The allowed next-statuses for an asset, derived from its category's workflow
+// preset (spec §20 "frontend must not decide transition validity alone").
+const getAssetTransitions = async (assetId) => {
+  const asset = await findAssetOrThrow(assetId);
+  const category = await findCategoryOrThrow(asset.categoryId);
+  return { current: asset.status, allowed: allowedTransitions(category.workflowKey, asset.status), workflowKey: category.workflowKey };
+};
+
+// Active users selectable as an owner/reviewer/assignee (spec §19). Scoped to a
+// simple prefix/contains search on name or email — good enough for a picker.
+const listAssignees = async ({ search = '' } = {}) => {
+  const filter = { isActive: true };
+  const q = String(search || '').trim();
+  if (q) {
+    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [{ firstName: re }, { lastName: re }, { email: re }];
+  }
+  const users = await User.find(filter).select('firstName lastName email role profileImage').sort({ firstName: 1 }).limit(20).lean();
+  return users.map((u) => ({
+    _id: u._id,
+    name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+    email: u.email,
+    role: u.role,
+    profileImage: u.profileImage || '',
+  }));
 };
 
 const softDeleteAsset = async (assetId, actor) => {
@@ -494,8 +636,14 @@ const getPortfolioTree = async (portfolioId) => {
   const portfolio = await Portfolio.findById(portfolioId).select('_id');
   if (!portfolio) throw new NotFoundError('Portfolio not found');
 
-  const groups = await PortfolioGroup.find({ portfolioId, deletedAt: null }).sort({ order: 1, createdAt: 1 }).lean();
-  const categories = await PortfolioCategory.find({ portfolioId, deletedAt: null }).sort({ order: 1, createdAt: 1 }).lean();
+  const groups = await PortfolioGroup.find({ portfolioId, deletedAt: null })
+    .sort({ order: 1, createdAt: 1 })
+    .populate('ownerId', 'firstName lastName email profileImage')
+    .lean();
+  const categories = await PortfolioCategory.find({ portfolioId, deletedAt: null })
+    .sort({ order: 1, createdAt: 1 })
+    .populate('ownerId', 'firstName lastName email profileImage')
+    .lean();
 
   const categoriesByGroup = new Map();
   categories.forEach((cat) => {
@@ -528,13 +676,21 @@ const getPortfolioTree = async (portfolioId) => {
     ...group,
     categories: (categoriesByGroup.get(String(group._id)) || []).map((cat) => {
       const stats = statsByCategory.get(String(cat._id)) || { total: 0, byStatus: {} };
+      const overdue = overdueByCategory.get(String(cat._id)) || 0;
+      const blocked = stats.byStatus.blocked || 0;
+      // Lightweight signal for the portfolio card (no extra query — derived from
+      // the aggregation above). The single-category workspace uses the fuller,
+      // reasoned computeCategoryHealth() instead.
+      const healthStatus = stats.total === 0 ? 'healthy' : overdue > 0 || blocked > 0 ? 'needs_attention' : 'healthy';
       return {
         ...cat,
         stats: {
           total: stats.total,
           byStatus: stats.byStatus,
-          overdue: overdueByCategory.get(String(cat._id)) || 0,
+          overdue,
+          blocked,
           needsReview: stats.byStatus.in_review || 0,
+          healthStatus,
         },
       };
     }),
@@ -582,6 +738,9 @@ module.exports = {
   trashCategory,
   restoreCategoryFromTrash,
   getCategoryStats,
+  getCategoryOverview,
+  listAssignees,
+  getAssetTransitions,
   listAssets,
   createAsset,
   getAsset,

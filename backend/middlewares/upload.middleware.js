@@ -60,8 +60,27 @@ const jpegOnlyUpload = multer({
 
 const uploadJpegImages = (fieldName = 'images', maxCount = 8) => runUpload(jpegOnlyUpload.array(fieldName, maxCount));
 
+// Browsers/OSes are inconsistent about the mimetype they attach to a .csv
+// file (text/csv, application/vnd.ms-excel from Excel-on-Windows, or a bare
+// text/plain) — accept the realistic set rather than just 'text/csv'.
+const CSV_MIME_TYPES = new Set(['text/csv', 'application/vnd.ms-excel', 'application/csv', 'text/plain']);
+const csvOnlyUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (!CSV_MIME_TYPES.has(file.mimetype) && !file.originalname?.toLowerCase().endsWith('.csv')) {
+      const err = new Error('Only CSV files are allowed');
+      err.statusCode = 400;
+      return cb(err);
+    }
+    return cb(null, true);
+  }
+});
+const uploadCsv = (fieldName = 'file') => runUpload(csvOnlyUpload.single(fieldName));
+
 module.exports = {
   uploadSingle,
   uploadMany,
-  uploadJpegImages
+  uploadJpegImages,
+  uploadCsv
 };

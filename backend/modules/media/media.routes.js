@@ -115,7 +115,7 @@ router.delete('/social/:id', canManageMedia, v.mediaIdValidation, validate, cont
 router.post('/social/:id/approval-request', setMediaSection('social'), canManageMedia, v.mediaIdValidation, validate, controller.requestApproval);
 
 router.get('/approvals', controller.listApprovals);
-router.patch('/approvals/:workflowId/decision', canDecideApproval, controller.decideMediaApproval);
+router.patch('/approvals/:workflowId/decision', canDecideApproval, v.approvalDecisionValidation, validate, controller.decideMediaApproval);
 router.get('/activity', controller.getActivity);
 
 router.get('/:moduleKey/project/:projectId', requireProjectContext, v.moduleProjectValidation, validate, controller.getModuleDataByProject);

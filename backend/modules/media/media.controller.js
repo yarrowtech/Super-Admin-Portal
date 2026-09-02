@@ -454,7 +454,6 @@ exports.requestApproval = async (req, res) => {
       requestedBy: req.user?.id || req.user?._id,
       projectId: req.projectId,
       section: req.mediaSection,
-      steps: req.body?.steps,
     });
     getMediaRequestLogger(req, { action: 'requestApproval' }).info(
       { projectId: req.projectId || null, mediaId: req.params.id },

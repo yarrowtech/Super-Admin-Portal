@@ -26,12 +26,10 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
   });
 }
 
-// Content-approval pipeline: Draft -> Designer -> Content Writer -> Marketing Head -> CEO (optional) -> Scheduled -> Published
+// Media Marketing submits records directly to the Media Head for one clear
+// approve/reject decision. Specialist collaboration happens before submission.
 const DEFAULT_APPROVAL_STEPS = [
-  { role: 'graphic_designer' },
-  { role: 'content_writer' },
-  { role: 'marketing_head' },
-  { role: 'ceo', optional: true },
+  { role: 'media_head' },
 ];
 const MEDIA_DEPARTMENT_STRUCTURE = {
   department: 'MEDIA ON & OFFLINE',
@@ -1272,7 +1270,6 @@ const createMediaRecord = async (payload = {}, actorId, projectId, defaults = {}
     requestedBy: actorId,
     projectId: doc.projectId,
     section: doc.section,
-    steps: payload.steps,
   });
 
   return getMediaRecordById(doc._id, doc.projectId, doc.section);
@@ -1332,6 +1329,8 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) 
     existing.approvalWorkflowId = undefined;
     existing.approvalSteps = [];
     existing.submittedAt = undefined;
+    existing.approvedAt = undefined;
+    existing.rejectedAt = undefined;
   }
   await existing.save();
 
@@ -1356,7 +1355,13 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) 
 };
 
 const deleteMediaRecord = async (id, projectId, actorId, section) => {
-  const doc = await Media.findOneAndDelete(buildRecordScope(id, projectId, section));
+  const existing = await Media.findOne(buildRecordScope(id, projectId, section));
+  if (existing?.approvalStatus === 'pending') {
+    const err = new Error('This item is awaiting approval and cannot be deleted');
+    err.statusCode = 409;
+    throw err;
+  }
+  const doc = existing ? await Media.findByIdAndDelete(existing._id) : null;
   if (!doc) return null;
 
   if (doc.storageProvider === 'cloudinary' && doc.storageKey) {
@@ -1403,7 +1408,7 @@ const getModuleDataByProject = async ({ moduleKey, projectId, query = {} }) => {
   return listMedia(query, projectId, section);
 };
 
-const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps = DEFAULT_APPROVAL_STEPS }) => {
+const requestApproval = async ({ mediaId, requestedBy, projectId, section }) => {
   const record = await Media.findOne({ _id: mediaId, ...(projectId ? { projectId } : {}), ...(section ? { section } : {}) });
   if (!record) {
     const err = new Error('Media record not found');
@@ -1421,9 +1426,7 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps
     throw err;
   }
 
-  const workflowSteps = Array.isArray(steps)
-    ? steps.map((step) => ({ ...step }))
-    : DEFAULT_APPROVAL_STEPS.map((step) => ({ ...step }));
+  const workflowSteps = DEFAULT_APPROVAL_STEPS.map((step) => ({ ...step }));
 
   const workflow = await createApprovalRequest({
     module: 'media',
@@ -1437,6 +1440,8 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, section, steps
   record.approvalStatus = 'pending';
   record.status = 'In Review';
   record.submittedAt = new Date();
+  record.approvedAt = undefined;
+  record.rejectedAt = undefined;
   record.approvalSteps = workflow.steps.map((step) => ({
     role: step.role,
     status: step.status,
@@ -1483,7 +1488,7 @@ const listApprovals = async (query = {}) => {
 
   const mediaIds = workflows.map((w) => w.entityId).filter((id) => mongoose.isValidObjectId(id));
   const mediaRecords = await Media.find({ _id: { $in: mediaIds } })
-    .select('title section projectId')
+    .select('title description section projectId projectName storageUrl thumbnailUrl mimeType fileSizeBytes submittedAt approvalStatus')
     .lean();
   const mediaById = new Map(mediaRecords.map((record) => [String(record._id), record]));
 
@@ -1496,6 +1501,9 @@ const listApprovals = async (query = {}) => {
       : null;
     const title = media?.title || `${formatApprovalEntityLabel(workflow)} approval`;
     const section = media?.section || workflow.entityType || 'media';
+    const decidedStep = Array.isArray(workflow.steps)
+      ? workflow.steps.find((step) => step.status === 'rejected') || workflow.steps.find((step) => step.status === 'approved')
+      : null;
 
     return [{
       ...workflow,
@@ -1505,6 +1513,7 @@ const listApprovals = async (query = {}) => {
         section,
         requester: formatApprovalRequester(workflow.requestedBy),
         pendingRole: pendingStep?.role || '',
+        decisionRemarks: decidedStep?.remarks || '',
       },
     }];
   });
@@ -1522,10 +1531,13 @@ const decideMediaApproval = async ({ workflowId, actorId, actorRole, decision, r
 
   if (workflow.entityType === 'media') {
     const approvalStatus = workflow.status === 'approved' ? 'approved' : workflow.status === 'rejected' ? 'rejected' : 'pending';
-    const status = workflow.status === 'approved' ? 'Approved' : workflow.status === 'rejected' ? 'Rejected' : 'In Review';
+    const status = workflow.status === 'approved' ? 'Approved' : workflow.status === 'rejected' ? 'Needs Revision' : 'In Review';
+    const decisionTimestamp = new Date();
     await Media.findByIdAndUpdate(workflow.entityId, {
       approvalStatus,
       status,
+      approvedAt: workflow.status === 'approved' ? decisionTimestamp : null,
+      rejectedAt: workflow.status === 'rejected' ? decisionTimestamp : null,
       approvalSteps: workflow.steps.map((step) => ({
         role: step.role,
         status: step.status,

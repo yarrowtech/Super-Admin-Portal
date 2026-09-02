@@ -112,7 +112,10 @@ exports.listPortfolios = async (req, res) => {
     let documentCounts = {};
     if (projectIds.length) {
       const [mediaRows, contractRows, documentRows] = await Promise.all([
-        Media.aggregate([{ $match: { projectId: { $in: projectIds } } }, { $group: { _id: '$projectId', count: { $sum: 1 } } }]),
+        Media.aggregate([
+          { $match: { projectId: { $in: projectIds }, approvalStatus: 'approved' } },
+          { $group: { _id: '$projectId', count: { $sum: 1 } } },
+        ]),
         LawContract.aggregate([{ $match: { projectId: { $in: projectIds } } }, { $group: { _id: '$projectId', count: { $sum: 1 } } }]),
         LegalDocument.aggregate([{ $match: { projectId: { $in: projectIds } } }, { $group: { _id: '$projectId', count: { $sum: 1 } } }]),
       ]);

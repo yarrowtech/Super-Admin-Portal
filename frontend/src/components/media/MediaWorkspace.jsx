@@ -11,6 +11,7 @@ import PortalHeader from '../common/PortalHeader';
 import Button from '../common/Button';
 import StatusBadge from '../common/StatusBadge';
 import DataTable from '../ui/DataTable';
+import Modal from '../ui/Modal';
 import MediaProjectList from './MediaProjectList';
 import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
 import ProjectSwitcher from './ProjectSwitcher';
@@ -193,6 +194,15 @@ const bytes = (value) => {
 const arr = (value) => (Array.isArray(value) ? value : []);
 const toInputValue = (value) => (value === undefined || value === null ? '' : String(value));
 const recordStatus = (record) => String(record?.status || record?.state || record?.approvalStatus || '').trim().toLowerCase();
+const getPreviewKind = (item) => {
+  const mimeType = String(item?.mimeType || '').toLowerCase();
+  const fileName = String(item?.originalName || item?.storageUrl || '').split('?')[0].toLowerCase();
+  if (mimeType.startsWith('image/') || /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/.test(fileName)) return 'image';
+  if (mimeType.startsWith('video/') || /\.(mov|m4v|mp4|webm|ogv)$/.test(fileName)) return 'video';
+  if (mimeType.startsWith('audio/') || /\.(aac|m4a|mp3|oga|ogg|wav)$/.test(fileName)) return 'audio';
+  if (mimeType === 'application/pdf' || /\.pdf$/.test(fileName)) return 'pdf';
+  return 'file';
+};
 
 const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onProjectChange }) => {
   const { token, user } = useAuth();
@@ -215,6 +225,9 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [actionBusy, setActionBusy] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
   const [selectedIds, setSelectedIds] = useState([]);
+  const [filePreview, setFilePreview] = useState(null);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewError, setPreviewError] = useState(false);
   const [editor, setEditor] = useState({ open: false, mode: 'create', section: 'assets', record: null });
   const [draft, setDraft] = useState({
     title: '',
@@ -224,6 +237,11 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     domainFields: {},
   });
   const effectiveProjectId = selectedProjectId !== undefined ? selectedProjectId : activeProjectId;
+  const openFilePreview = (item) => {
+    setPreviewZoom(1);
+    setPreviewError(false);
+    setFilePreview(item);
+  };
   const buildProjectOptions = (projectItems = []) =>
     projectItems
       .map((project) => {
@@ -655,65 +673,19 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     if (!config || !id) return;
     setActionBusy(true);
     try {
-      await departmentApi[config.requestApprovalFn](token, id, {});
+      const response = await departmentApi[config.requestApprovalFn](token, id, {});
       toast.success(`${config.label} sent for approval.`);
-      patchLocalRecord(section, id, { approvalStatus: 'pending', status: 'In Review' });
+      patchLocalRecord(section, id, {
+        approvalStatus: 'pending',
+        status: 'In Review',
+        approvalWorkflowId: response?.data?._id || record?.approvalWorkflowId,
+        approvalSteps: response?.data?.steps || record?.approvalSteps || [],
+      });
     } catch (err) {
       toast.error(err.message || `Failed to request approval for ${config.label.toLowerCase()}.`);
     } finally {
       setActionBusy(false);
     }
-  };
-
-  const decideApproval = async (workflowId, decision) => {
-    if (!workflowId) return;
-    setActionBusy(true);
-    try {
-      await departmentApi.decideMediaApproval(token, workflowId, { decision, remarks: '' });
-      toast.success(`Approval ${decision === 'approve' ? 'approved' : 'rejected'}.`);
-      const nextStatus = decision === 'approve' ? 'Approved' : 'Needs Revision';
-      const patch = { approvalStatus: decision === 'approve' ? 'approved' : 'rejected', status: nextStatus };
-      const matchesWorkflow = (item) => item?.approvalWorkflowId === workflowId || item?.workflowId === workflowId;
-      [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts].forEach((setter) => {
-        setter((prev) => prev.map((item) => (matchesWorkflow(item) ? { ...item, ...patch } : item)));
-      });
-    } catch (err) {
-      toast.error(err.message || 'Failed to update approval decision.');
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  // Loops the single-record approve/reject endpoint per selected id, same reasoning
-  // as bulkDeleteRecords — no bulk decision API exists.
-  const bulkDecideApproval = async (records, decision) => {
-    const eligible = records.filter((item) => {
-      const workflowId = item?.approvalWorkflowId || item?.workflowId || item?.metadata?.approvalWorkflowId;
-      return workflowId && String(item?.approvalStatus || getRecordStatus(item) || '').toLowerCase() === 'pending';
-    });
-    if (!eligible.length) {
-      toast.warning('No selected items are pending approval.');
-      return;
-    }
-    setActionBusy(true);
-    let failures = 0;
-    for (const record of eligible) {
-      const workflowId = record?.approvalWorkflowId || record?.workflowId || record?.metadata?.approvalWorkflowId;
-      try {
-        await departmentApi.decideMediaApproval(token, workflowId, { decision, remarks: '' });
-        const nextStatus = decision === 'approve' ? 'Approved' : 'Needs Revision';
-        const patch = { approvalStatus: decision === 'approve' ? 'approved' : 'rejected', status: nextStatus };
-        const matchesWorkflow = (item) => item?.approvalWorkflowId === workflowId || item?.workflowId === workflowId;
-        [setAssets, setContent, setBrandAssets, setDesignItems, setVideoItems, setSocialPosts].forEach((setter) => {
-          setter((prev) => prev.map((item) => (matchesWorkflow(item) ? { ...item, ...patch } : item)));
-        });
-      } catch {
-        failures += 1;
-      }
-    }
-    setActionBusy(false);
-    if (failures) toast.error(`${failures} of ${eligible.length} could not be updated.`);
-    else toast.success(`${eligible.length} item${eligible.length > 1 ? 's' : ''} ${decision === 'approve' ? 'approved' : 'rejected'}.`);
   };
 
   const renderFileCell = (item) =>
@@ -726,14 +698,13 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
             {String(item.mimeType || '').startsWith('video/') ? 'movie' : 'description'}
           </span>
         )}
-        <a
-          href={item.storageUrl}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={() => openFilePreview(item)}
           className="text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
         >
           View file{item.fileSizeBytes ? ` (${bytes(item.fileSizeBytes)})` : ''}
-        </a>
+        </button>
       </div>
     ) : (
       <span className="text-xs text-neutral-400 dark:text-neutral-500">No file</span>
@@ -760,11 +731,9 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const getRowMenuItems = (section, item) => {
     const id = resolveRecordId(item);
     const config = getSectionAction(section);
-    const workflowId = item?.approvalWorkflowId || item?.workflowId || item?.metadata?.approvalWorkflowId;
     const approvalState = String(item?.approvalStatus || getRecordStatus(item) || 'draft').toLowerCase();
     const isPending = approvalState === 'pending';
     const isApproved = approvalState === 'approved';
-    const canDecide = ['media_head', 'ceo', 'admin', 'super_admin'].includes(String(user?.role || '').toLowerCase());
     const canEdit = Boolean(config) && !isPending;
     const canRequestApproval = Boolean(config) && !isPending && !isApproved;
     const items = [];
@@ -777,10 +746,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     }
     if (canRequestApproval) {
       items.push({ key: 'request-approval', label: 'Request approval', icon: 'send', disabled: actionBusy, onClick: () => requestApproval(section, item) });
-    }
-    if (workflowId && isPending && canDecide) {
-      items.push({ key: 'approve', label: 'Approve', icon: 'check_circle', disabled: actionBusy, onClick: () => decideApproval(workflowId, 'approve') });
-      items.push({ key: 'reject', label: 'Reject', icon: 'cancel', tone: 'danger', disabled: actionBusy, onClick: () => decideApproval(workflowId, 'reject') });
     }
     if (config && !isPending) {
       items.push({ key: 'delete', label: 'Delete', icon: 'delete', tone: 'danger', disabled: actionBusy || !id, onClick: () => deleteRecord(section, item) });
@@ -857,14 +822,6 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--portal-accent)]/30 bg-[var(--portal-accent-soft)] px-4 py-2.5">
             <p className="text-sm font-semibold text-[var(--portal-accent)]">{selectedRecords.length} selected</p>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={actionBusy}
-                onClick={() => bulkDecideApproval(selectedRecords, 'approve')}
-                className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-neutral-900 dark:text-emerald-300"
-              >
-                Approve
-              </button>
               <button
                 type="button"
                 disabled={actionBusy}
@@ -1101,7 +1058,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                   </label>
                 </section>
 
-                {editor.section === 'content' && editor.mode === 'edit' && arr(editor.record?.approvalSteps).length ? (
+                {editor.mode === 'edit' && arr(editor.record?.approvalSteps).length ? (
                   <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
                     <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-neutral-500">Approval history</p>
                     <ApprovalHistoryTimeline steps={editor.record.approvalSteps} />
@@ -1132,6 +1089,91 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
+  const renderFilePreview = () => {
+    if (!filePreview?.storageUrl) return null;
+    const previewKind = getPreviewKind(filePreview);
+    const title = filePreview.title || filePreview.originalName || 'File preview';
+    const details = [filePreview.mimeType, filePreview.fileSizeBytes ? bytes(filePreview.fileSizeBytes) : '', filePreview.originalName]
+      .filter(Boolean)
+      .join(' · ');
+
+    return (
+      <Modal
+        open
+        title={title}
+        description={details}
+        onClose={() => setFilePreview(null)}
+        className="sm:max-w-6xl"
+        footer={(
+          <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setFilePreview(null)}>Close</Button>
+              <a
+                href={filePreview.storageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-700"
+              >
+                <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                Open original
+              </a>
+          </div>
+        )}
+      >
+        {previewKind === 'image' ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-950">
+              <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Image preview</span>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setPreviewZoom((value) => Math.max(0.5, value - 0.25))} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-200 dark:text-neutral-300 dark:hover:bg-neutral-800" aria-label="Zoom out">
+                  <span className="material-symbols-outlined text-[19px]">remove</span>
+                </button>
+                <button type="button" onClick={() => setPreviewZoom(1)} className="min-w-14 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                  {Math.round(previewZoom * 100)}%
+                </button>
+                <button type="button" onClick={() => setPreviewZoom((value) => Math.min(3, value + 0.25))} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-200 dark:text-neutral-300 dark:hover:bg-neutral-800" aria-label="Zoom in">
+                  <span className="material-symbols-outlined text-[19px]">add</span>
+                </button>
+              </div>
+            </div>
+            <div className="flex h-[62dvh] min-h-80 items-center justify-center overflow-auto rounded-xl border border-slate-200 bg-slate-200 p-6 dark:border-neutral-800 dark:bg-neutral-950">
+              {previewError ? (
+                <div className="text-center">
+                  <span className="material-symbols-outlined text-5xl text-slate-400">broken_image</span>
+                  <p className="mt-3 font-semibold text-slate-700 dark:text-neutral-200">The image could not be loaded.</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">The Cloudinary file may be unavailable or restricted.</p>
+                </div>
+              ) : (
+                <img
+                  src={filePreview.storageUrl}
+                  alt={title}
+                  onError={() => setPreviewError(true)}
+                  className="block max-h-full max-w-full rounded-lg bg-white object-contain shadow-xl transition-transform duration-200"
+                  style={{ transform: `scale(${previewZoom})` }}
+                />
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-80 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-neutral-800 dark:bg-neutral-950">
+            {previewKind === 'video' ? (
+              <video src={filePreview.storageUrl} controls className="max-h-[68dvh] max-w-full" />
+            ) : previewKind === 'audio' ? (
+              <audio src={filePreview.storageUrl} controls className="w-full max-w-xl" />
+            ) : previewKind === 'pdf' ? (
+              <iframe src={filePreview.storageUrl} title={title} className="h-[68dvh] w-full border-0 bg-white" />
+            ) : (
+              <div className="p-8 text-center">
+                <span className="material-symbols-outlined text-5xl text-slate-400">draft</span>
+                <p className="mt-3 font-semibold text-slate-700 dark:text-neutral-200">Preview is unavailable for this file type.</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">Open the original file to view or download it from Cloudinary.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    );
+  };
+
   return (
     <main className="portal-page">
       <div className="portal-page-inner portal-page-inner--media space-y-4">
@@ -1158,6 +1200,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
         {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100 dark:border-neutral-800 dark:bg-neutral-900" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : renderSection()}
         {renderEditorModal()}
+        {renderFilePreview()}
       </div>
     </main>
   );

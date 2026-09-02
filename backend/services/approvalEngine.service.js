@@ -29,6 +29,23 @@ const decideApprovalRequest = async ({ workflowId, role, userId, decision, remar
     err.statusCode = 404;
     throw err;
   }
+  if (workflow.status !== "pending") {
+    const err = new Error(`Approval request is already ${workflow.status}`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const normalizedDecision = String(decision || "").toLowerCase();
+  if (!["approve", "reject"].includes(normalizedDecision)) {
+    const err = new Error("Decision must be approve or reject");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (normalizedDecision === "reject" && !String(remarks || "").trim()) {
+    const err = new Error("A rejection reason is required");
+    err.statusCode = 400;
+    throw err;
+  }
 
   const normalizedRole = String(role || "").toLowerCase();
   const canOverride = overrideRoles.map((item) => String(item || "").toLowerCase()).includes(normalizedRole);
@@ -49,13 +66,13 @@ const decideApprovalRequest = async ({ workflowId, role, userId, decision, remar
     : [step];
   const decidedAt = new Date();
   stepsToDecide.forEach((row) => {
-    row.status = decision === "reject" ? "rejected" : "approved";
+    row.status = normalizedDecision === "reject" ? "rejected" : "approved";
     row.decidedBy = userId;
     row.decidedAt = decidedAt;
-    row.remarks = remarks;
+    row.remarks = String(remarks || "").trim();
   });
 
-  if (decision === "reject") {
+  if (normalizedDecision === "reject") {
     workflow.status = "rejected";
   } else {
     const hasBlockingPendingStep = workflow.steps.some((row) => row.status === "pending" && !row.optional);

@@ -80,6 +80,17 @@ const themeColorValidation = [
     .withMessage('themeColor must be a hex color like #0f766e'),
 ];
 
+const approvalDecisionValidation = [
+  param('workflowId').isMongoId().withMessage('Invalid approval workflow id'),
+  body('decision').trim().isIn(['approve', 'reject']).withMessage('decision must be approve or reject'),
+  body('remarks').custom((value, { req }) => {
+    const remarks = String(value || '').trim();
+    if (req.body?.decision === 'reject' && !remarks) throw new Error('A rejection reason is required');
+    if (remarks.length > 1000) throw new Error('remarks must be 1000 characters or fewer');
+    return true;
+  }),
+];
+
 const moduleProjectValidation = [
   param('moduleKey').trim().isIn(MEDIA_MODULE_KEYS).withMessage('invalid module key'),
   param('projectId').isMongoId().withMessage('Invalid projectId'),
@@ -91,5 +102,6 @@ module.exports = {
   mediaIdValidation,
   mediaRecordValidation,
   themeColorValidation,
+  approvalDecisionValidation,
   moduleProjectValidation,
 };

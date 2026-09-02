@@ -437,6 +437,23 @@ const listProjects = async (query = {}, user = null) => {
   };
 };
 
+// Whether `user` may read/write media records under `projectId`. Mirrors the
+// visibility rule in listProjects: full-access roles see everything, everyone
+// else must be the project's manager or an allocated team member (the same
+// data the media head's project-team assignment UI actually manages) —
+// unlike the generic assignedProjects/SSO check, this reflects real project
+// membership instead of an unrelated external-system project registry.
+const hasMediaProjectAccess = async (user, projectId) => {
+  const role = String(user?.role || '').toLowerCase();
+  if (MEDIA_FULL_PROJECT_ACCESS_ROLES.includes(role)) return true;
+  if (!user?._id || !projectId || !mongoose.isValidObjectId(projectId)) return false;
+  const exists = await Project.exists({
+    _id: projectId,
+    $or: [{ 'teamMembers.employee': user._id }, { projectManager: user._id }],
+  });
+  return Boolean(exists);
+};
+
 const parseDateRange = (query = {}) => {
   const range = {};
   if (query.dateFrom) {
@@ -1248,7 +1265,17 @@ const createMediaRecord = async (payload = {}, actorId, projectId, defaults = {}
     metadata: { section: doc.section, moduleType: doc.moduleType, projectId: doc.projectId },
   });
 
-  return doc;
+  // Uploading a record submits it for approval immediately so the media
+  // head sees it in the Approval Center without a separate manual step.
+  await requestApproval({
+    mediaId: doc._id,
+    requestedBy: actorId,
+    projectId: doc.projectId,
+    section: doc.section,
+    steps: payload.steps,
+  });
+
+  return getMediaRecordById(doc._id, doc.projectId, doc.section);
 };
 
 const buildRecordScope = (id, projectId, section) => ({
@@ -1844,6 +1871,7 @@ module.exports = {
   getOverview,
   listMedia,
   listProjects,
+  hasMediaProjectAccess,
   listMediaMarketingUsers,
   assignProjectMember,
   removeProjectMember,

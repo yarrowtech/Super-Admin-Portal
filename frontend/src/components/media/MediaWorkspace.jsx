@@ -144,10 +144,7 @@ const SECTION_ACTIONS = {
 };
 
 const DOMAIN_FIELDS = {
-  assets: [
-    { key: 'assetType', label: 'Asset Type', placeholder: 'Logo, banner, brochure, source file...' },
-    { key: 'usageRights', label: 'Usage Rights', placeholder: 'Internal, web, paid ads, client approved...' },
-  ],
+  assets: [],
   brand: [
     { key: 'brandArea', label: 'Brand Area', placeholder: 'Logo, typography, palette, guideline...' },
     { key: 'complianceNotes', label: 'Compliance Notes' },
@@ -587,7 +584,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       } else {
         const res = await departmentApi[config.createFn](token, payload);
         saved = res?.data;
-        toast.success(`${config.label} created.`);
+        toast.success(`${config.label} created and submitted for approval.`);
       }
       upsertLocalRecord(section, saved);
       closeEditor();

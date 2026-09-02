@@ -1,12 +1,17 @@
 const express = require('express');
 const { authenticate, authorize, authorizePortalAccess } = require('../../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../../middlewares/cacheInvalidation.middleware');
-const { requireProjectContext, attachOptionalProjectContext } = require('../../middlewares/project.middleware');
 const { validate } = require('../../middlewares/validate.middleware');
 const { ROLES } = require('../../config/roles');
 const controller = require('./media.controller');
 const v = require('./media.validation');
-const { canManageMedia, canViewMediaHead, canDecideApproval } = require('./media.middleware');
+const {
+  canManageMedia,
+  canViewMediaHead,
+  canDecideApproval,
+  requireMediaProjectContext: requireProjectContext,
+  attachOptionalMediaProjectContext: attachOptionalProjectContext,
+} = require('./media.middleware');
 const { uploadMediaFile } = require('./media.upload.middleware');
 const marketingPlanRoutes = require('./marketingPlan.routes');
 

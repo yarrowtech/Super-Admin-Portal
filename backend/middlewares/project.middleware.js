@@ -68,4 +68,6 @@ const attachOptionalProjectContext = (req, _res, next) => {
 module.exports = {
   requireProjectContext,
   attachOptionalProjectContext,
+  extractProjectId,
+  normalizeProjectId,
 };

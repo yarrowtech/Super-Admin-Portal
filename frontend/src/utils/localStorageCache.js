@@ -75,7 +75,7 @@ export const attachQueryPersister = (queryClient) => {
         // Only restore data that is not too old
         const age = Date.now() - (state?.dataUpdatedAt ?? 0);
         if (age < PERSIST_MAX_AGE_MS && state?.data !== undefined) {
-          queryClient.setQueryData(queryKey, state.data);
+          queryClient.setQueryData(queryKey, state.data, { updatedAt: state.dataUpdatedAt });
         }
       });
     } catch {

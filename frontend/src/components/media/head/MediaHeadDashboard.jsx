@@ -19,10 +19,8 @@ const MediaHeadDashboard = ({ onNavigate }) => {
 
   const { data, isLoading } = useQuery({
     queryKey: QK.mediaHead.dashboard({}),
-    queryFn: () => departmentApi.getMediaHeadDashboard(token, { catalogVersion: 'matebid-v1' }, { forceRefresh: true }),
+    queryFn: () => departmentApi.getMediaHeadDashboard(token, { catalogVersion: 'matebid-v1' }),
     enabled,
-    staleTime: 0,
-    refetchOnMount: 'always',
   });
 
   const { data: planActivityData, isLoading: planActivityLoading } = useQuery({

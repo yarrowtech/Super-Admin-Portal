@@ -1426,32 +1426,61 @@ const requestApproval = async ({ mediaId, requestedBy, projectId, section }) => 
     throw err;
   }
 
+  // Claim the record before creating the workflow. Without this atomic guard,
+  // two quick submit requests can both pass the checks above and create two
+  // pending workflows for the same media item.
+  const claimedRecord = await Media.findOneAndUpdate(
+    { _id: record._id, approvalStatus: { $nin: ['pending', 'approved'] } },
+    {
+      $set: {
+        approvalStatus: 'pending',
+        status: 'In Review',
+        submittedAt: new Date(),
+        updatedBy: requestedBy,
+      },
+      $unset: { approvedAt: 1, rejectedAt: 1 },
+    },
+    { new: true }
+  );
+  if (!claimedRecord) {
+    const err = new Error('This item is already awaiting approval');
+    err.statusCode = 409;
+    throw err;
+  }
+
   const workflowSteps = DEFAULT_APPROVAL_STEPS.map((step) => ({ ...step }));
+  let workflow;
+  try {
+    workflow = await createApprovalRequest({
+      module: 'media',
+      entityType: 'media',
+      entityId: record._id,
+      requestedBy,
+      steps: workflowSteps,
+    });
 
-  const workflow = await createApprovalRequest({
-    module: 'media',
-    entityType: 'media',
-    entityId: record._id,
-    requestedBy,
-    steps: workflowSteps,
-  });
-
-  record.approvalWorkflowId = workflow._id;
-  record.approvalStatus = 'pending';
-  record.status = 'In Review';
-  record.submittedAt = new Date();
-  record.approvedAt = undefined;
-  record.rejectedAt = undefined;
-  record.approvalSteps = workflow.steps.map((step) => ({
-    role: step.role,
-    status: step.status,
-    optional: Boolean(step.optional),
-    decidedBy: step.decidedBy,
-    decidedAt: step.decidedAt,
-    remarks: step.remarks || '',
-  }));
-  record.updatedBy = requestedBy;
-  await record.save();
+    await Media.findByIdAndUpdate(record._id, {
+      approvalWorkflowId: workflow._id,
+      approvalSteps: workflow.steps.map((step) => ({
+        role: step.role,
+        status: step.status,
+        optional: Boolean(step.optional),
+        decidedBy: step.decidedBy,
+        decidedAt: step.decidedAt,
+        remarks: step.remarks || '',
+      })),
+    });
+  } catch (err) {
+    // Release the claim if workflow creation fails so the item can be retried.
+    if (workflow?._id) {
+      await ApprovalWorkflow.deleteOne({ _id: workflow._id });
+    }
+    await Media.findOneAndUpdate(
+      { _id: record._id, approvalStatus: 'pending' },
+      { $set: { approvalStatus: record.approvalStatus, status: record.status }, $unset: { submittedAt: 1 } }
+    );
+    throw err;
+  }
 
   await writeAuditTrail({
     userId: requestedBy,
@@ -1548,6 +1577,29 @@ const decideMediaApproval = async ({ workflowId, actorId, actorRole, decision, r
       })),
       updatedBy: actorId,
     });
+
+    // Older clients could submit twice and create duplicate pending workflows.
+    // Resolve those siblings with the same decision so one approved item cannot
+    // continue to appear in the Pending tab.
+    await ApprovalWorkflow.updateMany(
+      {
+        _id: { $ne: workflow._id },
+        module: 'media',
+        entityType: 'media',
+        entityId: String(workflow.entityId),
+        status: 'pending',
+      },
+      {
+        $set: {
+          status: workflow.status,
+          'steps.$[pendingStep].status': decision === 'reject' ? 'rejected' : 'approved',
+          'steps.$[pendingStep].decidedBy': actorId,
+          'steps.$[pendingStep].decidedAt': decisionTimestamp,
+          'steps.$[pendingStep].remarks': String(remarks || '').trim(),
+        },
+      },
+      { arrayFilters: [{ 'pendingStep.status': 'pending' }] }
+    );
   }
 
   await writeAuditTrail({

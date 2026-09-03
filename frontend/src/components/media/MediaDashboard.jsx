@@ -117,14 +117,12 @@ const MediaDashboard = ({ selectedProjectId, onSectionChange }) => {
     queries: [
       {
         queryKey: QK.media.projects({ limit: 200 }),
-        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }, { forceRefresh: true }),
+        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }),
         enabled,
         // Project allocation is changed externally by Media Head — always
         // reflect the latest allocation on mount instead of the shared 90s
         // default staleTime other media queries use (forceRefresh also bypasses
         // the apiClient's own sessionStorage HTTP cache layer).
-        staleTime: 0,
-        refetchOnMount: 'always',
       },
       { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled },
       { queryKey: QK.media.assets(projectParams), queryFn: () => departmentApi.getMediaAssets(token, projectParams), enabled },

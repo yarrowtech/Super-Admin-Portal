@@ -11,6 +11,7 @@ import PortalHeader from '../common/PortalHeader';
 import Button from '../common/Button';
 import StatusBadge from '../common/StatusBadge';
 import DataTable from '../ui/DataTable';
+import DropdownMenu from '../ui/DropdownMenu';
 import Modal from '../ui/Modal';
 import MediaProjectList from './MediaProjectList';
 import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
@@ -222,9 +223,11 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [metricFilter, setMetricFilter] = useState('all');
   const [actionBusy, setActionBusy] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
   const [selectedIds, setSelectedIds] = useState([]);
+  const [assetViewMode, setAssetViewMode] = useState('grid');
   const [filePreview, setFilePreview] = useState(null);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewError, setPreviewError] = useState(false);
@@ -311,14 +314,12 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     queries: [
       {
         queryKey: QK.media.projects({ limit: 200 }),
-        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }, { forceRefresh: true }),
+        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }),
         enabled,
         // Project allocation is changed externally by Media Head (assign/revoke) —
         // this list must always reflect the latest allocation on mount, not the
         // shared default 90s staleTime other media queries use (forceRefresh also
         // bypasses the apiClient's own sessionStorage HTTP cache layer).
-        staleTime: 0,
-        refetchOnMount: 'always',
       },
       { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled: enableWorkspaceData },
@@ -500,7 +501,19 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     return cat === categoryFilter;
   };
 
-  const filterRecords = (records = []) => records.filter((record) => matchesSearch(record) && matchesStatusFilter(record) && matchesCategoryFilter(record));
+  const matchesMetricFilter = (record) => {
+    if (metricFilter === 'files') return Boolean(record?.storageUrl || record?.thumbnailUrl);
+    if (metricFilter === 'types') {
+      const details = CREATIVE_DETAILS[activeSection] || META[activeSection] || [];
+      const metadataKey = details?.[2];
+      return Boolean(String(record?.metadata?.[metadataKey] || record?.category || '').trim());
+    }
+    return true;
+  };
+
+  const filterRecords = (records = []) => records.filter(
+    (record) => matchesSearch(record) && matchesStatusFilter(record) && matchesCategoryFilter(record) && matchesMetricFilter(record)
+  );
 
   const sectionStateSetter = (section) => {
     switch (section) {
@@ -667,6 +680,32 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     else toast.success(`${records.length} ${config.label.toLowerCase()}${records.length > 1 ? 's' : ''} deleted.`);
   };
 
+  // Same per-record loop as bulkDeleteRecords — no bulk approval-request API exists.
+  const bulkRequestApproval = async (section, records) => {
+    const config = getSectionAction(section);
+    if (!config || !records.length) return;
+    setActionBusy(true);
+    let failures = 0;
+    for (const record of records) {
+      const id = resolveRecordId(record);
+      if (!id) continue;
+      try {
+        const response = await departmentApi[config.requestApprovalFn](token, id, {});
+        patchLocalRecord(section, id, {
+          approvalStatus: 'pending',
+          status: 'In Review',
+          approvalWorkflowId: response?.data?._id || record?.approvalWorkflowId,
+          approvalSteps: response?.data?.steps || record?.approvalSteps || [],
+        });
+      } catch {
+        failures += 1;
+      }
+    }
+    setActionBusy(false);
+    if (failures) toast.error(`${failures} of ${records.length} could not be sent for approval.`);
+    else toast.success(`${records.length} ${config.label.toLowerCase()}${records.length > 1 ? 's' : ''} sent for approval.`);
+  };
+
   const requestApproval = async (section, record) => {
     const config = getSectionAction(section);
     const id = resolveRecordId(record);
@@ -753,6 +792,68 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     return items;
   };
 
+  const renderAssetCard = (item, section) => {
+    const id = resolveRecordId(item);
+    const isSelected = selectedIds.includes(id);
+    const previewKind = getPreviewKind(item);
+    const previewIcon = previewKind === 'video' ? 'movie' : previewKind === 'audio' ? 'audiotrack' : previewKind === 'pdf' ? 'picture_as_pdf' : 'draft';
+    const thumbnailSrc = item.thumbnailUrl || (previewKind === 'image' ? item.storageUrl : '');
+    const toggleSelected = () =>
+      setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+    return (
+      <div
+        key={id || item.title}
+        className={`group relative flex flex-col overflow-hidden rounded-xl border bg-white transition-colors duration-150 dark:bg-neutral-900 ${
+          isSelected ? 'border-[var(--portal-accent)] ring-2 ring-[var(--portal-accent)]/20' : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'
+        }`}
+      >
+        <label className="absolute left-2 top-2 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md bg-white/90 shadow dark:bg-neutral-900/90">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={toggleSelected}
+            className="h-4 w-4 rounded border-neutral-300 accent-[var(--portal-accent)]"
+            aria-label={`Select ${item.title}`}
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={() => item.storageUrl && openFilePreview(item)}
+          disabled={!item.storageUrl}
+          className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-neutral-100 disabled:cursor-default dark:bg-neutral-800"
+        >
+          {thumbnailSrc ? (
+            <img src={thumbnailSrc} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+          ) : (
+            <span className="material-symbols-outlined text-4xl text-neutral-300 dark:text-neutral-600">{previewIcon}</span>
+          )}
+          {item.storageUrl ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+              <span className="material-symbols-outlined rounded-full bg-white/90 p-2 text-[20px] text-neutral-700">visibility</span>
+            </div>
+          ) : null}
+        </button>
+
+        <div className="flex flex-1 flex-col gap-1.5 p-3">
+          <div className="flex items-start justify-between gap-2">
+            <p className="min-w-0 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100" title={item.title}>{item.title}</p>
+            <DropdownMenu items={getRowMenuItems(section, item)} />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge tone={statusToTone(item.status)} label={item.status} />
+            <span className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500">{item?.metadata?.assetType || item.category || 'Asset'}</span>
+          </div>
+          <div className="mt-auto flex items-center justify-between gap-2 border-t border-neutral-100 pt-2 text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+            <span className="truncate">{item.projectName || '—'}</span>
+            <span className="shrink-0 rounded-full bg-neutral-100 px-1.5 py-0.5 font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">{item?.version?.current || 'v1.0'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderCreativeSection = (section, records, columns, emptyTitle, emptyMessage) => {
     const filtered = filterRecords(records);
     const rows = sortRows(filtered);
@@ -767,25 +868,31 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
       ? new Set(records.map((item) => String(item?.metadata?.[metadataKey] || item?.category || '').trim()).filter(Boolean)).size
       : 0;
     const metricItems = [
-      ['Total', records.length, 'inventory_2'],
-      ['In Review', inReviewCount, 'pending_actions'],
-      ['Approved/Live', approvedCount, 'verified'],
-      ['Files', attachedCount, 'attach_file'],
-      [metadataLabel, metadataCount, 'category'],
+      ['Total', records.length, 'inventory_2', { onClick: () => { setStatusFilter('all'); setMetricFilter('all'); }, active: statusFilter === 'all' && metricFilter === 'all' }],
+      ['In Review', inReviewCount, 'pending_actions', { onClick: () => { setStatusFilter('pending'); setMetricFilter('all'); }, active: statusFilter === 'pending' && metricFilter === 'all', tone: 'warning' }],
+      ['Approved/Live', approvedCount, 'verified', { onClick: () => { setStatusFilter('approved'); setMetricFilter('all'); }, active: statusFilter === 'approved' && metricFilter === 'all', tone: 'success' }],
+      ['Files', attachedCount, 'attach_file', { onClick: () => { setStatusFilter('all'); setMetricFilter('files'); }, active: metricFilter === 'files', tone: 'info' }],
+      [metadataLabel, metadataCount, 'category', { onClick: () => { setStatusFilter('all'); setMetricFilter('types'); }, active: metricFilter === 'types' }],
     ];
 
     const filterChips = [
       searchTerm.trim() ? { key: 'search', label: `Search: ${searchTerm.trim()}`, onRemove: () => setSearchTerm('') } : null,
       statusFilter !== 'all' ? { key: 'status', label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter('all') } : null,
       section === 'assets' && categoryFilter !== 'all' ? { key: 'category', label: `Category: ${categoryFilter}`, onRemove: () => setCategoryFilter('all') } : null,
+      metricFilter !== 'all' ? { key: 'metric', label: metricFilter === 'files' ? 'Has files' : `Has ${metadataLabel.toLowerCase()}`, onRemove: () => setMetricFilter('all') } : null,
     ].filter(Boolean);
     const clearFilters = () => {
       setSearchTerm('');
       setStatusFilter('all');
       setCategoryFilter('all');
+      setMetricFilter('all');
     };
 
     const selectedRecords = rows.filter((item) => selectedIds.includes(resolveRecordId(item)));
+    const approvalEligibleRecords = selectedRecords.filter((item) => {
+      const approvalState = String(item?.approvalStatus || getRecordStatus(item) || 'draft').toLowerCase();
+      return approvalState !== 'pending' && approvalState !== 'approved';
+    });
 
     return (
       <div className="space-y-4">
@@ -810,6 +917,29 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           onClearFilters={clearFilters}
         />
 
+        {section === 'assets' ? (
+          <div className="flex justify-end">
+            <div className="inline-flex items-center gap-0.5 rounded-xl border border-neutral-200 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-900">
+              {[{ mode: 'grid', icon: 'grid_view', label: 'Grid' }, { mode: 'list', icon: 'view_list', label: 'List' }].map(({ mode, icon, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setAssetViewMode(mode)}
+                  aria-pressed={assetViewMode === mode}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    assetViewMode === mode
+                      ? 'bg-[var(--portal-accent)] text-white'
+                      : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">{icon}</span>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <CreativeStatsGrid items={metricItems} />
 
         {!effectiveProjectId ? (
@@ -822,6 +952,16 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--portal-accent)]/30 bg-[var(--portal-accent-soft)] px-4 py-2.5">
             <p className="text-sm font-semibold text-[var(--portal-accent)]">{selectedRecords.length} selected</p>
             <div className="flex flex-wrap gap-2">
+              {approvalEligibleRecords.length ? (
+                <button
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={() => bulkRequestApproval(section, approvalEligibleRecords)}
+                  className="rounded-lg border border-[var(--portal-accent)]/30 bg-white px-3 py-1.5 text-xs font-semibold text-[var(--portal-accent)] transition hover:bg-[var(--portal-accent-soft)] disabled:opacity-50 dark:bg-neutral-900"
+                >
+                  Request approval ({approvalEligibleRecords.length})
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={actionBusy}
@@ -834,19 +974,50 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           </section>
         ) : null}
 
-        <div className="app-card overflow-hidden">
-          <DataTable
-            columns={columns}
-            rows={rows}
-            rowKey={(item) => resolveRecordId(item) || item.title}
-            selectable
-            onSelectionChange={setSelectedIds}
-            rowActions={(item) => getRowMenuItems(section, item)}
-            emptyTitle={filtered.length ? 'No records match your filters' : emptyTitle}
-            emptyDescription={filtered.length ? 'Clear the search or filters to restore the section rows.' : emptyMessage}
-            emptyAction={!filtered.length && effectiveProjectId ? { label: config?.create || 'Create record', onClick: () => openEditor('create', section) } : undefined}
-          />
-        </div>
+        {section === 'assets' ? (
+          <div className="app-card overflow-hidden">
+            {rows.length === 0 ? (
+              <DataTable
+                columns={columns}
+                rows={rows}
+                rowKey={(item) => resolveRecordId(item) || item.title}
+                emptyTitle={filtered.length ? 'No records match your filters' : emptyTitle}
+                emptyDescription={filtered.length ? 'Clear the search or filters to restore the section rows.' : emptyMessage}
+                emptyAction={!filtered.length && effectiveProjectId ? { label: config?.create || 'Create record', onClick: () => openEditor('create', section) } : undefined}
+              />
+            ) : assetViewMode === 'grid' ? (
+              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {rows.map((item) => renderAssetCard(item, section))}
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                rows={rows}
+                rowKey={(item) => resolveRecordId(item) || item.title}
+                selectable
+                onSelectionChange={setSelectedIds}
+                rowActions={(item) => getRowMenuItems(section, item)}
+                emptyTitle={filtered.length ? 'No records match your filters' : emptyTitle}
+                emptyDescription={filtered.length ? 'Clear the search or filters to restore the section rows.' : emptyMessage}
+                emptyAction={!filtered.length && effectiveProjectId ? { label: config?.create || 'Create record', onClick: () => openEditor('create', section) } : undefined}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="app-card overflow-hidden">
+            <DataTable
+              columns={columns}
+              rows={rows}
+              rowKey={(item) => resolveRecordId(item) || item.title}
+              selectable
+              onSelectionChange={setSelectedIds}
+              rowActions={(item) => getRowMenuItems(section, item)}
+              emptyTitle={filtered.length ? 'No records match your filters' : emptyTitle}
+              emptyDescription={filtered.length ? 'Clear the search or filters to restore the section rows.' : emptyMessage}
+              emptyAction={!filtered.length && effectiveProjectId ? { label: config?.create || 'Create record', onClick: () => openEditor('create', section) } : undefined}
+            />
+          </div>
+        )}
       </div>
     );
   };

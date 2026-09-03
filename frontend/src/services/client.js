@@ -219,11 +219,11 @@ const request = async ({ method, path, body, token, cache = false, cacheKey, ttl
 
 export const apiClient = {
   async get(path, token, options = {}) {
-    const {
-      cache = true,
-      ttlMs,
-      forceRefresh = false
-    } = options || {};
+    // TanStack Query owns caching for Media. A second response cache here can
+    // return stale data even after the query cache has been invalidated.
+    const isMediaRequest = path.startsWith('/api/dept/media');
+    const cache = options?.cache ?? !isMediaRequest;
+    const { ttlMs, forceRefresh = false } = options || {};
     const cacheKey = buildCacheKey('GET', path, token);
     const effectiveTtl = ttlMs ?? getTtlForPath(path);
 

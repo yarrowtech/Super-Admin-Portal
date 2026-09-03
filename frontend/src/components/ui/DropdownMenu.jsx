@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import IconButton from '../common/IconButton';
 
 /**
@@ -7,25 +8,52 @@ import IconButton from '../common/IconButton';
  */
 const DropdownMenu = ({ items = [], trigger, align = 'right', tooltip = 'More actions', disabled = false }) => {
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState(null);
   const rootRef = useRef(null);
+  const menuRef = useRef(null);
+  const visibleItems = items.filter(Boolean);
 
   useEffect(() => {
     if (!open) return undefined;
     const handlePointer = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
+      if (
+        rootRef.current &&
+        !rootRef.current.contains(e.target) &&
+        !menuRef.current?.contains(e.target)
+      ) setOpen(false);
     };
     const handleKey = (e) => {
       if (e.key === 'Escape') setOpen(false);
     };
+    const closeMenu = () => setOpen(false);
     document.addEventListener('mousedown', handlePointer);
     document.addEventListener('keydown', handleKey);
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
     return () => {
       document.removeEventListener('mousedown', handlePointer);
       document.removeEventListener('keydown', handleKey);
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
     };
   }, [open]);
 
-  const visibleItems = items.filter(Boolean);
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) return;
+    const triggerRect = rootRef.current.getBoundingClientRect();
+    const menuWidth = 180;
+    const gap = 4;
+    const left = align === 'right'
+      ? Math.max(8, Math.min(triggerRect.right - menuWidth, window.innerWidth - menuWidth - 8))
+      : Math.max(8, Math.min(triggerRect.left, window.innerWidth - menuWidth - 8));
+    const estimatedHeight = visibleItems.length * 40 + 8;
+    const opensUpward = triggerRect.bottom + gap + estimatedHeight > window.innerHeight - 8;
+    const top = opensUpward
+      ? Math.max(8, triggerRect.top - estimatedHeight - gap)
+      : triggerRect.bottom + gap;
+    setPosition({ left, top });
+  }, [align, open, visibleItems.length]);
+
   if (!visibleItems.length) return null;
 
   return (
@@ -35,12 +63,13 @@ const DropdownMenu = ({ items = [], trigger, align = 'right', tooltip = 'More ac
       ) : (
         <IconButton icon="more_vert" tooltip={tooltip} size="sm" disabled={disabled} onClick={() => setOpen((v) => !v)} />
       )}
-      {open && (
+      {open && position && createPortal(
         <div
+          ref={menuRef}
           role="menu"
-          className={`absolute z-30 mt-1 min-w-[180px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900 ${
-            align === 'right' ? 'right-0' : 'left-0'
-          }`}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-[100] min-w-[180px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+          style={{ left: position.left, top: position.top }}
         >
           {visibleItems.map((item) => (
             <button
@@ -62,7 +91,8 @@ const DropdownMenu = ({ items = [], trigger, align = 'right', tooltip = 'More ac
               {item.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

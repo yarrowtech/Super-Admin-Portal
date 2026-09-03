@@ -46,10 +46,8 @@ const MediaHeadProjectList = () => {
   const projectQuery = { limit: 100, catalogVersion: 'matebid-v1' };
   const { data, isLoading } = useQuery({
     queryKey: QK.mediaHead.projects(projectQuery),
-    queryFn: () => departmentApi.getMediaHeadProjects(token, projectQuery, { forceRefresh: true }),
+    queryFn: () => departmentApi.getMediaHeadProjects(token, projectQuery),
     enabled: Boolean(token),
-    staleTime: 0,
-    refetchOnMount: 'always',
   });
 
   const projectOptions = useMemo(() => buildProjectOptions(arr(data?.data?.items)), [data]);

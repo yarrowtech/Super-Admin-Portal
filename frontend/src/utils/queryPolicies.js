@@ -10,6 +10,7 @@ export const CACHE_POLICIES = Object.freeze({
   dashboards: { staleTime: 60_000, gcTime: 10 * minute },
   analytics: { staleTime: 3 * minute, gcTime: 60 * minute },
   notifications: { staleTime: 30_000, gcTime: 5 * minute },
+  operational: { staleTime: 15_000, gcTime: 10 * minute },
   realtime: { staleTime: 0, gcTime: 60_000 },
   default: { staleTime: 90_000, gcTime: 10 * minute },
 });
@@ -20,6 +21,7 @@ export const cachePolicyFor = (queryKey) => {
 
   if (matchesAny(seg, ['chat', 'typing', 'presence'])) return CACHE_POLICIES.realtime;
   if (matchesAny(seg, ['notification'])) return CACHE_POLICIES.notifications;
+  if (matchesAny(seg, ['approval', 'activity', 'attention', 'deadline'])) return CACHE_POLICIES.operational;
   if (matchesAny(seg, ['permission', 'role'])) return CACHE_POLICIES.permissions;
   if (matchesAny(seg, ['settings', 'config', 'workflow', 'holiday', 'department'])) return CACHE_POLICIES.reference;
   if (matchesAny(seg, ['report', 'analytic', 'stat', 'revenue'])) return CACHE_POLICIES.analytics;

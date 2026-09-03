@@ -17,6 +17,14 @@ import TrendIndicator from './TrendIndicator';
  * action: { label, onClick } — optional "View X →" link at the bottom of the card.
  * tooltip: optional help text for an info icon next to the title, for KPIs whose
  * calculation isn't self-evident (e.g. "Platform Health").
+ *
+ * onClick: makes the whole card act as a filter toggle (e.g. a "Pending" stat
+ * that jumps the list below to the matching filter). `active` highlights it
+ * with the tone color when that filter is currently selected.
+ *
+ * variant: 'default' (current look, unchanged) | 'minimal' — a quieter Linear/Notion-style
+ * tile (no decorative blob, hairline border, no hover lift) for callers that want a
+ * restrained stat row instead of the default's bolder card treatment.
  */
 const TONE_COLORS = {
   accent: { icon: 'var(--portal-accent)', bg: 'var(--portal-accent-soft)' },
@@ -40,15 +48,54 @@ const KPICard = memo(({
   priority = 'primary',
   className = '',
   compact = false,
+  onClick,
+  active = false,
+  variant = 'default',
   // Legacy colorScheme prop accepted but ignored — accent comes from --portal-accent
   colorScheme,
 }) => {
   const { icon: iconColor, bg } = TONE_COLORS[tone] || TONE_COLORS.accent;
   const isCompact = compact || priority === 'secondary';
+  const Tag = onClick ? 'button' : 'div';
+
+  if (variant === 'minimal') {
+    return (
+      <Tag
+        type={onClick ? 'button' : undefined}
+        onClick={onClick}
+        aria-pressed={onClick ? active : undefined}
+        className={`flex flex-col gap-2 rounded-xl border text-left transition-colors duration-150 ${
+          active
+            ? 'border-[var(--portal-accent)]/40 bg-[var(--portal-accent-soft)]'
+            : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700'
+        } ${onClick ? 'w-full cursor-pointer' : ''} p-4 ${className}`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            <span className="material-symbols-outlined shrink-0 text-[15px]" style={{ color: iconColor }}>{icon}</span>
+            <span className="truncate">{title}</span>
+            {tooltip && (
+              <span className="material-symbols-outlined shrink-0 cursor-help text-[13px] text-neutral-400 dark:text-neutral-500" title={tooltip} aria-label={tooltip}>
+                info
+              </span>
+            )}
+          </span>
+          {trend && <TrendIndicator direction={trend.direction} value={trend.value} tone={trend.tone} />}
+        </div>
+        <p className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{value}</p>
+        {!trend && context && <p className="text-xs text-neutral-400 dark:text-neutral-500">{context}</p>}
+      </Tag>
+    );
+  }
 
   return (
-  <div
-    className={`group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 ${
+  <Tag
+    type={onClick ? 'button' : undefined}
+    onClick={onClick}
+    aria-pressed={onClick ? active : undefined}
+    className={`group relative overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:bg-neutral-900 ${
+      active ? 'border-[var(--portal-accent)] ring-2 ring-[var(--portal-accent)]/20' : 'border-neutral-200 dark:border-neutral-800'
+    } ${onClick ? 'w-full cursor-pointer' : ''} ${
       isCompact ? 'p-4' : 'p-5 lg:p-6'
     } ${className}`}
     style={{ boxShadow: 'var(--erp-shadow-soft)' }}
@@ -119,7 +166,7 @@ const KPICard = memo(({
         </button>
       )}
     </div>
-  </div>
+  </Tag>
   );
 });
 

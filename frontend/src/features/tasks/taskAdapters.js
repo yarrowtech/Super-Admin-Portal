@@ -2,6 +2,20 @@ import { managerApi } from '../../services/manager';
 import { hrApi } from '../../services/hr';
 import { employeeApi } from '../../services/employee';
 
+const fetchHrPages = async (fetchPage, token, key, params = {}) => {
+  const rows = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const res = await fetchPage(token, { ...params, page, limit: 100 });
+    const data = res?.data || {};
+    rows.push(...(data[key] || (key === 'employees' ? data.users : []) || []));
+    totalPages = Number(data.totalPages) || 1;
+    page += 1;
+  } while (page <= totalPages);
+  return rows;
+};
+
 const personName = (person) => {
   if (!person) return '';
   if (person.name) return person.name;
@@ -10,7 +24,7 @@ const personName = (person) => {
 
 const normalizePerson = (person) => {
   if (!person) return null;
-  return { id: person._id || person.id, name: personName(person), email: person.email || '' };
+  return { id: person._id || person.id, name: personName(person), email: person.email || '', department: person.department || '' };
 };
 
 const normalizeProject = (project) => {
@@ -43,6 +57,7 @@ export const normalizeTask = (raw, { currentUser } = {}) => {
     completedDate: raw.completedDate || null,
     project: normalizeProject(raw.project),
     assignee,
+    department: assignee?.department || '',
     reporter: raw.assignedBy ? normalizePerson(raw.assignedBy) : null,
     progress: raw.progress ?? 0,
     isOverdue: Boolean(raw.isOverdue),
@@ -96,9 +111,9 @@ export const taskAdapters = {
     canCreate: true,
     canComment: false,
     canFetchDetail: false,
-    fetchTasks: async (token, filters = {}) => {
-      const res = await hrApi.getTasks(token, filters);
-      const data = res?.data || {};
+    fetchTasks: async (token) => {
+      const data = { tasks: await fetchHrPages(hrApi.getTasks, token, 'tasks') };
+      data.total = data.tasks.length;
       return {
         tasks: (data.tasks || []).map((t) => normalizeTask(t)),
         total: data.total ?? (data.tasks || []).length,
@@ -108,9 +123,8 @@ export const taskAdapters = {
     createTask: (token, body) => hrApi.createTask(body, token),
     needsAssignee: true,
     fetchAssignableUsers: async (token) => {
-      const res = await hrApi.getEmployees(token, { limit: 500 });
-      const list = res?.data?.employees || res?.data?.users || (Array.isArray(res?.data) ? res.data : []);
-      return list.map((u) => ({ id: u._id || u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email }));
+      const list = await fetchHrPages(hrApi.getEmployees, token, 'employees', { isActive: 'true' });
+      return list.map(normalizePerson);
     },
   },
 

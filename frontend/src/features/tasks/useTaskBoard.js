@@ -28,9 +28,18 @@ export const useTaskBoard = (portal, filters = {}) => {
   // server support for it.
   const tasks = useMemo(() => {
     const all = query.data?.tasks || [];
-    if (!filters.project) return all;
-    return all.filter((task) => task.project?.id === filters.project);
-  }, [query.data, filters.project]);
+    return all.filter((task) => {
+      if (filters.project && task.project?.id !== filters.project) return false;
+      if (portal !== 'hr') return true;
+      if (filters.department && (task.department || 'Unassigned department') !== filters.department) return false;
+      if (filters.assignee && task.assignee?.id !== filters.assignee) return false;
+      if (filters.priority && task.priority !== filters.priority) return false;
+      if (filters.status && task.status !== filters.status) return false;
+      if (filters.dueTo && (!task.dueDate || task.dueDate.slice(0, 10) > filters.dueTo)) return false;
+      const search = (filters.search || '').trim().toLowerCase();
+      return !search || [task.title, task.description, task.assignee?.name, task.department].filter(Boolean).join(' ').toLowerCase().includes(search);
+    });
+  }, [query.data, filters, portal]);
 
   const columns = useMemo(() => {
     const byStatus = new Map(TASK_STATUS_KEYS.map((key) => [key, []]));
@@ -48,7 +57,8 @@ export const useTaskBoard = (portal, filters = {}) => {
     ...query,
     tasks,
     columns,
-    total: query.data?.total ?? tasks.length,
+    allTasks: query.data?.tasks || [],
+    total: portal === 'hr' ? tasks.length : (query.data?.total ?? tasks.length),
     queryKey,
     adapter,
   };

@@ -1,7 +1,7 @@
 import Button from './Button';
 
-const ErrorState = ({ title = 'Something went wrong', description, onRetry }) => (
-  <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+const ErrorState = ({ title = 'Something went wrong', description, onRetry, className = '' }) => (
+  <div className={`rounded-xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200 ${className}`}>
     <div className="flex items-start gap-3">
       <span className="material-symbols-outlined">error</span>
       <div className="min-w-0">

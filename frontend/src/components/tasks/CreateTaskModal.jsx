@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { taskAdapters } from '../../features/tasks/taskAdapters';
 import { TASK_PRIORITIES } from '../../features/tasks/taskConstants';
 
-const emptyForm = { title: '', description: '', dueDate: '', priority: 'medium', assignedTo: '' };
+const emptyForm = { title: '', description: '', dueDate: '', priority: 'medium', assignedTo: '', department: '' };
 
 /** Minimal, real create-task form — only fields the backend genuinely accepts per portal. */
 const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
@@ -13,18 +13,24 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
   const adapter = taskAdapters[portal];
   const [form, setForm] = useState(emptyForm);
   const [assignees, setAssignees] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [usersError, setUsersError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let active = true;
     if (open && adapter?.needsAssignee && adapter.fetchAssignableUsers) {
-      adapter.fetchAssignableUsers(token).then(setAssignees).catch(() => setAssignees([]));
+      adapter.fetchAssignableUsers(token).then((users) => { if (active) setAssignees(users); }).catch(() => { if (active) { setAssignees([]); setUsersError('Unable to load employees. Close and reopen to retry.'); } }).finally(() => { if (active) setLoadingUsers(false); });
     }
+    return () => { active = false; };
   }, [open, adapter, token]);
 
   if (!open) return null;
 
   const handleClose = () => {
+    setLoadingUsers(true);
+    setUsersError('');
     setForm(emptyForm);
     setError('');
     onClose();
@@ -94,20 +100,31 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
             {TASK_PRIORITIES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
         </div>
+        {portal === 'hr' && <label className="block text-sm">Department
+          <select required aria-label="Department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value, assignedTo: '' })} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+            <option value="">Choose department</option>
+            {[...new Set(assignees.map((a) => a.department || 'Unassigned department'))].sort().map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </label>}
+        {usersError && <p role="alert" className="text-sm text-rose-600">{usersError}</p>}
+        {adapter?.needsAssignee && loadingUsers && <p className="text-sm text-neutral-500">Loading employees...</p>}
+        {portal === 'hr' && form.department && !loadingUsers && <p className="text-xs text-neutral-500">{assignees.filter((a) => (a.department || 'Unassigned department') === form.department).length} active employees in this department</p>}
         {adapter?.needsAssignee && (
           <select
             required
+            aria-label="Employee"
+            disabled={loadingUsers || (portal === 'hr' && !form.department)}
             value={form.assignedTo}
             onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
             className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           >
             <option value="">Assign to…</option>
-            {assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {assignees.filter((a) => portal !== 'hr' || (a.department || 'Unassigned department') === form.department).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         )}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
-          <Button type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create Task'}</Button>
+          <Button type="submit" disabled={submitting || (adapter?.needsAssignee && loadingUsers) || Boolean(usersError)}>{submitting ? 'Creating…' : 'Create Task'}</Button>
         </div>
       </form>
     </Modal>

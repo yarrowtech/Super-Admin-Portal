@@ -7,12 +7,12 @@ import { TASK_PRIORITIES } from '../../features/tasks/taskConstants';
  * already-loaded tasks (no extra endpoint) since neither is a dedicated
  * reference-data list in this app.
  */
-const TaskFilters = ({ filters, onChange, tasks = [] }) => {
+const TaskFilters = ({ filters, onChange, tasks = [], departmentEnabled = false }) => {
   const assigneeOptions = useMemo(() => {
     const map = new Map();
-    tasks.forEach((t) => { if (t.assignee?.id) map.set(t.assignee.id, t.assignee.name); });
+    tasks.forEach((t) => { if (t.assignee?.id && (!filters.department || (t.department || 'Unassigned department') === filters.department)) map.set(t.assignee.id, t.assignee.name); });
     return Array.from(map, ([value, label]) => ({ value, label }));
-  }, [tasks]);
+  }, [tasks, filters.department]);
 
   const projectOptions = useMemo(() => {
     const map = new Map();
@@ -44,7 +44,17 @@ const TaskFilters = ({ filters, onChange, tasks = [] }) => {
         {TASK_PRIORITIES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
       </select>
 
-      {assigneeOptions.length > 0 && (
+      {departmentEnabled && <>
+        <select aria-label="Filter by department" value={filters.department || ''} onChange={(e) => set({ department: e.target.value || undefined, assignee: undefined })} className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+          <option value="">All departments</option>
+          {[...new Set(tasks.map((t) => t.department || 'Unassigned department'))].sort().map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select aria-label="Filter by status" value={filters.status || ''} onChange={(e) => set({ status: e.target.value || undefined })} className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+          <option value="">All statuses</option>
+          {['pending', 'in-progress', 'review', 'completed', 'cancelled'].map((s) => <option key={s} value={s}>{s.replace('-', ' ')}</option>)}
+        </select>
+      </>}
+      {(assigneeOptions.length > 0 || filters.assignee) && (
         <select
           value={filters.assignee || ''}
           onChange={(e) => set({ assignee: e.target.value || undefined })}
@@ -74,7 +84,7 @@ const TaskFilters = ({ filters, onChange, tasks = [] }) => {
         className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
       />
 
-      {(filters.search || filters.priority || filters.assignee || filters.project || filters.dueTo) && (
+      {(filters.department || filters.status || filters.search || filters.priority || filters.assignee || filters.project || filters.dueTo) && (
         <button type="button" onClick={() => onChange({})} className="text-xs font-semibold text-primary hover:underline">
           Clear filters
         </button>

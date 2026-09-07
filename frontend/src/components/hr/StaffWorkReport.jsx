@@ -1,9 +1,21 @@
+import { useCommunicationDirectory, employeeName } from '../../features/hr/useCommunicationDirectory';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { QK } from '../../utils/queryKeys';
 import { createLogger } from '../../utils/logger';
+import { Card } from '../ui/Card';
+import Button from '../ui/Button';
+import CardSkeleton from '../ui/CardSkeleton';
+import EmptyState from '../ui/EmptyState';
+import ErrorState from '../ui/ErrorState';
+import Pagination from '../ui/Pagination';
+import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import SectionHeader from '../common/SectionHeader';
+import FilterToolbar from '../common/FilterToolbar';
 
 const staffWorkReportLogger = createLogger({ module: 'staff-work-report' });
 
@@ -25,29 +37,24 @@ const statusLabels = {
   rejected: 'Rejected',
 };
 
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'completed':
-      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200';
-    case 'in-progress':
-      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200';
-    case 'review':
-      return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200';
-    case 'pending':
-      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200';
-    case 'cancelled':
-      return 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
-    case 'approved':
-      return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200';
-    case 'reviewed':
-      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200';
-    case 'rejected':
-      return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
-    case 'submitted':
-    default:
-      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200';
-  }
+const statusTone = {
+  pending: 'warning',
+  'in-progress': 'info',
+  review: 'warning',
+  completed: 'success',
+  cancelled: 'neutral',
+  submitted: 'warning',
+  reviewed: 'info',
+  approved: 'success',
+  rejected: 'danger',
 };
+
+const periodOptions = [
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+  { value: 'quarter', label: 'This Quarter' },
+  { value: 'year', label: 'This Year' },
+];
 
 const getPeriodStart = (period) => {
   const now = new Date();
@@ -112,16 +119,18 @@ const StaffWorkReport = ({
   subtitle = 'Track and review employee work updates from completed tasks.',
 }) => {
   const { token } = useAuth();
+  const toast = useToast();
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const directory = useCommunicationDirectory(token);
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
   const [selectedProjectFilter, setSelectedProjectFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
-  const [exportFeedback, setExportFeedback] = useState(null);
 
-  const workReportsParams = useMemo(() => ({ page, limit: 10, uniqueTask: true }), [page]);
+  const workReportsParams = useMemo(() => ({ page, limit: 10, uniqueTask: true, department: selectedDepartment || undefined, employee: selectedEmployeeFilter === 'all' ? undefined : selectedEmployeeFilter }), [page, selectedDepartment, selectedEmployeeFilter]);
   const reportsQuery = useQuery({
     queryKey: QK.hr.workReports(workReportsParams),
     queryFn: () => hrApi.getWorkReports(token, workReportsParams),
@@ -131,26 +140,8 @@ const StaffWorkReport = ({
   const totalPages = reportsQuery.data?.data?.totalPages || 1;
   const totalReports = reportsQuery.data?.data?.total || 0;
   const loading = reportsQuery.isLoading;
-  const error = reportsQuery.isError ? (reportsQuery.error?.message || 'Failed to load work reports') : '';
 
-  const employeeFilterOptions = useMemo(() => {
-    const optionsMap = new Map();
-    reports.forEach((report) => {
-      const id =
-        report.employee?._id ||
-        report.employee?.id ||
-        report.employee?.email ||
-        `${report.employee?.firstName || ''}-${report.employee?.lastName || ''}` ||
-        'unknown';
-      if (optionsMap.has(id)) return;
-      const label =
-        `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() ||
-        report.employee?.email ||
-        'Employee';
-      optionsMap.set(id, { id, label });
-    });
-    return Array.from(optionsMap.values());
-  }, [reports]);
+  const employeeFilterOptions = (directory.data || []).filter((person) => !selectedDepartment || person.department === selectedDepartment).map((person) => ({ id: person._id, label: employeeName(person) }));
 
   const projectFilterOptions = useMemo(() => {
     const optionsMap = new Map();
@@ -246,30 +237,44 @@ const StaffWorkReport = ({
     return grouped;
   }, [filteredReports]);
 
+  const hasActiveFilters = Boolean(
+    searchQuery || selectedStatus !== 'all' || selectedDepartment || selectedEmployeeFilter !== 'all' || selectedProjectFilter !== 'all'
+  );
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedStatus('all');
+    setSelectedDepartment('');
+    setSelectedEmployeeFilter('all');
+    setSelectedProjectFilter('all');
+    setPage(1);
+  };
+
   const stats = useMemo(() => {
     const submittedCount = reports.filter((report) => report.status === 'submitted').length;
     const approvedCount = reports.filter((report) => report.status === 'approved').length;
     const reviewedCount = reports.filter((report) => report.status === 'reviewed').length;
     return [
-      { label: 'Total Reports', value: totalReports, change: `${filteredReports.length} shown`, color: 'text-blue-600' },
-      { label: 'Submitted', value: submittedCount, change: 'Awaiting review', color: 'text-orange-600' },
-      { label: 'Reviewed', value: reviewedCount, change: 'In progress', color: 'text-sky-600' },
-      { label: 'Approved', value: approvedCount, change: 'Completed', color: 'text-green-600' },
+      {
+        label: 'Total Reports',
+        value: totalReports,
+        icon: 'summarize',
+        tone: 'accent',
+        context: hasActiveFilters ? `${filteredReports.length} of ${totalReports} shown` : 'Total reports',
+      },
+      { label: 'Submitted', value: submittedCount, icon: 'upload_file', tone: 'warning', context: 'Awaiting review' },
+      { label: 'Reviewed', value: reviewedCount, icon: 'fact_check', tone: 'info', context: 'In progress' },
+      { label: 'Approved', value: approvedCount, icon: 'task_alt', tone: 'success', context: 'Completed' },
     ];
-  }, [filteredReports.length, reports, totalReports]);
+  }, [filteredReports.length, reports, totalReports, hasActiveFilters]);
 
   const handleExportReports = useCallback(() => {
     if (exporting) return;
     if (!filteredReports.length) {
-      setExportFeedback({
-        type: 'error',
-        text: 'No reports match the current filters to export.',
-      });
+      toast.warning('No reports match the current filters to export.');
       return;
     }
 
     setExporting(true);
-    setExportFeedback(null);
 
     try {
       const header = [
@@ -323,192 +328,111 @@ const StaffWorkReport = ({
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
 
-      setExportFeedback({
-        type: 'success',
-        text: `Exported ${filteredReports.length} report${filteredReports.length === 1 ? '' : 's'} to CSV.`,
-      });
+      toast.success(`Exported ${filteredReports.length} report${filteredReports.length === 1 ? '' : 's'} to CSV.`);
     } catch (exportError) {
       staffWorkReportLogger.error({ err: exportError }, 'Export reports error');
-      setExportFeedback({
-        type: 'error',
-        text: 'Failed to export reports. Please try again.',
-      });
+      toast.error('Failed to export reports. Please try again.');
     } finally {
       setExporting(false);
     }
-  }, [exporting, filteredReports]);
+  }, [exporting, filteredReports, toast]);
+
+  const statusOptions = [{ value: 'all', label: 'All Status' }, ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))];
+  const departmentOptions = [{ value: '', label: 'All departments' }, ...[...new Set((directory.data || []).map((person) => person.department).filter(Boolean))].sort().map((department) => ({ value: department, label: department }))];
+  const employeeSelectOptions = [{ value: 'all', label: 'All Employees' }, ...employeeFilterOptions.map((employee) => ({ value: employee.id, label: employee.label }))];
+  const projectSelectOptions = [{ value: 'all', label: 'All Projects' }, ...projectFilterOptions.map((project) => ({ value: project.id, label: project.label }))];
+
+  const primaryFilters = [
+    { key: 'period', label: 'Date range', value: selectedPeriod, onChange: setSelectedPeriod, options: periodOptions, width: 'w-36' },
+    { key: 'status', label: 'Status', value: selectedStatus, onChange: setSelectedStatus, options: statusOptions, width: 'w-40' },
+    { key: 'department', label: 'Department', value: selectedDepartment, onChange: (value) => { setSelectedDepartment(value); setSelectedEmployeeFilter('all'); setPage(1); }, options: departmentOptions, width: 'w-40' },
+  ];
+  const moreFilters = [
+    { key: 'employee', label: 'Employee', value: selectedEmployeeFilter, onChange: (value) => { setSelectedEmployeeFilter(value); setPage(1); }, options: employeeSelectOptions, width: 'w-44' },
+    { key: 'project', label: 'Project', value: selectedProjectFilter, onChange: (value) => { setSelectedProjectFilter(value); setPage(1); }, options: projectSelectOptions, width: 'w-44' },
+  ];
+
+  const activeChips = [
+    selectedStatus !== 'all' && { key: 'status', label: `Status: ${statusLabels[selectedStatus] || selectedStatus}`, onRemove: () => setSelectedStatus('all') },
+    selectedDepartment && { key: 'department', label: `Department: ${selectedDepartment}`, onRemove: () => { setSelectedDepartment(''); setSelectedEmployeeFilter('all'); } },
+    selectedEmployeeFilter !== 'all' && { key: 'employee', label: `Employee: ${employeeSelectOptions.find((o) => o.value === selectedEmployeeFilter)?.label || selectedEmployeeFilter}`, onRemove: () => setSelectedEmployeeFilter('all') },
+    selectedProjectFilter !== 'all' && { key: 'project', label: `Project: ${projectSelectOptions.find((o) => o.value === selectedProjectFilter)?.label || selectedProjectFilter}`, onRemove: () => setSelectedProjectFilter('all') },
+  ].filter(Boolean);
 
   const content = (
-    <div className={embedded ? 'space-y-8' : 'mx-auto max-w-7xl'}>
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6">
-          <div className="flex flex-col gap-2">
-            <h1 className={`${embedded ? 'text-2xl' : 'text-4xl'} font-black leading-tight tracking-[-0.033em] text-neutral-800 dark:text-neutral-100`}>
-              {title}
-            </h1>
-            <p className="text-base font-normal leading-normal text-neutral-600 dark:text-neutral-400">
-              {subtitle}
-            </p>
-            {exportFeedback && (
-              <p
-                className={`text-sm font-semibold ${
-                  exportFeedback.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                }`}
-              >
-                {exportFeedback.text}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleExportReports}
-              disabled={exporting}
-              className="flex h-10 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border border-neutral-200 bg-white px-4 text-sm font-bold leading-normal tracking-[0.015em] text-neutral-800 transition hover:bg-neutral-100 disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-100 dark:hover:bg-neutral-800"
-            >
-              <span className="material-symbols-outlined text-base">
-                {exporting ? 'progress_activity' : 'download'}
-              </span>
-              <span className="truncate">{exporting ? 'Exporting...' : 'Export Reports'}</span>
-            </button>
-          </div>
-        </div>
+    <div className={embedded ? '' : 'mx-auto max-w-[1360px]'}>
+      <SectionHeader
+        title={title}
+        description={subtitle}
+        actions={
+          <Button variant="secondary" size="sm" onClick={handleExportReports} disabled={exporting} icon={<span className="material-symbols-outlined text-base">{exporting ? 'progress_activity' : 'download'}</span>}>
+            {exporting ? 'Exporting…' : 'Export Reports'}
+          </Button>
+        }
+      />
 
-        {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-            {error}
-          </div>
-        )}
+      {reportsQuery.isError && (
+        <ErrorState className="mt-4" title="Unable to load work reports" description={reportsQuery.error?.message} onRetry={() => reportsQuery.refetch()} />
+      )}
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {loading && !reports.length ? (
+        <CardSkeleton count={4} className="mt-4" />
+      ) : (
+        <section className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
-              <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">{stat.label}</p>
-              <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stat.value}</p>
-              <p className={`text-sm font-semibold ${stat.color}`}>{stat.change}</p>
-            </div>
+            <KPICard key={stat.label} variant="minimal" title={stat.label} value={stat.value} icon={stat.icon} tone={stat.tone} context={stat.context} />
           ))}
         </section>
+      )}
 
-        <section className="mt-8">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-800/50">
-            <div className="relative w-full max-w-md">
-              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
-                search
-              </span>
-              <input
-                className="w-full rounded-lg border-neutral-200 bg-background-light py-2 pl-10 pr-4 text-sm focus:border-primary focus:ring-primary dark:border-neutral-800 dark:bg-background-dark"
-                placeholder="Search reports..."
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <select
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="appearance-none rounded-lg border-neutral-200 bg-background-light py-2 pl-3 pr-8 text-sm focus:border-primary focus:ring-primary dark:border-neutral-800 dark:bg-background-dark"
-                >
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="quarter">This Quarter</option>
-                  <option value="year">This Year</option>
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
-                  expand_more
-                </span>
-              </div>
-              <div className="relative">
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="appearance-none rounded-lg border-neutral-200 bg-background-light py-2 pl-3 pr-8 text-sm focus:border-primary focus:ring-primary dark:border-neutral-800 dark:bg-background-dark"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="review">In Review</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="submitted">Submitted</option>
-                  <option value="reviewed">Reviewed</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
-                  expand_more
-                </span>
-              </div>
-              <div className="relative">
-                <select
-                  value={selectedEmployeeFilter}
-                  onChange={(e) => {
-                    setSelectedEmployeeFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="appearance-none rounded-lg border-neutral-200 bg-background-light py-2 pl-3 pr-8 text-sm focus:border-primary focus:ring-primary dark:border-neutral-800 dark:bg-background-dark"
-                >
-                  <option value="all">All Employees</option>
-                  {employeeFilterOptions.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
-                  expand_more
-                </span>
-              </div>
-              <div className="relative">
-                <select
-                  value={selectedProjectFilter}
-                  onChange={(e) => {
-                    setSelectedProjectFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="appearance-none rounded-lg border-neutral-200 bg-background-light py-2 pl-3 pr-8 text-sm focus:border-primary focus:ring-primary dark:border-neutral-800 dark:bg-background-dark"
-                >
-                  <option value="all">All Projects</option>
-                  {projectFilterOptions.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400">
-                  expand_more
-                </span>
-              </div>
-            </div>
-          </div>
+      <FilterToolbar
+        className="mt-4"
+        search={{ value: searchQuery, onChange: setSearchQuery, label: 'Search reports', placeholder: 'Search reports…', width: 'w-64' }}
+        primaryFilters={primaryFilters}
+        moreFilters={moreFilters}
+        activeChips={activeChips}
+        onClearAll={hasActiveFilters ? clearFilters : undefined}
+      />
+      {directory.isError && (
+        <button type="button" onClick={() => directory.refetch()} className="mt-2 text-sm text-rose-600">Employee list unavailable. Retry</button>
+      )}
 
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-800/50">
-            <table className="w-full text-left">
-              <thead className="border-b border-neutral-200 dark:border-neutral-800">
+      <Card className="mt-3">
+          <div className="app-table-wrap">
+            <table className="app-table">
+              <thead>
                 <tr>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Employee</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Project</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Task Details</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Tasks</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
+                  <th className="px-4 py-3">Employee</th>
+                  <th className="px-4 py-3">Project</th>
+                  <th className="px-4 py-3">Task Summary</th>
+                  <th className="px-4 py-3">Task Count</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Updated</th>
                 </tr>
               </thead>
-              <tbody>
-                {loading && (
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <tr key={index}>
+                      <td colSpan={6} className="px-4 py-3">
+                        <div className="h-8 w-full animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800/60" />
+                      </td>
+                    </tr>
+                  ))
+                ) : groupedReports.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                      Loading work reports...
+                    <td colSpan={6} className="p-0">
+                      <EmptyState
+                        compact
+                        icon="assignment"
+                        title={reports.length === 0 ? 'No reports submitted yet' : 'No matching reports'}
+                        description={reports.length === 0 ? 'Staff reports will appear here once completed work is submitted.' : 'No reports match the selected filters.'}
+                        actionLabel={hasActiveFilters ? 'Clear filters' : undefined}
+                        onAction={hasActiveFilters ? clearFilters : undefined}
+                      />
                     </td>
                   </tr>
-                )}
-                {!loading && groupedReports.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                      No work reports found.
-                    </td>
-                  </tr>
-                )}
-                {!loading && groupedReports.map((group, index) => {
+                ) : groupedReports.map((group) => {
                   const allTasks = group.updates.flatMap((update) => update.tasksCompleted || []);
                   const totalTasks = allTasks.length;
                   const completedTasks = allTasks.filter((task) => (task.status || 'completed') === 'completed').length;
@@ -517,20 +441,20 @@ const StaffWorkReport = ({
                   const latestUpdate = group.updates[0];
                   const reportStatus = latestUpdate?.taskStatus || latestUpdate?.status;
                   return (
-                    <tr key={group.key} className={index !== groupedReports.length - 1 ? 'border-b border-neutral-200 dark:border-neutral-800' : ''}>
-                      <td className="p-4">
+                    <tr key={group.key}>
+                      <td className="px-4 py-4 align-top">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">
                             {getInitials(group.employeeName)}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{group.employeeName}</p>
                             <p className="text-xs text-neutral-600 dark:text-neutral-400">{group.employeeMeta}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400">{group.projectLabel}</td>
-                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-300">
+                      <td className="px-4 py-4 align-top text-sm text-neutral-600 dark:text-neutral-400">{group.projectLabel}</td>
+                      <td className="px-4 py-4 align-top text-sm text-neutral-600 dark:text-neutral-300">
                         <div className="space-y-3">
                           {group.updates.map((update, updateIndex) => {
                             const updateKey = update._id || update.id || `${group.key}-${updateIndex}`;
@@ -575,9 +499,9 @@ const StaffWorkReport = ({
                           })}
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-4 align-top">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-neutral-800 dark:text-neutral-100 font-medium">{taskLabel}</span>
+                          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{taskLabel}</span>
                           <div className="h-2 w-12 rounded-full bg-neutral-200 dark:bg-neutral-700">
                             <div
                               className="h-full rounded-full bg-primary"
@@ -586,38 +510,21 @@ const StaffWorkReport = ({
                           </div>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(reportStatus)}`}>
-                          {statusLabels[reportStatus] || 'Submitted'}
-                        </span>
+                      <td className="px-4 py-4 align-top">
+                        <StatusBadge tone={statusTone[reportStatus] || 'neutral'} label={statusLabels[reportStatus] || 'Submitted'} />
+                      </td>
+                      <td className="px-4 py-4 align-top text-sm text-neutral-500 dark:text-neutral-400">
+                        {latestUpdate?.reportDate ? dateFormatter.format(new Date(latestUpdate.reportDate)) : '-'}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-            <div className="flex flex-wrap items-center justify-between gap-4 p-4">
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">Page {page} of {totalPages}</p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  disabled={page === 1}
-                  className="flex h-8 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-600 disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={page === totalPages}
-                  className="flex h-8 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-600 disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
           </div>
-        </section>
-      </div>
+          {!loading && groupedReports.length > 0 && <Pagination page={page} totalPages={totalPages} total={totalReports} onPageChange={setPage} />}
+      </Card>
+    </div>
   );
 
   if (embedded) {

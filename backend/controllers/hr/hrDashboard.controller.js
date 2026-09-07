@@ -1028,6 +1028,32 @@ exports.getNotices = async (req, res) => {
   }
 };
 
+const NOTICE_STATUSES = ['draft', 'pending_review', 'scheduled', 'published'];
+
+const NOTICE_ROLE_GROUPS = {
+  all: [],
+  admin: [ROLES.ADMIN, ROLES.SUPER_ADMIN],
+  ceo: [ROLES.CEO],
+  freelancer: [ROLES.FREELANCER],
+  finance: [ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE],
+  hr: [ROLES.HR],
+  it: [ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR],
+  law: [ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE],
+  media: [ROLES.MEDIA_HEAD, ROLES.MEDIA_SALES, ROLES.MEDIA_MARKETING],
+};
+
+const resolveNoticeRecipients = async (audience, department, recipientIds) => {
+  const audienceRoles = NOTICE_ROLE_GROUPS[audience] || [audience];
+  const userQuery = {
+    isActive: true,
+    accountStatus: 'active',
+    ...(audience === 'all' ? {} : { role: { $in: audienceRoles } }),
+  };
+  if (department) userQuery.department = department;
+  if (recipientIds.length) userQuery._id = { $in: recipientIds };
+  return User.find(userQuery).select('_id email role department firstName lastName').lean();
+};
+
 /**
  * @route   POST /api/dept/hr/notices
  * @desc    Create a new notice
@@ -1035,7 +1061,13 @@ exports.getNotices = async (req, res) => {
  */
 exports.createNotice = async (req, res) => {
   try {
-    const { title, message, content, audience = 'all', publishDate, status = 'published' } = req.body;
+    const { title, message, content, audience = 'all', publishDate, status = 'published', department = '', recipientIds = [] } = req.body;
+    if (typeof department !== 'string' || !Array.isArray(recipientIds) || recipientIds.some((id) => typeof id !== 'string' || !mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ success: false, error: 'Invalid department or employee selection' });
+    }
+    if (!NOTICE_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid notice status' });
+    }
     const noticeMessage = message || content;
 
     if (!title || !noticeMessage) {
@@ -1045,26 +1077,11 @@ exports.createNotice = async (req, res) => {
       });
     }
 
-    const roleGroups = {
-      all: [],
-      admin: [ROLES.ADMIN, ROLES.SUPER_ADMIN],
-      ceo: [ROLES.CEO],
-      freelancer: [ROLES.FREELANCER],
-      finance: [ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE],
-      hr: [ROLES.HR],
-      it: [ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR],
-      law: [ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE],
-      media: [ROLES.MEDIA_HEAD, ROLES.MEDIA_SALES, ROLES.MEDIA_MARKETING],
-    };
+    const recipients = await resolveNoticeRecipients(audience, department, recipientIds);
 
-    const audienceRoles = roleGroups[audience] || [audience];
-    const userQuery = {
-      isActive: true,
-      accountStatus: 'active',
-      ...(audience === 'all' ? {} : { role: { $in: audienceRoles } }),
-    };
-    const recipients = await User.find(userQuery).select('_id email role department firstName lastName').lean();
-
+    if (recipientIds.length && recipients.length !== new Set(recipientIds).size) {
+      return res.status(400).json({ success: false, error: 'Selected employees must be active and belong to the selected department and audience' });
+    }
     if (!recipients.length) {
       return res.status(400).json({
         success: false,
@@ -1099,6 +1116,9 @@ exports.createNotice = async (req, res) => {
         source: 'hr_communication',
         noticeId,
         audience,
+        targetDepartment: department,
+        recipientIds: [...new Set(recipientIds)],
+        selectedRecipientNames: recipientIds.length ? recipients.map((person) => `${person.firstName || ''} ${person.lastName || ''}`.trim() || person.email) : [],
         status,
         publishDate: publishDate ? new Date(publishDate) : new Date(),
         publishedBy,
@@ -1146,34 +1166,132 @@ exports.createNotice = async (req, res) => {
  */
 exports.updateNotice = async (req, res) => {
   try {
-    const { title, message, content, status, publishDate } = req.body;
-    const update = {};
-    if (title) update.title = title;
-    if (message || content) update.message = message || content;
-    if (status) update['metadata.status'] = status;
-    if (publishDate) update['metadata.publishDate'] = new Date(publishDate);
+    const { title, message, content, status, publishDate, audience, department, recipientIds } = req.body;
+
+    if (status && !NOTICE_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid notice status' });
+    }
+    if (department !== undefined && typeof department !== 'string') {
+      return res.status(400).json({ success: false, error: 'Invalid department' });
+    }
+    if (recipientIds !== undefined && (!Array.isArray(recipientIds) || recipientIds.some((id) => typeof id !== 'string' || !mongoose.Types.ObjectId.isValid(id)))) {
+      return res.status(400).json({ success: false, error: 'Invalid employee selection' });
+    }
 
     const objectIdQuery = mongoose.Types.ObjectId.isValid(req.params.id) ? [{ _id: req.params.id }] : [];
-    const result = await Notice.updateMany(
-      {
-        type: 'hr_notice',
-        'metadata.source': 'hr_communication',
-        $or: [...objectIdQuery, { 'metadata.noticeId': req.params.id }],
-      },
-      { $set: update }
-    );
-
-    if (!result.matchedCount) {
-      return res.status(404).json({
-        success: false,
-        error: 'Notice not found'
-      });
+    const groupFilter = {
+      type: 'hr_notice',
+      'metadata.source': 'hr_communication',
+      $or: [...objectIdQuery, { 'metadata.noticeId': req.params.id }],
+    };
+    const existingDocs = await Notice.find(groupFilter).lean();
+    if (!existingDocs.length) {
+      return res.status(404).json({ success: false, error: 'Notice not found' });
     }
+
+    const current = existingDocs[0];
+    const noticeId = current.metadata?.noticeId || req.params.id;
+    const wasDelivered = current.metadata?.status === 'published';
+    const nextStatus = status || current.metadata?.status || 'draft';
+    const nextTitle = title || current.title;
+    const nextMessage = message || content || current.message;
+
+    // Once a notice has actually gone out to its audience, re-targeting it would
+    // silently move messages between people's inboxes, so only content/status/date
+    // can still change post-delivery.
+    if (wasDelivered) {
+      const update = {};
+      if (title) update.title = nextTitle;
+      if (message || content) update.message = nextMessage;
+      if (status) update['metadata.status'] = status;
+      if (publishDate) update['metadata.publishDate'] = new Date(publishDate);
+      await Notice.updateMany(groupFilter, { $set: update });
+      return res.status(200).json({ success: true, message: 'Notice updated successfully' });
+    }
+
+    const nextAudience = audience !== undefined ? audience : (current.metadata?.audience || 'all');
+    const nextDepartment = department !== undefined ? department : (current.metadata?.targetDepartment || '');
+    const nextRecipientIds = recipientIds !== undefined ? recipientIds : (current.metadata?.recipientIds || []);
+    const nextPublishDate = publishDate ? new Date(publishDate) : current.metadata?.publishDate;
+
+    if (nextStatus === 'published') {
+      const recipients = await resolveNoticeRecipients(nextAudience, nextDepartment, nextRecipientIds);
+
+      if (nextRecipientIds.length && recipients.length !== new Set(nextRecipientIds).size) {
+        return res.status(400).json({ success: false, error: 'Selected employees must be active and belong to the selected department and audience' });
+      }
+      if (!recipients.length) {
+        return res.status(400).json({ success: false, error: 'No active users found for the selected audience' });
+      }
+
+      const publishedBy = {
+        id: req.user._id,
+        name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+        email: req.user.email,
+      };
+
+      const docs = recipients.map((recipient) => ({
+        manager: recipient._id,
+        managerDepartment: recipient.department || recipient.role || 'general',
+        department: recipient.department || recipient.role || 'general',
+        title: nextTitle,
+        message: nextMessage,
+        type: 'hr_notice',
+        metadata: {
+          source: 'hr_communication',
+          noticeId,
+          audience: nextAudience,
+          targetDepartment: nextDepartment,
+          recipientIds: [...new Set(nextRecipientIds)],
+          selectedRecipientNames: nextRecipientIds.length ? recipients.map((person) => `${person.firstName || ''} ${person.lastName || ''}`.trim() || person.email) : [],
+          status: 'published',
+          publishDate: nextPublishDate || new Date(),
+          publishedBy,
+          targetRecipientCount: recipients.length,
+        },
+        target: {
+          departments: recipient.department ? [recipient.department] : [],
+          managerEmails: [recipient.email],
+          managerIds: [recipient._id.toString()],
+        },
+        read: false,
+      }));
+
+      // Replace the not-yet-delivered placeholder doc(s) with one doc per real recipient.
+      await Notice.deleteMany(groupFilter);
+      await Notice.insertMany(docs, { ordered: false });
+
+      return res.status(200).json({ success: true, message: 'Notice published successfully' });
+    }
+
+    // Still not delivered (draft / pending_review / scheduled): just update the
+    // single placeholder doc's content and targeting metadata in place.
+    let selectedRecipientNames = current.metadata?.selectedRecipientNames || [];
+    if (recipientIds !== undefined) {
+      if (nextRecipientIds.length) {
+        const selected = await User.find({ _id: { $in: nextRecipientIds } }).select('firstName lastName email').lean();
+        selectedRecipientNames = selected.map((person) => `${person.firstName || ''} ${person.lastName || ''}`.trim() || person.email);
+      } else {
+        selectedRecipientNames = [];
+      }
+    }
+
+    const update = {
+      title: nextTitle,
+      message: nextMessage,
+      'metadata.status': nextStatus,
+      'metadata.audience': nextAudience,
+      'metadata.targetDepartment': nextDepartment,
+      'metadata.recipientIds': [...new Set(nextRecipientIds)],
+      'metadata.selectedRecipientNames': selectedRecipientNames,
+    };
+    if (nextPublishDate) update['metadata.publishDate'] = nextPublishDate;
+
+    await Notice.updateMany(groupFilter, { $set: update });
 
     res.status(200).json({
       success: true,
-      message: 'Notice updated successfully',
-      data: notice
+      message: 'Notice updated successfully'
     });
   } catch (error) {
     logger.error({ err: error }, 'Update notice error');
@@ -1518,10 +1636,14 @@ exports.closeTask = async (req, res) => {
  */
 exports.getWorkReports = async (req, res) => {
   try {
-    const { page = 1, limit = 10, employee, reportType, status, startDate, endDate, uniqueTask } = req.query;
+    const { page = 1, limit = 10, employee, department, reportType, status, startDate, endDate, uniqueTask } = req.query;
     const query = {};
 
-    if (employee) query.employee = employee;
+    if (employee && !mongoose.Types.ObjectId.isValid(employee)) return res.status(400).json({ success: false, error: 'Invalid employee' });
+    if (department) {
+      const people = await User.find({ department: String(department), ...(employee ? { _id: employee } : {}) }).select('_id').lean();
+      query.employee = { $in: people.map((person) => person._id) };
+    } else if (employee) query.employee = new mongoose.Types.ObjectId(employee);
     if (reportType) query.reportType = reportType;
     if (status) query.status = status;
     if (startDate || endDate) {

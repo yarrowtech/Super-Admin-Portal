@@ -38,24 +38,13 @@ const DataTable = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
-  if (loading) {
-    return (
-      <div className="space-y-2 p-4">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <Skeleton key={index} className="h-12 w-full" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!rows.length) {
-    return <EmptyState title={emptyTitle || 'No records found'} description={emptyDescription} actionLabel={emptyAction?.label} onAction={emptyAction?.onClick} />;
-  }
-
   const getRowKey = (row) => (typeof rowKey === 'function' ? rowKey(row) : row[rowKey]);
   const allSelected = selectable && rows.length > 0 && selected.length === rows.length;
   const toggleAll = () => setSelected(allSelected ? [] : rows.map(getRowKey));
   const toggleRow = (key) => setSelected((prev) => (prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]));
+  // +1 for the selection checkbox column, +1 for the trailing actions column — kept in
+  // sync so the empty/loading state's single cell still spans the full header width.
+  const totalColumns = columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0);
 
   return (
     <div className="app-table-wrap">
@@ -82,7 +71,27 @@ const DataTable = ({
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-          {rows.map((row) => {
+          {loading ? (
+            Array.from({ length: 5 }).map((_, index) => (
+              <tr key={index}>
+                <td colSpan={totalColumns} className="px-4 py-3">
+                  <Skeleton className="h-8 w-full" />
+                </td>
+              </tr>
+            ))
+          ) : !rows.length ? (
+            <tr>
+              <td colSpan={totalColumns} className="p-0">
+                <EmptyState
+                  compact
+                  title={emptyTitle || 'No records found'}
+                  description={emptyDescription}
+                  actionLabel={emptyAction?.label}
+                  onAction={emptyAction?.onClick}
+                />
+              </td>
+            </tr>
+          ) : rows.map((row) => {
             const key = getRowKey(row);
             const isSelected = selected.includes(key);
             return (

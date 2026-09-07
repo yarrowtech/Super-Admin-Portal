@@ -1,9 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { QK } from '../../utils/queryKeys';
+import { Card } from '../ui/Card';
+import Button from '../ui/Button';
+import DataTable from '../ui/DataTable';
+import ErrorState from '../ui/ErrorState';
+import CardSkeleton from '../ui/CardSkeleton';
+import Pagination from '../ui/Pagination';
+import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import SectionHeader from '../common/SectionHeader';
+import FilterToolbar from '../common/FilterToolbar';
+
+import { fetchCommunicationPages } from '../../features/hr/useCommunicationDirectory';
 
 const categories = [
   { value: 'all', label: 'All Categories' },
@@ -33,6 +45,9 @@ const priorities = [
   { value: 'low', label: 'Low' },
 ];
 
+const priorityTone = { urgent: 'danger', high: 'warning', medium: 'info', low: 'neutral' };
+const statusTone = { 'pending-review': 'warning', investigating: 'info', resolved: 'success', escalated: 'danger', closed: 'neutral' };
+
 const getPayload = (response) => response?.data || response || {};
 
 const fullName = (user) => {
@@ -52,6 +67,7 @@ const normalizeComplaint = (complaint) => ({
   complainant: complaint?.metadata?.anonymous
     ? 'Anonymous'
     : fullName(complaint?.complainant),
+  employeeId: complaint?.metadata?.anonymous ? '' : (complaint?.complainant?._id || ''),
   department: complaint?.complainant?.department || complaint?.metadata?.department || '-',
   assignedTo: fullName(complaint?.assignedTo),
   createdAt: complaint?.createdAt,
@@ -66,18 +82,6 @@ const formatDate = (value) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-const badgeClass = {
-  urgent: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100',
-  high: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100',
-  medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100',
-  low: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100',
-  resolved: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100',
-  investigating: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-100',
-  'pending-review': 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100',
-  escalated: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100',
-  closed: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200',
-};
-
 const labelFor = (collection, value) => collection.find((item) => item.value === value)?.label || value;
 
 const ComplaintSolutionsLive = () => {
@@ -86,24 +90,41 @@ const ComplaintSolutionsLive = () => {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState({ category: 'all', status: 'all', priority: 'all' });
   const [search, setSearch] = useState('');
+  const [department, setDepartment] = useState('');
+  const [employee, setEmployee] = useState('');
+  const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState('');
   const [resolveTarget, setResolveTarget] = useState(null);
   const [solution, setSolution] = useState('');
+  const solutionRef = useRef(null);
+
+  useEffect(() => {
+    if (!resolveTarget) return undefined;
+    solutionRef.current?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setResolveTarget(null);
+        setSolution('');
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [resolveTarget]);
 
   const complaintsParams = useMemo(
     () => ({
-      page: 1,
-      limit: 50,
+      page,
+      limit: 20,
       ...(filters.category === 'all' ? {} : { category: filters.category }),
       ...(filters.status === 'all' ? {} : { status: filters.status }),
       ...(filters.priority === 'all' ? {} : { priority: filters.priority }),
     }),
-    [filters]
+    [page, filters]
   );
 
   const complaintsQuery = useQuery({
     queryKey: QK.hr.complaints(complaintsParams),
-    queryFn: () => hrApi.getComplaints(token, complaintsParams),
+    queryFn: async () => ({ data: { complaints: await fetchCommunicationPages(hrApi.getComplaints, token, 'complaints', complaintsParams) } }),
     enabled: Boolean(token),
     select: (response) => {
       const data = getPayload(response);
@@ -125,14 +146,27 @@ const ComplaintSolutionsLive = () => {
 
   const visibleComplaints = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    if (!needle) return complaints;
     return complaints.filter((complaint) =>
+      (!department || complaint.department === department) && (!employee || complaint.employeeId === employee) &&
       [complaint.title, complaint.description, complaint.complainant, complaint.department, complaint.code]
         .join(' ')
         .toLowerCase()
         .includes(needle)
     );
-  }, [complaints, search]);
+  }, [complaints, search, department, employee]);
+
+  const hasActiveFilters = Boolean(search || department || employee || filters.category !== 'all' || filters.status !== 'all' || filters.priority !== 'all');
+  const clearFilters = () => {
+    setSearch('');
+    setDepartment('');
+    setEmployee('');
+    setFilters({ category: 'all', status: 'all', priority: 'all' });
+    setPage(1);
+  };
+  const updateFilter = (key, value) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  };
 
   const stats = useMemo(() => {
     const open = complaints.filter((item) => !['resolved', 'closed'].includes(item.status)).length;
@@ -140,10 +174,24 @@ const ComplaintSolutionsLive = () => {
     const escalated = complaints.filter((item) => item.status === 'escalated').length;
     const urgent = complaints.filter((item) => ['urgent', 'high'].includes(item.priority)).length;
     return [
-      { label: 'Open', value: open, icon: 'pending_actions' },
-      { label: 'Resolved', value: resolved, icon: 'check_circle' },
-      { label: 'Escalated', value: escalated, icon: 'priority_high' },
-      { label: 'High Priority', value: urgent, icon: 'report' },
+      { label: 'Open', value: open, icon: 'pending_actions', tone: 'warning', context: 'Awaiting HR action' },
+      {
+        label: 'Resolved',
+        value: resolved,
+        icon: 'check_circle',
+        tone: 'success',
+        context: 'Closed complaints',
+        filterValue: 'resolved',
+      },
+      {
+        label: 'Escalated',
+        value: escalated,
+        icon: 'priority_high',
+        tone: 'danger',
+        context: 'Needs senior review',
+        filterValue: 'escalated',
+      },
+      { label: 'High Priority', value: urgent, icon: 'report', tone: 'warning', context: 'Urgent & high combined' },
     ];
   }, [complaints]);
 
@@ -211,206 +259,172 @@ const ComplaintSolutionsLive = () => {
     link.download = 'hr-complaints.csv';
     link.click();
     URL.revokeObjectURL(url);
+    toast.success('Complaints exported to CSV.');
   };
 
-  return (
-    <main className="flex-1 overflow-y-auto p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6">
-          <div>
-            <h1 className="text-3xl font-black leading-tight text-neutral-800 dark:text-neutral-100">
-              Complaints &amp; Solutions
-            </h1>
-            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-              Review portal complaints and close HR actions.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={exportCsv}
-            className="flex h-10 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-bold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-          >
-            <span className="material-symbols-outlined text-base">download</span>
-            Export
-          </button>
-        </div>
+  const departmentOptions = [{ value: '', label: 'All departments' }, ...[...new Set(complaints.map((item) => item.department))].sort().map((value) => ({ value, label: value }))];
+  const employeeOptions = [
+    { value: '', label: 'All employees' },
+    ...[...new Map(complaints.filter((item) => item.employeeId && (!department || item.department === department)).map((item) => [item.employeeId, item.complainant])).entries()].map(([id, name]) => ({ value: id, label: name })),
+  ];
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+  const primaryFilters = [
+    { key: 'department', label: 'Department', value: department, onChange: (value) => { setDepartment(value); setEmployee(''); }, options: departmentOptions, width: 'w-40' },
+    { key: 'employee', label: 'Employee', value: employee, onChange: setEmployee, options: employeeOptions, width: 'w-44' },
+    { key: 'status', label: 'Status', value: filters.status, onChange: (value) => updateFilter('status', value), options: statuses, width: 'w-36' },
+  ];
+  const moreFilters = [
+    { key: 'category', label: 'Category', value: filters.category, onChange: (value) => updateFilter('category', value), options: categories, width: 'w-44' },
+    { key: 'priority', label: 'Priority', value: filters.priority, onChange: (value) => updateFilter('priority', value), options: priorities, width: 'w-36' },
+  ];
+
+  const activeChips = [
+    department && { key: 'department', label: `Department: ${department}`, onRemove: () => { setDepartment(''); setEmployee(''); } },
+    employee && { key: 'employee', label: `Employee: ${employeeOptions.find((o) => o.value === employee)?.label || employee}`, onRemove: () => setEmployee('') },
+    filters.status !== 'all' && { key: 'status', label: `Status: ${labelFor(statuses, filters.status)}`, onRemove: () => updateFilter('status', 'all') },
+    filters.category !== 'all' && { key: 'category', label: `Category: ${labelFor(categories, filters.category)}`, onRemove: () => updateFilter('category', 'all') },
+    filters.priority !== 'all' && { key: 'priority', label: `Priority: ${labelFor(priorities, filters.priority)}`, onRemove: () => updateFilter('priority', 'all') },
+  ].filter(Boolean);
+
+  const columns = [
+    { key: 'code', header: 'ID', render: (complaint) => <span className="font-semibold text-primary">{complaint.code}</span> },
+    {
+      key: 'complainant',
+      header: 'Complainant',
+      render: (complaint) => (
+        <div>
+          <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{complaint.complainant}</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">{complaint.department}</p>
+        </div>
+      ),
+    },
+    { key: 'category', header: 'Category', render: (complaint) => labelFor(categories, complaint.category) },
+    {
+      key: 'title',
+      header: 'Title',
+      render: (complaint) => (
+        <div className="max-w-xs">
+          <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100" title={complaint.title}>{complaint.title}</p>
+          <p className="mt-0.5 line-clamp-1 text-xs text-neutral-500 dark:text-neutral-400" title={complaint.description}>{complaint.description}</p>
+        </div>
+      ),
+    },
+    { key: 'priority', header: 'Priority', render: (complaint) => <StatusBadge tone={priorityTone[complaint.priority] || 'neutral'} label={complaint.priority} /> },
+    { key: 'status', header: 'Status', render: (complaint) => <StatusBadge tone={statusTone[complaint.status] || 'neutral'} label={labelFor(statuses, complaint.status)} /> },
+    { key: 'assignedTo', header: 'Assigned', render: (complaint) => complaint.assignedTo },
+    { key: 'createdAt', header: 'Created', render: (complaint) => formatDate(complaint.createdAt) },
+  ];
+
+  const rowActions = (complaint) =>
+    [
+      complaint.status !== 'resolved' && {
+        key: 'assign',
+        label: 'Assign to me',
+        icon: 'assignment_ind',
+        disabled: busyId === complaint.id,
+        onClick: () => assignToMe(complaint),
+      },
+      complaint.status !== 'resolved' && {
+        key: 'resolve',
+        label: 'Resolve',
+        icon: 'check_circle',
+        disabled: busyId === complaint.id,
+        onClick: () => setResolveTarget(complaint),
+      },
+    ].filter(Boolean);
+
+  return (
+    <section>
+      <SectionHeader
+        title="Complaints & Solutions"
+        description="Review portal complaints and close HR actions."
+        actions={
+          <Button variant="secondary" size="sm" onClick={exportCsv} icon={<span className="material-symbols-outlined text-base">download</span>}>
+            Export
+          </Button>
+        }
+      />
+
+      {loading && !complaints.length ? (
+        <CardSkeleton count={4} className="mt-4" />
+      ) : (
+        <section className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
-            <article key={stat.label} className="rounded-lg border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-neutral-500 dark:text-neutral-400">{stat.label}</p>
-                <span className="material-symbols-outlined text-primary">{stat.icon}</span>
-              </div>
-              <p className="mt-2 text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stat.value}</p>
-            </article>
+            <KPICard
+              key={stat.label}
+              variant="minimal"
+              title={stat.label}
+              value={stat.value}
+              icon={stat.icon}
+              tone={stat.tone}
+              context={stat.context}
+              onClick={stat.filterValue ? () => updateFilter('status', filters.status === stat.filterValue ? 'all' : stat.filterValue) : undefined}
+              active={stat.filterValue ? filters.status === stat.filterValue : false}
+            />
           ))}
         </section>
+      )}
 
-        <section className="mt-8">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="relative min-w-[16rem] flex-1">
-              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">
-                search
-              </span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="h-11 w-full rounded-lg border border-neutral-200 bg-white pl-10 pr-3 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-                placeholder="Search complaints"
-                type="search"
-              />
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {[
-                ['category', categories],
-                ['status', statuses],
-                ['priority', priorities],
-              ].map(([key, options]) => (
-                <select
-                  key={key}
-                  value={filters[key]}
-                  onChange={(event) => setFilters((prev) => ({ ...prev, [key]: event.target.value }))}
-                  className="h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-                >
-                  {options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              ))}
-            </div>
-          </div>
+      <FilterToolbar
+        className="mt-4"
+        search={{ value: search, onChange: setSearch, label: 'Search complaints', placeholder: 'Search complaints', width: 'w-64' }}
+        primaryFilters={primaryFilters}
+        moreFilters={moreFilters}
+        activeChips={activeChips}
+        onClearAll={hasActiveFilters ? clearFilters : undefined}
+      />
 
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <table className="w-full text-left">
-              <thead className="border-b border-neutral-200 dark:border-neutral-800">
-                <tr>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">ID</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Complainant</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Category</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Title</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Priority</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Assigned</th>
-                  <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Created</th>
-                  <th className="p-4 text-right text-sm font-semibold text-neutral-600 dark:text-neutral-400">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td className="p-6 text-center text-sm text-neutral-500" colSpan={9}>
-                      Loading complaints...
-                    </td>
-                  </tr>
-                ) : visibleComplaints.length ? (
-                  visibleComplaints.map((complaint) => (
-                    <tr key={complaint.id} className="border-b border-neutral-200 last:border-b-0 dark:border-neutral-800">
-                      <td className="p-4 text-sm font-semibold text-primary">{complaint.code}</td>
-                      <td className="p-4">
-                        <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{complaint.complainant}</p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">{complaint.department}</p>
-                      </td>
-                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-300">{labelFor(categories, complaint.category)}</td>
-                      <td className="max-w-xs p-4">
-                        <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{complaint.title}</p>
-                        <p className="mt-1 line-clamp-1 text-xs text-neutral-500 dark:text-neutral-400">{complaint.description}</p>
-                      </td>
-                      <td className="p-4">
-                        <span className={`rounded-full px-2 py-1 text-xs font-semibold capitalize ${badgeClass[complaint.priority] || badgeClass.medium}`}>
-                          {complaint.priority}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${badgeClass[complaint.status] || badgeClass.closed}`}>
-                          {labelFor(statuses, complaint.status)}
-                        </span>
-                      </td>
-                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-300">{complaint.assignedTo}</td>
-                      <td className="p-4 text-sm text-neutral-600 dark:text-neutral-300">{formatDate(complaint.createdAt)}</td>
-                      <td className="p-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            disabled={busyId === complaint.id || complaint.status === 'resolved'}
-                            onClick={() => assignToMe(complaint)}
-                            className="rounded-full p-2 text-blue-600 hover:bg-blue-50 disabled:opacity-40 dark:hover:bg-blue-950/30"
-                            aria-label="Assign complaint"
-                          >
-                            <span className="material-symbols-outlined text-xl">assignment_ind</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyId === complaint.id || complaint.status === 'resolved'}
-                            onClick={() => setResolveTarget(complaint)}
-                            className="rounded-full p-2 text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 dark:hover:bg-emerald-950/30"
-                            aria-label="Resolve complaint"
-                          >
-                            <span className="material-symbols-outlined text-xl">check_circle</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="p-6 text-center text-sm text-neutral-500" colSpan={9}>
-                      No complaints found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200 p-4 text-sm text-neutral-500 dark:border-neutral-800">
-              <span>
-                Showing {visibleComplaints.length} of {meta.total} complaints
-              </span>
-              <span>
-                Page {meta.currentPage} of {meta.totalPages}
-              </span>
-            </div>
-          </div>
-        </section>
-      </div>
+      {complaintsQuery.isError ? (
+        <ErrorState className="mt-3" title="Unable to load complaints" description={complaintsQuery.error?.message} onRetry={() => complaintsQuery.refetch()} />
+      ) : (
+        <Card className="mt-3">
+          <DataTable
+            columns={columns}
+            rows={visibleComplaints}
+            loading={loading}
+            rowActions={rowActions}
+            emptyTitle={hasActiveFilters ? 'No matching complaints' : 'No complaints yet'}
+            emptyDescription={hasActiveFilters ? 'Try adjusting your filters.' : 'New complaints will appear here when submitted.'}
+            emptyAction={hasActiveFilters ? { label: 'Clear filters', onClick: clearFilters } : undefined}
+          />
+          {visibleComplaints.length > 0 && <Pagination page={meta.currentPage} totalPages={meta.totalPages} total={meta.total} onPageChange={setPage} />}
+        </Card>
+      )}
 
       {resolveTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-neutral-900">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Resolve Complaint</h2>
+        <div className="app-modal">
+          <div className="app-modal-panel max-w-lg p-6" role="dialog" aria-modal="true" aria-labelledby="resolve-complaint-title">
+            <h2 id="resolve-complaint-title" className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Resolve Complaint</h2>
             <p className="mt-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">{resolveTarget.title}</p>
-            <textarea
-              value={solution}
-              onChange={(event) => setSolution(event.target.value)}
-              rows={5}
-              className="mt-4 w-full resize-none rounded-lg border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-              placeholder="Solution note"
-            />
+            <label className="mt-4 block">
+              <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Solution note</span>
+              <textarea
+                ref={solutionRef}
+                value={solution}
+                onChange={(event) => setSolution(event.target.value)}
+                rows={5}
+                className="w-full resize-none rounded-lg border border-neutral-200 bg-white p-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-950"
+                placeholder="Describe the action taken to resolve this complaint"
+              />
+            </label>
             <div className="mt-5 flex justify-end gap-3">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setResolveTarget(null);
                   setSolution('');
                 }}
-                className="h-10 rounded-lg border border-neutral-200 px-4 text-sm font-bold dark:border-neutral-700"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={resolveComplaint}
-                disabled={busyId === resolveTarget.id}
-                className="h-10 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-60"
-              >
+              </Button>
+              <Button onClick={resolveComplaint} disabled={busyId === resolveTarget.id}>
                 Resolve
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       ) : null}
-    </main>
+    </section>
   );
 };
 

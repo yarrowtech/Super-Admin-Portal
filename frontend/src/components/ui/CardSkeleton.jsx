@@ -1,7 +1,7 @@
 import Skeleton from './Skeleton';
 
-const CardSkeleton = ({ count = 4 }) => (
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+const CardSkeleton = ({ count = 4, className = '' }) => (
+  <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 ${className}`}>
     {Array.from({ length: count }).map((_, index) => (
       <div key={index} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60">
         <Skeleton className="h-3 w-24" />

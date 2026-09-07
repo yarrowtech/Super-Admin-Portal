@@ -65,7 +65,7 @@ const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, 
       >
         <div className="p-4 lg:p-5">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-            <TaskFilters filters={filters} onChange={setFilters} tasks={board.tasks} />
+            <TaskFilters filters={filters} onChange={setFilters} tasks={board.allTasks} departmentEnabled={portal === 'hr'} />
             <TaskViewSwitcher view={view} onChange={setView} />
           </div>
 

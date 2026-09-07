@@ -13,6 +13,7 @@ const TaskListView = ({ tasks, loading, onOpenTask }) => {
     { key: 'title', header: 'Task', render: (t) => <span className="font-semibold text-neutral-900 dark:text-neutral-100">{t.title}</span> },
     { key: 'project', header: 'Project', render: (t) => t.project?.name || '—' },
     { key: 'assignee', header: 'Assignee', render: (t) => t.assignee ? <div className="flex items-center gap-2"><Avatar name={t.assignee.name} size="xs" />{t.assignee.name}</div> : '—' },
+    { key: 'department', header: 'Department', render: (t) => t.department || 'Unassigned department' },
     { key: 'priority', header: 'Priority', render: (t) => <StatusBadge tone={priorityToTone(t.priority)} label={t.priority} dot={false} /> },
     { key: 'status', header: 'Status', render: (t) => <StatusBadge tone={statusToTone(t.status)} label={statusLabel(t.status)} dot={false} /> },
     { key: 'dueDate', header: 'Due date', render: (t) => <span className={t.isOverdue && t.status !== 'completed' && t.status !== 'cancelled' ? 'font-semibold text-rose-600' : ''}>{formatDate(t.dueDate)}</span> },

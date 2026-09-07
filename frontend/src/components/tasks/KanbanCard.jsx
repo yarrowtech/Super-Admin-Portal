@@ -40,6 +40,7 @@ const KanbanCard = ({ task, onOpen }) => {
         <p className="mt-1 truncate text-xs text-neutral-500 dark:text-neutral-400">{task.project.name}</p>
       )}
 
+      {task.department && <p className="mt-1 text-xs font-medium text-primary">{task.department}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StatusBadge tone={priorityToTone(task.priority)} label={task.priority} dot={false} />
         {task.isOverdue && task.status !== 'completed' && task.status !== 'cancelled' ? (
@@ -51,8 +52,8 @@ const KanbanCard = ({ task, onOpen }) => {
 
       <div className="mt-3 flex items-center justify-between gap-2">
         {task.assignee ? (
-          <div title={task.assignee.name}>
-            <Avatar name={task.assignee.name} size="xs" />
+          <div title={task.assignee.name} className="flex min-w-0 items-center gap-2">
+            <Avatar name={task.assignee.name} size="xs" /><span className="truncate text-xs text-neutral-600 dark:text-neutral-300">{task.assignee.name}</span>
           </div>
         ) : <span />}
         <div className="flex items-center gap-2 text-[11px] text-neutral-400">

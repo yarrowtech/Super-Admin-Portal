@@ -32,7 +32,7 @@ const Tabs = ({ items, activeKey, onChange, className = '' }) => {
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.key)}
             onKeyDown={(e) => handleKeyDown(e, index)}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+            className={`inline-flex min-h-10 items-center gap-1.5 rounded-full px-4 py-2.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
               active
                 ? 'bg-primary text-white'
                 : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800'

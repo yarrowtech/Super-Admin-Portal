@@ -1,3 +1,4 @@
+import './users/userManagement.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../../services/admin';
 import { useAuth } from '../../context/AuthContext';
@@ -419,7 +420,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
   if (loading && users.length === 0) {
     return (
-      <main className="portal-page">
+      <main className="portal-page user-management">
         <div className="portal-page-inner">
           <div className="mb-4 h-32 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
           <div className="grid grid-cols-1 gap-4 min-[1200px]:grid-cols-12">
@@ -444,7 +445,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
   }
 
   return (
-    <main className="portal-page">
+    <main className="portal-page user-management">
       <div className="portal-page-inner">
           {/* Header with gradient background */}
           <PortalHeader
@@ -455,9 +456,9 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
             showNotifications={false}
             showThemeToggle
           >
-            <StatsCard label="Total" value={stats.totalUsers} icon="groups" colorScheme="blue" />
-            <StatsCard label="Active" value={stats.activeUsers} icon="check_circle" colorScheme="green" />
-            <StatsCard label="Inactive" value={stats.inactiveUsers} icon="cancel" colorScheme="orange" />
+            <StatsCard label="Total" value={stats.totalUsers} icon="groups" colorScheme="blue" className="user-stat user-stat--total" />
+            <StatsCard label="Active" value={stats.activeUsers} icon="check_circle" colorScheme="green" className="user-stat user-stat--active" />
+            <StatsCard label="Inactive" value={stats.inactiveUsers} icon="cancel" colorScheme="orange" className="user-stat user-stat--inactive" />
             <div className="flex w-full flex-col gap-2 min-[420px]:flex-row sm:w-auto">
               <Button
                 variant="secondary"

@@ -63,7 +63,7 @@ const UserDataTable = ({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="user-directory overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       {/* Table Header */}
       <div className="border-b border-neutral-200 bg-gradient-to-r from-neutral-50 via-white to-neutral-50 p-3 dark:border-neutral-800 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 lg:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -215,6 +215,7 @@ const UserDataTable = ({
                   <tr
                     key={userId}
                     onClick={() => onSelectUser(user)}
+                    aria-selected={isSelected}
                     className={`cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60 ${
                       isSelected ? 'bg-primary/5 dark:bg-primary/10 border-l-4 border-l-primary' : ''
                     }`}
@@ -224,7 +225,7 @@ const UserDataTable = ({
                         <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
                           isSelected 
                             ? 'bg-primary text-white' 
-                            : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'
+                            : 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-200'
                         }`}>
                           {initials}
                         </div>
@@ -247,7 +248,7 @@ const UserDataTable = ({
                     <td className="p-3">
                       <StatusBadge
                         tone={
-                          user.accountStatus === 'active'
+                          (user.accountStatus || (user.isActive ? 'active' : 'inactive')) === 'active'
                             ? 'success'
                             : user.accountStatus === 'blocked' || user.accountStatus === 'suspended'
                               ? 'danger'
@@ -271,6 +272,7 @@ const UserDataTable = ({
                         <IconButton
                           icon="edit"
                           tone="primary"
+                          className="user-action user-action--edit"
                           tooltip="Edit user"
                           disabled={legacyEmployee}
                           onClick={(e) => {
@@ -281,6 +283,7 @@ const UserDataTable = ({
                         <IconButton
                           icon={user.accountStatus === 'blocked' ? 'lock_open' : 'block'}
                           tone="danger"
+                          className="user-action user-action--danger"
                           tooltip={user.accountStatus === 'blocked' ? 'Unblock user' : 'Block user'}
                           disabled={legacyEmployee || actionState.togglingId === userId}
                           onClick={(e) => {
@@ -291,6 +294,7 @@ const UserDataTable = ({
                         <IconButton
                           icon={user.isActive ? 'pause_circle' : 'play_circle'}
                           tone={user.isActive ? 'warning' : 'success'}
+                          className={`user-action ${user.isActive ? 'user-action--pause' : 'user-action--activate'}`}
                           tooltip={user.isActive ? 'Deactivate user' : 'Activate user'}
                           disabled={legacyEmployee || actionState.togglingId === userId}
                           loading={actionState.togglingId === userId}
@@ -302,6 +306,7 @@ const UserDataTable = ({
                         <IconButton
                           icon="delete"
                           tone="danger"
+                          className="user-action user-action--danger"
                           tooltip="Delete user"
                           disabled={legacyEmployee || actionState.deletingId === userId}
                           loading={actionState.deletingId === userId}
@@ -343,7 +348,7 @@ const UserDataTable = ({
                     <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-sm font-bold ${
                       isSelected 
                         ? 'bg-primary text-white' 
-                        : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'
+                        : 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-200'
                     }`}>
                       {initials}
                     </div>
@@ -370,10 +375,11 @@ const UserDataTable = ({
                   </div>
                   
                   {/* Quick Actions */}
-                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-neutral-100 pt-3 dark:border-neutral-800 md:absolute md:right-3 md:top-3 md:mt-0 md:border-0 md:pt-0 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-neutral-100 pt-3 dark:border-neutral-800 md:absolute md:right-3 md:top-3 md:mt-0 md:border-0 md:pt-0 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                     <IconButton
                       icon="edit"
                       tone="primary"
+                          className="user-action user-action--edit"
                       tooltip={`Edit ${fullName}`}
                       disabled={legacyEmployee}
                       onClick={(e) => {
@@ -384,6 +390,7 @@ const UserDataTable = ({
                     <IconButton
                       icon={user.accountStatus === 'blocked' ? 'lock_open' : 'block'}
                       tone="danger"
+                          className="user-action user-action--danger"
                       tooltip={user.accountStatus === 'blocked' ? `Unblock ${fullName}` : `Block ${fullName}`}
                       disabled={legacyEmployee || actionState.togglingId === userId}
                       onClick={(e) => {
@@ -394,6 +401,7 @@ const UserDataTable = ({
                     <IconButton
                       icon={user.isActive ? 'pause_circle' : 'play_circle'}
                       tone={user.isActive ? 'warning' : 'success'}
+                          className={`user-action ${user.isActive ? 'user-action--pause' : 'user-action--activate'}`}
                       tooltip={user.isActive ? `Deactivate ${fullName}` : `Activate ${fullName}`}
                       disabled={legacyEmployee || actionState.togglingId === userId}
                       loading={actionState.togglingId === userId}
@@ -405,6 +413,7 @@ const UserDataTable = ({
                     <IconButton
                       icon="delete"
                       tone="danger"
+                          className="user-action user-action--danger"
                       tooltip={`Delete ${fullName}`}
                       disabled={legacyEmployee || actionState.deletingId === userId}
                       loading={actionState.deletingId === userId}

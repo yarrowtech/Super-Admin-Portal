@@ -13,7 +13,7 @@ const SectionCard = ({ icon, title, children }) => (
   </div>
 );
 
-const filterButtonClass = (active, activeClass = 'bg-gradient-to-r from-primary to-primary/80 text-white font-semibold shadow-md') =>
+const filterButtonClass = (active, activeClass = 'bg-blue-700 text-white font-semibold shadow-sm') =>
   `flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-all ${
     active
       ? activeClass
@@ -33,13 +33,13 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts, departmentC
   const catalogGroups = departmentCatalog.map((department) => ({
     key: department.id,
     label: department.name,
-    icon: 'apartment',
-    badge: 'bg-primary/10 text-primary',
+    icon: departmentGroups.find((group) => group.key === department.id)?.icon || 'apartment',
+    badge: departmentGroups.find((group) => group.key === department.id)?.badge || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
     subRoles: (department.roles || []).map((role) => ({ value: role.code, label: role.displayName })),
   }));
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="user-filters flex flex-col gap-3">
       <div className="rounded-xl border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-4 shadow-sm dark:border-neutral-800 dark:from-neutral-900 dark:to-neutral-800">
         <label className="block">
           <div className="mb-3 flex items-center gap-2.5">
@@ -183,7 +183,7 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts, departmentC
           <button
             type="button"
             onClick={() => setFilters({ ...filters, isActive: 'true', accountStatus: '' })}
-            className={filterButtonClass(filters.isActive === 'true', 'bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold shadow-md')}
+            className={filterButtonClass(filters.isActive === 'true', 'bg-teal-700 text-white font-semibold shadow-sm')}
           >
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-lg">check_circle</span>
@@ -193,7 +193,7 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts, departmentC
           <button
             type="button"
             onClick={() => setFilters({ ...filters, isActive: 'false', accountStatus: '' })}
-            className={filterButtonClass(filters.isActive === 'false', 'bg-gradient-to-r from-orange-600 to-orange-500 text-white font-semibold shadow-md')}
+            className={filterButtonClass(filters.isActive === 'false', 'bg-amber-700 text-white font-semibold shadow-sm')}
           >
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-lg">cancel</span>
@@ -230,7 +230,7 @@ const UserFilterSidebar = ({ filters, setFilters, stats, roleCounts, departmentC
                 onClick={() => setFilters({ ...filters, joinedWithin: option.value })}
                 className={`min-h-11 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                   active
-                    ? 'bg-gradient-to-r from-primary to-primary/80 text-white shadow-md'
+                    ? 'bg-blue-700 text-white shadow-sm'
                     : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
                 }`}
               >

@@ -32,7 +32,7 @@ export const departmentGroups = [
     ],
   },
   {
-    key: 'media', label: 'Media', icon: 'photo_camera', badge: 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-400',
+    key: 'media', label: 'Media', icon: 'photo_camera', badge: 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400',
     subRoles: [
       { value: 'media_head', label: 'Media Head' },
       { value: 'media_sales', label: 'Media Sales' },
@@ -46,7 +46,7 @@ export const departmentGroups = [
       { value: 'law_employee', label: 'Law Employee' },
     ],
   },
-  { key: 'outsourcing', label: 'Outsourcing', icon: 'handshake', roles: ['freelancer'], badge: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400' },
+  { key: 'outsourcing', label: 'Outsourcing', icon: 'handshake', roles: ['freelancer'], badge: 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400' },
 ];
 
 export const ROLE_ICONS = {

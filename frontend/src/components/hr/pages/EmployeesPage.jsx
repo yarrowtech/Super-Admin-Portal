@@ -2,8 +2,8 @@ import React from 'react';
 import UserRoleManagement from '../../admin/UserRoleManagement';
 import { hrApi } from '../../../services/hr';
 
-const mapDashboard = async (token) => {
-  const response = await hrApi.getDashboard(token);
+const mapDashboard = async (token, options = {}) => {
+  const response = await hrApi.getDashboard(token, options);
   const data = response?.data || {};
   return {
     data: {
@@ -36,6 +36,7 @@ const mapUsers = async (token, params = {}) => {
 const hrUsersApi = {
   getDashboard: mapDashboard,
   getAllUsers: mapUsers,
+  getAccessCatalog: (token, department) => hrApi.getAccessCatalog(token, department),
   getUserById: async () => {
     throw new Error('User lookup is not available in the HR users page');
   },

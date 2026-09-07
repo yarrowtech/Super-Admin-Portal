@@ -14,8 +14,8 @@ const buildQueryString = (params = {}) => {
 
 export const hrApi = {
   // Dashboard
-  getDashboard: async (token) => {
-    return apiClient.get('/api/dept/hr/dashboard', token);
+  getDashboard: async (token, options = {}) => {
+    return apiClient.get('/api/dept/hr/dashboard', token, options);
   },
   getAnalyticsOverview: async (token) => {
     return apiClient.get('/api/analytics/hr/overview', token);
@@ -31,9 +31,13 @@ export const hrApi = {
   },
 
   // Employees Management
+  getAccessCatalog: async (token, department) => {
+    const query = buildQueryString({ department });
+    return apiClient.get(`/api/dept/hr/roles/access-catalog${query ? `?${query}` : ''}`, token);
+  },
   getEmployees: async (token, params = {}) => {
     const query = buildQueryString(params);
-    return apiClient.get(`/api/dept/hr/employees${query ? `?${query}` : ''}`, token);
+    return apiClient.get(`/api/dept/hr/employees${query ? `?${query}` : ''}`, token, { cache: false });
   },
   createEmployee: async (data, token) => {
     return apiClient.post('/api/dept/hr/employees', data, token);

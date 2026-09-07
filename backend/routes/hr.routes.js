@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const hrController = require('../controllers/hr/hrDashboard.controller');
 const adminUsersController = require('../controllers/admin/userManagement.controller');
+const roleManagementController = require('../controllers/admin/roleManagement.controller');
 const performanceSystemController = require('../controllers/hr/performanceSystem.controller');
 const exportSystemController = require('../controllers/hr/exportSystem.controller');
 const attendanceExportController = require('../controllers/hr/attendanceExport.controller');
@@ -49,6 +50,7 @@ router.put('/tasks/:id', hrController.updateTask);
 router.put('/tasks/:id/close', hrController.closeTask);
 
 // Employees Management
+router.get('/roles/access-catalog', roleManagementController.getAccessCatalog);
 router.get('/employees', adminUsersController.getAllUsers);
 router.get('/users/profiles', hrController.getUserProfiles);
 router.get('/users/profiles/:id', hrController.getUserProfileById);

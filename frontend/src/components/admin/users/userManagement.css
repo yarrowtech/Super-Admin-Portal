@@ -1,0 +1,76 @@
+/* Shared by the Admin and HR user directories, including the filter drawer. */
+.user-management,
+.user-filters {
+  --portal-accent: #1d4ed8;
+  --um-surface: #ffffff;
+  --um-muted: #f1f5f9;
+  --um-border: #dbe3ee;
+  --um-text: #172b4d;
+  --um-secondary: #52647b;
+  --um-blue: #1d4ed8;
+  --um-blue-soft: #eff6ff;
+  --um-teal: #0f766e;
+  --um-teal-soft: #f0fdfa;
+  --um-amber: #92400e;
+  --um-amber-soft: #fffbeb;
+  --um-rose: #be123c;
+  --um-rose-soft: #fff1f2;
+}
+.dark .user-management,
+.dark .user-filters {
+  --um-surface: #0f172a;
+  --um-muted: #182438;
+  --um-border: #334155;
+  --um-text: #e2e8f0;
+  --um-secondary: #a8b8cd;
+  --um-blue: #93c5fd;
+  --um-blue-soft: #172d4d;
+  --um-teal: #5eead4;
+  --um-teal-soft: #123535;
+  --um-amber: #fcd34d;
+  --um-amber-soft: #392d1c;
+  --um-rose: #fda4af;
+  --um-rose-soft: #3b2030;
+}
+.user-management { background: #f4f7fb; color: var(--um-text); }
+.dark .user-management { background: #0b1220; }
+.user-management header,
+.user-management .user-directory,
+.user-filters > div {
+  background: var(--um-surface);
+  border-color: var(--um-border);
+  box-shadow: 0 2px 8px rgb(15 23 42 / 4%);
+}
+.user-management h1,
+.user-management h2,
+.user-filters h3 { color: var(--um-text); }
+.user-management .user-stat {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  box-shadow: none;
+}
+.user-management .user-stat span { color: inherit; }
+.user-management .user-stat--total { background: var(--um-blue-soft); color: var(--um-blue); }
+.user-management .user-stat--active { background: var(--um-teal-soft); color: var(--um-teal); }
+.user-management .user-stat--inactive { background: var(--um-amber-soft); color: var(--um-amber); }
+.user-directory > div:first-child { background: var(--um-surface); border-color: var(--um-border); }
+.user-directory thead { background: var(--um-muted); }
+.user-directory th { color: var(--um-secondary); }
+.user-directory tbody tr { border-color: var(--um-border); }
+.user-directory tbody tr:hover { background: var(--um-muted); }
+.user-directory tbody tr[aria-selected="true"] { background: var(--um-blue-soft); border-left-color: var(--um-blue); }
+.user-directory .user-action {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--um-secondary);
+}
+.user-directory .user-action--edit { color: var(--um-blue); }
+.user-directory .user-action--pause { color: var(--um-amber); }
+.user-directory .user-action--activate { color: var(--um-teal); }
+.user-directory .user-action--danger { color: var(--um-rose); }
+.user-directory .user-action--edit:hover { background: var(--um-blue-soft); }
+.user-directory .user-action--pause:hover { background: var(--um-amber-soft); }
+.user-directory .user-action--activate:hover { background: var(--um-teal-soft); }
+.user-directory .user-action--danger:hover { background: var(--um-rose-soft); }
+.user-directory .user-action:focus-visible { outline: 2px solid var(--um-blue); outline-offset: 2px; }
+.user-directory .user-action:disabled { color: var(--um-secondary); background: transparent; }

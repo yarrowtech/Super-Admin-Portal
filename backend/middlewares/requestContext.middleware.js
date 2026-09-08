@@ -98,8 +98,8 @@ const toEventName = (req, statusCode) => {
 
 const toHumanMessage = (event, req, statusCode) => {
   if (!event) return "";
-  if (event === "API_ERROR") return `${req.method} ${req.originalUrl || req.path} failed`;
-  if (event === "VALIDATION_ERROR") return `${req.method} ${req.originalUrl || req.path} validation failed`;
+  if (event === "API_ERROR") return `${req.method} ${(req.originalUrl || req.path || "").split(/[?#]/)[0]} failed`;
+  if (event === "VALIDATION_ERROR") return `${req.method} ${(req.originalUrl || req.path || "").split(/[?#]/)[0]} validation failed`;
   if (event === "UNAUTHORIZED") return "Request rejected: authentication required";
   if (event === "FORBIDDEN") return "Request rejected: insufficient permissions";
   if (event === "NOT_FOUND") return "Route not found";
@@ -111,7 +111,7 @@ const toHumanMessage = (event, req, statusCode) => {
   if (event === "PROJECT_CREATED") return "Project created successfully";
   if (event === "PROJECT_UPDATED") return "Project updated successfully";
   if (event === "PROJECT_DELETED") return "Project deleted successfully";
-  return `${req.method} ${req.originalUrl || req.path} completed with status ${statusCode}`;
+  return `${req.method} ${(req.originalUrl || req.path || "").split(/[?#]/)[0]} completed with status ${statusCode}`;
 };
 
 const requestContextMiddleware = (req, res, next) => {
@@ -158,7 +158,7 @@ const requestContextMiddleware = (req, res, next) => {
         userId: req.user?.id || req.user?._id || null,
         role: req.user?.role || null,
       });
-      logger.info(
+      logger[res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info"](
         {
           requestId: context.requestId,
           userId: req.user?.id || req.user?._id || null,

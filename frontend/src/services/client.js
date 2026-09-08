@@ -1,89 +1,26 @@
 import { createRequestId } from '../utils/logger';
-import { clearAuthSession, readAuthSession, writeAuthSession } from '../lib/authSession';
+import { clearAuthSession, readAuthSession, writeAuthSession, subscribeAuthSession } from '../lib/authSession';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const CACHE_PREFIX = 'sap_http_cache_v1:';
-const DEFAULT_TTL_MS = 30 * 1000;
+// TanStack Query owns response freshness; share only concurrent GETs here.
 const inflight = new Map();
 let refreshPromise = null;
-
-const now = () => Date.now();
-
+let cacheGeneration = 0;
 const getStoredProjectId = () => {
-  try {
-    return localStorage.getItem('activeProjectId') || '';
-  } catch {
-    return '';
-  }
+  try { return localStorage.getItem('activeProjectId') || ''; } catch { return ''; }
 };
-
-// Endpoint-aware TTL strategy:
-//   settings/config/roles   → 30 min (rarely change)
-//   permissions/workflows   → 30 min
-//   reports/analytics       → 10 min
-//   dashboard/kpi           → 60 s  (live data)
-//   profile/auth            → 5 min
-//   notifications/chat      → 15 s  (near-live)
-//   default                 → 30 s
-const getTtlForPath = (path) => {
-  const p = String(path || '').toLowerCase();
-  if (/\/(settings|config|workflow|permissions|roles)/.test(p)) return 30 * 60_000;
-  if (/\/(reports|analytics|stats|metrics)/.test(p))            return 10 * 60_000;
-  if (/\/(dashboard|kpi)/.test(p))                              return 60_000;
-  if (/\/(profile|auth|me|session)/.test(p))                    return 5 * 60_000;
-  if (/\/(notifications|chat)/.test(p))                         return 15_000;
-  return DEFAULT_TTL_MS;
-};
-
-const buildCacheKey = (method, path, token, projectId = getStoredProjectId()) => {
-  const tokenPart = token ? token.slice(0, 24) : 'anon';
-  const projectPart = projectId || 'all';
-  return `${CACHE_PREFIX}${method}:${projectPart}:${path}:${tokenPart}`;
-};
-
-const readCache = (key) => {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (Number(parsed.expiresAt || 0) < now()) {
-      sessionStorage.removeItem(key);
-      return null;
-    }
-    return parsed.value;
-  } catch {
-    return null;
-  }
-};
-
-const writeCache = (key, value, ttlMs = DEFAULT_TTL_MS) => {
-  try {
-    sessionStorage.setItem(
-      key,
-      JSON.stringify({
-        value,
-        expiresAt: now() + Math.max(1000, Number(ttlMs) || DEFAULT_TTL_MS)
-      })
-    );
-  } catch {
-    // ignore storage errors
-  }
-};
-
 const clearApiCache = () => {
+  cacheGeneration += 1;
+  inflight.clear();
   try {
-    inflight.clear();
-    for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
       const key = sessionStorage.key(i);
-      if (key && key.startsWith(CACHE_PREFIX)) {
-        sessionStorage.removeItem(key);
-      }
+      if (key?.startsWith('sap_http_cache_v1:')) sessionStorage.removeItem(key);
     }
-  } catch {
-    // ignore
-  }
+  } catch { /* Storage may be unavailable. */ }
 };
+clearApiCache();
+subscribeAuthSession(clearApiCache);
 
 const getDefaultHeaders = (token, requestId = createRequestId()) => {
   const headers = {
@@ -119,6 +56,7 @@ const parseResponse = async (res, requestId) => {
 
     const error = new Error(fieldMessage || data?.error || data?.message || `HTTP ${res.status}: ${res.statusText}`);
     error.status = res.status;
+    error.requestId = res.headers.get('x-request-id') || requestId;
     error.code = data?.code;
     error.details = data?.details;
     error.fieldErrors = fieldErrors;
@@ -158,6 +96,9 @@ const refreshAccessToken = async () => {
     });
 
     const parsed = await parseResponse(res, requestId);
+    if (readAuthSession().refreshToken !== session.refreshToken) {
+      throw new Error('Session changed during token refresh');
+    }
     const nextToken = parsed?.data?.token;
     if (!nextToken) {
       throw new Error('Invalid refresh response');
@@ -188,11 +129,12 @@ const shouldRefresh = (error, path) => {
   return ['TOKEN_EXPIRED', 'SESSION_INVALID', 'INVALID_TOKEN', 'TOKEN_INVALID'].includes(error.code);
 };
 
-const request = async ({ method, path, body, token, cache = false, cacheKey, ttlMs }) => {
+const request = async ({ method, path, body, token, signal }) => {
   const execute = async (requestToken) => {
     const requestId = createRequestId();
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method,
+      signal,
       headers: getDefaultHeaders(requestToken, requestId),
       body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'include',
@@ -200,9 +142,6 @@ const request = async ({ method, path, body, token, cache = false, cacheKey, ttl
     });
     const parsed = await parseResponse(res, requestId);
     persistResponseToken(res);
-    if (cache && cacheKey) {
-      writeCache(cacheKey, parsed, ttlMs);
-    }
     return parsed;
   };
 
@@ -219,37 +158,17 @@ const request = async ({ method, path, body, token, cache = false, cacheKey, ttl
 
 export const apiClient = {
   async get(path, token, options = {}) {
-    // TanStack Query owns caching for Media. A second response cache here can
-    // return stale data even after the query cache has been invalidated.
-    const isMediaRequest = path.startsWith('/api/dept/media');
-    const cache = options?.cache ?? !isMediaRequest;
-    const { ttlMs, forceRefresh = false } = options || {};
-    const cacheKey = buildCacheKey('GET', path, token);
-    const effectiveTtl = ttlMs ?? getTtlForPath(path);
-
-    if (cache && !forceRefresh) {
-      const cached = readCache(cacheKey);
-      if (cached) return cached;
-    }
-
-    if (cache && inflight.has(cacheKey)) {
-      return inflight.get(cacheKey);
-    }
-
-    const requestPromise = request({
-      method: 'GET',
-      path,
-      token,
-      cache,
-      cacheKey,
-      ttlMs: effectiveTtl,
-    });
-
-    if (cache) inflight.set(cacheKey, requestPromise);
+    const { signal, forceRefresh = false } = options || {};
+    // Credentials are used only in memory, never in storage keys or logs.
+    const key = JSON.stringify([API_BASE_URL, path, token || '', getStoredProjectId(), cacheGeneration]);
+    const deduplicate = !signal && !forceRefresh;
+    if (deduplicate && inflight.has(key)) return inflight.get(key);
+    const pending = request({ method: 'GET', path, token, signal });
+    if (deduplicate) inflight.set(key, pending);
     try {
-      return await requestPromise;
+      return await pending;
     } finally {
-      if (cache) inflight.delete(cacheKey);
+      if (inflight.get(key) === pending) inflight.delete(key);
     }
   },
   async post(path, body, token) {

@@ -2,7 +2,9 @@ import pino from 'pino';
 
 const APP_NAME = 'super-admin-frontend';
 const ENV = import.meta.env.MODE || 'development';
-const LOG_LEVEL = import.meta.env.VITE_LOG_LEVEL || (import.meta.env.PROD ? 'info' : 'debug');
+const configuredLevel = import.meta.env.VITE_LOG_LEVEL;
+const LOG_LEVEL = ['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace'].includes(configuredLevel)
+  ? configuredLevel : (import.meta.env.PROD ? 'warn' : 'debug');
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const isTest = ENV === 'test';
@@ -20,7 +22,8 @@ const SENSITIVE_KEYS = new Set([
   'refreshtoken',
   'apikey',
   'api_key',
-  'secret',
+  'secret', 'passwordhash', 'jwt', 'jwtsecret', 'clientsecret', 'privatekey',
+  'setcookie', 'cookies', 'cardnumber', 'cvv', 'cvc', 'accountnumber',
 ]);
 
 const normalizeKey = (key) => String(key || '').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -28,7 +31,7 @@ const normalizeKey = (key) => String(key || '').replace(/[^a-zA-Z0-9_]/g, '').to
 const sanitize = (value, depth = 0) => {
   if (value == null) return value;
   if (depth > 4) return '[MaxDepth]';
-  if (value instanceof Error) return { message: value.message, name: value.name };
+  if (value instanceof Error) return sanitize({ message: value.message, name: value.name, stack: isDevelopment ? value.stack : undefined, status: value.status, requestId: value.requestId }, depth + 1);
   if (typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.slice(0, 25).map((item) => sanitize(item, depth + 1));
   return Object.entries(value).reduce((acc, [key, item]) => {
@@ -48,9 +51,9 @@ const toApiPath = (input) => {
   try {
     const rawUrl = typeof input === 'string' ? input : input?.url;
     const url = new URL(rawUrl, window.location.origin);
-    return `${url.pathname}${url.search}`;
+    return url.pathname;
   } catch {
-    return String(input || '');
+    return '[Invalid URL]';
   }
 };
 
@@ -60,7 +63,7 @@ const isApiRequest = (input) => {
     const url = new URL(rawUrl, window.location.origin);
     const apiBase = new URL(API_BASE_URL, window.location.origin);
     if (url.pathname.startsWith('/__dev')) return false;
-    return url.pathname.startsWith('/api') || url.origin === apiBase.origin;
+    return url.origin === apiBase.origin && (url.pathname === '/api' || url.pathname.startsWith('/api/'));
   } catch {
     return false;
   }
@@ -98,7 +101,7 @@ const emitFrontendEvent = (level, event = {}, message = 'Frontend event') => {
   });
 };
 
-const logger = pino({
+const pinoLogger = pino({
   name: APP_NAME,
   level: LOG_LEVEL,
   enabled: !isTest,
@@ -141,9 +144,10 @@ const normalizeLogArgs = (arg1, arg2) => {
 };
 
 const createLogger = (bindings = {}) => {
-  const child = logger.child(bindings);
+  const child = pinoLogger.child(sanitize(bindings));
   const wrap = (level) => (arg1, arg2) => {
-    child[level](arg1, arg2);
+    if (!child.isLevelEnabled(level)) return;
+    child[level](sanitize(arg1), sanitize(arg2));
     if (level === 'trace' || level === 'debug') return;
     const [payload, message] = normalizeLogArgs(arg1, arg2);
     emitFrontendEvent(level, {
@@ -167,8 +171,9 @@ const createLogger = (bindings = {}) => {
 
 let fetchLoggingInstalled = false;
 
+const apiLogger = createLogger({ module: 'http' });
 const installFrontendFetchLogging = () => {
-  if (!isDevelopment || fetchLoggingInstalled || typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+  if (isTest || fetchLoggingInstalled || typeof window === 'undefined' || typeof window.fetch !== 'function') return;
   fetchLoggingInstalled = true;
   const nativeFetch = window.fetch.bind(window);
 
@@ -187,7 +192,7 @@ const installFrontendFetchLogging = () => {
     const startedAt = performance.now();
     const nextInit = { ...init, headers };
 
-    emitFrontendEvent('info', {
+    apiLogger.debug({
       eventType: 'api',
       direction: 'out',
       method,
@@ -200,7 +205,7 @@ const installFrontendFetchLogging = () => {
       const response = await nativeFetch(input, nextInit);
       const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
       const failed = response.status >= 400;
-      emitFrontendEvent(failed ? 'warn' : 'info', {
+      apiLogger[response.status >= 500 ? 'error' : failed ? 'warn' : 'debug']({
         eventType: 'api',
         direction: failed ? 'error' : 'in',
         method,
@@ -213,7 +218,7 @@ const installFrontendFetchLogging = () => {
       return response;
     } catch (error) {
       const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
-      emitFrontendEvent('error', {
+      apiLogger[error?.name === 'AbortError' ? 'debug' : 'error']({
         eventType: 'api',
         direction: 'error',
         method,
@@ -229,4 +234,4 @@ const installFrontendFetchLogging = () => {
 };
 
 export { createLogger, createRequestId, emitFrontendEvent, installFrontendFetchLogging };
-export default logger;
+export default createLogger();

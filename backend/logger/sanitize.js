@@ -3,7 +3,7 @@ const SENSITIVE_KEYS = new Set([
   "authorizationheader",
   "cookie",
   "cookies",
-  "set-cookie",
+  "setcookie",
   "password",
   "confirmpassword",
   "passwordhash",
@@ -41,8 +41,11 @@ const normalizeKey = (key) => String(key || "").replace(/[^a-zA-Z0-9_]/g, "").to
 const sanitizeForLog = (value, depth = 0) => {
   if (value == null) return value;
   if (depth > MAX_DEPTH) return "[MaxDepth]";
-  if (value instanceof Error) return value;
+  if (value instanceof Error) {
+    return sanitizeForLog({ ...value, type: value.name, message: value.message, stack: value.stack, cause: value.cause }, depth + 1);
+  }
   if (value instanceof Date) return value.toISOString();
+  if (typeof value === "bigint") return value.toString();
   if (typeof value === "string") {
     return value.length > MAX_STRING_LENGTH ? `${value.slice(0, MAX_STRING_LENGTH)}...` : value;
   }
@@ -56,7 +59,9 @@ const sanitizeForLog = (value, depth = 0) => {
       acc[key] = "[Redacted]";
       return acc;
     }
-    acc[key] = sanitizeForLog(item, depth + 1);
+    acc[key] = ["url", "path", "originalurl", "route"].includes(normalizeKey(key)) && typeof item === "string"
+      ? item.split(/[?#]/)[0]
+      : sanitizeForLog(item, depth + 1);
     return acc;
   }, {});
 };

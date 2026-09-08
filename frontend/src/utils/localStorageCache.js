@@ -1,163 +1,112 @@
-/**
- * localStorage-backed persistence layer for TanStack Query.
- *
- * Persists the in-memory query cache to localStorage so that on the next
- * page load users see stale-but-instant data while fresh data loads in
- * the background (stale-while-revalidate pattern).
- *
- * Usage (call once after QueryClient is created):
- *   import { attachQueryPersister } from '@/utils/localStorageCache';
- *   attachQueryPersister(queryClient);
- */
 import { subscribeAuthSession } from '../lib/authSession';
-import { readAuthSession } from '../lib/authSession';
+import { getCacheSessionScope } from './cacheScope';
 
-const LS_KEY = 'sap_query_cache_v2';
-const PERSIST_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 h
-const PERSIST_DEBOUNCE_MS = 2_000;               // flush at most every 2 s
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const readPersistedCache = () => {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (Date.now() - (parsed.timestamp || 0) > PERSIST_MAX_AGE_MS) {
-      localStorage.removeItem(LS_KEY);
-      return null;
-    }
-    return parsed.clientState ?? null;
-  } catch {
-    return null;
-  }
+const KEY = 'sap_query_cache_v3';
+const MAX_AGE = 30 * 60_000;
+const MODULE_PREFIX = 'sap_ls_v2:';
+const project = () => {
+  try { return localStorage.getItem('activeProjectId') || 'all'; } catch { return 'all'; }
 };
-
-const writePersistedCache = (clientState) => {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      timestamp: Date.now(),
-      clientState,
-    }));
-  } catch {
-    // Quota exceeded or private browsing — silently degrade
-  }
+const scope = () => {
+  const session = getCacheSessionScope();
+  return session ? JSON.stringify([session, project()]) : null;
 };
 
 export const clearPersistedCache = () => {
-  try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem('sap_query_cache_v2');
+    sessionStorage.removeItem(KEY);
+    for (const storage of [localStorage, sessionStorage]) {
+      for (let i = storage.length - 1; i >= 0; i--) {
+        const key = storage.key(i);
+        if (key?.startsWith('sap_ls_v1:') || key?.startsWith(MODULE_PREFIX)) storage.removeItem(key);
+      }
+    }
+  } catch { /* Storage can be unavailable. */ }
 };
 
-// ── Core persister ───────────────────────────────────────────────────────────
-
-/**
- * Attaches a subscriber to queryClient that flushes the serialised cache to
- * localStorage on a debounced interval.  On startup it hydrates the client
- * from whatever was persisted last session.
- *
- * @param {import('@tanstack/react-query').QueryClient} queryClient
- */
+// Application data stays in memory by default. Only reviewed, non-sensitive
+// queries explicitly marked meta.persist=true may survive a reload in this tab.
 export const attachQueryPersister = (queryClient) => {
-  const { token } = readAuthSession();
-  if (!token) {
-    queryClient.clear();
-    clearPersistedCache();
-  }
-
-  // Hydrate from previous session
-  const persisted = token ? readPersistedCache() : null;
-  if (persisted) {
-    try {
-      queryClient.setQueryData = queryClient.setQueryData.bind(queryClient);
-      const queries = persisted.queries ?? [];
-      queries.forEach(({ queryKey, state }) => {
-        // Only restore data that is not too old
-        const age = Date.now() - (state?.dataUpdatedAt ?? 0);
-        if (age < PERSIST_MAX_AGE_MS && state?.data !== undefined) {
-          queryClient.setQueryData(queryKey, state.data, { updatedAt: state.dataUpdatedAt });
+  let session = getCacheSessionScope();
+  let timer;
+  try {
+    localStorage.removeItem('sap_query_cache_v2');
+    const saved = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+    if (session && saved?.scope === scope() && Array.isArray(saved.queries)) {
+      for (const item of saved.queries) {
+        const age = Date.now() - item.updatedAt;
+        if (Array.isArray(item.queryKey) && age >= 0 && age < MAX_AGE) {
+          queryClient.setQueryData(item.queryKey, item.data, { updatedAt: item.updatedAt });
         }
-      });
-    } catch {
-      // Corrupt cache — ignore
+      }
+    } else {
+      sessionStorage.removeItem(KEY);
     }
-  }
+  } catch { clearPersistedCache(); }
 
-  // Debounced flush on every cache change
-  let timer = null;
-  const clearAll = () => {
-    clearTimeout(timer);
-    queryClient.clear();
-    clearPersistedCache();
-  };
-  const flush = () => {
+  const persist = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
       try {
-        const cache = queryClient.getQueryCache();
-        const queries = cache.getAll()
-          .filter(q => q.state.data !== undefined && q.state.status === 'success')
-          .map(q => ({ queryKey: q.queryKey, state: { data: q.state.data, dataUpdatedAt: q.state.dataUpdatedAt } }));
-        if (queries.length > 0) {
-          writePersistedCache({ queries });
-        }
-      } catch {
-        // ignore serialisation errors
-      }
-    }, PERSIST_DEBOUNCE_MS);
+        const currentScope = scope();
+        if (!currentScope) { clearPersistedCache(); return; }
+        const queries = queryClient.getQueryCache().getAll()
+          .filter(q => q.meta?.persist === true && q.state.status === 'success'
+            && !q.state.isInvalidated && Date.now() - q.state.dataUpdatedAt < MAX_AGE)
+          .slice(-50)
+          .map(q => ({ queryKey: q.queryKey, data: q.state.data, updatedAt: q.state.dataUpdatedAt }));
+        const serialized = JSON.stringify({ scope: currentScope, queries });
+        if (queries.length && serialized.length <= 500_000) sessionStorage.setItem(KEY, serialized);
+        else sessionStorage.removeItem(KEY);
+      } catch { /* Quota or serialization errors must not break queries. */ }
+    }, 1000);
   };
-
-  const unsubscribe = queryClient.getQueryCache().subscribe(flush);
-  const unsubscribeAuth = subscribeAuthSession(clearAll);
-  return () => {
+  const unsubscribe = queryClient.getQueryCache().subscribe(persist);
+  const unsubscribeAuth = subscribeAuthSession(() => {
+    const nextSession = getCacheSessionScope();
+    if (nextSession && nextSession === session) return; // Access-token rotation.
+    session = nextSession;
+    queryClient.clear();
     clearTimeout(timer);
-    unsubscribe();
-    unsubscribeAuth();
-  };
+    clearPersistedCache();
+  });
+  return () => { clearTimeout(timer); unsubscribe(); unsubscribeAuth(); };
 };
 
-// ── Per-module localStorage KV cache (long-lived static data) ────────────────
-
-const LS_MODULE_PREFIX = 'sap_ls_v1:';
-const now = () => Date.now();
-
-export const lsGet = (key) => {
+const moduleKey = key => {
+  const currentScope = scope();
+  return currentScope ? MODULE_PREFIX + currentScope + ':' + key : null;
+};
+export const lsGet = key => {
   try {
-    const raw = localStorage.getItem(`${LS_MODULE_PREFIX}${key}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed.expiresAt !== 'number') return null;
-    if (parsed.expiresAt < now()) {
-      localStorage.removeItem(`${LS_MODULE_PREFIX}${key}`);
+    const scopedKey = moduleKey(key);
+    if (!scopedKey) return null;
+    const item = JSON.parse(sessionStorage.getItem(scopedKey) || 'null');
+    if (!Number.isFinite(item?.expiresAt) || item.expiresAt <= Date.now()) {
+      sessionStorage.removeItem(scopedKey);
       return null;
     }
-    return parsed.value ?? null;
-  } catch {
-    return null;
-  }
+    return item.value ?? null;
+  } catch { return null; }
 };
-
-export const lsSet = (key, value, ttlMs = 30 * 60_000) => {
+export const lsSet = (key, value, ttlMs = MAX_AGE) => {
   try {
-    localStorage.setItem(`${LS_MODULE_PREFIX}${key}`, JSON.stringify({
-      value,
-      expiresAt: now() + Math.max(1_000, Number(ttlMs) || 30 * 60_000),
-    }));
-  } catch {
-    // Quota exceeded — silently degrade
-  }
+    const scopedKey = moduleKey(key);
+    if (!scopedKey || !Number.isFinite(ttlMs) || ttlMs <= 0) return;
+    sessionStorage.setItem(scopedKey, JSON.stringify({ value, expiresAt: Date.now() + Math.min(ttlMs, MAX_AGE) }));
+  } catch { /* Optional cache. */ }
 };
-
-export const lsDel = (key) => {
-  try { localStorage.removeItem(`${LS_MODULE_PREFIX}${key}`); } catch { /* ignore */ }
+export const lsDel = key => {
+  try { const scopedKey = moduleKey(key); if (scopedKey) sessionStorage.removeItem(scopedKey); } catch { /* Optional cache. */ }
 };
-
-export const lsClearByPrefix = (prefix) => {
+export const lsClearByPrefix = prefix => {
   try {
-    const full = `${LS_MODULE_PREFIX}${prefix}`;
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(full)) localStorage.removeItem(k);
+    const full = moduleKey(prefix);
+    if (!full) return;
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith(full)) sessionStorage.removeItem(key);
     }
-  } catch { /* ignore */ }
+  } catch { /* Optional cache. */ }
 };

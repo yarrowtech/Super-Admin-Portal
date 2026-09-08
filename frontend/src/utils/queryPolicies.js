@@ -26,7 +26,7 @@ export const cachePolicyFor = (queryKey) => {
   if (matchesAny(seg, ['settings', 'config', 'workflow', 'holiday', 'department'])) return CACHE_POLICIES.reference;
   if (matchesAny(seg, ['report', 'analytic', 'stat', 'revenue'])) return CACHE_POLICIES.analytics;
   if (matchesAny(seg, ['dashboard', 'kpi', 'metric', 'overview'])) return CACHE_POLICIES.dashboards;
-  if (matchesAny(seg, ['auth', 'profile', 'session', 'me'])) return CACHE_POLICIES.auth;
+  if (segments.some(part => ['auth', 'profile', 'session', 'me'].includes(part))) return CACHE_POLICIES.auth;
   if (matchesAny(seg, ['list', 'employees', 'projects', 'tasks', 'leave', 'assets', 'campaigns'])) return CACHE_POLICIES.lists;
 
   return CACHE_POLICIES.default;

@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 import { attachQueryPersister } from '../../utils/localStorageCache';
 import { QK, cachePolicyFor } from '../../utils/queryKeys';
 import { createLogger } from '../../utils/logger';
@@ -30,24 +30,29 @@ const queryRoots = [
 ];
 
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (error?.name !== 'AbortError') queryLogger.error({ err: error }, 'Query failed');
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => queryLogger.error({ err: error }, 'Mutation failed'),
+  }),
   defaultOptions: {
     queries: {
       staleTime: 90_000,
       gcTime: 10 * 60_000,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       retry: (failureCount, error) => {
         const status = error?.status ?? error?.response?.status;
-        if (status === 401 || status === 403 || status === 404) return false;
+        if (error?.name === 'AbortError' || (status >= 400 && status < 500 && status !== 408 && status !== 429)) return false;
         return failureCount < 2;
       },
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
     },
     mutations: {
       retry: 0,
-      onError: (error) => {
-        queryLogger.error({ err: error }, 'Mutation error');
-      },
     },
   },
 });
@@ -59,10 +64,10 @@ queryRoots.forEach((queryKey) => {
 attachQueryPersister(queryClient);
 
 export const invalidatePortalCache = (module) => {
-  queryClient.invalidateQueries({ queryKey: [module], exact: false });
+  return queryClient.invalidateQueries({ queryKey: [module], exact: false });
 };
 
 export const prefetchQuery = (queryKey, queryFn, opts = {}) => {
   const merged = { ...cachePolicyFor(queryKey), ...opts };
-  return queryClient.prefetchQuery({ queryKey, queryFn, staleTime: merged.staleTime });
+  return queryClient.prefetchQuery({ ...merged, queryKey, queryFn });
 };

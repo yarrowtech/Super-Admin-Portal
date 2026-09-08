@@ -7,7 +7,7 @@ const serializeReq = (req) => {
   return {
     id: raw.id || req.id,
     method: raw.method,
-    url: raw.url,
+    url: raw.url?.split(/[?#]/)[0],
     remoteAddress: raw.socket?.remoteAddress || raw.remoteAddress,
     remotePort: raw.socket?.remotePort || raw.remotePort,
   };
@@ -29,7 +29,7 @@ const requestLogger = pinoHttp({
   },
   genReqId: (req, res) => {
     const incoming = req.headers["x-request-id"];
-    const requestId = (typeof incoming === "string" && incoming.trim()) || crypto.randomUUID();
+    const requestId = (typeof incoming === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(incoming) && incoming) || crypto.randomUUID();
     res.setHeader("x-request-id", requestId);
     return requestId;
   },
@@ -48,8 +48,8 @@ const requestLogger = pinoHttp({
     if (res.statusCode >= 400) return "warn";
     return "info";
   },
-  customSuccessMessage: (req) => `${req.method} ${req.url} completed`,
-  customErrorMessage: (req, res, err) => `${req.method} ${req.url} failed: ${err.message}`,
+  customSuccessMessage: (req) => `${req.method} ${req.url?.split(/[?#]/)[0]} completed`,
+  customErrorMessage: (req, res, err) => `${req.method} ${req.url?.split(/[?#]/)[0]} failed: ${err?.message || "HTTP error"}`,
   quietReqLogger: true,
 });
 

@@ -1,5 +1,6 @@
 const pino = require("pino");
 const env = require("../config/env");
+const { sanitizeForLog } = require("./sanitize");
 const { buildTransport } = require("./transport");
 const { getRequestContext } = require("./context");
 
@@ -7,6 +8,19 @@ const transport = buildTransport();
 
 const logger = pino(
   {
+    hooks: {
+      logMethod(args, method) {
+        return method.apply(this, args.map(value => {
+          if (value instanceof Error) return { err: sanitizeForLog(value) };
+          if (value && typeof value === "object" && !Array.isArray(value)) {
+            value = { ...value };
+            if (value.req) value.req = pino.stdSerializers.req(value.req);
+            if (value.res) value.res = pino.stdSerializers.res(value.res);
+          }
+          return sanitizeForLog(value);
+        }));
+      },
+    },
     name: "super-admin-backend",
     level: env.LOG_LEVEL,
     enabled: env.NODE_ENV !== "test",
@@ -21,7 +35,7 @@ const logger = pino(
     },
     mixin() {
       const context = getRequestContext();
-      return Object.keys(context).length ? context : {};
+      return Object.keys(context).length ? sanitizeForLog(context) : {};
     },
     timestamp: pino.stdTimeFunctions.isoTime,
     serializers: {

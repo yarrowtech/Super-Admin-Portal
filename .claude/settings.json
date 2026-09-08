@@ -142,7 +142,13 @@
       "Bash(node -c modules/media/marketingPlan.service.js)",
       "Bash(node -c modules/media/marketingPlan.controller.js)",
       "Bash(node -c controllers/outsourcing/outsourcing.controller.js)",
-      "Bash(node -c routes/profile.routes.js)"
+      "Bash(node -c routes/profile.routes.js)",
+      "Bash(xargs -I{} grep -Hm1 '^description:' {})",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5000/ --max-time 3)",
+      "Bash(npx --yes chromium-cli --help)",
+      "Read(//d//**)",
+      "Read(//c/Users/EEC/.claude/**)",
+      "Bash(npm install *)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

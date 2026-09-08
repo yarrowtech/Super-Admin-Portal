@@ -5,12 +5,129 @@ import { HrErrorState, HrLoadingState } from '../../features/hr/components/HrSta
 import PortalHeader from '../common/PortalHeader';
 import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
+import StatusBadge from '../common/StatusBadge';
+import Button from '../common/Button';
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: 'short',
   month: 'short',
   day: 'numeric',
 });
+
+const leaveStatusTone = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+  cancelled: 'neutral',
+};
+
+const workUpdateStatusMeta = {
+  pending: { label: 'Pending', tone: 'warning' },
+  'in-progress': { label: 'In Progress', tone: 'info' },
+  review: { label: 'In Review', tone: 'info' },
+  completed: { label: 'Done', tone: 'success' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
+  submitted: { label: 'Submitted', tone: 'warning' },
+  reviewed: { label: 'Reviewed', tone: 'info' },
+  approved: { label: 'Approved', tone: 'success' },
+  rejected: { label: 'Rejected', tone: 'danger' },
+};
+
+const normalizeWorkUpdateStatus = (status) => {
+  if (!status) return 'submitted';
+  const normalized = status.toString().trim().toLowerCase();
+  if (['in review', 'in-review', 'review', 'in_review'].includes(normalized)) return 'review';
+  if (['done', 'completed', 'complete', 'finished'].includes(normalized)) return 'completed';
+  if (['in progress', 'in-progress', 'progress'].includes(normalized)) return 'in-progress';
+  return normalized;
+};
+
+const alertLevelTone = { high: 'danger', medium: 'warning', low: 'info' };
+
+// Page-scoped presentational primitives. Kept local (not promoted to
+// components/common) since their layout is specific to this dashboard's
+// section shape rather than something reused across other portals.
+const SectionCard = ({ icon, title, subtitle, action, children, className = '', bodyClassName = '' }) => (
+  <section className={`app-card-pad ${className}`}>
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: 'var(--portal-accent-soft)' }}
+        >
+          <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--portal-accent)' }}>
+            {icon}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <h2 className="truncate text-[15px] font-bold text-neutral-900 dark:text-neutral-100">{title}</h2>
+          {subtitle && <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+    <div className={bodyClassName}>{children}</div>
+  </section>
+);
+
+const EmptyState = ({ icon, title, message }) => (
+  <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+      <span className="material-symbols-outlined text-[20px] text-neutral-400 dark:text-neutral-600">{icon}</span>
+    </div>
+    <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">{title}</p>
+    {message && <p className="text-xs text-neutral-400 dark:text-neutral-500">{message}</p>}
+  </div>
+);
+
+const ViewAllLink = ({ onClick, label = 'View all' }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="inline-flex shrink-0 items-center gap-1 text-xs font-bold transition-colors hover:underline"
+    style={{ color: 'var(--portal-accent)' }}
+  >
+    {label}
+    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+  </button>
+);
+
+const QUICK_STAT_TONE_COLORS = {
+  accent: 'var(--portal-accent)',
+  success: '#059669',
+  warning: '#d97706',
+  danger: '#e11d48',
+  info: '#0284c7',
+  neutral: '#737373',
+};
+
+const QuickStatRow = ({ icon, label, value, tone = 'neutral' }) => (
+  <div className="flex items-center justify-between gap-3 border-b border-neutral-100 py-2.5 first:pt-0 last:border-0 last:pb-0 dark:border-neutral-800">
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span className="material-symbols-outlined shrink-0 text-[18px]" style={{ color: QUICK_STAT_TONE_COLORS[tone] || QUICK_STAT_TONE_COLORS.neutral }}>
+        {icon}
+      </span>
+      <span className="truncate text-sm text-neutral-600 dark:text-neutral-300">{label}</span>
+    </div>
+    <span className="shrink-0 text-sm font-bold text-neutral-900 dark:text-neutral-100">{value}</span>
+  </div>
+);
+
+const QuickActionRow = ({ icon, label, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-left text-sm font-semibold text-neutral-800 transition-colors hover:border-[var(--portal-accent)]/40 hover:bg-[var(--portal-accent-soft)] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100"
+  >
+    <span
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+      style={{ background: 'var(--portal-accent-soft)' }}
+    >
+      <span className="material-symbols-outlined text-[16px]" style={{ color: 'var(--portal-accent)' }}>{icon}</span>
+    </span>
+    {label}
+  </button>
+);
 
 const HRDashboard = () => {
   const navigate = useNavigate();
@@ -27,7 +144,6 @@ const HRDashboard = () => {
     workUpdatesTotal,
     workUpdatesLabel,
     actionLoadingId,
-    attendance,
     attendanceAction,
     attendanceCtaLabel,
     canCheckIn,
@@ -38,49 +154,11 @@ const HRDashboard = () => {
     predictiveAlerts,
     automationOverview,
     modules,
-    formatTime,
     handleApprove,
     handleReject,
     handleAttendanceAction,
     refreshDashboard,
   } = useHrDashboard();
-
-  const leaveStatusStyles = {
-  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
-  cancelled: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
-  };
-  const workUpdateStatusStyles = {
-  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-  'in-progress': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
-  review: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200',
-  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-  cancelled: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
-  submitted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-  reviewed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
-  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
-};
-const workUpdateStatusLabels = {
-  pending: 'Pending',
-  'in-progress': 'In Progress',
-  review: 'In Review',
-  completed: 'Done',
-  cancelled: 'Cancelled',
-  submitted: 'Submitted',
-  reviewed: 'Reviewed',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  };
-  const normalizeWorkUpdateStatus = (status) => {
-    if (!status) return 'submitted';
-    const normalized = status.toString().trim().toLowerCase();
-    if (['in review', 'in-review', 'review', 'in_review'].includes(normalized)) return 'review';
-    if (['done', 'completed', 'complete', 'finished'].includes(normalized)) return 'completed';
-    if (['in progress', 'in-progress', 'progress'].includes(normalized)) return 'in-progress';
-    return normalized;
-  };
 
   if (loading) {
     return <HrLoadingState message="Loading HR dashboard..." />;
@@ -90,10 +168,12 @@ const workUpdateStatusLabels = {
     return <HrErrorState message={error} onRetry={refreshDashboard} />;
   }
 
+  const departmentStats = dashboardData?.departmentStats || [];
+  const recentActivities = dashboardData?.recentActivities || [];
+
   return (
     <main className="portal-page">
       <div className="portal-page-inner">
-
         <PortalHeader
           title="HR Dashboard"
           subtitle="Workforce operations, recruitment, attendance, and approvals"
@@ -114,20 +194,27 @@ const workUpdateStatusLabels = {
               <span className="material-symbols-outlined text-lg">
                 {canCheckIn ? 'login' : canCheckOut ? 'logout' : 'task_alt'}
               </span>
-              <span className="hidden sm:inline">{attendanceAction.loading ? 'Processing...' : attendanceCtaLabel}</span>
+              <span className="hidden sm:inline">
+                {attendanceAction.loading
+                  ? canCheckIn
+                    ? 'Checking in…'
+                    : 'Checking out…'
+                  : attendanceCtaLabel}
+              </span>
             </button>
           }
         />
 
         <WarmGreeting user={user} message="Here's today's workforce activity and pending actions." />
 
-        {/* Attendance feedback */}
         {(attendanceAction.error || attendanceAction.message) && (
-          <div className={`mb-5 rounded-xl border p-3.5 text-sm font-semibold ${
-            attendanceAction.error
-              ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100'
-          }`}>
+          <div
+            className={`mb-5 rounded-xl border p-3.5 text-sm font-semibold ${
+              attendanceAction.error
+                ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100'
+            }`}
+          >
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-base">
                 {attendanceAction.error ? 'error' : 'check_circle'}
@@ -137,27 +224,62 @@ const workUpdateStatusLabels = {
           </div>
         )}
 
-        {/* KPI Cards */}
-        <section className="portal-kpi-grid mb-6">
-          <KPICard icon="groups"        title="Total Employees"  value={summary.totalEmployees}     subtitle={`${summary.activeEmployees} active`} />
-          <KPICard icon="event_busy"    title="Leave Requests"   value={summary.pendingLeavesCount} subtitle="Awaiting approval" />
-          <KPICard icon="task_alt"      title="Work Updates"     value={workUpdatesTotal}            subtitle={workUpdatesLabel} />
-          <KPICard icon="person_search" title="Active Applicants" value={summary.pendingApplicants} subtitle="In recruitment" />
-          <KPICard icon="report_problem" title="Open Complaints" value={summary.openComplaints}     subtitle="Needs attention" />
+        {/* Primary KPI grid — the executive snapshot; every number here comes
+            straight from the dashboard payload, nothing duplicated below. */}
+        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <KPICard
+            icon="groups"
+            tone="info"
+            title="Total Employees"
+            value={summary.totalEmployees}
+            subtitle={`${summary.activeEmployees} active`}
+          />
+          <KPICard
+            icon="how_to_reg"
+            tone="success"
+            title="Today's Attendance"
+            value={summary.todayAttendance}
+            subtitle="Checked in today"
+          />
+          <KPICard
+            icon="event_busy"
+            tone="warning"
+            title="Leave Requests"
+            value={summary.pendingLeavesCount}
+            subtitle="Awaiting approval"
+          />
+          <KPICard
+            icon="person_search"
+            tone="accent"
+            title="Active Applicants"
+            value={summary.pendingApplicants}
+            subtitle="In recruitment"
+          />
+          <KPICard
+            icon="task_alt"
+            tone="neutral"
+            title="Work Updates"
+            value={workUpdatesTotal}
+            subtitle={workUpdatesLabel}
+          />
         </section>
 
-        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <article className="app-card-pad xl:col-span-2">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/40">
-                <span className="material-symbols-outlined text-sky-600 dark:text-sky-300">auto_awesome</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">AI Insights Panel</h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">Decision-support signals from workforce activity</p>
-              </div>
-            </div>
-            <div className="space-y-3">
+        {/* Single continuous two-column flow for the rest of the page —
+            actionable/insight content on the left (~70%), supporting and
+            reference information on the right (~30%). AI Insights and
+            Pending Approvals used to sit in a separate grid row from the
+            cards below them; a shared grid row always sizes to its tallest
+            cell, so whichever card was shorter left a dead gap before the
+            next section. Stacking each column's cards in one flex-col
+            instead means every column just grows to its own content. */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            <SectionCard
+              icon="auto_awesome"
+              title="AI Insights"
+              subtitle="Decision-support signals from workforce activity"
+              bodyClassName="space-y-2.5"
+            >
               {aiInsights.map((insight) => (
                 <div
                   key={insight.id}
@@ -174,384 +296,256 @@ const workUpdateStatusLabels = {
                   {insight.text}
                 </div>
               ))}
-            </div>
-          </article>
+            </SectionCard>
 
-          <article className="app-card-pad">
-            <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Predictive Alerts</h3>
-            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Risk and anomaly forecasting</p>
-            <div className="mt-4 space-y-3">
-              {predictiveAlerts.length ? (
-                predictiveAlerts.map((alert) => (
-                  <div key={alert.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/60">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">{alert.title}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        alert.level === 'high'
-                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200'
-                      }`}>
-                        {alert.level}
-                      </span>
+            <SectionCard
+              icon="pending_actions"
+              title={leaveListMode === 'pending' ? 'Pending Leave Approvals' : 'Recent Leave Requests'}
+              subtitle={`${pendingLeaves.length} request${pendingLeaves.length !== 1 ? 's' : ''} ${
+                leaveListMode === 'pending' ? 'awaiting your review' : 'submitted recently'
+              }`}
+              action={
+                pendingLeaves.length > 0 && (
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                    style={{ background: 'var(--portal-accent)' }}
+                  >
+                    {pendingLeaves.length}
+                  </span>
+                )
+              }
+            >
+              {pendingLeaves.length ? (
+                <div className="space-y-3">
+                  {pendingLeaves.map((leave) => (
+                    <div
+                      key={leave._id}
+                      className="rounded-xl border border-neutral-200 p-4 transition-colors hover:border-[var(--portal-accent)]/40 dark:border-neutral-800"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 flex-1 gap-3">
+                          <div
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                            style={{ background: 'var(--portal-accent-soft)' }}
+                          >
+                            <span className="material-symbols-outlined text-xl" style={{ color: 'var(--portal-accent)' }}>
+                              event_note
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-bold text-neutral-900 dark:text-neutral-100">
+                                {leave.employee?.firstName} {leave.employee?.lastName}
+                              </h3>
+                              <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold capitalize text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                                {leave.leaveType}
+                              </span>
+                              <StatusBadge tone={leaveStatusTone[leave.status] || 'warning'} label={leave.status} />
+                            </div>
+                            <p className="truncate text-sm text-neutral-500 dark:text-neutral-400">{leave.employee?.email}</p>
+                            <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                              <span className="material-symbols-outlined text-base">calendar_today</span>
+                              <span className="font-semibold">{new Date(leave.startDate).toLocaleDateString()}</span>
+                              {leave.endDate && (
+                                <>
+                                  <span className="text-neutral-400">→</span>
+                                  <span className="font-semibold">{new Date(leave.endDate).toLocaleDateString()}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            loading={actionLoadingId === leave._id}
+                            disabled={actionLoadingId === leave._id}
+                            onClick={() => handleReject(leave._id)}
+                            icon={<span className="material-symbols-outlined text-base">close</span>}
+                          >
+                            Reject
+                          </Button>
+                          <Button
+                            variant="success"
+                            size="sm"
+                            loading={actionLoadingId === leave._id}
+                            disabled={actionLoadingId === leave._id}
+                            onClick={() => handleApprove(leave._id)}
+                            icon={<span className="material-symbols-outlined text-base">check</span>}
+                          >
+                            Approve
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{alert.detail}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
-                  No major risks predicted right now.
-                </p>
-              )}
-            </div>
-            <div className="mt-4 rounded-xl border border-neutral-200 p-3 text-sm dark:border-neutral-800">
-              <p className="text-neutral-500 dark:text-neutral-400">Active vs Inactive</p>
-              <p className="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">
-                {advancedMetrics.activeRatio}% active / {advancedMetrics.inactiveRatio}% inactive
-              </p>
-              <p className="mt-1 text-neutral-500 dark:text-neutral-400">Attrition rate: {advancedMetrics.attritionRate}%</p>
-            </div>
-            {automationOverview?.workflows?.length ? (
-              <div className="mt-3 rounded-xl border border-neutral-200 p-3 text-sm dark:border-neutral-800">
-                <p className="font-semibold text-neutral-900 dark:text-neutral-100">Automation Queue</p>
-                <div className="mt-2 space-y-1">
-                  {automationOverview.workflows.slice(0, 3).map((flow) => (
-                    <p key={flow.key} className="text-neutral-600 dark:text-neutral-300">
-                      {flow.label}: {flow.pending} pending
-                    </p>
                   ))}
                 </div>
-              </div>
-            ) : null}
-          </article>
-        </section>
+              ) : (
+                <EmptyState icon="check_circle" title="All caught up" message="No pending leave requests at the moment." />
+              )}
+            </SectionCard>
 
-        <section className="mb-8 grid grid-cols-1 gap-4 xl:grid-cols-4">
-          <article className="rounded-2xl border border-sky-200/60 bg-white/90 p-5 shadow-sm dark:border-sky-900/40 dark:bg-neutral-900/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-600 dark:text-sky-300">Employee Management</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{modules?.employeeManagement?.totalEmployees || summary.totalEmployees}</p>
-            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-              Active: {modules?.employeeManagement?.activeEmployees || summary.activeEmployees} | Inactive: {modules?.employeeManagement?.inactiveEmployees || 0}
-            </p>
-          </article>
-          <article className="rounded-2xl border border-emerald-200/60 bg-white/90 p-5 shadow-sm dark:border-emerald-900/40 dark:bg-neutral-900/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-300">Attendance Management</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{modules?.attendanceManagement?.monthSummary?.totalRecords || summary.monthAttendanceRecords}</p>
-            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-              Tracking: Manual (No GPS) | Today: {summary.todayAttendance}
-            </p>
-          </article>
-          <article className="rounded-2xl border border-amber-200/60 bg-white/90 p-5 shadow-sm dark:border-amber-900/40 dark:bg-neutral-900/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-600 dark:text-amber-300">Task & Work Updates</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{modules?.taskAndWorkUpdates?.total || summary.taskQueueTotal}</p>
-            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-              Pending: {modules?.taskAndWorkUpdates?.pending || summary.taskQueuePending} | In Progress: {modules?.taskAndWorkUpdates?.inProgress || 0}
-            </p>
-          </article>
-          <article className="rounded-2xl border border-violet-200/60 bg-white/90 p-5 shadow-sm dark:border-violet-900/40 dark:bg-neutral-900/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-violet-600 dark:text-violet-300">Performance & Appraisal</p>
-            <p className="mt-2 text-2xl font-black text-neutral-900 dark:text-white">{modules?.performanceAndAppraisal?.appraisalCyclesActive || summary.appraisalCyclesActive}</p>
-            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-              Active cycles | Reviews: {modules?.performanceAndAppraisal?.appraisalReviewsTotal || 0}
-            </p>
-          </article>
-        </section>
-
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="flex flex-col gap-6 lg:col-span-2">
-            {/* Pending Leave Approvals */}
-            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
-              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-orange-50/50 to-amber-50/50 p-5 dark:border-neutral-800/50 dark:from-orange-950/20 dark:to-amber-950/20">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 dark:bg-orange-500/20">
-                      <span className="material-symbols-outlined text-xl text-orange-600 dark:text-orange-400">pending_actions</span>
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                        {leaveListMode === 'pending' ? 'Pending Leave Approvals' : 'Recent Leave Requests'}
-                      </h2>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        {pendingLeaves.length} request{pendingLeaves.length !== 1 ? 's' : ''}{' '}
-                        {leaveListMode === 'pending' ? 'awaiting your review' : 'submitted recently'}
-                      </p>
-                    </div>
-                  </div>
-                  {pendingLeaves.length > 0 && (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
-                      {pendingLeaves.length}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="p-5">
-                {pendingLeaves.length ? (
-                  <div className="space-y-3">
-                    {pendingLeaves.map((leave) => (
-                      <div key={leave._id} className="group overflow-hidden rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-4 transition-all duration-200 hover:border-orange-300 hover:shadow-md dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50 dark:hover:border-orange-700">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex flex-1 gap-4">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/30">
-                              <span className="material-symbols-outlined text-xl text-purple-600 dark:text-purple-400">event_note</span>
-                            </div>
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-3">
-                                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">
-                                  {leave.employee?.firstName} {leave.employee?.lastName}
-                                </h3>
-                                <span className="rounded-full bg-purple-100 px-3 py-0.5 text-xs font-bold capitalize text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                                  {leave.leaveType}
-                                </span>
-                                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${leaveStatusStyles[leave.status] || leaveStatusStyles.pending}`}>
-                                  {leave.status}
-                                </span>
-                              </div>
-                              <p className="text-sm text-neutral-600 dark:text-neutral-400">{leave.employee?.email}</p>
-                              <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                                <span className="material-symbols-outlined text-base">calendar_today</span>
-                                <span className="font-semibold">{new Date(leave.startDate).toLocaleDateString()}</span>
-                                {leave.endDate && (
-                                  <>
-                                    <span className="text-neutral-400">→</span>
-                                    <span className="font-semibold">{new Date(leave.endDate).toLocaleDateString()}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 gap-2">
-                            <button
-                              onClick={() => handleReject(leave._id)}
-                              disabled={actionLoadingId === leave._id}
-                              className="flex items-center gap-1.5 rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition-all hover:bg-red-100 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
-                            >
-                              <span className="material-symbols-outlined text-base">close</span>
-                              {actionLoadingId === leave._id ? 'Processing...' : 'Reject'}
-                            </button>
-                            <button
-                              onClick={() => handleApprove(leave._id)}
-                              disabled={actionLoadingId === leave._id}
-                              className="flex items-center gap-1.5 rounded-lg bg-green-50 px-4 py-2 text-sm font-bold text-green-600 transition-all hover:bg-green-100 disabled:opacity-50 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
-                            >
-                              <span className="material-symbols-outlined text-base">check</span>
-                              {actionLoadingId === leave._id ? 'Processing...' : 'Approve'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-green-100 dark:bg-green-900/30">
-                      <span className="material-symbols-outlined text-4xl text-green-600 dark:text-green-400">check_circle</span>
-                    </div>
-                    <h3 className="mt-4 text-lg font-bold text-neutral-800 dark:text-neutral-100">All Caught Up!</h3>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">No pending leave requests at the moment</p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {/* Recent Activities */}
-            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
-              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-blue-50/50 to-cyan-50/50 p-5 dark:border-neutral-800/50 dark:from-blue-950/20 dark:to-cyan-950/20">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 dark:bg-blue-500/20">
-                    <span className="material-symbols-outlined text-xl text-blue-600 dark:text-blue-400">history</span>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Recent Activities</h2>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Latest HR actions and updates</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-5">
-                {dashboardData?.recentActivities && dashboardData.recentActivities.length > 0 ? (
-                  <div className="space-y-3">
-                    {dashboardData.recentActivities.map((activity, index) => (
-                      <div key={index} className="group flex items-start gap-4 rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-4 transition-all duration-200 hover:border-blue-300 hover:shadow-md dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50 dark:hover:border-blue-700">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                          <span className="material-symbols-outlined text-lg text-blue-600 dark:text-blue-400">{activity.icon || 'info'}</span>
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <p className="font-semibold text-neutral-900 dark:text-neutral-100">{activity.title}</p>
-                          <p className="text-sm text-neutral-600 dark:text-neutral-400">{activity.description}</p>
-                        </div>
-                        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                          {activity.time || 'Just now'}
+            <SectionCard icon="history" title="Recent Activity" subtitle="Latest HR actions and updates">
+              {recentActivities.length ? (
+                <div className="space-y-2">
+                  {recentActivities.map((activity, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
+                    >
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                        style={{ background: 'var(--portal-accent-soft)' }}
+                      >
+                        <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--portal-accent)' }}>
+                          {activity.icon || 'info'}
                         </span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-neutral-800">
-                      <span className="material-symbols-outlined text-3xl text-neutral-400 dark:text-neutral-600">history</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{activity.title}</p>
+                        <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{activity.description}</p>
+                      </div>
+                      <span className="shrink-0 text-xs font-medium text-neutral-400 dark:text-neutral-500">
+                        {activity.time || 'Just now'}
+                      </span>
                     </div>
-                    <p className="mt-3 text-sm font-medium text-neutral-600 dark:text-neutral-400">No recent activities</p>
-                  </div>
-                )}
-              </div>
-            </section>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon="history" title="No recent activities" message="New HR activity will appear here." />
+              )}
+            </SectionCard>
           </div>
 
-          {/* Sidebar */}
           <div className="flex flex-col gap-6 lg:col-span-1">
-            {/* Work Updates */}
-            <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900/40">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Work Updates</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Latest task status changes</p>
-                </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{workUpdates.length} items</span>
+            <SectionCard icon="insights" title="Predictive Alerts" subtitle="Risk and anomaly forecasting" bodyClassName="space-y-3">
+              <div className="space-y-2.5">
+                {predictiveAlerts.length ? (
+                  predictiveAlerts.map((alert) => (
+                    <div key={alert.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-800/60">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-neutral-900 dark:text-neutral-100">{alert.title}</p>
+                        <StatusBadge tone={alertLevelTone[alert.level] || 'warning'} label={alert.level} dot={false} />
+                      </div>
+                      <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{alert.detail}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
+                    No major risks predicted right now.
+                  </p>
+                )}
               </div>
-              {workUpdatesError && (
-                <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
+
+              <div className="rounded-xl border border-neutral-200 p-3 text-sm dark:border-neutral-800">
+                <p className="text-neutral-500 dark:text-neutral-400">Active vs Inactive</p>
+                <p className="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">
+                  {advancedMetrics.activeRatio}% active / {advancedMetrics.inactiveRatio}% inactive
+                </p>
+                <p className="mt-1 text-neutral-500 dark:text-neutral-400">Attrition rate: {advancedMetrics.attritionRate}%</p>
+              </div>
+
+              {automationOverview?.workflows?.length ? (
+                <div className="rounded-xl border border-neutral-200 p-3 text-sm dark:border-neutral-800">
+                  <p className="font-semibold text-neutral-900 dark:text-neutral-100">Automation Queue</p>
+                  <div className="mt-2 space-y-1">
+                    {automationOverview.workflows.slice(0, 3).map((flow) => (
+                      <p key={flow.key} className="text-neutral-600 dark:text-neutral-300">
+                        {flow.label}: {flow.pending} pending
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </SectionCard>
+
+            <SectionCard
+              icon="task_alt"
+              title="Work Updates"
+              subtitle="Latest task status changes"
+              action={<ViewAllLink onClick={() => navigate('/hr/tasks?view=updates')} />}
+            >
+              {workUpdatesError ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-200">
                   {workUpdatesError}
                 </div>
-              )}
-              {workUpdatesLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Loading work updates...</p>
+              ) : workUpdatesLoading ? (
+                <div className="space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800" />
+                  ))}
+                </div>
               ) : workUpdates.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No updates available.</p>
+                <EmptyState icon="task_alt" title="No updates yet" message="Task submissions will appear here." />
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {workUpdates.map((report) => {
-                    const employeeName = `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() || report.employee?.email || 'Employee';
+                    const employeeName =
+                      `${report.employee?.firstName || ''} ${report.employee?.lastName || ''}`.trim() ||
+                      report.employee?.email ||
+                      'Employee';
                     const rawStatus = report.taskStatus || report.status || 'submitted';
                     const reportStatus = normalizeWorkUpdateStatus(rawStatus);
-                    const statusClass = workUpdateStatusStyles[reportStatus] || workUpdateStatusStyles.submitted;
-                    const statusLabel = workUpdateStatusLabels[reportStatus] || workUpdateStatusLabels.submitted;
+                    const meta = workUpdateStatusMeta[reportStatus] || workUpdateStatusMeta.submitted;
                     return (
-                      <div key={report._id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                      <div key={report._id} className="rounded-lg border border-neutral-100 p-3 dark:border-neutral-800">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800 dark:text-white">{employeeName}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{report.title || 'Task update'}</p>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {report.project?.name || report.project?.projectCode || 'General'} -{' '}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-neutral-800 dark:text-white">{employeeName}</p>
+                            <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{report.title || 'Task update'}</p>
+                            <p className="mt-1 truncate text-xs text-neutral-400 dark:text-neutral-500">
+                              {report.project?.name || report.project?.projectCode || 'General'} ·{' '}
                               {report.reportDate ? dateFormatter.format(new Date(report.reportDate)) : 'Today'}
                             </p>
                           </div>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass}`}>
-                            {statusLabel}
-                          </span>
+                          <StatusBadge tone={meta.tone} label={meta.label} dot={false} className="shrink-0" />
                         </div>
                       </div>
                     );
                   })}
                 </div>
               )}
-            </section>
+            </SectionCard>
 
-            {/* Quick Stats */}
-            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
-              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 p-4 dark:border-neutral-800/50 dark:from-purple-950/20 dark:to-pink-950/20">
-                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">Quick Stats</h3>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">Today's overview</p>
-              </div>
-              <div className="space-y-3 p-4">
-                <div className="overflow-hidden rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-4 shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-105 hover:shadow-xl dark:shadow-blue-900/30">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-blue-100">Today's Attendance</p>
-                      <p className="mt-1 text-2xl font-bold text-white">
-                        {summary.todayAttendance}
-                      </p>
-                    </div>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-                      <span className="material-symbols-outlined text-2xl text-white">how_to_reg</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="overflow-hidden rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-4 shadow-lg shadow-green-500/30 transition-all duration-300 hover:scale-105 hover:shadow-xl dark:shadow-green-900/30">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-green-100">Active Employees</p>
-                      <p className="mt-1 text-2xl font-bold text-white">{summary.activeEmployees}</p>
-                    </div>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-                      <span className="material-symbols-outlined text-2xl text-white">groups</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="overflow-hidden rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-4 shadow-lg shadow-purple-500/30 transition-all duration-300 hover:scale-105 hover:shadow-xl dark:shadow-purple-900/30">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-purple-100">Open Positions</p>
-                      <p className="mt-1 text-2xl font-bold text-white">
-                        {summary.openPositions}
-                      </p>
-                    </div>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-                      <span className="material-symbols-outlined text-2xl text-white">work</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <SectionCard icon="query_stats" title="Quick Stats" subtitle="Operational summary">
+              <QuickStatRow icon="report_problem" label="Open Complaints" value={summary.openComplaints} tone={summary.openComplaints > 0 ? 'danger' : 'neutral'} />
+              <QuickStatRow icon="sync" label="Tasks In Progress" value={modules?.taskAndWorkUpdates?.inProgress || 0} tone="info" />
+              <QuickStatRow icon="trending_up" label="Active Appraisal Cycles" value={summary.appraisalCyclesActive} tone="accent" />
+              <QuickStatRow icon="calendar_month" label="Attendance Records (Month)" value={summary.monthAttendanceRecords} tone="neutral" />
+              <QuickStatRow icon="work" label="Open Positions" value={summary.openPositions} tone="neutral" />
 
-            {/* Department Overview */}
-            <section className="overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-800/50 dark:bg-neutral-900/80">
-              <div className="border-b border-neutral-200/50 bg-gradient-to-r from-indigo-50/50 to-violet-50/50 p-4 dark:border-neutral-800/50 dark:from-indigo-950/20 dark:to-violet-950/20">
-                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">Departments</h3>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">Employee distribution</p>
-              </div>
-              <div className="space-y-2 p-4">
-                {dashboardData?.departmentStats && dashboardData.departmentStats.length > 0 ? (
-                  dashboardData.departmentStats.slice(0, 5).map((dept, index) => (
-                    <div key={index} className="group flex items-center justify-between rounded-xl border border-neutral-200/70 bg-gradient-to-br from-white to-neutral-50/50 p-3 transition-all duration-200 hover:border-indigo-300 hover:shadow-md dark:border-neutral-800/70 dark:from-neutral-900 dark:to-neutral-800/50 dark:hover:border-indigo-700">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-                          <span className="material-symbols-outlined text-base text-indigo-600 dark:text-indigo-400">corporate_fare</span>
-                        </div>
-                        <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{dept.name}</span>
+              {/* Department breakdown only exists in the summary once the
+                  backend actually returns it — folded in here instead of its
+                  own card so there's no permanently-empty section taking up
+                  a full card's worth of vertical space. */}
+              {departmentStats.length > 0 && (
+                <div className="mt-3 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                    Departments
+                  </p>
+                  <div className="space-y-1.5">
+                    {departmentStats.slice(0, 5).map((dept, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <span className="truncate text-sm text-neutral-600 dark:text-neutral-300">{dept.name}</span>
+                        <span
+                          className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold"
+                          style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-accent)' }}
+                        >
+                          {dept.count}
+                        </span>
                       </div>
-                      <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{dept.count}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-8">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800">
-                      <span className="material-symbols-outlined text-2xl text-neutral-400 dark:text-neutral-600">corporate_fare</span>
-                    </div>
-                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">No department data</p>
+                    ))}
                   </div>
-                )}
-              </div>
-            </section>
+                </div>
+              )}
+            </SectionCard>
 
-            {/* Quick Actions */}
-            <section className="overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50 to-pink-50 shadow-sm dark:border-purple-900/30 dark:from-purple-950/40 dark:to-pink-950/20">
-              <div className="border-b border-purple-200/50 bg-white/50 p-4 dark:border-purple-900/30 dark:bg-neutral-900/50">
-                <h3 className="font-bold text-neutral-900 dark:text-neutral-100">Quick Actions</h3>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">Common HR tasks</p>
-              </div>
-              <div className="space-y-2 p-4">
-                <button
-                  onClick={() => navigate('/hr/users?new=1')}
-                  className="group flex w-full items-center gap-3 rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-200 hover:scale-105 hover:border-purple-400 hover:bg-purple-50 hover:shadow-md dark:border-purple-900/50 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:border-purple-700 dark:hover:bg-purple-900/20"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 group-hover:bg-purple-200 dark:bg-purple-900/40 dark:group-hover:bg-purple-800/60">
-                    <span className="material-symbols-outlined text-lg text-purple-600 dark:text-purple-400">person_add</span>
-                  </div>
-                  Add Employee
-                </button>
-                <button className="group flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-200 hover:scale-105 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md dark:border-blue-900/50 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:border-blue-700 dark:hover:bg-blue-900/20">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 group-hover:bg-blue-200 dark:bg-blue-900/40 dark:group-hover:bg-blue-800/60">
-                    <span className="material-symbols-outlined text-lg text-blue-600 dark:text-blue-400">post_add</span>
-                  </div>
-                  Create Notice
-                </button>
-                <button className="group flex w-full items-center gap-3 rounded-xl border border-green-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-200 hover:scale-105 hover:border-green-400 hover:bg-green-50 hover:shadow-md dark:border-green-900/50 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:border-green-700 dark:hover:bg-green-900/20">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 group-hover:bg-green-200 dark:bg-green-900/40 dark:group-hover:bg-green-800/60">
-                    <span className="material-symbols-outlined text-lg text-green-600 dark:text-green-400">work</span>
-                  </div>
-                  Post Job
-                </button>
-              </div>
-            </section>
+            <SectionCard icon="bolt" title="Quick Actions" subtitle="Common HR tasks" bodyClassName="space-y-2">
+              <QuickActionRow icon="person_add" label="Add Employee" onClick={() => navigate('/hr/users?new=1')} />
+              <QuickActionRow icon="work" label="Post a Job" onClick={() => navigate('/hr/recruitment')} />
+              <QuickActionRow icon="forum" label="Broadcast Notice" onClick={() => navigate('/hr/communication')} />
+            </SectionCard>
           </div>
         </div>
       </div>

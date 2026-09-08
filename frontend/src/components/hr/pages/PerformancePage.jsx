@@ -8,16 +8,12 @@ const PerformancePage = () => {
 
   return (
     <main className="portal-page">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="portal-page-inner">
         <PortalHeader
           title="Performance & Appraisal"
-          subtitle="Track performance reviews, appraisals, and employee goals"
+          subtitle="Automated scorecards, appraisal snapshots, and review-cycle management"
           user={user}
-          icon="trending_up"
-          showSearch={true}
-          showNotifications={true}
-          showThemeToggle={true}
-          searchPlaceholder="Search reviews or appraisals..."
+          icon="insights"
         />
 
         <Performance />

@@ -4,6 +4,16 @@ import { hrApi } from '../../services/hr';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { QK } from '../../utils/queryKeys';
+import StatusBadge from '../common/StatusBadge';
+import Button from '../ui/Button';
+import Select from '../ui/Select';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import ProgressBar from '../ui/ProgressBar';
+import Pagination from '../ui/Pagination';
+import EmptyState from '../ui/EmptyState';
+import ErrorState from '../ui/ErrorState';
+import TableSkeleton from '../ui/TableSkeleton';
 
 const normalizeDate = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const formatDateKey = (date) =>
@@ -29,19 +39,27 @@ const leaveTypeOptions = [
   { value: 'other', label: 'Other' },
 ];
 
-const statusStyles = {
-  pending: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
-  'manager-approved': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
-  approved: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
-  rejected: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
-  cancelled: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300',
+const statusOptions = [
+  { value: '', label: 'All Status' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+const statusTone = {
+  pending: 'warning',
+  'manager-approved': 'info',
+  approved: 'success',
+  rejected: 'danger',
+  cancelled: 'neutral',
 };
 
-const managerStatusStyles = {
-  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200',
-  bypassed: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200',
+const managerStatusTone = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+  bypassed: 'neutral',
 };
 
 const LeaveManagement = () => {
@@ -128,7 +146,8 @@ const LeaveManagement = () => {
     setLeaveModalOpen(false);
   };
 
-  const handleSubmitLeave = async () => {
+  const handleSubmitLeave = async (e) => {
+    e?.preventDefault?.();
     if (!token) return;
     setLeaveFormError('');
     setLeaveFormLoading(true);
@@ -185,7 +204,7 @@ const LeaveManagement = () => {
       const endDate = request.endDate ? new Date(request.endDate) : null;
       const datesLabel = startDate
         ? `${startDate.toLocaleDateString()}${endDate ? ` - ${endDate.toLocaleDateString()}` : ''}`
-        : '-';
+        : '—';
       const managerStatus = request.managerApprovalStatus || 'pending';
       const fullName = `${request.employee?.firstName || ''} ${request.employee?.lastName || ''}`.trim();
       return {
@@ -193,8 +212,6 @@ const LeaveManagement = () => {
         employeeName: fullName || request.employee?.email || 'Employee',
         datesLabel,
         managerStatus,
-        statusClass: statusStyles[request.status] || statusStyles.pending,
-        managerStatusClass: managerStatusStyles[managerStatus] || managerStatusStyles.pending,
       };
     });
   }, [leaveRequests]);
@@ -210,13 +227,12 @@ const LeaveManagement = () => {
       (acc, item) => {
         acc.remaining += item.remainingLeaveBalance || 0;
         acc.quota += item.yearlyLeaveQuota || 0;
-        acc.approved += item.totalApprovedLeaves || 0;
         acc.clRemaining += item.leaveTypeWiseBalance?.casual?.remaining || 0;
         acc.plRemaining += item.leaveTypeWiseBalance?.annual?.remaining || 0;
         acc.sickRemaining += item.leaveTypeWiseBalance?.sick?.remaining || 0;
         return acc;
       },
-      { remaining: 0, quota: 0, approved: 0, clRemaining: 0, plRemaining: 0, sickRemaining: 0 }
+      { remaining: 0, quota: 0, clRemaining: 0, plRemaining: 0, sickRemaining: 0 }
     );
 
     return [
@@ -227,12 +243,10 @@ const LeaveManagement = () => {
     ];
   }, [leaveBalances]);
 
-  const monthLabel = useMemo(() => {
-    return calendarDate.toLocaleDateString(undefined, {
-      month: 'long',
-      year: 'numeric',
-    });
-  }, [calendarDate]);
+  const monthLabel = useMemo(
+    () => calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+    [calendarDate]
+  );
 
   const leaveHighlights = useMemo(() => {
     const highlightMap = new Map();
@@ -310,323 +324,245 @@ const LeaveManagement = () => {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6">
-          <div className="flex min-w-72 flex-col gap-2">
-            <p className="text-4xl font-black leading-tight tracking-[-0.033em] text-neutral-800 dark:text-neutral-100">
-              Leave Management
-            </p>
-            <p className="text-base text-neutral-600 dark:text-neutral-400">
-              Track, manage, and approve employee leave requests.
-            </p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+            <span>Total</span>
+            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs dark:bg-white/10">{totalRequests}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
-              <span>Total</span>
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs dark:bg-white/10">
-                {totalRequests}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
-              <span>Pending</span>
-              <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200">
-                {pendingCount}
-              </span>
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              className="rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
-            >
-              <option value="">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            <button className="flex h-10 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-bold text-neutral-800 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-100">
-              <span className="material-symbols-outlined">download</span>
-              <span className="truncate">Export Report</span>
-            </button>
-            <button
-              onClick={openLeaveModal}
-              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-white"
-            >
-              <span className="material-symbols-outlined">add</span>
-              <span className="truncate">New Leave Request</span>
-            </button>
+          <div className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+            <span>Pending</span>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">{pendingCount}</span>
           </div>
+          <Select
+            aria-label="Filter by status"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            options={statusOptions}
+            className="min-h-9 w-36 py-1.5 text-xs"
+          />
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" icon={<span className="material-symbols-outlined text-base">download</span>}>
+            Export Report
+          </Button>
+          <Button onClick={openLeaveModal} icon={<span className="material-symbols-outlined text-base">add</span>}>
+            New Leave Request
+          </Button>
+        </div>
+      </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-800/50 lg:col-span-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Leave Calendar</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleMonthChange(-1)}
-                  aria-label="Previous month"
-                  className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-                >
-                  <span className="material-symbols-outlined text-xl">chevron_left</span>
-                </button>
-                <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{monthLabel}</p>
-                <button
-                  onClick={() => handleMonthChange(1)}
-                  aria-label="Next month"
-                  className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-                >
-                  <span className="material-symbols-outlined text-xl">chevron_right</span>
-                </button>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Leave Calendar</h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleMonthChange(-1)}
+                aria-label="Previous month"
+                className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
+              >
+                <span className="material-symbols-outlined text-xl">chevron_left</span>
+              </button>
+              <p className="w-32 text-center text-sm font-semibold text-neutral-800 dark:text-neutral-100">{monthLabel}</p>
+              <button
+                onClick={() => handleMonthChange(1)}
+                aria-label="Next month"
+                className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
+              >
+                <span className="material-symbols-outlined text-xl">chevron_right</span>
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-7 gap-1 text-center text-sm">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <div key={day} className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                {day}
               </div>
-            </div>
-            <div className="mt-4 grid grid-cols-7 gap-1 text-center text-sm">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="font-medium text-neutral-600 dark:text-neutral-400">
-                  {day}
-                </div>
-              ))}
-              {calendarDays.map((day) => (
-                <div
-                  key={day.key}
-                  className={`relative py-2 ${day.muted ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-800 dark:text-neutral-100'}`}
-                >
-                  {day.pillClass ? (
-                    <span
-                      className={`absolute left-1/2 top-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-semibold ${day.pillClass} ${day.bold ? '' : ''}`}
-                    >
-                      {day.label}
-                    </span>
-                  ) : (
-                    <span className={`${day.bold ? 'font-semibold text-neutral-800 dark:text-neutral-100' : ''}`}>
-                      {day.label}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-              {leaveLegend.map((item) => (
-                <div key={item.label} className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-                  <div className={`size-3 rounded-full ${item.color}`}></div>
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
+            ))}
+            {calendarDays.map((day) => (
+              <div
+                key={day.key}
+                className={`relative py-2 ${day.muted ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-800 dark:text-neutral-100'}`}
+              >
+                {day.pillClass ? (
+                  <span
+                    className={`absolute left-1/2 top-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-semibold ${day.pillClass}`}
+                  >
+                    {day.label}
+                  </span>
+                ) : (
+                  <span className={day.bold ? 'font-semibold text-neutral-800 dark:text-neutral-100' : ''}>{day.label}</span>
+                )}
+              </div>
+            ))}
           </div>
-
-          <div className="rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-800/50">
-            <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Your Leave Balances</h2>
-            <div className="mt-4 flex flex-col gap-4">
-              {balanceSummaryCards.map((item) => (
-                <div key={item.label} className="flex flex-col">
-                  <div className="flex justify-between text-sm">
-                    <p className="font-medium text-neutral-800 dark:text-neutral-100">{item.label}</p>
-                    <p className="text-neutral-600 dark:text-neutral-400">{item.summary}</p>
-                  </div>
-                  <div className="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
-                    <div className={`h-2 rounded-full ${item.bar}`} style={{ width: `${item.percent}%` }}></div>
-                  </div>
-                </div>
-              ))}
-              {!balanceSummaryCards.length && (
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">Employee leave balances will appear here.</p>
-              )}
-            </div>
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+            {leaveLegend.map((item) => (
+              <div key={item.label} className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                <div className={`size-2.5 rounded-full ${item.color}`} />
+                <span>{item.label}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        <h2 className="pb-3 pt-8 text-[22px] font-bold leading-tight tracking-[-0.015em] text-neutral-800 dark:text-neutral-100">
-          Leave Requests
-        </h2>
-        {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-            {error}
-          </div>
-        )}
-        <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-800/50">
-          <table className="w-full text-left">
-            <thead className="border-b border-neutral-200 dark:border-neutral-800">
-              <tr>
-                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Employee</th>
-                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Leave Type</th>
-                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Dates</th>
-                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Days</th>
-                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Status</th>
-                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Manager</th>
-                <th className="p-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                    Loading leave requests...
-                  </td>
-                </tr>
-              )}
-              {!loading && formattedRequests.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                    No leave requests found.
-                  </td>
-                </tr>
-              )}
-              {!loading &&
-                formattedRequests.map((request) => (
-                  <tr key={request._id} className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
-                    <td className="p-4 text-sm font-medium text-neutral-800 dark:text-neutral-100">{request.employeeName}</td>
-                    <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400 capitalize">{request.leaveType}</td>
-                    <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400">{request.datesLabel}</td>
-                    <td className="p-4 text-sm text-neutral-600 dark:text-neutral-400">{request.totalDays || '-'}</td>
-                    <td className="p-4">
-                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${request.statusClass}`}>
-                        {request.status}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${request.managerStatusClass}`}>
-                        {request.managerStatus}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm font-semibold text-primary">
-                      {request.status === 'pending' ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleApprove(request._id)}
-                            disabled={actionLoadingId === request._id}
-                            className="flex h-8 items-center justify-center gap-1 rounded-md border border-green-500 px-2 text-xs text-green-500 hover:bg-green-50 disabled:opacity-50 dark:hover:bg-green-900/20"
-                          >
-                            <span className="material-symbols-outlined text-sm">check</span>
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            onClick={() => handleReject(request._id)}
-                            disabled={actionLoadingId === request._id}
-                            className="flex h-8 items-center justify-center gap-1 rounded-md border border-red-500 px-2 text-xs text-red-500 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/20"
-                          >
-                            <span className="material-symbols-outlined text-sm">close</span>
-                            <span>Reject</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-neutral-500 dark:text-neutral-400">No action</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-neutral-200 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
-            <p>Page {page} of {totalPages}</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page === 1}
-                className="flex h-9 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-800 disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-100"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={page === totalPages}
-                className="flex h-9 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-800 disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-100"
-              >
-                Next
-              </button>
-            </div>
+        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+          <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">Your Leave Balances</h2>
+          <div className="mt-4 flex flex-col gap-4">
+            {balanceSummaryCards.map((item) => (
+              <div key={item.label} className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between text-sm">
+                  <p className="font-medium text-neutral-700 dark:text-neutral-200">{item.label}</p>
+                  <p className="text-neutral-500 dark:text-neutral-400">{item.summary}</p>
+                </div>
+                <ProgressBar value={item.percent} colorClass={item.bar} />
+              </div>
+            ))}
+            {!balanceSummaryCards.length && (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">Employee leave balances will appear here.</p>
+            )}
           </div>
         </div>
       </div>
 
-      {leaveModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Request leave</h3>
-              <button
-                onClick={closeLeaveModal}
-                className="rounded-full p-1 text-neutral-500 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
-            </div>
-
-            {leaveFormError && (
-              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                {leaveFormError}
-              </div>
-            )}
-
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Leave type</label>
-                <select
-                  value={leaveForm.leaveType}
-                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-                >
-                  {leaveTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
+      <div>
+        <h2 className="pb-3 text-lg font-bold text-neutral-900 dark:text-neutral-100">Leave Requests</h2>
+        {error && <ErrorState description={error} className="mb-4" />}
+        {loading ? (
+          <TableSkeleton columns={7} rows={5} />
+        ) : formattedRequests.length === 0 ? (
+          <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <EmptyState
+              icon="event_note"
+              title={statusFilter ? 'No leave requests match the current filters' : 'No leave requests found'}
+            />
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-400">
+                  <tr>
+                    <th className="px-4 py-3">Employee</th>
+                    <th className="px-4 py-3">Leave Type</th>
+                    <th className="px-4 py-3">Dates</th>
+                    <th className="px-4 py-3">Days</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Manager</th>
+                    <th className="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 bg-white dark:divide-neutral-800 dark:bg-neutral-900">
+                  {formattedRequests.map((request) => (
+                    <tr key={request._id} className="h-14 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60">
+                      <td className="px-4 py-3 font-medium text-neutral-800 dark:text-neutral-100">{request.employeeName}</td>
+                      <td className="px-4 py-3 capitalize text-neutral-600 dark:text-neutral-300">{request.leaveType}</td>
+                      <td className="px-4 py-3 text-neutral-600 dark:text-neutral-300">{request.datesLabel}</td>
+                      <td className="px-4 py-3 text-neutral-600 dark:text-neutral-300">{request.totalDays || '—'}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge tone={statusTone[request.status] || 'neutral'} label={request.status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge tone={managerStatusTone[request.managerStatus] || 'neutral'} label={request.managerStatus} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {request.status === 'pending' ? (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+                              onClick={() => handleApprove(request._id)}
+                              disabled={actionLoadingId === request._id}
+                              icon={<span className="material-symbols-outlined text-sm">check</span>}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-900/20"
+                              onClick={() => handleReject(request._id)}
+                              disabled={actionLoadingId === request._id}
+                              icon={<span className="material-symbols-outlined text-sm">close</span>}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-neutral-400 dark:text-neutral-500">No action</span>
+                        )}
+                      </td>
+                    </tr>
                   ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Start date</label>
-                  <input
-                    type="date"
-                    value={leaveForm.startDate}
-                    onChange={(e) => setLeaveForm((prev) => ({ ...prev, startDate: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">End date</label>
-                  <input
-                    type="date"
-                    value={leaveForm.endDate}
-                    onChange={(e) => setLeaveForm((prev) => ({ ...prev, endDate: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Reason</label>
-                <textarea
-                  rows={3}
-                  value={leaveForm.reason}
-                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 focus:border-primary focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-                />
-              </div>
+                </tbody>
+              </table>
             </div>
-
-            <div className="mt-5 flex items-center justify-end gap-3">
-              <button
-                onClick={closeLeaveModal}
-                className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmitLeave}
-                disabled={leaveFormLoading}
-                className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {leaveFormLoading ? 'Submitting...' : 'Submit request'}
-              </button>
+            <div className="border-t border-neutral-200 px-1 dark:border-neutral-800">
+              <Pagination page={page} totalPages={totalPages} total={totalRequests} onPageChange={setPage} />
             </div>
           </div>
-        </div>
-      )}
-    </main>
+        )}
+      </div>
+
+      <Modal
+        open={leaveModalOpen}
+        onClose={closeLeaveModal}
+        title="Request Leave"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeLeaveModal}>
+              Cancel
+            </Button>
+            <Button type="submit" form="leave-request-form" disabled={leaveFormLoading}>
+              {leaveFormLoading ? 'Submitting…' : 'Submit Request'}
+            </Button>
+          </div>
+        }
+      >
+        <form id="leave-request-form" onSubmit={handleSubmitLeave} className="space-y-4">
+          {leaveFormError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+              {leaveFormError}
+            </div>
+          )}
+          <Select
+            label="Leave type"
+            value={leaveForm.leaveType}
+            onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
+            options={leaveTypeOptions}
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Start date"
+              type="date"
+              value={leaveForm.startDate}
+              onChange={(e) => setLeaveForm((prev) => ({ ...prev, startDate: e.target.value }))}
+            />
+            <Input
+              label="End date"
+              type="date"
+              value={leaveForm.endDate}
+              onChange={(e) => setLeaveForm((prev) => ({ ...prev, endDate: e.target.value }))}
+            />
+          </div>
+          <div>
+            <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Reason</span>
+            <textarea
+              rows={3}
+              value={leaveForm.reason}
+              onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
+              className="min-h-11 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            />
+          </div>
+        </form>
+      </Modal>
+    </div>
   );
 };
 

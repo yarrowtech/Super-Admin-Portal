@@ -317,7 +317,10 @@ const HRDashboard = () => {
             >
               {pendingLeaves.length ? (
                 <div className="space-y-3">
-                  {pendingLeaves.map((leave) => (
+                  {pendingLeaves.map((leave) => {
+                    const leaveEmployeeName =
+                      [leave.employee?.firstName, leave.employee?.lastName].filter(Boolean).join(' ') || 'Unknown Employee';
+                    return (
                     <div
                       key={leave._id}
                       className="rounded-xl border border-neutral-200 p-4 transition-colors hover:border-[var(--portal-accent)]/40 dark:border-neutral-800"
@@ -334,15 +337,15 @@ const HRDashboard = () => {
                           </div>
                           <div className="min-w-0 flex-1 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-bold text-neutral-900 dark:text-neutral-100">
-                                {leave.employee?.firstName} {leave.employee?.lastName}
-                              </h3>
+                              <h3 className="font-bold text-neutral-900 dark:text-neutral-100">{leaveEmployeeName}</h3>
                               <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold capitalize text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
                                 {leave.leaveType}
                               </span>
                               <StatusBadge tone={leaveStatusTone[leave.status] || 'warning'} label={leave.status} />
                             </div>
-                            <p className="truncate text-sm text-neutral-500 dark:text-neutral-400">{leave.employee?.email}</p>
+                            {leave.employee?.email && (
+                              <p className="truncate text-sm text-neutral-500 dark:text-neutral-400">{leave.employee.email}</p>
+                            )}
                             <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
                               <span className="material-symbols-outlined text-base">calendar_today</span>
                               <span className="font-semibold">{new Date(leave.startDate).toLocaleDateString()}</span>
@@ -379,7 +382,8 @@ const HRDashboard = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <EmptyState icon="check_circle" title="All caught up" message="No pending leave requests at the moment." />

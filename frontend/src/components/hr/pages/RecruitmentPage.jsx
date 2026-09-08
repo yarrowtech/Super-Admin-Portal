@@ -8,16 +8,12 @@ const RecruitmentPage = () => {
 
   return (
     <main className="portal-page">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="portal-page-inner">
         <PortalHeader
           title="Recruitment & Hiring"
           subtitle="Manage job postings, applicants, interviews, and offers"
           user={user}
           icon="work"
-          showSearch={true}
-          showNotifications={true}
-          showThemeToggle={true}
-          searchPlaceholder="Search applicants, jobs, or interviews..."
         />
 
         <ApplicantTracking />

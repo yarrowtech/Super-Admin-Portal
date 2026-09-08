@@ -4,6 +4,7 @@ import { departmentApi } from '../../services/departments';
 import { projectAccessApi } from '../../services/projectAccess';
 import { CANONICAL_PROJECTS, findCanonicalProject } from '../../config/projectNames';
 import ThemeToggleButton from '../common/ThemeToggleButton';
+import StatusBadge from '../common/StatusBadge';
 
 const PORTAL_DEFAULTS = {
   law: { name: 'Law Portal', icon: 'gavel', accent: '#991b1b' },
@@ -55,7 +56,6 @@ const rgba = (hex, alpha) => {
 const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-shadow duration-200 dark:border-neutral-800 dark:bg-neutral-900';
 const mutedCard = 'rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-neutral-800 dark:bg-neutral-950/45';
 const label = 'text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-neutral-400';
-const ACCENTS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#f43f5e', '#06b6d4'];
 const EMPTY_SECTIONS = [
   { title: 'Recent Work', type: 'records', rows: [] },
   { title: 'Pending Items', type: 'tasks', rows: [] },
@@ -63,11 +63,10 @@ const EMPTY_SECTIONS = [
 
 const projectStatusTone = (status = '') => {
   const value = String(status).toLowerCase();
-  if (value.includes('active') || value.includes('progress') || value.includes('track')) return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (value.includes('hold') || value.includes('paused')) return 'border-amber-300 bg-amber-50 text-amber-700';
-  if (value.includes('complete') || value.includes('closed')) return 'border-slate-300 bg-slate-50 text-slate-600';
-  if (value.includes('blocked')) return 'border-red-200 bg-red-50 text-red-700';
-  return 'border-teal-300 bg-teal-50 text-teal-700';
+  if (value.includes('hold') || value.includes('paused')) return 'warning';
+  if (value.includes('complete') || value.includes('closed')) return 'neutral';
+  if (value.includes('blocked')) return 'danger';
+  return 'success';
 };
 
 const getProjectId = (project) => String(project?._id || project?.id || project?.value || project?.code || project?.projectCode || '');
@@ -333,27 +332,25 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
             </div>
           ) : projects.length ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {projects.map((item, index) => {
+              {projects.map((item) => {
                 const id = getProjectId(item);
                 const itemCanonical = findCanonicalProject(item);
                 const name = item?.name || itemCanonical?.name || item?.projectCode || item?.code || 'Project';
                 const active = id === selectedId;
                 const code = itemCanonical?.code || item?.projectCode || item?.code || 'Project';
-                const color = ACCENTS[index % ACCENTS.length];
                 return (
                   <button
                     key={id || name}
                     type="button"
                     onClick={() => setSelectedId(id)}
-                    className={`group flex min-h-[124px] flex-col rounded-[1.35rem] border bg-white p-4 text-left shadow-[0_14px_32px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(15,118,110,0.13)] dark:bg-neutral-950/40 ${
+                    className={`group flex min-h-31 flex-col rounded-[1.35rem] border bg-white p-4 text-left shadow-[0_14px_32px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(15,118,110,0.13)] dark:bg-neutral-950/40 ${
                       active
                         ? 'border-teal-300 shadow-[0_0_0_3px_rgba(20,184,166,0.14)]'
                         : 'border-slate-200 hover:border-teal-300'
                     }`}
                     style={{ borderColor: active ? accent : undefined }}
                   >
-                    <div className="h-1.5 w-full rounded-full" style={{ background: color }} />
-                    <div className="mt-3 flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-[16px] font-black text-slate-950 dark:text-neutral-100">{name}</p>
                         <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-500 dark:text-neutral-400">{item?.description || itemCanonical?.description || 'Project workspace.'}</p>
@@ -363,9 +360,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
                       </span>
                     </div>
                     <div className="mt-4 flex items-center justify-between">
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${projectStatusTone(item.status)}`}>
-                        {item.status || 'in-progress'}
-                      </span>
+                      <StatusBadge tone={projectStatusTone(item.status)} label={item.status || 'in-progress'} />
                       <span className="inline-flex items-center gap-1 text-[12px] font-bold text-teal-700 transition group-hover:gap-1.5 dark:text-teal-400">
                         View overview
                         <span className="material-symbols-outlined text-[16px]">arrow_forward</span>

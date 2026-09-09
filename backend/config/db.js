@@ -13,9 +13,7 @@ const connectDB = async () => {
   }
 
   try {
-    if (!env.IS_PRODUCTION) {
-      installMongooseInstrumentation(mongoose);
-    }
+    installMongooseInstrumentation(mongoose);
 
     const options = {
       serverSelectionTimeoutMS: constants.MONGO_SERVER_SELECTION_TIMEOUT_MS,
@@ -31,6 +29,8 @@ const connectDB = async () => {
 
     logger.info(
       {
+        event: "db.connected",
+        category: "DB",
         host: conn.connection.host,
         database: conn.connection.name,
       },

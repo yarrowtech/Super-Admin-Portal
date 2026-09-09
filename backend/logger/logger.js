@@ -26,7 +26,7 @@ const logger = pino(
     enabled: env.NODE_ENV !== "test",
     base: {
       service: "super-admin-backend",
-      env: env.NODE_ENV,
+      environment: env.NODE_ENV,
     },
     formatters: {
       level(label) {
@@ -35,7 +35,9 @@ const logger = pino(
     },
     mixin() {
       const context = getRequestContext();
-      return Object.keys(context).length ? sanitizeForLog(context) : {};
+      if (!Object.keys(context).length) return {};
+      const { logger: _logger, ...safeContext } = context;
+      return sanitizeForLog(safeContext);
     },
     timestamp: pino.stdTimeFunctions.isoTime,
     serializers: {
@@ -52,9 +54,12 @@ const logger = pino(
         "req.body.currentPassword",
         "req.body.newPassword",
         "req.body.confirmPassword",
+        "req.body.oldPassword",
         "req.body.token",
         "req.body.accessToken",
         "req.body.refreshToken",
+        "req.body.resetToken",
+        "req.body.otp",
         "req.body.apiKey",
         "req.body.secret",
         "req.query.token",
@@ -66,11 +71,16 @@ const logger = pino(
         "set-cookie",
         "token",
         "accessToken",
+        "refreshToken",
         "password",
         "passwordHash",
         "currentPassword",
         "newPassword",
         "confirmPassword",
+        "oldPassword",
+        "otp",
+        "otpHash",
+        "resetToken",
         "jwt",
         "apiKey",
         "api_key",
@@ -92,6 +102,9 @@ const logger = pino(
         "*.token",
         "*.accessToken",
         "*.refreshToken",
+        "*.resetToken",
+        "*.otp",
+        "*.otpHash",
         "*.apiKey",
         "*.api_key",
         "*.secret",

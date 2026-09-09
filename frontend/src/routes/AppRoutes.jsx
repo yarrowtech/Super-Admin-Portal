@@ -132,11 +132,44 @@ import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
 import { dashboardWorkflowApi } from '../services/dashboardWorkflow';
 import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, PrivateRoute } from './routeGuards';
-import { emitFrontendEvent } from '../utils/logger';
+import activityTracker from '../services/activityTracker';
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
 const managerRoles = ['manager', 'it_manager', ...adminRoles];
 const employeeRoles = ['employee', 'it_employee', 'finance_employee', 'law_employee', ...adminRoles];
+let lastPortalEntryKey = '';
+
+const titleCase = (value = '') =>
+  String(value || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+
+const routeActivityMeta = (pathname) => {
+  const parts = String(pathname || '').split('/').filter(Boolean);
+  if (parts.length === 0 || parts[0] === 'login' || (parts[0] === 'outsourcing' && parts[1] === 'login')) return null;
+
+  let portal = parts[0];
+  let modulePart = parts[1] || 'dashboard';
+  if (portal === 'it' && parts[1] === 'dashboard') modulePart = parts[2] || 'overview';
+  if (portal === 'media' && parts[1] === 'sales') {
+    portal = 'media';
+    modulePart = parts[2] || 'sales';
+  }
+  if (portal === 'admin' && parts[1] === 'super-admin') portal = 'super-admin';
+
+  const module = titleCase(modulePart || portal || 'Dashboard');
+  const page = modulePart === 'dashboard' || modulePart === 'overview'
+    ? `${titleCase(portal)} Dashboard`
+    : module;
+
+  return {
+    portal: portal.replace(/-/g, '_').toUpperCase(),
+    module,
+    page,
+    route: pathname,
+  };
+};
 
 const PortalRoute = ({ portal, children }) => {
   const { user, token, loading } = useAuth();
@@ -184,6 +217,20 @@ const PortalRoute = ({ portal, children }) => {
     };
   }, [user, token]);
 
+  useEffect(() => {
+    if (!user || !token || !portal) return;
+    const userId = user?._id || user?.id || 'unknown';
+    const key = `${userId}:${portal}`;
+    if (lastPortalEntryKey === key) return;
+    lastPortalEntryKey = key;
+    activityTracker.portalEnter({
+      portal: String(portal).replace(/-/g, '_').toUpperCase(),
+      module: 'Portal',
+      page: `${titleCase(portal)} Portal`,
+      route: location.pathname,
+    });
+  }, [user, token, portal, location.pathname]);
+
   if (loading) {
     return <div className="flex h-screen items-center justify-center text-neutral-700 dark:text-neutral-200">Loading...</div>;
   }
@@ -216,16 +263,17 @@ const withPortal = (PortalComponent, PageComponent) =>
 
 const NavigationLogger = () => {
   const location = useLocation();
+  const { user, token } = useAuth();
 
   useEffect(() => {
-    emitFrontendEvent('info', {
-      eventType: 'navigation',
-      module: 'router',
-      action: 'navigation',
-      status: 'success',
+    if (!user || !token) return;
+    const meta = routeActivityMeta(location.pathname);
+    if (!meta) return;
+    activityTracker.pageView({
+      ...meta,
       route: `${location.pathname}${location.search}`,
-    }, 'Frontend navigation');
-  }, [location.pathname, location.search]);
+    });
+  }, [location.pathname, location.search, user, token]);
 
   return null;
 };

@@ -1,6 +1,32 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { ROLES, isValidRole } = require('../../config/roles');
+const logger = require('../../utils/logger');
+const env = require('../../config/env');
+const { createTimer, getRequestContext } = require('../../logger/context');
+
+const toLogId = (value) => {
+  if (!value) return null;
+  if (typeof value.toHexString === 'function') return value.toHexString();
+  return String(value);
+};
+
+const logCredentialSpan = (span, durationMs, extra = {}) => {
+  if (!env.LOG_LOGIN_SPANS) return;
+  const context = getRequestContext();
+  if (!context.requestId) return;
+  logger.debug({
+    event: `perf.${span}`,
+    category: 'PERF',
+    span,
+    requestId: context.requestId,
+    method: context.method,
+    route: context.route || context.path,
+    durationMs,
+    userId: toLogId(extra.userId || context.userId),
+    role: extra.role || context.role || null,
+  }, `${span} completed`);
+};
 
 const userSchema = new mongoose.Schema(
   {
@@ -117,13 +143,17 @@ userSchema.methods.toSafeObject = function () {
 
 userSchema.statics.findByCredentials = async function (email, password) {
   const normalized = email?.trim().toLowerCase();
+  const stopLookup = createTimer('auth.user.lookup');
   const user = await this.findOne({ email: normalized }).select('+password');
+  logCredentialSpan('auth.user.lookup', stopLookup(), { userId: toLogId(user?._id), role: user?.role || null });
 
   if (!user) {
     throw new Error('Invalid credentials');
   }
 
+  const stopPasswordVerify = createTimer('auth.password.verify');
   const isMatch = await user.comparePassword(password);
+  logCredentialSpan('auth.password.verify', stopPasswordVerify(), { userId: toLogId(user._id), role: user.role });
 
   if (!isMatch) {
     throw new Error('Invalid credentials');

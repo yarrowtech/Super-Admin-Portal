@@ -9,9 +9,14 @@ const SENSITIVE_KEYS = new Set([
   "passwordhash",
   "currentpassword",
   "newpassword",
+  "oldpassword",
   "token",
   "accesstoken",
   "refreshtoken",
+  "resettoken",
+  "otptoken",
+  "otp",
+  "otphash",
   "jwt",
   "jwttoken",
   "jwtsecret",
@@ -30,6 +35,8 @@ const SENSITIVE_KEYS = new Set([
   "cvv",
   "cvc",
   "accountnumber",
+  "ifsc",
+  "ifsccode",
 ]);
 
 const MAX_DEPTH = 6;

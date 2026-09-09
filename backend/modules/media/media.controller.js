@@ -14,7 +14,7 @@ const handleError = (res, err, message, logLabel) => {
 exports.getOverview = async (req, res) => {
   try {
     const data = await mediaService.getOverview(req.projectId);
-    getMediaRequestLogger(req, { action: 'getOverview' }).info(
+    getMediaRequestLogger(req, { action: 'getOverview' }).debug(
       { projectId: req.projectId || null },
       'Media overview loaded'
     );
@@ -27,7 +27,7 @@ exports.getOverview = async (req, res) => {
 exports.getDashboard = async (req, res) => {
   try {
     const data = await dashboardAggregateService.getProjectDashboard(req.projectId);
-    getMediaRequestLogger(req, { action: 'getDashboard' }).info(
+    getMediaRequestLogger(req, { action: 'getDashboard' }).debug(
       { projectId: req.projectId || null },
       'Media dashboard loaded'
     );
@@ -40,7 +40,7 @@ exports.getDashboard = async (req, res) => {
 exports.getProjects = async (req, res) => {
   try {
     const data = await mediaService.listProjects(req.query || {}, req.user);
-    getMediaRequestLogger(req, { action: 'getProjects' }).info(
+    getMediaRequestLogger(req, { action: 'getProjects' }).debug(
       { query: req.query || {} },
       'Media projects listed'
     );
@@ -92,7 +92,7 @@ exports.removeProjectMember = async (req, res) => {
 exports.getMediaHeadDashboard = async (req, res) => {
   try {
     const data = await mediaService.getMediaHeadDashboard(req.query || {});
-    getMediaRequestLogger(req, { action: 'getMediaHeadDashboard' }).info(
+    getMediaRequestLogger(req, { action: 'getMediaHeadDashboard' }).debug(
       { query: req.query || {} },
       'Media Head dashboard loaded'
     );
@@ -105,7 +105,7 @@ exports.getMediaHeadDashboard = async (req, res) => {
 exports.getMediaHeadProjects = async (req, res) => {
   try {
     const data = await mediaService.listMediaHeadProjects(req.query || {});
-    getMediaRequestLogger(req, { action: 'getMediaHeadProjects' }).info(
+    getMediaRequestLogger(req, { action: 'getMediaHeadProjects' }).debug(
       { query: req.query || {} },
       'Media Head projects listed'
     );
@@ -181,7 +181,7 @@ exports.getMediaHeadProjectDetail = async (req, res) => {
 exports.getAssets = async (req, res) => {
   try {
     const data = await mediaService.listMedia(req.query || {}, req.projectId, 'asset');
-    getMediaRequestLogger(req, { action: 'getAssets' }).info(
+    getMediaRequestLogger(req, { action: 'getAssets' }).debug(
       { projectId: req.projectId || null, query: req.query || {} },
       'Media assets listed'
     );
@@ -194,7 +194,7 @@ exports.getAssets = async (req, res) => {
 exports.getCampaigns = async (req, res) => {
   try {
     const data = await mediaService.listMedia(req.query || {}, req.projectId, 'campaign');
-    getMediaRequestLogger(req, { action: 'getCampaigns' }).info(
+    getMediaRequestLogger(req, { action: 'getCampaigns' }).debug(
       { projectId: req.projectId || null, query: req.query || {} },
       'Media campaigns listed'
     );
@@ -261,7 +261,7 @@ exports.deleteAsset = async (req, res) => {
 exports.getContent = async (req, res) => {
   try {
     const data = await mediaService.listMedia(req.query || {}, req.projectId, 'content');
-    getMediaRequestLogger(req, { action: 'getContent' }).info(
+    getMediaRequestLogger(req, { action: 'getContent' }).debug(
       { projectId: req.projectId || null, query: req.query || {} },
       'Media content listed'
     );
@@ -320,7 +320,7 @@ exports.deleteContent = async (req, res) => {
 exports.getBrandAssets = async (req, res) => {
   try {
     const data = await mediaService.listMedia(req.query || {}, req.projectId, 'brand');
-    getMediaRequestLogger(req, { action: 'getBrandAssets' }).info(
+    getMediaRequestLogger(req, { action: 'getBrandAssets' }).debug(
       { projectId: req.projectId || null, query: req.query || {} },
       'Media brand assets listed'
     );
@@ -334,7 +334,7 @@ const makeSectionController = (section, label) => ({
   list: async (req, res) => {
     try {
       const data = await mediaService.listMedia(req.query || {}, req.projectId, section);
-      getMediaRequestLogger(req, { action: `list:${section}` }).info(
+      getMediaRequestLogger(req, { action: `list:${section}` }).debug(
         { projectId: req.projectId || null, section, query: req.query || {} },
         'Media section listed'
       );
@@ -362,7 +362,7 @@ const makeSectionController = (section, label) => ({
     try {
       const data = await mediaService.getMediaRecordById(req.params.id, req.projectId, section);
       if (!data) return res.status(404).json({ success: false, error: `${label} not found` });
-      getMediaRequestLogger(req, { action: `get:${section}` }).info(
+      getMediaRequestLogger(req, { action: `get:${section}` }).debug(
         { projectId: req.projectId || null, section, mediaId: req.params.id },
         'Media section item loaded'
       );

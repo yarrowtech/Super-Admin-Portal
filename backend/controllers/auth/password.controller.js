@@ -2,6 +2,12 @@ const logger = require('../../utils/logger');
 const User = require('../../models/auth/User');
 const Session = require('../../models/auth/Session');
 
+const toLogId = (value) => {
+  if (!value) return null;
+  if (typeof value.toHexString === 'function') return value.toHexString();
+  return String(value);
+};
+
 /**
  * @route   PUT /api/auth/change-password
  * @desc    Change the current user's password and revoke every other active
@@ -17,6 +23,16 @@ exports.changePassword = async (req, res) => {
     const user = await User.findById(req.user.id).select('+password');
 
     if (!user) {
+      logger.warn({
+        event: 'auth.password.change.failed',
+        category: 'AUTH',
+        requestId: req.id || req.headers['x-request-id'] || null,
+        method: req.method,
+        route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+        userId: toLogId(req.user?.id),
+        role: req.user?.role || null,
+        reason: 'user_not_found',
+      }, 'Password change failed');
       return res.status(404).json({
         success: false,
         error: 'User not found',
@@ -28,6 +44,16 @@ exports.changePassword = async (req, res) => {
     const isMatch = await user.comparePassword(currentPassword);
 
     if (!isMatch) {
+      logger.warn({
+        event: 'auth.password.change.failed',
+        category: 'AUTH',
+        requestId: req.id || req.headers['x-request-id'] || null,
+        method: req.method,
+        route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+        userId: toLogId(req.user?.id),
+        role: req.user?.role || null,
+        reason: 'incorrect_current_password',
+      }, 'Password change failed');
       return res.status(401).json({
         success: false,
         error: 'Current password is incorrect',
@@ -47,6 +73,16 @@ exports.changePassword = async (req, res) => {
       revokeFilter.jti = { $ne: req.authTokenJti };
     }
     const { modifiedCount } = await Session.updateMany(revokeFilter, { revokedAt: new Date() });
+    logger.info({
+      event: 'auth.password.changed',
+      category: 'AUTH',
+      requestId: req.id || req.headers['x-request-id'] || null,
+      method: req.method,
+      route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+      userId: toLogId(user._id),
+      role: req.user?.role || null,
+      revokedSessionCount: modifiedCount,
+    }, 'Password changed');
 
     res.status(200).json({
       success: true,
@@ -55,7 +91,16 @@ exports.changePassword = async (req, res) => {
         : 'Password changed successfully.'
     });
   } catch (error) {
-    logger.error({ err: error }, 'Change password error');
+    logger.error({
+      event: 'auth.password.change.error',
+      category: 'AUTH',
+      err: error,
+      requestId: req.id || req.headers['x-request-id'] || null,
+      method: req.method,
+      route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+      userId: toLogId(req.user?.id),
+      role: req.user?.role || null,
+    }, 'Change password error');
     res.status(500).json({
       success: false,
       error: 'Failed to change password',

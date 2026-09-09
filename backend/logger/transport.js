@@ -6,7 +6,7 @@ const buildTransport = () => {
     return undefined;
   }
 
-  if (!env.IS_PRODUCTION) {
+  if (!env.IS_PRODUCTION && env.LOG_PRETTY) {
     return createDevelopmentConsoleStream();
   }
 

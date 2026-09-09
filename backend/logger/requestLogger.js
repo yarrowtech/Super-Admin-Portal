@@ -20,6 +20,12 @@ const serializeRes = (res) => {
   };
 };
 
+const toLogId = (value) => {
+  if (!value) return null;
+  if (typeof value.toHexString === "function") return value.toHexString();
+  return String(value);
+};
+
 const requestLogger = pinoHttp({
   logger,
   autoLogging: false,
@@ -35,12 +41,14 @@ const requestLogger = pinoHttp({
   },
   customProps: (req) => ({
     requestId: req.id,
+    sessionId: req.authSessionId || req.logContext?.sessionId || null,
     module: req.logContext?.module || null,
     action: req.logContext?.action || null,
-    status: "completed",
-    route: req.route?.path || req.path,
-    userId: req.user?.id || null,
+    route: (req.originalUrl || req.path || "").split(/[?#]/)[0],
+    userId: toLogId(req.user?.id),
     role: req.user?.role || null,
+    department: req.user?.department || null,
+    portal: req.logContext?.portal || null,
     ip: req.ip || req.socket?.remoteAddress || null,
   }),
   customLogLevel: (req, res, err) => {

@@ -30,6 +30,7 @@ exports.profileRoutes = require("./profile.routes");
 exports.hrProfileRoutes = require("./hr.profile.routes");
 exports.analyticsRoutes = require("./analytics.routes");
 exports.automationRoutes = require("./automation.routes");
+exports.activityRoutes = require("./activity.routes");
 exports.portalSupportRoutes = require("./portalSupport.routes");
 exports.legalDocRoutes = require("./legalDocument.v2.routes");
 exports.logRoutes = require("./log.routes");

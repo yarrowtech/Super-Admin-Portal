@@ -227,6 +227,7 @@ app.use("/api/chat", routes.chatRoutes);
 app.use("/api/reports", routes.reportRoutes);
 app.use("/api/analytics", routes.analyticsRoutes);
 app.use("/api/automation", routes.automationRoutes);
+app.use("/api/activity", routes.activityRoutes);
 app.use("/api/outsourcing/edifyeight", routes.edifyEightTeacherRoutes);
 app.use("/api/outsourcing", routes.outsourcingRoutes);
 app.use("/api/integrations/efnbmms/admin-management", routes.efnbmmsRoutes);

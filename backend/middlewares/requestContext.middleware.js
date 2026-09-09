@@ -2,6 +2,7 @@ const logger = require("../utils/logger");
 const { runWithRequestContext, setRequestContext } = require("../logger/context");
 const { sanitizeForLog } = require("../logger/sanitize");
 const logService = require("../services/log.service");
+const env = require("../config/env");
 
 const METHOD_ACTION = {
   GET: "read",
@@ -118,22 +119,28 @@ const requestContextMiddleware = (req, res, next) => {
   const startedAt = process.hrtime.bigint();
   const module = inferModule(req.originalUrl || req.path);
   const action = inferAction(req);
+  const route = (req.originalUrl || req.path || "").split(/[?#]/)[0];
   const context = {
     requestId: req.id || req.headers["x-request-id"] || null,
+    sessionId: null,
     module,
     action,
     status: "started",
     userId: null,
     role: null,
+    department: null,
+    portal: null,
     method: req.method,
-    path: req.originalUrl || req.path,
+    route,
+    path: route,
   };
 
   runWithRequestContext(context, () => {
     req.logContext = context;
     req.updateLogContext = setRequestContext;
     if (req.log?.child) {
-      req.log = req.log.child({ requestId: context.requestId, module, action });
+      req.log = req.log.child({ requestId: context.requestId, module, action, route });
+      context.logger = req.log;
     }
 
     logger.trace(
@@ -142,9 +149,10 @@ const requestContextMiddleware = (req, res, next) => {
         action,
         requestId: context.requestId,
         method: req.method,
-        path: req.originalUrl || req.path,
+        route,
         status: "received",
         query: sanitizeForLog(req.query || {}),
+        body: env.LOG_REQUEST_BODY ? sanitizeForLog(req.body || {}) : undefined,
       },
       "Request received"
     );
@@ -153,47 +161,71 @@ const requestContextMiddleware = (req, res, next) => {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
       const status = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "failed" : "success";
       const roundedDurationMs = Math.round(durationMs * 100) / 100;
+      const rawUserId = req.user?.id || req.user?._id || context.userId || null;
+      const userId = rawUserId ? String(rawUserId) : null;
+      const role = req.user?.role || context.role || null;
+      const department = req.user?.department || context.department || null;
+      const portal = req.logContext?.portal || context.portal || req.body?.portal || null;
       setRequestContext({
         status,
-        userId: req.user?.id || req.user?._id || null,
-        role: req.user?.role || null,
+        userId: userId ? String(userId) : null,
+        role,
+        department,
+        portal,
       });
-      logger[res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info"](
+      const isSuccessfulHealthcheck = route === "/health" && res.statusCode < 400;
+      const shouldLogHttpCompletion = env.LOG_HTTP && (env.LOG_HEALTHCHECKS || !isSuccessfulHealthcheck);
+      if (shouldLogHttpCompletion) logger[res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info"](
         {
+          event: "http.request.completed",
+          category: "HTTP",
           requestId: context.requestId,
-          userId: req.user?.id || req.user?._id || null,
-          role: req.user?.role || null,
+          sessionId: req.authSessionId ? String(req.authSessionId) : context.sessionId || null,
+          userId,
+          role,
+          department,
+          portal,
           module,
           action,
           status,
           method: req.method,
-          path: req.originalUrl || req.path,
+          route,
           statusCode: res.statusCode,
           durationMs: roundedDurationMs,
+          contentLength: res.getHeader("content-length") || null,
+          ip: req.ip || req.socket?.remoteAddress || null,
+          userAgent: req.get("user-agent") || null,
         },
-        "Request performance"
+        "HTTP request completed"
       );
-      const slowRequestMs = Math.max(1, Number(process.env.SLOW_REQUEST_MS) || 1000);
+      const slowRequestMs = env.LOG_SLOW_REQUEST_MS;
       if (roundedDurationMs >= slowRequestMs) {
-        logger.warn(
+        const verySlowRequestMs = env.LOG_VERY_SLOW_REQUEST_MS;
+        logger[roundedDurationMs >= verySlowRequestMs && res.statusCode >= 500 ? "error" : "warn"](
           {
+            event: roundedDurationMs >= verySlowRequestMs ? "perf.request.very_slow" : "perf.request.slow",
+            category: "PERF",
             requestId: context.requestId,
-            userId: req.user?.id || req.user?._id || null,
-            role: req.user?.role || null,
+            sessionId: req.authSessionId ? String(req.authSessionId) : context.sessionId || null,
+            userId,
+            role,
+            department,
+            portal,
             module,
             action,
             method: req.method,
-            path: req.originalUrl || req.path,
+            route,
             statusCode: res.statusCode,
             durationMs: roundedDurationMs,
             thresholdMs: slowRequestMs,
+            verySlowThresholdMs: verySlowRequestMs,
           },
-          "Slow request"
+          roundedDurationMs >= verySlowRequestMs ? "Very slow request" : "Slow request"
         );
       }
 
       const event = req.systemErrorLogged ? null : toEventName(req, res.statusCode);
-      if (event) {
+      if (event && env.LOG_BUSINESS_ACTIVITY) {
         logService.fireAndForgetFromRequest(req, {
           level: res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info",
           event,

@@ -10,6 +10,7 @@ const logService = require('../../services/log.service');
 const { ROLES, isValidRole } = require('../../config/roles');
 const env = require('../../config/env');
 const jwtConfig = require('../../config/jwt');
+const { createTimer, setRequestContext } = require('../../logger/context');
 const { v2: cloudinary } = require('cloudinary');
 
 /**
@@ -42,6 +43,29 @@ const generateRefreshToken = (user, options = {}) => {
 };
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const toLogId = (value) => {
+  if (!value) return null;
+  if (typeof value.toHexString === 'function') return value.toHexString();
+  return String(value);
+};
+
+const recordLoginSpan = (req, span, stopTimer, extra = {}) => {
+  if (!env.LOG_LOGIN_SPANS) return;
+  const durationMs = stopTimer();
+  const targetLogger = req.log || logger;
+  targetLogger.debug({
+    event: `perf.${span}`,
+    category: 'PERF',
+    span,
+    requestId: req.id || req.headers['x-request-id'] || null,
+    method: req.method,
+    route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+    durationMs,
+    userId: toLogId(extra.userId),
+    role: extra.role || null,
+  }, `${span} completed`);
+};
 
 const parseCookie = (req, name) => {
   const cookies = req.headers.cookie || '';
@@ -92,19 +116,31 @@ const writeAuthActivity = async (req, action, user, metadata = {}) => {
       user: user?._id,
       action,
       module: 'auth',
+      role: user?.role || metadata.role || '',
+      department: user?.department || '',
+      portal: metadata.portal || '',
+      requestId: req.id || req.headers['x-request-id'] || '',
+      sessionId: metadata.sessionId || (req.authSessionId ? toLogId(req.authSessionId) : ''),
+      status: metadata.status || 'success',
       targetType: 'User',
       targetId: user?._id?.toString(),
+      entityType: 'User',
+      entityId: user?._id?.toString(),
       metadata,
       ipAddress: req.ip,
       userAgent: req.get('user-agent')
     });
-    logger.info({
+    logger.debug({
+      event: 'auth.activity.recorded',
+      category: 'AUTH',
       requestId: req.id || req.headers['x-request-id'] || null,
+      sessionId: metadata.sessionId || (req.authSessionId ? toLogId(req.authSessionId) : null),
       module: 'authentication',
       action,
       status: 'success',
-      userId: user?._id || null,
+      userId: toLogId(user?._id),
       role: user?.role || metadata.role || null,
+      portal: metadata.portal || null,
       ip: req.ip,
     }, 'Authentication activity recorded');
     const eventMap = {
@@ -137,6 +173,8 @@ const writeAuthActivity = async (req, action, user, metadata = {}) => {
       userEmail: user?.email,
       role: user?.role || metadata.role || null,
       department: user?.department || null,
+      portal: metadata.portal || null,
+      sessionId: metadata.sessionId || (req.authSessionId ? toLogId(req.authSessionId) : null),
       statusCode: action === 'auth.registered' ? 201 : 200,
       metadata,
     });
@@ -147,12 +185,16 @@ const writeAuthActivity = async (req, action, user, metadata = {}) => {
 
 const logAuthFailure = (req, action, reason, extra = {}) => {
   logger.warn({
+    event: action === 'auth.login' ? 'auth.login.failed' : action === 'auth.refresh' ? 'auth.token.invalid' : 'auth.access.denied',
+    category: 'AUTH',
     requestId: req.id || req.headers['x-request-id'] || null,
     module: 'authentication',
     action,
     status: 'failed',
-    userId: extra.userId || null,
+    userId: toLogId(extra.userId),
     role: extra.role || null,
+    route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+    method: req.method,
     reason,
     ip: req.ip,
   }, 'Authentication activity failed');
@@ -173,7 +215,7 @@ const logAuthFailure = (req, action, reason, extra = {}) => {
     emit: false,
     module: 'authentication',
     action: action.replace(/^auth\./, '').toUpperCase(),
-    userId: extra.userId || null,
+    userId: toLogId(extra.userId),
     role: extra.role || null,
     statusCode,
     metadata: {
@@ -494,6 +536,14 @@ const normalizeProjectAssignments = (metadata = {}) => {
 exports.register = async (req, res) => {
   try {
     if (!env.ENABLE_SELF_REGISTRATION) {
+      logger.warn({
+        event: 'auth.register.failed',
+        category: 'AUTH',
+        requestId: req.id || req.headers['x-request-id'] || null,
+        method: req.method,
+        route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+        reason: 'registration_disabled',
+      }, 'Registration failed');
       return res.status(403).json({
         success: false,
         error: 'Self-service registration is disabled. Please contact an administrator to create your account.',
@@ -507,6 +557,14 @@ exports.register = async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
+      logger.warn({
+        event: 'auth.register.failed',
+        category: 'AUTH',
+        requestId: req.id || req.headers['x-request-id'] || null,
+        method: req.method,
+        route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+        reason: 'email_exists',
+      }, 'Registration failed');
       return res.status(409).json({
         success: false,
         error: 'Email already registered. Please login or use a different email.',
@@ -535,6 +593,23 @@ exports.register = async (req, res) => {
     user.lastLogin = new Date();
     await user.save({ validateModifiedOnly: true });
     await writeAuthActivity(req, 'auth.registered', user);
+    setRequestContext({
+      userId: toLogId(user._id),
+      role: user.role,
+      department: user.department || null,
+      status: 'authenticated',
+    });
+    logger.info({
+      event: 'auth.register.success',
+      category: 'AUTH',
+      requestId: req.id || req.headers['x-request-id'] || null,
+      method: req.method,
+      route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+      createdUserId: toLogId(user._id),
+      userId: toLogId(user._id),
+      role: user.role,
+      department: user.department || null,
+    }, 'Registration successful');
 
     res.status(201).json({
       success: true,
@@ -556,7 +631,17 @@ exports.register = async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error({ err: error }, 'Register error');
+    logger.error({
+      event: 'auth.register.failed',
+      category: 'AUTH',
+      err: error,
+      requestId: req.id || req.headers['x-request-id'] || null,
+      method: req.method,
+      route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+      reason: error.name === 'ValidationError' ? 'validation_error' : 'register_error',
+      role: req.body?.role || null,
+      department: req.body?.department || null,
+    }, 'Register error');
 
     if (error.name === 'ValidationError') {
       return res.status(400).json({
@@ -589,15 +674,50 @@ exports.login = async (req, res) => {
     const user = await User.findByCredentials(emailInput, password);
 
     // Update last login
-  user.lastLogin = new Date();
-  await user.save({ validateModifiedOnly: true });
+    const stopLastLogin = createTimer('auth.last_login.save');
+    user.lastLogin = new Date();
+    await user.save({ validateModifiedOnly: true });
+    recordLoginSpan(req, 'auth.last_login.save', stopLastLogin, { userId: toLogId(user._id), role: user.role });
 
-  // Generate tokens
-  const sessionJti = crypto.randomUUID();
-  const token = generateToken(user, { jti: sessionJti });
-  const refreshToken = generateRefreshToken(user, { jti: sessionJti });
-  const session = await persistSession(req, res, user, refreshToken, { jti: sessionJti });
-  await writeAuthActivity(req, 'auth.login', user);
+    // Generate tokens
+    const stopTokenGenerate = createTimer('auth.token.generate');
+    const sessionJti = crypto.randomUUID();
+    const token = generateToken(user, { jti: sessionJti });
+    const refreshToken = generateRefreshToken(user, { jti: sessionJti });
+    recordLoginSpan(req, 'auth.token.generate', stopTokenGenerate, { userId: toLogId(user._id), role: user.role });
+
+    const stopSessionPersist = createTimer('auth.session.persist');
+    const session = await persistSession(req, res, user, refreshToken, { jti: sessionJti });
+    recordLoginSpan(req, 'auth.session.persist', stopSessionPersist, { userId: toLogId(user._id), role: user.role });
+
+    setRequestContext({
+      userId: String(user._id),
+      sessionId: toLogId(session?._id),
+      role: user.role,
+      department: user.department || null,
+      portal: getRequestContext(req).portal || null,
+      status: 'authenticated',
+    });
+
+    const stopActivityWrite = createTimer('auth.activity.write');
+    await writeAuthActivity(req, 'auth.login', user, {
+      sessionId: toLogId(session?._id),
+      portal: getRequestContext(req).portal || null,
+    });
+    recordLoginSpan(req, 'auth.activity.write', stopActivityWrite, { userId: toLogId(user._id), role: user.role });
+
+    logger.info({
+      event: 'auth.login.success',
+      category: 'AUTH',
+      requestId: req.id || req.headers['x-request-id'] || null,
+      sessionId: toLogId(session?._id),
+      method: req.method,
+      route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+      userId: toLogId(user._id),
+      role: user.role,
+      department: user.department || null,
+      portal: getRequestContext(req).portal || null,
+    }, 'Login successful');
 
     res.status(200).json({
       success: true,
@@ -699,7 +819,30 @@ exports.outsourcingLogin = async (req, res) => {
     const token = generateToken(user, { jti: sessionJti });
     const refreshToken = generateRefreshToken(user, { jti: sessionJti });
     const session = await persistSession(req, res, user, refreshToken, { jti: sessionJti });
-    await writeAuthActivity(req, 'auth.outsourcing_login', user);
+    setRequestContext({
+      userId: String(user._id),
+      sessionId: toLogId(session?._id),
+      role: user.role,
+      department: user.department || null,
+      portal: getRequestContext(req).portal || 'outsourcing',
+      status: 'authenticated',
+    });
+    await writeAuthActivity(req, 'auth.outsourcing_login', user, {
+      sessionId: toLogId(session?._id),
+      portal: getRequestContext(req).portal || 'outsourcing',
+    });
+    logger.info({
+      event: 'auth.login.success',
+      category: 'AUTH',
+      requestId: req.id || req.headers['x-request-id'] || null,
+      sessionId: toLogId(session?._id),
+      method: req.method,
+      route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+      userId: toLogId(user._id),
+      role: user.role,
+      department: user.department || null,
+      portal: getRequestContext(req).portal || 'outsourcing',
+    }, 'Outsourcing login successful');
 
     return res.status(200).json({
       success: true,
@@ -1008,6 +1151,17 @@ exports.updateProfile = async (req, res) => {
 
     await user.save({ validateModifiedOnly: true });
     await setCache(getProfileCacheKey(req.user.id), null, 1);
+    logger.info({
+      event: 'auth.profile.updated',
+      category: 'AUTH',
+      requestId: req.id || req.headers['x-request-id'] || null,
+      method: req.method,
+      route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+      userId: toLogId(req.user.id),
+      role: req.user.role,
+      department: req.user.department || null,
+      changedFields: Object.keys(req.body || {}).filter((key) => !['password', 'currentPassword', 'newPassword', 'confirmPassword'].includes(key)),
+    }, 'Profile updated');
     await writeAuthActivity(req, 'auth.profile_updated', user, {
       updatedFields: Object.keys(req.body || {})
     });

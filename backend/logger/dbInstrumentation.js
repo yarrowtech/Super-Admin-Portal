@@ -1,6 +1,16 @@
 const logger = require("../utils/logger");
 const { getRequestContext } = require("./context");
 const logService = require("../services/log.service");
+const env = require("../config/env");
+
+const roundMs = (durationMs) => Math.round(durationMs * 100) / 100;
+
+const extractFilterFields = (query) => {
+  if (!env.LOG_DB_QUERY_DETAILS || !query || typeof query.getFilter !== "function") return undefined;
+  const filter = query.getFilter();
+  if (!filter || typeof filter !== "object") return undefined;
+  return Object.keys(filter).filter((key) => !key.startsWith("$")).slice(0, 20);
+};
 
 const patchExec = (prototype, getMetadata, thresholdMs) => {
   if (!prototype || prototype.__superAdminLogPatched) return;
@@ -22,12 +32,22 @@ const patchExec = (prototype, getMetadata, thresholdMs) => {
       const metadata = getMetadata(this);
       logger.error(
         {
+          event: "db.query.error",
+          category: "DB",
           err,
           requestId: context.requestId || null,
+          sessionId: context.sessionId || null,
           module: context.module || "database",
           action: context.action || "database_operation",
           status: "error",
-          durationMs: Math.round(durationMs * 100) / 100,
+          method: context.method || null,
+          route: context.route || context.path || null,
+          userId: context.userId || null,
+          role: context.role || null,
+          department: context.department || null,
+          portal: context.portal || null,
+          durationMs: roundMs(durationMs),
+          queryDurationMs: roundMs(durationMs),
           ...metadata,
         },
         "Database operation failed"
@@ -41,7 +61,8 @@ const patchExec = (prototype, getMetadata, thresholdMs) => {
           module: context.module || "database",
           action: context.action || "database_operation",
           requestId: context.requestId || null,
-          durationMs: Math.round(durationMs * 100) / 100,
+          sessionId: context.sessionId || null,
+          durationMs: roundMs(durationMs),
           collection: metadata.collection,
           operation: metadata.operation,
           error: err,
@@ -55,11 +76,21 @@ const patchExec = (prototype, getMetadata, thresholdMs) => {
         const metadata = getMetadata(this);
         logger.warn(
           {
+            event: "db.query.slow",
+            category: "DB",
             requestId: context.requestId || null,
+            sessionId: context.sessionId || null,
             module: context.module || "database",
             action: context.action || "database_operation",
             status: "slow",
-            durationMs: Math.round(durationMs * 100) / 100,
+            method: context.method || null,
+            route: context.route || context.path || null,
+            userId: context.userId || null,
+            role: context.role || null,
+            department: context.department || null,
+            portal: context.portal || null,
+            durationMs: roundMs(durationMs),
+            queryDurationMs: roundMs(durationMs),
             thresholdMs,
             ...metadata,
           },
@@ -74,7 +105,8 @@ const patchExec = (prototype, getMetadata, thresholdMs) => {
             module: context.module || "database",
             action: context.action || "database_operation",
             requestId: context.requestId || null,
-            durationMs: Math.round(durationMs * 100) / 100,
+            sessionId: context.sessionId || null,
+            durationMs: roundMs(durationMs),
             thresholdMs,
             collection: metadata.collection,
             operation: metadata.operation,
@@ -92,13 +124,14 @@ const installMongooseInstrumentation = (mongoose) => {
     enumerable: false,
   });
 
-  const thresholdMs = Math.max(1, Number(process.env.SLOW_QUERY_MS) || 500);
+  const thresholdMs = env.LOG_SLOW_QUERY_MS;
 
   patchExec(
     mongoose.Query?.prototype,
     (query) => ({
       collection: query?.model?.collection?.name || query?.mongooseCollection?.name || "unknown",
       operation: query?.op || "query",
+      filterFields: extractFilterFields(query),
     }),
     thresholdMs
   );

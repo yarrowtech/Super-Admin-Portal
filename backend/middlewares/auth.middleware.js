@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-const { setRequestContext } = require('../logger/context');
+const { createTimer, setRequestContext } = require('../logger/context');
 // backend/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -10,6 +10,7 @@ const logService = require('../services/log.service');
 const jwtConfig = require('../config/jwt');
 const constants = require('../config/constants');
 const { getRolePermissions } = require('../config/roles');
+const env = require('../config/env');
 
 const DEFAULT_IT_MANAGER_PORTALS = new Set(['manager']);
 const DEFAULT_IT_EMPLOYEE_PORTALS = new Set(['it']);
@@ -21,6 +22,12 @@ const DEFAULT_EMPLOYEE_PORTAL_ROLES = new Set([
   'finance_employee',
   'law_employee',
 ]);
+
+const toLogId = (value) => {
+  if (!value) return null;
+  if (typeof value.toHexString === 'function') return value.toHexString();
+  return String(value);
+};
 
 // Department-scoped roles no longer share a literal string with their portal
 // (e.g. role 'it_manager' vs portal 'it'), unlike the old flat roles. This maps
@@ -75,18 +82,28 @@ const normalizeProjectAssignments = (metadata = {}) => {
 
 const logAuthEvent = (req, level, status, message, extra = {}) => {
   const payload = {
+    event: status === 'success' ? 'auth.request.authenticated' : extra.event || 'auth.access.denied',
+    category: 'AUTH',
     requestId: req.id || req.headers['x-request-id'] || null,
+    sessionId: req.authSessionId ? toLogId(req.authSessionId) : extra.sessionId || null,
     module: 'authentication',
     action: 'authenticate',
     status,
-    userId: req.user?.id || extra.userId || null,
+    userId: toLogId(req.user?.id || extra.userId),
     role: req.user?.role || extra.role || null,
+    department: req.user?.department || extra.department || null,
+    portal: req.logContext?.portal || extra.portal || null,
     path: req.originalUrl,
+    route: req.originalUrl?.split(/[?#]/)[0],
     method: req.method,
     ...extra,
   };
   const targetLogger = req.log || logger;
-  targetLogger[level]?.(payload, message);
+  if (status !== 'success' || env.LOG_AUTH_SUCCESS) {
+    targetLogger[level]?.(payload, message);
+  } else {
+    targetLogger.debug?.(payload, message);
+  }
   if (status !== 'success') {
     const isForbidden = Boolean(extra.accountStatus) || /inactive|restricted|deactivated|blocked|suspended/i.test(message);
     req.systemErrorLogged = true;
@@ -102,23 +119,6 @@ const logAuthEvent = (req, level, status, message, extra = {}) => {
       statusCode: isForbidden ? 403 : 401,
       metadata: {
         reason: extra.reason || status,
-        path: req.originalUrl,
-        method: req.method,
-      },
-    });
-  } else {
-    logService.fireAndForgetFromRequest(req, {
-      level: 'info',
-      event: 'AUTHENTICATE',
-      message,
-      emit: false,
-      module: 'authentication',
-      action: 'AUTHENTICATE',
-      userId: payload.userId,
-      role: payload.role,
-      statusCode: 200,
-      metadata: {
-        status,
         path: req.originalUrl,
         method: req.method,
       },
@@ -155,7 +155,7 @@ const authenticate = async (req, res, next) => {
       decoded = jwt.verify(token, jwtConfig.accessSecret);
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
-        logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: token expired');
+        logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: token expired', { event: 'auth.token.expired' });
         return res.status(401).json({
           success: false,
           error: 'Token expired. Please login again.',
@@ -163,7 +163,7 @@ const authenticate = async (req, res, next) => {
         });
       }
       if (err.name === 'JsonWebTokenError') {
-        logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: invalid token');
+        logAuthEvent(req, 'warn', 'failed', 'Authentication rejected: invalid token', { event: 'auth.token.invalid' });
         return res.status(401).json({
           success: false,
           error: 'Invalid token. Please login again.',
@@ -255,13 +255,22 @@ const authenticate = async (req, res, next) => {
     };
 
     setRequestContext({
-      userId: req.user.id,
+      userId: toLogId(req.user.id),
+      sessionId: toLogId(session._id),
       role: req.user.role,
+      department: req.user.department || null,
+      portal: req.logContext?.portal || null,
       module: req.logContext?.module || 'authentication',
       status: 'authenticated',
     });
     if (req.log?.child) {
-      req.log = req.log.child({ userId: req.user.id, role: req.user.role });
+      req.log = req.log.child({
+        userId: toLogId(req.user.id),
+        sessionId: toLogId(session._id),
+        role: req.user.role,
+        department: req.user.department || null,
+      });
+      setRequestContext({ logger: req.log });
     }
     logAuthEvent(req, 'info', 'success', 'Authentication succeeded');
 
@@ -292,7 +301,10 @@ const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       logger.warn({
+        event: 'rbac.access.denied',
+        category: 'RBAC',
         requestId: req.id || req.headers['x-request-id'] || null,
+        sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
         module: 'authorization',
         action: 'role_check',
         status: 'failed',
@@ -320,11 +332,14 @@ const authorize = (...roles) => {
 
     if (!roles.includes(req.user.role)) {
       logger.warn({
+        event: 'rbac.access.denied',
+        category: 'RBAC',
         requestId: req.id || req.headers['x-request-id'] || null,
+        sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
         module: 'authorization',
         action: 'role_check',
         status: 'failed',
-        userId: req.user.id,
+        userId: toLogId(req.user.id),
         role: req.user.role,
         requiredRoles: roles,
         path: req.originalUrl,
@@ -350,25 +365,18 @@ const authorize = (...roles) => {
       });
     }
 
-    logger.debug({
+    if (env.LOG_RBAC_SUCCESS) logger.debug({
+      event: 'rbac.access.granted',
+      category: 'RBAC',
       requestId: req.id || req.headers['x-request-id'] || null,
+      sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
       module: 'authorization',
       action: 'role_check',
       status: 'success',
-      userId: req.user.id,
+      userId: toLogId(req.user.id),
       role: req.user.role,
       requiredRoles: roles,
     }, 'Authorization role check passed');
-    logService.fireAndForgetFromRequest(req, {
-      level: 'info',
-      event: 'ACCESS_GRANTED',
-      message: 'Authorization role check passed',
-      emit: false,
-      module: 'authorization',
-      action: 'ROLE_CHECK',
-      statusCode: 200,
-      metadata: { requiredRoles: roles },
-    });
     next();
   };
 };
@@ -380,9 +388,19 @@ const authorize = (...roles) => {
 const authorizePortalAccess = (portal) => {
   return async (req, res, next) => {
     try {
+      setRequestContext({ portal });
+      if (req.log?.child && req.logContext?.portal !== portal) {
+        req.logContext.portal = portal;
+        req.log = req.log.child({ portal });
+        setRequestContext({ logger: req.log });
+      }
+
       if (!req.user) {
         logger.warn({
+          event: 'rbac.access.denied',
+          category: 'RBAC',
           requestId: req.id || req.headers['x-request-id'] || null,
+          sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
           module: 'authorization',
           action: 'portal_access',
           status: 'failed',
@@ -408,10 +426,27 @@ const authorizePortalAccess = (portal) => {
         });
       }
 
+      const stopPortalLookup = createTimer('auth.portal.access.lookup');
       const rule = await PortalAccess.findOne({
         role: req.user.role,
         portal
       }).select('canAccess');
+      if (env.LOG_LOGIN_SPANS || env.LOG_RBAC_SUCCESS) {
+        logger.debug({
+          event: 'perf.auth.portal.access.lookup',
+          category: 'PERF',
+          span: 'auth.portal.access.lookup',
+          requestId: req.id || req.headers['x-request-id'] || null,
+          sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
+          method: req.method,
+          route: (req.originalUrl || req.path || '').split(/[?#]/)[0],
+          userId: toLogId(req.user.id),
+          role: req.user.role,
+          department: req.user.department || null,
+          portal,
+          durationMs: stopPortalLookup(),
+        }, 'Portal access lookup completed');
+      }
 
       if (!rule && req.user.role === 'admin') return next();
       if (!rule && req.user.role === 'it_manager' && DEFAULT_IT_MANAGER_PORTALS.has(portal)) {
@@ -438,11 +473,14 @@ const authorizePortalAccess = (portal) => {
       if (!rule && DEPARTMENT_ROLE_PORTAL[req.user.role] === portal) return next();
       if (!rule) {
         logger.warn({
+          event: 'rbac.access.denied',
+          category: 'RBAC',
           requestId: req.id || req.headers['x-request-id'] || null,
+          sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
           module: 'authorization',
           action: 'portal_access',
           status: 'failed',
-          userId: req.user.id,
+          userId: toLogId(req.user.id),
           role: req.user.role,
           portal,
         }, 'Portal access rejected: rule missing');
@@ -466,11 +504,14 @@ const authorizePortalAccess = (portal) => {
 
       if (!rule.canAccess) {
         logger.warn({
+          event: 'rbac.access.denied',
+          category: 'RBAC',
           requestId: req.id || req.headers['x-request-id'] || null,
+          sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
           module: 'authorization',
           action: 'portal_access',
           status: 'failed',
-          userId: req.user.id,
+          userId: toLogId(req.user.id),
           role: req.user.role,
           portal,
         }, 'Portal access rejected: denied by rule');
@@ -495,12 +536,15 @@ const authorizePortalAccess = (portal) => {
       return next();
     } catch (error) {
       logger.error({
+        event: 'rbac.access.error',
+        category: 'RBAC',
         err: error,
         requestId: req.id || req.headers['x-request-id'] || null,
+        sessionId: req.authSessionId ? toLogId(req.authSessionId) : null,
         module: 'authorization',
         action: 'portal_access',
         status: 'error',
-        userId: req.user?.id || null,
+        userId: toLogId(req.user?.id),
         role: req.user?.role || null,
         portal,
       }, 'Portal access authorization error');
@@ -627,7 +671,7 @@ const refreshToken = async (req, res, next) => {
       // Generate new token
       const newToken = jwt.sign(
         {
-          userId: req.user.id,
+          userId: toLogId(req.user.id),
           email: req.user.email,
           role: req.user.role
         },

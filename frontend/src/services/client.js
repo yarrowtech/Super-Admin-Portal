@@ -176,6 +176,9 @@ export const apiClient = {
     clearApiCache();
     return parsed;
   },
+  async activity(path, body, token) {
+    return request({ method: 'POST', path, body, token });
+  },
   async put(path, body, token) {
     const parsed = await request({ method: 'PUT', path, body, token });
     clearApiCache();

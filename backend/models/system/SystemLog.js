@@ -60,10 +60,33 @@ const systemLogSchema = new Schema(
       trim: true,
       index: true,
     },
+    status: {
+      type: String,
+      trim: true,
+      index: true,
+    },
     requestId: {
       type: String,
       trim: true,
       index: true,
+    },
+    sessionId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    portal: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    page: {
+      type: String,
+      trim: true,
+    },
+    frontendRoute: {
+      type: String,
+      trim: true,
     },
     method: {
       type: String,
@@ -96,6 +119,14 @@ const systemLogSchema = new Schema(
       type: String,
       trim: true,
     },
+    entityType: {
+      type: String,
+      trim: true,
+    },
+    entityId: {
+      type: String,
+      trim: true,
+    },
     collection: {
       type: String,
       trim: true,
@@ -125,6 +156,7 @@ systemLogSchema.index(
 );
 systemLogSchema.index({ event: 1, createdAt: -1 });
 systemLogSchema.index({ requestId: 1, createdAt: -1 });
+systemLogSchema.index({ sessionId: 1, createdAt: -1 });
 systemLogSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports = mongoose.models.SystemLog || mongoose.model("SystemLog", systemLogSchema);

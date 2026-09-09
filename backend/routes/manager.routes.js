@@ -4,15 +4,27 @@ const router = express.Router();
 const managerController = require('../controllers/manager/managerDashboard.controller');
 const managerExportController = require('../controllers/manager/exportSystem.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
-const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
+const { invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
 
 // All routes require authentication and manager-capable role
 router.use(authenticate);
 router.use(authorize(ROLES.IT_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN));
 router.use(authorizePortalAccess('manager'));
-router.use(cacheGetResponses('manager', { tags: ['projects', 'employees', 'dashboard'] }));
+router.use(require('../middlewares/hrInput.middleware').hrInput);
+router.use(require('../middlewares/managerScope.middleware'));
 router.use(invalidateCacheAfterMutation('projects', ['employees', 'dashboard']));
+
+const contextHandler = kind => async (req, res) => {
+  try {
+    const data = await require('../services/managerContext.service').context({ actor: req.user, kind, id: req.params.id });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : 'Unable to load manager context' });
+  }
+};
+router.get('/team/:id/context', contextHandler('employee'));
+router.get('/projects/:id/context', contextHandler('project'));
 
 // Manager specific routes
 router.get('/dashboard', managerController.getDashboard);

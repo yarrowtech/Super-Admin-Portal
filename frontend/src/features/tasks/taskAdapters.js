@@ -90,8 +90,8 @@ export const taskAdapters = {
     canComment: false, // no comment endpoint exists for manager-scoped tasks
     canFetchDetail: false, // no single-task GET; list already returns full docs
     fetchTasks: async (token, filters = {}) => {
-      const res = await managerApi.getTasks(token, filters);
-      const data = res?.data || {};
+      const data = { tasks: await fetchHrPages(managerApi.getTasks, token, 'tasks', filters) };
+      data.total = data.tasks.length;
       return {
         tasks: (data.tasks || []).map((t) => normalizeTask(t)),
         total: data.total ?? (data.tasks || []).length,
@@ -99,10 +99,12 @@ export const taskAdapters = {
     },
     updateStatus: (token, taskId, status) => managerApi.updateTask(token, taskId, { status }),
     createTask: (token, body) => managerApi.createTask(token, body),
+    needsProject: true,
+    fetchProjects: async (token) => (await fetchHrPages(managerApi.getProjects, token, 'projects')).filter(p => ['planning', 'in-progress'].includes(p.status)),
     needsAssignee: true,
     fetchAssignableUsers: async (token) => {
       const res = await managerApi.getTeam(token);
-      const list = res?.data?.team || [];
+      const list = (res?.data?.team || []).filter(u => u.isActive);
       return list.map((u) => ({ id: u._id || u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email }));
     },
   },

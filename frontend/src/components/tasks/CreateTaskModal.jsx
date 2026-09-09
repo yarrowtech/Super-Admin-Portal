@@ -5,13 +5,15 @@ import { useAuth } from '../../context/AuthContext';
 import { taskAdapters } from '../../features/tasks/taskAdapters';
 import { TASK_PRIORITIES } from '../../features/tasks/taskConstants';
 
-const emptyForm = { title: '', description: '', dueDate: '', priority: 'medium', assignedTo: '', department: '' };
+const emptyForm = { title: '', description: '', dueDate: '', priority: 'medium', assignedTo: '', department: '', project: '' };
 
 /** Minimal, real create-task form — only fields the backend genuinely accepts per portal. */
 const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
   const { token } = useAuth();
   const adapter = taskAdapters[portal];
   const [form, setForm] = useState(emptyForm);
+  const [projects, setProjects] = useState([]);
+  const [projectsError, setProjectsError] = useState('');
   const [assignees, setAssignees] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [usersError, setUsersError] = useState('');
@@ -22,6 +24,15 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
     let active = true;
     if (open && adapter?.needsAssignee && adapter.fetchAssignableUsers) {
       adapter.fetchAssignableUsers(token).then((users) => { if (active) setAssignees(users); }).catch(() => { if (active) { setAssignees([]); setUsersError('Unable to load employees. Close and reopen to retry.'); } }).finally(() => { if (active) setLoadingUsers(false); });
+    }
+    return () => { active = false; };
+  }, [open, adapter, token]);
+
+  useEffect(() => {
+    let active = true;
+    if (open && adapter?.fetchProjects) {
+      setProjectsError('');
+      adapter.fetchProjects(token).then(rows => { if (active) setProjects(rows); }).catch(() => { if (active) setProjectsError('Unable to load projects. Close and reopen to retry.'); });
     }
     return () => { active = false; };
   }, [open, adapter, token]);
@@ -46,6 +57,8 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
       setError('Please choose an assignee.');
       return;
     }
+    if (adapter?.needsProject && !form.project) { setError('Choose a managed project.'); return; }
+    if (submitting) return;
     setSubmitting(true);
     setError('');
     try {
@@ -54,6 +67,7 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
         description: form.description.trim(),
         dueDate: form.dueDate,
         priority: form.priority,
+        ...(adapter?.needsProject ? { project: form.project } : {}),
         ...(adapter?.needsAssignee ? { assignedTo: form.assignedTo } : {}),
       };
       await onSubmit(body);
@@ -106,6 +120,7 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
             {[...new Set(assignees.map((a) => a.department || 'Unassigned department'))].sort().map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </label>}
+        {adapter?.needsProject && <label className="block text-sm">Project<select required value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} className="mt-1 w-full rounded-lg border bg-transparent p-2"><option value="">Choose a managed project</option>{projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}</select>{projectsError && <p role="alert" className="text-rose-600">{projectsError}</p>}</label>}
         {usersError && <p role="alert" className="text-sm text-rose-600">{usersError}</p>}
         {adapter?.needsAssignee && loadingUsers && <p className="text-sm text-neutral-500">Loading employees...</p>}
         {portal === 'hr' && form.department && !loadingUsers && <p className="text-xs text-neutral-500">{assignees.filter((a) => (a.department || 'Unassigned department') === form.department).length} active employees in this department</p>}

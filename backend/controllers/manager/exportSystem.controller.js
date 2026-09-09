@@ -12,6 +12,7 @@ exports.exportTasksCsv = async (req, res) => {
   try {
     const result = await exportService.exportManagerTasksCsv({
       managerId: req.user._id,
+      managerScope: req.managerScope.tasks,
       status: typeof req.query.status === 'string' ? req.query.status.trim() : '',
       priority: typeof req.query.priority === 'string' ? req.query.priority.trim() : '',
       assignee: typeof req.query.assignee === 'string' ? req.query.assignee.trim() : '',

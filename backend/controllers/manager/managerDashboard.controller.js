@@ -1,3 +1,4 @@
+const { resolveManagerScope } = require('../../services/managerScope.service');
 const logger = require('../../utils/logger');
 // backend/controllers/dept/manager.controller.js
 
@@ -111,7 +112,6 @@ exports.getDashboard = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Manager dashboard',
-      details: error.message,
     });
   }
 };
@@ -126,9 +126,7 @@ exports.getTeam = async (req, res) => {
     const searchTerm = sanitizeQueryValue(req.query.search);
     const roleFilter = sanitizeQueryValue(req.query.role);
 
-    const query = shouldScopeByDepartment(req.user)
-      ? { department: req.user.department, isActive: true }
-      : { isActive: true };
+    const query = { $and: [req.managerScope.employees] };
     if (roleFilter) {
       query.role = roleFilter;
     }
@@ -142,7 +140,20 @@ exports.getTeam = async (req, res) => {
 
     const team = await User.find(query)
       .select('firstName lastName email role department isActive')
-      .sort({ lastName: 1, firstName: 1 });
+      .sort({ lastName: 1, firstName: 1 }).lean();
+    const ids = team.map(member => member._id);
+    const now = new Date();
+    const [workloads, leaveRows] = await Promise.all([
+      Task.aggregate([{ $match: { $and: [req.managerScope.tasks, { assignedTo: { $in: ids }, status: { $nin: ['completed', 'cancelled'] } }] } }, { $group: { _id: '$assignedTo', openTasks: { $sum: 1 }, overdueTasks: { $sum: { $cond: [{ $lt: ['$dueDate', now] }, 1, 0] } }, projects: { $addToSet: '$project' } } }]),
+      Leave.find({ employee: { $in: ids }, status: 'approved', startDate: { $lte: now }, endDate: { $gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } }).select('employee').lean()
+    ]);
+    const workloadMap = new Map(workloads.map(row => [String(row._id), row]));
+    const onLeave = new Set(leaveRows.map(row => String(row.employee)));
+    for (const member of team) {
+      const workload = workloadMap.get(String(member._id));
+      member.workload = { openTasks: workload?.openTasks || 0, overdueTasks: workload?.overdueTasks || 0, projectCount: workload?.projects.filter(Boolean).length || 0 };
+      member.onLeave = onLeave.has(String(member._id));
+    }
 
     res.status(200).json({
       success: true,
@@ -155,8 +166,7 @@ exports.getTeam = async (req, res) => {
     logger.error({ err: error }, 'Manager team error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch team',
-      details: error.message
+      error: 'Failed to fetch team'
     });
   }
 };
@@ -181,8 +191,7 @@ exports.getProjectTeams = async (req, res) => {
     logger.error({ err: error }, 'Manager project teams error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch project teams',
-      details: error.message
+      error: 'Failed to fetch project teams'
     });
   }
 };
@@ -331,8 +340,7 @@ exports.createProjectTeam = async (req, res) => {
     logger.error({ err: error }, 'Create project team error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create project team',
-      details: error.message
+      error: 'Failed to create project team'
     });
   }
 };
@@ -349,7 +357,7 @@ exports.getProjects = async (req, res) => {
     const statusFilter = sanitizeQueryValue(req.query.status);
     const searchTerm = sanitizeQueryValue(req.query.search);
 
-    const query = { projectManager: req.user._id, name: { $in: STRICT_PROJECT_NAMES } };
+    const query = { ...req.managerScope.projects };
     if (statusFilter) {
       query.status = statusFilter;
     }
@@ -366,14 +374,25 @@ exports.getProjects = async (req, res) => {
         .populate('teamMembers.employee', 'firstName lastName email department role')
         .sort({ createdAt: -1 })
         .skip((pageNum - 1) * limitNum)
-        .limit(limitNum),
+        .limit(limitNum).lean(),
       Project.countDocuments(query)
     ]);
 
+    const progressRows = await Task.aggregate([
+      { $match: { project: { $in: projects.map(project => project._id) }, status: { $ne: 'cancelled' } } },
+      { $group: { _id: '$project', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } }
+    ]);
+    const progressMap = new Map(progressRows.map(row => [String(row._id), row]));
+    for (const project of projects) {
+      const row = progressMap.get(String(project._id));
+      project.progress = row?.total ? Math.round(row.completed / row.total * 100) : null;
+      project.openTasks = row ? row.total - row.completed : 0;
+      project.taskCount = row?.total || 0;
+    }
     res.status(200).json({
       success: true,
       data: {
-        message: 'Project Overview',
+        message: 'Projects you actively manage',
         projects,
         total,
         totalPages: Math.ceil(total / limitNum) || 1,
@@ -384,8 +403,7 @@ exports.getProjects = async (req, res) => {
     logger.error({ err: error }, 'Manager projects error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch projects',
-      details: error.message
+      error: 'Failed to fetch projects'
     });
   }
 };
@@ -465,8 +483,7 @@ exports.createProject = async (req, res) => {
     logger.error({ err: error }, 'Create manager project error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create project',
-      details: error.message
+      error: 'Failed to create project'
     });
   }
 };
@@ -547,8 +564,7 @@ exports.updateProject = async (req, res) => {
     logger.error({ err: error }, 'Update manager project error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update project',
-      details: error.message
+      error: 'Failed to update project'
     });
   }
 };
@@ -604,8 +620,7 @@ exports.updateProjectStatus = async (req, res) => {
     logger.error({ err: error }, 'Update manager project status error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update project status',
-      details: error.message
+      error: 'Failed to update project status'
     });
   }
 };
@@ -625,7 +640,7 @@ exports.deleteProject = async (req, res) => {
       });
     }
 
-    const deleted = await Project.findOneAndDelete({ _id: id, projectManager: req.user._id });
+    const deleted = await Project.findOneAndUpdate({ _id: id, projectManager: req.user._id }, { status: 'cancelled' }, { new: true });
     if (!deleted) {
       return res.status(404).json({
         success: false,
@@ -635,14 +650,13 @@ exports.deleteProject = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Project deleted successfully'
+      message: 'Project archived successfully'
     });
   } catch (error) {
     logger.error({ err: error }, 'Delete manager project error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete project',
-      details: error.message
+      error: 'Failed to delete project'
     });
   }
 };
@@ -693,8 +707,7 @@ exports.removeProjectTeamMember = async (req, res) => {
     logger.error({ err: error }, 'Remove project team member error');
     res.status(500).json({
       success: false,
-      error: 'Failed to remove member',
-      details: error.message
+      error: 'Failed to remove member'
     });
   }
 };
@@ -715,7 +728,7 @@ exports.getCompletedTasks = async (req, res) => {
 
     const teamUserIds = teamUsers.map((user) => user._id);
     const query = {
-      employee: { $in: teamUserIds },
+      $and: [req.managerScope.reports],
       status: status || 'submitted'
     };
     if (employeeId && mongoose.Types.ObjectId.isValid(employeeId)) {
@@ -751,8 +764,7 @@ exports.getCompletedTasks = async (req, res) => {
     logger.error({ err: error }, 'Get completed tasks error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch completed tasks',
-      details: error.message
+      error: 'Failed to fetch completed tasks'
     });
   }
 };
@@ -764,31 +776,29 @@ exports.getCompletedTasks = async (req, res) => {
  */
 exports.getEmployeeWork = async (req, res) => {
   try {
-    const query = {};
+    const page = Number(req.query.page || 1);
+    const limit = Number(req.query.limit || 50);
+    const query = { $and: [req.managerScope.reports] };
     const reportStatus = sanitizeQueryValue(req.query.status);
     if (reportStatus) {
       query.status = reportStatus;
-    }
-    if (shouldScopeByDepartment(req.user)) {
-      const teamUsers = await User.find({ department: req.user.department }).select('_id');
-      query.employee = { $in: teamUsers.map((user) => user._id) };
     }
     const workItems = await WorkReport.find(query)
       .populate('employee', 'firstName lastName email department')
       .populate('project', 'name projectCode')
       .sort({ reportDate: -1, createdAt: -1 })
-      .limit(50);
+      .skip((page - 1) * limit).limit(limit);
+    const total = await WorkReport.countDocuments(query);
 
     res.status(200).json({
       success: true,
-      data: workItems
+      data: req.query.page ? { work: workItems, total, totalPages: Math.ceil(total / limit), currentPage: page } : workItems
     });
   } catch (error) {
     logger.error({ err: error }, 'Get employee work error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch employee work',
-      details: error.message
+      error: 'Failed to fetch employee work'
     });
   }
 };
@@ -800,14 +810,11 @@ exports.getEmployeeWork = async (req, res) => {
  */
 exports.getEmployeeWorkStats = async (req, res) => {
   try {
-    const stats = {
-      totalCompleted: 0,
-      pendingReview: 0,
-      totalHours: 0,
-      activeEmployees: 0,
-      avgCompletionTime: 0,
-      productivityTrend: '0%'
-    };
+    const [summary] = await WorkReport.aggregate([
+      { $match: req.managerScope.reports },
+      { $group: { _id: null, totalCompleted: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } }, pendingReview: { $sum: { $cond: [{ $eq: ['$status', 'submitted'] }, 1, 0] } }, totalHours: { $sum: '$totalHours' }, employees: { $addToSet: '$employee' } } }
+    ]);
+    const stats = { totalCompleted: summary?.totalCompleted || 0, pendingReview: summary?.pendingReview || 0, totalHours: summary?.totalHours || 0, activeEmployees: summary?.employees.length || 0, avgCompletionTime: null, productivityTrend: null };
 
     res.status(200).json({
       success: true,
@@ -817,8 +824,7 @@ exports.getEmployeeWorkStats = async (req, res) => {
     logger.error({ err: error }, 'Get employee work stats error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch employee work stats',
-      details: error.message
+      error: 'Failed to fetch employee work stats'
     });
   }
 };
@@ -830,46 +836,14 @@ exports.getEmployeeWorkStats = async (req, res) => {
  */
 exports.approveWork = async (req, res) => {
   try {
-    const { workId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(workId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid work id'
-      });
-    }
-
-    const workReport = await WorkReport.findById(workId).populate('employee', 'department');
-    if (!workReport) {
-      return res.status(404).json({
-        success: false,
-        error: 'Work report not found'
-      });
-    }
-    if (shouldScopeByDepartment(req.user) && workReport.employee?.department !== req.user.department) {
-      return res.status(403).json({
-        success: false,
-        error: 'You do not have access to this work report'
-      });
-    }
-
-    workReport.status = 'approved';
-    workReport.reviewedBy = req.user._id;
-    workReport.reviewedDate = new Date();
-    workReport.feedback = req.body?.feedback?.trim() || 'Approved by manager';
-    await workReport.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Work approved successfully',
-      data: workReport
+    const data = await require('../../services/managerReview.service').review({
+      actor: req.user, id: req.params.workId, kind: 'work', approve: true,
+      reason: req.body.rejectionReason || req.body.reason || req.body.feedback,
     });
+    res.json({ success: true, data, message: 'Review saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Approve work error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to approve work',
-      details: error.message
-    });
+    logger.error({ err: error }, 'Manager review failed');
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : 'Unable to save review' });
   }
 };
 
@@ -880,47 +854,14 @@ exports.approveWork = async (req, res) => {
  */
 exports.rejectWork = async (req, res) => {
   try {
-    const { workId } = req.params;
-    const { reason } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(workId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid work id'
-      });
-    }
-
-    const workReport = await WorkReport.findById(workId).populate('employee', 'department');
-    if (!workReport) {
-      return res.status(404).json({
-        success: false,
-        error: 'Work report not found'
-      });
-    }
-    if (shouldScopeByDepartment(req.user) && workReport.employee?.department !== req.user.department) {
-      return res.status(403).json({
-        success: false,
-        error: 'You do not have access to this work report'
-      });
-    }
-
-    workReport.status = 'rejected';
-    workReport.reviewedBy = req.user._id;
-    workReport.reviewedDate = new Date();
-    workReport.feedback = reason?.trim() || 'Rejected by manager';
-    await workReport.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Work rejected successfully',
-      data: workReport
+    const data = await require('../../services/managerReview.service').review({
+      actor: req.user, id: req.params.workId, kind: 'work', approve: false,
+      reason: req.body.rejectionReason || req.body.reason || req.body.feedback,
     });
+    res.json({ success: true, data, message: 'Review saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Reject work error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to reject work',
-      details: error.message
-    });
+    logger.error({ err: error }, 'Manager review failed');
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : 'Unable to save review' });
   }
 };
 
@@ -946,8 +887,7 @@ exports.getNotifications = async (req, res) => {
     logger.error({ err: error }, 'Get notifications error');
     res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to fetch notifications',
-      details: error.message
+      error: 'Failed to fetch notifications'
     });
   }
 };
@@ -969,8 +909,7 @@ exports.markNotificationRead = async (req, res) => {
     logger.error({ err: error }, 'Mark notification read error');
     res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to mark notification as read',
-      details: error.message
+      error: 'Failed to mark notification as read'
     });
   }
 };
@@ -993,8 +932,7 @@ exports.markAllNotificationsRead = async (req, res) => {
     logger.error({ err: error }, 'Mark all notifications read error');
     res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to mark all notifications as read',
-      details: error.message
+      error: 'Failed to mark all notifications as read'
     });
   }
 };
@@ -1033,13 +971,7 @@ exports.getTasks = async (req, res) => {
       ];
     }
 
-    let scopeFilter = { assignedBy: req.user._id };
-    if (shouldScopeByDepartment(req.user)) {
-      const teamUsers = await User.find({ department: req.user.department }).select('_id');
-      const ids = teamUsers.map((user) => user._id);
-      scopeFilter = { $or: [{ assignedTo: { $in: ids } }, { assignedBy: req.user._id }] };
-      logger.info({ teamUsersCount: teamUsers.length, department: req.user.department }, 'Team users found');
-    }
+    const scopeFilter = req.managerScope.tasks;
 
     const query = Object.keys(filters).length ? { $and: [scopeFilter, filters] } : scopeFilter;
     logger.info({ query }, 'Query being executed');
@@ -1070,214 +1002,52 @@ exports.getTasks = async (req, res) => {
     logger.error({ err: error }, 'Manager get tasks error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch tasks',
-      details: error.message
+      error: 'Failed to fetch tasks'
     });
   }
 };
 
 exports.createTask = async (req, res) => {
   try {
-    const { title, description, assignedTo, dueDate, priority, estimatedHours } = req.body;
-
-    if (!title || !description || !assignedTo || !dueDate) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: title, description, assignedTo, and dueDate'
-      });
-    }
-
-    if (shouldScopeByDepartment(req.user)) {
-      const assignee = await User.findById(assignedTo).select('department');
-      if (!assignee || assignee.department !== req.user.department) {
-        return res.status(400).json({
-          success: false,
-          error: 'Assignee must be in your department'
-        });
-      }
-    }
-
-    const task = await Task.create({
-      title: title.trim(),
-      description: description.trim(),
-      assignedTo,
-      assignedBy: req.user._id,
-      dueDate,
-      priority,
-      estimatedHours
-    });
-
-    await task.populate('assignedTo', 'firstName lastName email department');
-    await task.populate('assignedBy', 'firstName lastName email');
-
-    res.status(201).json({
-      success: true,
-      message: 'Task created successfully',
-      data: task
-    });
+    const body = req.body;
+    const data = await require('../../services/managerTask.service').saveTask({ actor: req.user, id: req.params.id, body });
+    res.status(201).json({ success: true, data, message: 'Task saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Manager create task error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create task',
-      details: error.message
-    });
+    const status = error.statusCode || (error.name === 'ValidationError' || error.name === 'CastError' ? 400 : 500);
+    res.status(status).json({ success: false, error: status === 500 ? 'Unable to save task' : error.message });
   }
 };
 
 exports.updateTask = async (req, res) => {
   try {
-    const { title, description, priority, status, dueDate, progress, assignedTo, estimatedHours, actualHours } = req.body;
-
-    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid task ID format'
-      });
-    }
-
-    const task = await Task.findById(req.params.id).populate('assignedTo', 'department');
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: 'Task not found'
-      });
-    }
-
-    if (shouldScopeByDepartment(req.user) && task.assignedBy?.toString() !== req.user._id.toString()) {
-      if (task.assignedTo?.department && task.assignedTo.department !== req.user.department) {
-        return res.status(403).json({
-          success: false,
-          error: 'You do not have access to update this task'
-        });
-      }
-    }
-
-    if (assignedTo && shouldScopeByDepartment(req.user)) {
-      const assignee = await User.findById(assignedTo).select('department');
-      if (!assignee || assignee.department !== req.user.department) {
-        return res.status(400).json({
-          success: false,
-          error: 'Assignee must be in your department'
-        });
-      }
-      task.assignedTo = assignedTo;
-    }
-
-    if (title) task.title = title.trim();
-    if (description) task.description = description.trim();
-    if (priority) task.priority = priority;
-    if (status) task.status = status;
-    if (dueDate) task.dueDate = dueDate;
-    if (progress !== undefined) task.progress = progress;
-    if (estimatedHours !== undefined) task.estimatedHours = estimatedHours;
-    if (actualHours !== undefined) task.actualHours = actualHours;
-
-    if (status === 'completed' && !task.completedDate) {
-      task.completedDate = Date.now();
-    }
-
-    await task.save();
-    await task.populate('assignedTo', 'firstName lastName email department');
-    await task.populate('assignedBy', 'firstName lastName email');
-
-    res.status(200).json({
-      success: true,
-      message: 'Task updated successfully',
-      data: task
-    });
+    const body = req.body;
+    const data = await require('../../services/managerTask.service').saveTask({ actor: req.user, id: req.params.id, body });
+    res.status(200).json({ success: true, data, message: 'Task saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Manager update task error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update task',
-      details: error.message
-    });
+    const status = error.statusCode || (error.name === 'ValidationError' || error.name === 'CastError' ? 400 : 500);
+    res.status(status).json({ success: false, error: status === 500 ? 'Unable to save task' : error.message });
   }
 };
 
 exports.reassignTask = async (req, res) => {
   try {
-    const { assignedTo, dueDate } = req.body;
-
-    if (!assignedTo) {
-      return res.status(400).json({
-        success: false,
-        error: 'Assigned user is required'
-      });
-    }
-
-    const task = await Task.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: 'Task not found'
-      });
-    }
-
-    if (shouldScopeByDepartment(req.user)) {
-      const assignee = await User.findById(assignedTo).select('department');
-      if (!assignee || assignee.department !== req.user.department) {
-        return res.status(400).json({
-          success: false,
-          error: 'Assignee must be in your department'
-        });
-      }
-    }
-
-    task.assignedTo = assignedTo;
-    task.assignedBy = req.user._id;
-    if (dueDate) task.dueDate = dueDate;
-
-    await task.save();
-    await task.populate('assignedTo', 'firstName lastName email department');
-    await task.populate('assignedBy', 'firstName lastName email');
-
-    res.status(200).json({
-      success: true,
-      message: 'Task reassigned successfully',
-      data: task
-    });
+    const body = req.body;
+    const data = await require('../../services/managerTask.service').saveTask({ actor: req.user, id: req.params.id, body });
+    res.status(200).json({ success: true, data, message: 'Task saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Manager reassign task error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to reassign task',
-      details: error.message
-    });
+    const status = error.statusCode || (error.name === 'ValidationError' || error.name === 'CastError' ? 400 : 500);
+    res.status(status).json({ success: false, error: status === 500 ? 'Unable to save task' : error.message });
   }
 };
 
 exports.closeTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: 'Task not found'
-      });
-    }
-
-    task.status = 'completed';
-    task.progress = 100;
-    task.completedDate = Date.now();
-    await task.save();
-
-    await task.populate('assignedTo', 'firstName lastName email department');
-    await task.populate('assignedBy', 'firstName lastName email');
-
-    res.status(200).json({
-      success: true,
-      message: 'Task closed successfully',
-      data: task
-    });
+    const body = { status: 'completed' };
+    const data = await require('../../services/managerTask.service').saveTask({ actor: req.user, id: req.params.id, body });
+    res.status(200).json({ success: true, data, message: 'Task saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Manager close task error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to close task',
-      details: error.message
-    });
+    const status = error.statusCode || (error.name === 'ValidationError' || error.name === 'CastError' ? 400 : 500);
+    res.status(status).json({ success: false, error: status === 500 ? 'Unable to save task' : error.message });
   }
 };
 /**
@@ -1286,16 +1056,11 @@ exports.closeTask = async (req, res) => {
 exports.getLeaveRequests = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, managerStatus } = req.query;
-    const query = {};
+    const query = { $and: [req.managerScope.leaves] };
 
     if (status) query.status = status;
     if (managerStatus) query.managerApprovalStatus = managerStatus;
 
-    if (shouldScopeByDepartment(req.user)) {
-      const teamUsers = await User.find({ department: req.user.department }).select('_id');
-      const ids = teamUsers.map((user) => user._id);
-      query.employee = { $in: ids };
-    }
 
     const leaves = await Leave.find(query)
       .populate('employee', 'firstName lastName email department')
@@ -1320,112 +1085,34 @@ exports.getLeaveRequests = async (req, res) => {
     logger.error({ err: error }, 'Get manager leave requests error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch leave requests',
-      details: error.message
+      error: 'Failed to fetch leave requests'
     });
   }
 };
 
 exports.approveLeave = async (req, res) => {
   try {
-    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
-
-    if (!leave) {
-      return res.status(404).json({
-        success: false,
-        error: 'Leave request not found'
-      });
-    }
-
-    if (leave.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        error: 'Leave request is not pending'
-      });
-    }
-
-    if (leave.managerApprovalStatus === 'approved') {
-      return res.status(400).json({
-        success: false,
-        error: 'Leave request already approved by manager'
-      });
-    }
-
-    leave.managerApprovalStatus = 'approved';
-    leave.managerApprovedBy = req.user._id;
-    leave.managerApprovedDate = Date.now();
-    leave.managerRejectionReason = undefined;
-    leave.status = 'manager-approved';
-    await leave.save();
-    await logLeaveAction({
-      leave,
-      reviewer: req.user._id,
-      role: req.user.role || 'manager',
-      action: 'manager-approved',
+    const data = await require('../../services/managerReview.service').review({
+      actor: req.user, id: req.params.id, kind: 'leave', approve: true,
+      reason: req.body.rejectionReason || req.body.reason || req.body.feedback,
     });
-
-    res.status(200).json({
-      success: true,
-      message: 'Leave request approved by manager and forwarded to HR',
-      data: leave
-    });
+    res.json({ success: true, data, message: 'Review saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Manager approve leave error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to approve leave request',
-      details: error.message
-    });
+    logger.error({ err: error }, 'Manager review failed');
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : 'Unable to save review' });
   }
 };
 
 exports.rejectLeave = async (req, res) => {
   try {
-    const { rejectionReason } = req.body;
-    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
-
-    if (!leave) {
-      return res.status(404).json({
-        success: false,
-        error: 'Leave request not found'
-      });
-    }
-
-    if (leave.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        error: 'Leave request is not pending'
-      });
-    }
-
-    leave.managerApprovalStatus = 'rejected';
-    leave.managerApprovedBy = req.user._id;
-    leave.managerApprovedDate = Date.now();
-    leave.managerRejectionReason = rejectionReason;
-    leave.status = 'rejected';
-    leave.approvedBy = req.user._id;
-    leave.approvedDate = Date.now();
-    await leave.save();
-    await logLeaveAction({
-      leave,
-      reviewer: req.user._id,
-      role: req.user.role || 'manager',
-      action: 'manager-rejected',
-      comment: rejectionReason,
+    const data = await require('../../services/managerReview.service').review({
+      actor: req.user, id: req.params.id, kind: 'leave', approve: false,
+      reason: req.body.rejectionReason || req.body.reason || req.body.feedback,
     });
-
-    res.status(200).json({
-      success: true,
-      message: 'Leave request rejected by manager',
-      data: leave
-    });
+    res.json({ success: true, data, message: 'Review saved successfully' });
   } catch (error) {
-    logger.error({ err: error }, 'Manager reject leave error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to reject leave request',
-      details: error.message
-    });
+    logger.error({ err: error }, 'Manager review failed');
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : 'Unable to save review' });
   }
 };
 
@@ -1435,29 +1122,12 @@ exports.rejectLeave = async (req, res) => {
 exports.getWorkReports = async (req, res) => {
   try {
     const { page = 1, limit = 10, employee, reportType, status, uniqueTask } = req.query;
-    const query = {};
+    const query = { $and: [req.managerScope.reports] };
 
     if (reportType) query.reportType = reportType;
     if (status) query.status = status;
 
-    if (shouldScopeByDepartment(req.user)) {
-      const teamUsers = await User.find({ department: req.user.department }).select('_id');
-      const ids = teamUsers.map((user) => user._id);
-      if (employee && !ids.find((id) => id.toString() === employee)) {
-        return res.status(200).json({
-          success: true,
-          data: {
-            reports: [],
-            totalPages: 1,
-            currentPage: parseInt(page),
-            total: 0
-          }
-        });
-      }
-      query.employee = employee ? employee : { $in: ids };
-    } else if (employee) {
-      query.employee = employee;
-    }
+    if (employee) query.employee = new mongoose.Types.ObjectId(employee);
 
     if (uniqueTask === 'true') {
       const skip = (page - 1) * limit;
@@ -1527,8 +1197,7 @@ exports.getWorkReports = async (req, res) => {
     logger.error({ err: error }, 'Get manager work reports error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch work reports',
-      details: error.message
+      error: 'Failed to fetch work reports'
     });
   }
 };

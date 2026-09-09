@@ -218,7 +218,7 @@ const mapProjects = (projects = []) =>
     id: project._id?.toString?.() || project.id || null,
     name: project.name,
     status: project.status,
-    progress: project.progress ?? 0,
+    progress: project.progress ?? null,
     updatedAt: project.updatedAt,
     deadline: project.deadline,
   }));
@@ -251,19 +251,14 @@ const mapTeamMembers = (members = []) =>
   }));
 
 const buildManagerSnapshot = async (manager = {}) => {
-  const managerId =
-    toObjectId(manager._id) || toObjectId(manager.id) || toObjectId(manager?.userId);
-  const department = manager.department || manager.metadata?.department || null;
-  const scopedDepartment = [ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(manager.role)
-    ? null
-    : department;
-  const projectFilter = managerId ? { projectManager: managerId } : {};
+  const scope = await require('./managerScope.service').resolveManagerScope(manager);
+  const department = manager.department || null;
+  const projectFilter = scope.projects;
+  const projectIds = scope.projectIds;
+  const taskFilter = scope.tasks;
   const now = new Date();
   const soon = new Date(now);
   soon.setDate(soon.getDate() + 7);
-
-  const projectIds = await Project.find(projectFilter).distinct('_id');
-  const taskFilter = buildTaskFilter(managerId, projectIds);
 
   const [
     projectStatusRows,
@@ -297,20 +292,30 @@ const buildManagerSnapshot = async (manager = {}) => {
       .select('title status dueDate progress priority project')
       .populate('project', 'name')
       .lean(),
-    User.find(scopedDepartment
-      ? { role: { $in: [ROLES.IT_EMPLOYEE, 'employee'] }, department: scopedDepartment }
-      : { role: { $in: [ROLES.IT_EMPLOYEE, 'employee'] } })
+    User.find(scope.employees)
       .sort({ firstName: 1 })
       .limit(12)
       .select('firstName lastName email department lastLogin isActive role')
       .lean(),
   ]);
 
+  const progressRows = await Task.aggregate([
+    { $match: { project: { $in: recentProjects.map(project => project._id) }, status: { $ne: 'cancelled' } } },
+    { $group: { _id: '$project', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } }
+  ]);
+  const progressMap = new Map(progressRows.map(row => [String(row._id), row]));
+  for (const project of recentProjects) {
+    const row = progressMap.get(String(project._id));
+    project.progress = row?.total ? Math.round(row.completed / row.total * 100) : null;
+  }
+
   const projectBreakdown = toBreakdownMap(projectStatusRows, ['planning', 'in-progress', 'on-hold', 'completed', 'cancelled']);
   const taskBreakdown = toBreakdownMap(taskStatusRows, ['pending', 'in-progress', 'review', 'completed', 'cancelled']);
   const totalTasks = taskStatusRows.reduce((sum, row) => sum + (row?.count || 0), 0);
   const activeTeamMembers = teamMembers.filter((member) => member.isActive).length;
-  const teamMemberIds = teamMembers.map((member) => member._id).filter(Boolean);
+  const teamMemberIds = scope.employeeIds;
+  const totalTeamMembers = await User.countDocuments(scope.employees);
+  const activeCount = await User.countDocuments({ $and: [scope.employees, { isActive: true }] });
 
   const [pendingLeaveApprovals, pendingWorkApprovals] = await Promise.all([
     teamMemberIds.length
@@ -328,8 +333,16 @@ const buildManagerSnapshot = async (manager = {}) => {
       : 0,
   ]);
 
+  const attention = [
+    { type: 'OVERDUE_TASK', count: overdueTasksCount, severity: 'high', title: 'Overdue tasks', context: 'Open tasks past their due date', route: '/manager/tasks' },
+    { type: 'PROJECT_DEADLINE_RISK', count: overdueProjectsCount, severity: 'high', title: 'Overdue projects', context: 'Managed projects past deadline', route: '/manager/projects' },
+    { type: 'BLOCKED_PROJECT', count: projectBreakdown['on-hold'], severity: 'high', title: 'Projects on hold', context: 'Review blockers with your team', route: '/manager/projects' },
+    { type: 'WORK_REVIEW_PENDING', count: pendingWorkApprovals, severity: 'medium', title: 'Work reviews pending', context: 'Team submissions awaiting your decision', route: '/manager/work-reviews' },
+    { type: 'LEAVE_APPROVAL_PENDING', count: pendingLeaveApprovals, severity: 'medium', title: 'Leave approvals pending', context: 'Manager approval forwards requests to HR', route: '/manager/leave' },
+  ].filter(item => item.count > 0).map(item => ({ ...item, action: { label: 'Review', route: item.route } }));
   return {
     timestamp: new Date().toISOString(),
+    attention,
     projectSummary: {
       total: projectIds.length,
       active: (projectBreakdown.planning || 0) + (projectBreakdown['in-progress'] || 0),
@@ -346,8 +359,8 @@ const buildManagerSnapshot = async (manager = {}) => {
     },
     teamSummary: {
       department,
-      totalMembers: teamMembers.length,
-      activeMembers: activeTeamMembers,
+      totalMembers: totalTeamMembers,
+      activeMembers: activeCount,
       members: mapTeamMembers(teamMembers),
     },
     alerts: {

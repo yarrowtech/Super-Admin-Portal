@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/client';
 import { createLogger, emitFrontendEvent } from '../utils/logger';
 import { clearAuthSession, readAuthSession, subscribeAuthSession, writeAuthSession } from '../lib/authSession';
@@ -10,6 +11,8 @@ const CACHE_PREFIX = 'sap_cache_v1:';
 const SESSION_CLEAR_PREFIXES = [CACHE_PREFIX, 'salesQueryDraft:', 'salesQueryStage:'];
 
 export const AuthProvider = ({ children }) => {
+  const queryClient = useQueryClient();
+  const profileToken = useRef(null);
   const [user, setUser] = useState(null);
   const initialSession = readAuthSession();
   const [token, setToken] = useState(() => initialSession.token);
@@ -19,28 +22,43 @@ export const AuthProvider = ({ children }) => {
   const [authMode, setAuthMode] = useState(() => initialSession.authMode || 'default');
 
   useEffect(() => {
+    let cancelled = false;
     const bootstrap = async () => {
       if (!token) {
+        setUser(null);
         setLoading(false);
         return;
       }
+      if (profileToken.current === token) return;
+      setUser(null);
+      setLoading(true);
       try {
-        const profile = await apiClient.get('/api/auth/me', token);
+        const profile = await apiClient.get('/api/auth/me', token, { cache: false });
+        if (cancelled || readAuthSession().token !== token) return;
+        profileToken.current = token;
         setUser(profile?.data?.user || null);
       } catch (err) {
+        if (cancelled || readAuthSession().token !== token) return;
         authLogger.warn({ err }, 'Auth bootstrap failed');
         clearAuth();
       } finally {
-        setLoading(false);
+        if (!cancelled && readAuthSession().token === token) setLoading(false);
       }
     };
     bootstrap();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     return subscribeAuthSession(() => {
       const session = readAuthSession();
+      if (profileToken.current !== session.token) {
+        profileToken.current = null;
+        setUser(null);
+        setLoading(Boolean(session.token));
+        queryClient.clear();
+      }
       setToken(session.token);
       setRefreshToken(session.refreshToken);
       setAuthMode(session.authMode || 'default');
@@ -51,6 +69,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const clearAuth = () => {
+    profileToken.current = null;
+    queryClient.clear();
+    setLoading(false);
     setUser(null);
     setToken(null);
     setRefreshToken(null);
@@ -82,6 +103,9 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid login response');
       }
 
+      queryClient.clear();
+      profileToken.current = authToken;
+      setLoading(false);
       setUser(authedUser);
       setToken(authToken);
       setRefreshToken(authRefresh || null);

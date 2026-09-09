@@ -285,8 +285,9 @@ const buildManagerTaskCsv = (tasks) => {
   return [headers.join(','), ...rows].join('\n');
 };
 
-const exportManagerTasksCsv = async ({ managerId, status, priority, assignee, search, selectedIds, requestedBy }) => {
+const exportManagerTasksCsv = async ({ managerId, managerScope, status, priority, assignee, search, selectedIds, requestedBy }) => {
   const query = buildManagerTaskQuery({ managerId, status, priority, assignee, search, selectedIds });
+  if (managerScope) { delete query.assignedBy; query.$and = [managerScope]; }
   const tasks = await Task.find(query)
     .populate('assignedTo', 'firstName lastName email department')
     .sort({ createdAt: -1 })

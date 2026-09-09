@@ -18,7 +18,7 @@ export const managerApi = {
   getProjectTeams: (token) => apiClient.get('/api/dept/manager/project-teams', token),
   createProjectTeam: (token, data) =>
     apiClient.post('/api/dept/manager/project-teams', data, token),
-  getProjects: (token) => apiClient.get('/api/dept/manager/projects', token),
+  getProjects: (token, params = {}) => apiClient.get('/api/dept/manager/projects?' + buildQueryString(params), token),
   createProject: (token, data) => apiClient.post('/api/dept/manager/projects', data, token),
   updateProject: (token, projectId, data) => apiClient.put(`/api/dept/manager/projects/${projectId}`, data, token),
   deleteProject: (token, projectId) => apiClient.delete(`/api/dept/manager/projects/${projectId}`, token),
@@ -30,7 +30,7 @@ export const managerApi = {
   getTaskDetails: (token, taskId) => 
     apiClient.get(`/api/dept/manager/tasks/${taskId}`, token),
   getEmployeeWork: (token, params = '') => 
-    apiClient.get(`/api/dept/manager/employee-work${params}`, token),
+    apiClient.get(`/api/dept/manager/employee-work${typeof params === 'string' ? params : '?' + buildQueryString(params)}`, token),
   getEmployeeWorkStats: (token) => 
     apiClient.get('/api/dept/manager/employee-work/stats', token),
   getCompletedTasks: (token, params = '') => 

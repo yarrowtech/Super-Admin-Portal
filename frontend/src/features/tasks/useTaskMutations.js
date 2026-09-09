@@ -29,7 +29,7 @@ export const useTaskStatusMutation = (portal, filters = {}) => {
       if (!data?.tasks) return data;
       return { ...data, tasks: data.tasks.map((t) => (t.id === taskId ? { ...t, status } : t)) };
     },
-    invalidateKeys: [boardKey, QK.projects.root(), QK.dashboard.root()],
+    invalidateKeys: [boardKey, QK.projects.root(), QK.dashboard.root(), QK.manager.root()],
     onError: () => {
       toast?.error?.('Unable to move task. Changes were reverted.');
     },
@@ -52,6 +52,7 @@ export const useCreateTaskMutation = (portal, filters = {}) => {
       try {
         const result = await adapter.createTask(token, body);
         queryClient.invalidateQueries({ queryKey: boardKey });
+        queryClient.invalidateQueries({ queryKey: QK.manager.root() });
         toast?.success?.('Task created successfully');
         return result;
       } catch (error) {

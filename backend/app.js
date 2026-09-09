@@ -160,42 +160,11 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  const stateMap = {
-    0: "disconnected",
-    1: "connected",
-    2: "connecting",
-    3: "disconnecting"
-  };
-  const dbStateCode = mongoose.connection.readyState;
-  const dbState = stateMap[dbStateCode] || "unknown";
-  const healthy = dbState === "connected";
+  const healthy = mongoose.connection.readyState === 1;
   res.status(healthy ? 200 : 503).json({
     success: healthy,
     message: healthy ? "API is healthy" : "API degraded",
-    data: {
-      uptimeSec: Math.round(process.uptime()),
-      env: env.NODE_ENV,
-      timestamp: new Date().toISOString(),
-      database: {
-        state: dbState,
-        code: dbStateCode
-      },
-      cache: CacheService.metrics(),
-      integrations: {
-        edifyEightTeachers: {
-          configured: Boolean(env.EDIFYEIGHT_API_TOKEN && (env.EDIFYEIGHT_TEACHER_API_URL || env.EDIFYEIGHT_API_URL)),
-          url: env.EDIFYEIGHT_TEACHER_API_URL || (env.EDIFYEIGHT_API_URL ? `${env.EDIFYEIGHT_API_URL.replace(/\/$/, "")}/api/internal/teachers` : "")
-        },
-        edifyEightStudyMaterials: {
-          configured: Boolean(env.EDIFYEIGHT_API_TOKEN && (env.EDIFYEIGHT_STUDY_MATERIAL_API_URL || env.EDIFYEIGHT_API_URL)),
-          url: env.EDIFYEIGHT_STUDY_MATERIAL_API_URL || (env.EDIFYEIGHT_API_URL ? `${env.EDIFYEIGHT_API_URL.replace(/\/$/, "")}/api/internal/study-materials` : "")
-        },
-        efnbmmsAdminManagement: {
-          configured: Boolean(env.EFNBMMS_API_TOKEN && env.EFNBMMS_ADMIN_MANAGEMENT_API_URL),
-          url: env.EFNBMMS_ADMIN_MANAGEMENT_API_URL
-        }
-      }
-    }
+    data: { status: healthy ? "ok" : "degraded", timestamp: new Date().toISOString() },
   });
 });
 
@@ -285,6 +254,8 @@ io.on("connection", async (socket) => {
 
     socket.data.userId = String(user._id);
     socket.data.role = user.role;
+    socket.data.sessionJti = decoded.jti;
+    socket.data.tokenExpiresAt = decoded.exp * 1000;
   } catch (err) {
     logger.warn({ err, requestId, socketId: socket.id }, "Socket token verification failed");
     socket.disconnect(true);
@@ -296,97 +267,7 @@ io.on("connection", async (socket) => {
     onlineUsers.set(uid, socket.id);
     io.emit("user_presence", { userId: uid, online: true });
   }
-  socket.on("joinThread", (threadId) => {
-    if (threadId) socket.join(threadId);
-  });
-  socket.on("join_room", (roomId) => {
-    if (roomId) socket.join(roomId);
-  });
-
-  socket.on("leaveThread", (threadId) => {
-    if (threadId) socket.leave(threadId);
-  });
-
-  socket.on("chat:seen", (payload = {}) => {
-    const { threadId, seenMessageIds } = payload;
-    if (!threadId || !Array.isArray(seenMessageIds) || seenMessageIds.length === 0) return;
-    socket.to(threadId).emit("chat:seen", {
-      threadId,
-      seenMessageIds,
-      readerId: payload.readerId || null,
-      seenAt: new Date().toISOString(),
-    });
-  });
-  socket.on("message_read", (payload = {}) => {
-    const { conversationId, messageIds } = payload;
-    if (!conversationId || !Array.isArray(messageIds) || messageIds.length === 0) return;
-    socket.to(conversationId).emit("message_read", {
-      conversationId,
-      messageIds,
-      readerId: payload.readerId || socket.data.userId || null,
-      seenAt: new Date().toISOString(),
-    });
-  });
-
-  socket.on("chat:typing", (payload = {}) => {
-    const { threadId, userId, name, isTyping = false } = payload;
-    if (!threadId || !userId) return;
-    socket.to(threadId).emit("chat:typing", {
-      threadId,
-      userId,
-      name: name || null,
-      isTyping: Boolean(isTyping),
-      timestamp: new Date().toISOString(),
-    });
-  });
-  socket.on("typing", (payload = {}) => {
-    const { conversationId, userId, name, isTyping = false } = payload;
-    if (!conversationId || !userId) return;
-    socket.to(conversationId).emit("user_typing", {
-      conversationId,
-      userId,
-      name: name || null,
-      isTyping: Boolean(isTyping),
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  socket.on("send_message", (payload = {}) => {
-    const { conversationId, message } = payload;
-    if (!conversationId || !message) return;
-    io.to(conversationId).emit("receive_message", {
-      ...message,
-      conversationId,
-    });
-  });
-  socket.on("user_online", (payload = {}) => {
-    const uid = String(payload.userId || socket.data.userId || "");
-    if (!uid) return;
-    onlineUsers.set(uid, socket.id);
-    io.emit("user_presence", { userId: uid, online: true });
-  });
-
-  socket.on("hr:subscribe", () => {
-    socket.join("hr");
-  });
-
-  socket.on("hr:unsubscribe", () => {
-    socket.leave("hr");
-  });
-
-  // Outsourcing portal rooms
-  socket.on("outsourcing:subscribe", (payload = {}) => {
-    const userId = payload?.userId || socket.data.userId;
-    if (userId) socket.join(`outsourcing:user:${userId}`);
-    const adminRoles = ["admin", "hr", "finance_manager", "finance_employee", "law_head", "law_employee"];
-    if (adminRoles.includes(socket.data.role)) socket.join("outsourcing:admins");
-  });
-
-  socket.on("outsourcing:unsubscribe", (payload = {}) => {
-    const userId = payload?.userId || socket.data.userId;
-    if (userId) socket.leave(`outsourcing:user:${userId}`);
-    socket.leave("outsourcing:admins");
-  });
+  require('./services/socketAccess.service').registerSecureSocketEvents(io, socket, onlineUsers, logger);
 
   socket.on("disconnect", () => {
     if (socket.data.userId) {

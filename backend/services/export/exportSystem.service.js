@@ -4,7 +4,8 @@ const Task = require('../../models/common/Task');
 const ExportJob = require('../../models/export/ExportJob');
 const { ROLES } = require('../../config/roles');
 
-const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+const { escapeCsv } = require('../../utils/csv');
+const { employeeScope } = require('../employeeScope.service');
 
 const normalizeScope = ({ selectedIds, search }) => {
   if (Array.isArray(selectedIds) && selectedIds.length > 0) return 'selected';
@@ -13,16 +14,14 @@ const normalizeScope = ({ selectedIds, search }) => {
 };
 
 const buildEmployeeQuery = ({ search, selectedIds }) => {
-  const query = {
-    role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] },
-  };
+  const query = employeeScope();
 
   if (Array.isArray(selectedIds) && selectedIds.length > 0) {
     query._id = { $in: selectedIds };
-    return query;
   }
 
   if (search) {
+    search = String(search).replace(/[.*+?^{}()|[\]\\$]/g, '\\$&');
     query.$or = [
       { firstName: { $regex: search, $options: 'i' } },
       { lastName: { $regex: search, $options: 'i' } },

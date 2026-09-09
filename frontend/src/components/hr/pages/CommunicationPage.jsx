@@ -18,7 +18,7 @@ const CommunicationPage = () => {
 
   return (
     <main className="portal-page">
-      <div className="mx-auto max-w-[1360px] px-6 py-5">
+      <div className="portal-page-inner">
         <PortalHeader
           title="Communication & Reports"
           subtitle="Manage notices, complaints, and staff work reporting from one workspace."
@@ -27,11 +27,9 @@ const CommunicationPage = () => {
           showThemeToggle={true}
         />
 
-        <div className="inline-flex rounded-xl bg-neutral-100 p-1 dark:bg-neutral-900">
-          <Tabs items={communicationTabs} activeKey={activeTab} onChange={setActiveTab} />
-        </div>
+        <Tabs items={communicationTabs} activeKey={activeTab} onChange={setActiveTab} className="mb-6" />
 
-        <div className="mt-5 pb-8">
+        <div>
           {activeTab === 'notices' && <Notices />}
           {activeTab === 'complaints' && <ComplaintSolutions />}
           {activeTab === 'reports' && <StaffWorkReport embedded />}

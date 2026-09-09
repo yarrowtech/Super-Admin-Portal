@@ -4,8 +4,10 @@ const logService = require("../services/log.service");
 const mapMongoAndJwtError = (err) => {
   if (!err) return { statusCode: 500, message: "Internal server error" };
 
+  if (err.name === "VersionError") return { statusCode: 409, message: "Record changed; reload and retry" };
+
   if (err.name === "CastError") {
-    return { statusCode: 400, message: `Invalid ${err.path}: ${err.value}` };
+    return { statusCode: 400, message: "Invalid record ID or field type" };
   }
 
   if (err.code === 11000) {
@@ -55,8 +57,10 @@ const errorMiddleware = (err, req, res, next) => {
 
   res.status(mapped.statusCode).json({
     success: false,
+    code: ({ 400: 'VALIDATION_ERROR', 401: 'UNAUTHORIZED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 429: 'RATE_LIMITED' })[mapped.statusCode] || 'INTERNAL_ERROR',
+    fields: err.name === 'ValidationError' ? Object.fromEntries(Object.entries(err.errors || {}).map(([key, value]) => [key, value.message])) : {},
     error:
-      process.env.NODE_ENV === "production" && mapped.statusCode >= 500
+      mapped.statusCode >= 500
         ? "Internal server error"
         : mapped.message,
   });

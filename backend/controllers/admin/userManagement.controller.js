@@ -6,6 +6,8 @@ const logService = require('../../services/log.service');
 const { ROLES } = require('../../config/roles');
 const { getDepartmentForRole, isRoleValidForDepartment } = require('../../utils/roleAllocation');
 
+const { employeeScope } = require('../../services/employeeScope.service');
+const { assertUserAdministration } = require('../../services/userAdministrationPolicy');
 const USER_ACCOUNT_STATUSES = ['active', 'inactive', 'suspended', 'blocked', 'pending_verification'];
 
 const ALLOWED_METADATA_FIELDS = [
@@ -227,10 +229,9 @@ exports.getDashboard = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Admin dashboard error');
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to fetch dashboard data',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to fetch dashboard data'
     });
   }
 };
@@ -245,6 +246,7 @@ exports.getAllUsers = async (req, res) => {
     const { page = 1, limit = 10, role, isActive, accountStatus, department, search, joinedWithin, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
     const query = {};
+    if (req.baseUrl === '/api/dept/hr') query.$and = [employeeScope()];
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
     const safePage = Math.max(parseInt(page, 10) || 1, 1);
 
@@ -295,10 +297,9 @@ exports.getAllUsers = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get all users error');
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to fetch users',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to fetch users'
     });
   }
 };
@@ -325,10 +326,9 @@ exports.getUserById = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get user by ID error');
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to fetch user',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to fetch user'
     });
   }
 };
@@ -342,6 +342,7 @@ exports.createUser = async (req, res) => {
   try {
     const { email, password, role, firstName, lastName, phone, department, accountStatus, permissions, metadata } = req.body;
 
+    assertUserAdministration(req.user, null, req.body);
     // Validation
     if (!email || !password || !role || !firstName || !lastName) {
       return res.status(400).json({
@@ -438,10 +439,9 @@ exports.createUser = async (req, res) => {
       });
     }
 
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to create user',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to create user'
     });
   }
 };
@@ -464,6 +464,7 @@ exports.updateUser = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
+    assertUserAdministration(req.user, user, req.body);
 
     if (!user) {
       return res.status(404).json({
@@ -594,10 +595,9 @@ exports.updateUser = async (req, res) => {
       });
     }
 
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to update user',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to update user'
     });
   }
 };
@@ -618,6 +618,7 @@ exports.deleteUser = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
+    assertUserAdministration(req.user, user, req.body);
 
     if (!user) {
       return res.status(404).json({
@@ -633,26 +634,27 @@ exports.deleteUser = async (req, res) => {
     }
 
     // Prevent deleting yourself
-    if (req.user && req.user.id === req.params.id) {
+    if (req.user && String(req.user.id) === String(req.params.id)) {
       return res.status(400).json({
         success: false,
         error: 'You cannot delete your own account'
       });
     }
 
-    await user.deleteOne();
+    user.isActive = false;
+    user.accountStatus = 'inactive';
+    await user.save();
     await writeActivity(req, 'user.deleted', user, { email: user.email, role: user.role });
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User deactivated; employment history preserved'
     });
   } catch (error) {
     logger.error({ err: error }, 'Delete user error');
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to delete user',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to delete user'
     });
   }
 };
@@ -673,6 +675,7 @@ exports.toggleUserStatus = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
+    assertUserAdministration(req.user, user, req.body);
 
     if (!user) {
       return res.status(404).json({
@@ -688,7 +691,7 @@ exports.toggleUserStatus = async (req, res) => {
     }
 
     // Prevent deactivating yourself
-    if (req.user && req.user.id === req.params.id && user.isActive) {
+    if (req.user && String(req.user.id) === String(req.params.id) && user.isActive) {
       return res.status(400).json({
         success: false,
         error: 'You cannot deactivate your own account'
@@ -709,10 +712,9 @@ exports.toggleUserStatus = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Toggle user status error');
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to toggle user status',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to toggle user status'
     });
   }
 };
@@ -737,6 +739,7 @@ exports.setUserStatus = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
+    assertUserAdministration(req.user, user, req.body);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
@@ -767,10 +770,9 @@ exports.setUserStatus = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Set user status error');
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to update user status',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to update user status'
     });
   }
 };
@@ -793,10 +795,9 @@ exports.exportUsers = async (req, res) => {
     return res.status(200).send(csv);
   } catch (error) {
     logger.error({ err: error }, 'Export users error');
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Failed to export users',
-      details: error.message
+      error: error.statusCode === 403 ? error.message : 'Failed to export users'
     });
   }
 };

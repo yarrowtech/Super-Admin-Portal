@@ -36,7 +36,7 @@ exports.exportAttendanceCsv = async (req, res) => {
       errorMessage: error.message,
       fileName: `hr-attendance-export-${new Date().toISOString().slice(0, 10)}.csv`,
     }).catch(() => null);
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to export attendance'));
+    return res.status(500).json(apiResponse.error('Failed to export attendance'));
   }
 };
 
@@ -52,6 +52,6 @@ exports.getAttendanceExportHistory = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Attendance export history fetched successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to fetch attendance export history'));
+    return res.status(500).json(apiResponse.error('Failed to fetch attendance export history'));
   }
 };

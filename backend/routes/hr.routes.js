@@ -11,6 +11,7 @@ const { authenticate, authorize, authorizePortalAccess } = require('../middlewar
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { attachOptionalProjectContext } = require('../middlewares/project.middleware');
 const { ROLES } = require('../config/roles');
+const { hrInput } = require('../middlewares/hrInput.middleware');
 
 // All routes require authentication and HR role.
 // IT_MANAGER is intentionally excluded: the frontend's HR_PORTAL_ROLES
@@ -22,7 +23,15 @@ router.use(authenticate);
 router.use(authorize(ROLES.HR, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT_HR));
 router.use(authorizePortalAccess('hr'));
 router.use(attachOptionalProjectContext);
-router.use(cacheGetResponses('hr', { tags: ['employees', 'departments', 'dashboard'] }));
+router.use(hrInput);
+const unsupportedLegacyResources = new Set(['designations', 'biometrics', 'interviews', 'offers', 'policies', 'policy-acknowledgements', 'exit-interviews', 'support-tickets']);
+router.use((req, res, next) => {
+  if (!unsupportedLegacyResources.has(req.path.split('/')[1])) return next();
+  return res.status(501).json({ success: false, error: 'This legacy module has no dedicated data model', code: 'MODULE_NOT_CONFIGURED' });
+});
+router.param('id', (req, res, next) => hrInput(req, res, next));
+router.param('employeeId', (req, res, next) => hrInput(req, res, next));
+// HR balances, complaints, profiles and counters require fresh database reads.
 router.use(invalidateCacheAfterMutation('hr'));
 
 // Dashboard
@@ -59,7 +68,7 @@ router.post('/users/profiles/:id/internal-notes', hrController.addUserInternalNo
 router.get('/users', hrController.getUserProfiles);
 router.get('/user/:id', hrController.getUserProfileById);
 router.post('/note/:id', hrController.addUserInternalNote);
-router.post('/employees/export', adminUsersController.exportUsers);
+router.post('/employees/export', exportSystemController.exportEmployeesCsv);
 router.get('/employees/export-history', exportSystemController.getExportHistory);
 router.post('/employees', adminUsersController.createUser);
 router.put('/employees/:id', adminUsersController.updateUser);

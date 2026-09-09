@@ -1,0 +1,20 @@
+const Attendance = require('../models/hr/Attendance');
+const User = require('../models/auth/User');
+const { evaluateAttendanceRecord } = require('../utils/shiftRules');
+const fail = (message, statusCode = 400) => { throw Object.assign(new Error(message), { statusCode }); };
+const FIELDS = ['employee', 'date', 'checkIn', 'checkOut', 'status', 'location', 'notes', 'isApproved'];
+const saveAttendance = async (id, payload, actor) => {
+  const record = id ? await Attendance.findById(id) : new Attendance();
+  if (!record) fail('Attendance record not found', 404);
+  for (const key of FIELDS) if (Object.prototype.hasOwnProperty.call(payload, key)) record.set(key, payload[key]);
+  const employee = await User.findById(record.employee).select('department');
+  if (!employee) fail('Employee not found', 404);
+  if (record.checkOut && record.checkIn && record.checkOut < record.checkIn) fail('Check-out must be on or after check-in');
+  if (record.checkIn > new Date() || record.checkOut > new Date()) fail('Attendance timestamps cannot be in the future');
+  const computed = evaluateAttendanceRecord({ ...record.toObject(), department: employee.department });
+  if (computed) record.status = computed.status;
+  record.approvedBy = actor._id || actor.id;
+  await record.save();
+  return record.populate('employee', 'firstName lastName email department');
+};
+module.exports = { saveAttendance };

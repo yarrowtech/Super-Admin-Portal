@@ -34,7 +34,7 @@ exports.exportEmployeesCsv = async (req, res) => {
       fileName: `hr-employees-export-${new Date().toISOString().slice(0, 10)}.csv`,
     }).catch(() => null);
 
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to export employees'));
+    return res.status(500).json(apiResponse.error('Failed to export employees'));
   }
 };
 
@@ -50,6 +50,6 @@ exports.getExportHistory = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Export history fetched successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to fetch export history'));
+    return res.status(500).json(apiResponse.error('Failed to fetch export history'));
   }
 };

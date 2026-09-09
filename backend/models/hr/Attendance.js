@@ -48,17 +48,19 @@ const attendanceSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    optimisticConcurrency: true
   }
 );
 
-attendanceSchema.pre('save', function (next) {
-  if (this.checkIn && this.checkOut) {
-    const hours = (this.checkOut - this.checkIn) / (1000 * 60 * 60);
-    if (!this.isModified('workHours')) {
-      this.workHours = Math.round(hours * 100) / 100;
-    }
+attendanceSchema.pre('validate', function (next) {
+  if (this.date && !Number.isNaN(this.date.getTime())) this.date.setHours(0, 0, 0, 0);
+  if (this.checkIn && this.checkOut && this.checkOut < this.checkIn) {
+    this.invalidate('checkOut', 'Check-out must be on or after check-in');
   }
+  this.workHours = this.checkIn && this.checkOut
+    ? Math.max(0, Math.round((this.checkOut - this.checkIn) / 3600000 * 100) / 100)
+    : 0;
   next();
 });
 

@@ -56,6 +56,7 @@ const formatDuration = (ms) => {
 
 const evaluateAttendanceRecord = (record, { force = false } = {}) => {
   if (!record) return null;
+  if (['absent', 'on-leave'].includes(record.status)) return null;
   const department = record.employee?.department || record.department || '';
   const shift = determineShift(department);
 

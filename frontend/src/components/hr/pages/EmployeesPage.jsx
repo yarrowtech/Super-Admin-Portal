@@ -10,9 +10,9 @@ const mapDashboard = async (token, options = {}) => {
       totalUsers: data.totalEmployees || 0,
       activeUsers: data.activeEmployees || 0,
       inactiveUsers: data.employeeSummary?.inactive || 0,
-      usersByRole: [],
-      departmentStats: [],
-      totalDepartments: 0,
+      usersByRole: data.usersByRole || [],
+      departmentStats: data.departmentStats || [],
+      totalDepartments: data.totalDepartments || 0,
     },
   };
 };

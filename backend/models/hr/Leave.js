@@ -111,13 +111,14 @@ const leaveSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    optimisticConcurrency: true
   }
 );
 
 leaveSchema.pre('save', function (next) {
   if (this.endDate < this.startDate) {
-    next(new Error('End date must be after start date'));
+    return next(new Error('End date must be after start date'));
   }
   next();
 });

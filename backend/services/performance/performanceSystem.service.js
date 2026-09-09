@@ -4,7 +4,8 @@ const Attendance = require('../../models/hr/Attendance');
 const WorkReport = require('../../models/hr/StaffWorkReport');
 const PerformanceSnapshot = require('../../models/performance/PerformanceSnapshot');
 const AppraisalCycle = require('../../models/performance/AppraisalCycle');
-const { ROLES } = require('../../config/roles');
+const { employeeScope } = require('../employeeScope.service');
+const { evaluateAttendanceRecord } = require('../../utils/shiftRules');
 
 const clampScore = (value) => {
   const numeric = Number(value);
@@ -39,15 +40,14 @@ const getDefaultDateRange = (periodType = 'monthly') => {
   const start = new Date(end);
 
   if (periodType === 'weekly') {
-    start.setDate(start.getDate() - 6);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   } else if (periodType === 'quarterly') {
-    start.setMonth(start.getMonth() - 3);
     start.setDate(1);
+    start.setMonth(Math.floor(start.getMonth() / 3) * 3);
   } else if (periodType === 'yearly') {
-    start.setFullYear(start.getFullYear() - 1);
-    start.setDate(1);
+    start.setMonth(0, 1);
   } else {
-    start.setMonth(start.getMonth() - 1);
+    start.setDate(1);
   }
 
   return {
@@ -73,14 +73,12 @@ const buildDateRange = ({ periodType, startDate, endDate }) => {
 };
 
 const getEmployeeQuery = ({ department, search, employeeId }) => {
-  const query = {
-    role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] },
-    isActive: true,
-  };
+  const query = employeeScope({ activeOnly: true });
 
   if (employeeId) query._id = employeeId;
   if (department) query.department = department;
   if (search) {
+    search = String(search).replace(/[.*+?^{}()|[\]\\$]/g, '\\$&');
     query.$or = [
       { firstName: { $regex: search, $options: 'i' } },
       { lastName: { $regex: search, $options: 'i' } },
@@ -200,7 +198,7 @@ const buildAutoScore = (scoreBreakdown) =>
       (scoreBreakdown.productivity * 0.1)
   );
 
-const calculateEmployeePerformance = async (employee, range) => {
+const calculateEmployeePerformance = async (employee, range, records) => {
   const taskQuery = {
     assignedTo: employee._id,
     createdAt: { $lte: range.periodEnd },
@@ -211,7 +209,7 @@ const calculateEmployeePerformance = async (employee, range) => {
     ],
   };
 
-  const [tasks, attendance, workReports] = await Promise.all([
+  const [tasks, attendance, workReports] = records || await Promise.all([
     Task.find(taskQuery).lean(),
     Attendance.find({
       employee: employee._id,
@@ -224,11 +222,21 @@ const calculateEmployeePerformance = async (employee, range) => {
   ]);
 
   const taskMetrics = buildTaskMetrics(tasks);
-  const attendanceMetrics = buildAttendanceMetrics(attendance);
+  const attendanceMetrics = buildAttendanceMetrics(attendance.map((entry) => {
+    const evaluated = evaluateAttendanceRecord({ ...entry, department: employee.department });
+    return evaluated ? { ...entry, status: evaluated.status, workHours: evaluated.workHours } : entry;
+  }));
   const workReportMetrics = buildWorkReportMetrics(workReports, attendanceMetrics.trackedDays || 1);
   const scoreBreakdown = buildScoreBreakdown({ taskMetrics, attendanceMetrics, workReportMetrics });
-  const autoScore = buildAutoScore(scoreBreakdown);
-  const rating = getRating(autoScore);
+  const missingSources = [
+    ...(tasks.length ? [] : ['tasks']),
+    ...(attendance.length ? [] : ['attendance']),
+    ...(workReports.length ? [] : ['workReports']),
+  ];
+  // The existing formula depends on all three sources. Do not invent reweighting.
+  const dataStatus = missingSources.length ? 'INSUFFICIENT_DATA' : 'AVAILABLE';
+  const autoScore = missingSources.length ? null : buildAutoScore(scoreBreakdown);
+  const rating = missingSources.length ? 'Insufficient Data' : getRating(autoScore);
 
   return {
     employee: {
@@ -249,6 +257,8 @@ const calculateEmployeePerformance = async (employee, range) => {
     scoreBreakdown,
     autoScore,
     rating,
+    dataStatus,
+    missingSources,
   };
 };
 
@@ -267,10 +277,34 @@ const getOverview = async ({ page = 1, limit = 10, department, search, periodTyp
     User.countDocuments(query),
   ]);
 
-  const items = await Promise.all(employees.map((employee) => calculateEmployeePerformance(employee, range)));
-  const averageScore = items.length
-    ? round(items.reduce((sum, item) => sum + item.autoScore, 0) / items.length)
-    : 0;
+  const ids = employees.map((employee) => employee._id);
+  const [tasks, attendance, reports] = ids.length ? await Promise.all([
+    Task.find({
+      assignedTo: { $in: ids }, createdAt: { $lte: range.periodEnd },
+      $or: [
+        { createdAt: { $gte: range.periodStart, $lte: range.periodEnd } },
+        { dueDate: { $gte: range.periodStart, $lte: range.periodEnd } },
+        { completedDate: { $gte: range.periodStart, $lte: range.periodEnd } },
+      ],
+    }).select('assignedTo status completedDate dueDate actualHours startDate').lean(),
+    Attendance.find({ employee: { $in: ids }, date: { $gte: range.periodStart, $lte: range.periodEnd } })
+      .select('employee date status checkIn checkOut workHours').lean(),
+    WorkReport.find({ employee: { $in: ids }, reportDate: { $gte: range.periodStart, $lte: range.periodEnd } })
+      .select('employee reportDate totalHours status').lean(),
+  ]) : [[], [], []];
+  const group = (rows, key) => rows.reduce((map, row) => {
+    const id = String(row[key]);
+    if (!map.has(id)) map.set(id, []);
+    map.get(id).push(row);
+    return map;
+  }, new Map());
+  const grouped = [group(tasks, 'assignedTo'), group(attendance, 'employee'), group(reports, 'employee')];
+  const items = await Promise.all(employees.map((employee) =>
+    calculateEmployeePerformance(employee, range, grouped.map((map) => map.get(String(employee._id)) || []))));
+  const scored = items.filter((item) => item.autoScore !== null);
+  const averageScore = scored.length
+    ? round(scored.reduce((sum, item) => sum + item.autoScore, 0) / scored.length)
+    : null;
 
   const ratingCounts = items.reduce(
     (acc, item) => {
@@ -291,6 +325,9 @@ const getOverview = async ({ page = 1, limit = 10, department, search, periodTyp
     summary: {
       averageScore,
       employeeCount: items.length,
+      eligibleEmployeeCount: total,
+      scoredEmployeeCount: scored.length,
+      scope: 'current-page',
       ratingCounts,
       period: range,
     },
@@ -326,6 +363,8 @@ const upsertSnapshot = async ({ employeeId, periodType, startDate, endDate, gene
       workReportMetrics: summary.workReportMetrics,
       scoreBreakdown: summary.scoreBreakdown,
       autoScore: summary.autoScore,
+      dataStatus: summary.dataStatus,
+      missingSources: summary.missingSources,
       rating: summary.rating,
       generatedBy,
       generatedAt: new Date(),
@@ -389,6 +428,8 @@ const createAppraisalCycle = async ({ payload, createdBy }) => {
 };
 
 module.exports = {
+  calculateEmployeePerformance,
+  buildDateRange,
   getOverview,
   getEmployeeSummary,
   upsertSnapshot,

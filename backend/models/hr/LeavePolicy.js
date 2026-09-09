@@ -5,6 +5,9 @@ const leavePolicySchema = new mongoose.Schema(
     year: {
       type: Number,
       required: true,
+      min: 1900,
+      max: 2200,
+      validate: Number.isInteger,
       unique: true,
       index: true,
     },

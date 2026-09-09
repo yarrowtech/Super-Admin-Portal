@@ -122,7 +122,8 @@ const LeaveManagement = () => {
   };
 
   const handleReject = async (leaveId) => {
-    const rejectionReason = window.prompt('Rejection reason (optional)') || undefined;
+    const rejectionReason = window.prompt('Rejection reason (required)')?.trim();
+    if (!rejectionReason) return;
     try {
       setActionLoadingId(leaveId);
       await hrApi.rejectLeave(leaveId, { rejectionReason }, token);
@@ -236,7 +237,7 @@ const LeaveManagement = () => {
     );
 
     return [
-      { label: 'Yearly Remaining', summary: `${totals.remaining} / ${totals.quota} days`, percent: totals.quota ? Math.round((totals.remaining / totals.quota) * 100) : 0, bar: 'bg-primary' },
+      { label: 'Combined remaining (' + leaveBalances.length + ' employee balances)', summary: `${totals.remaining} / ${totals.quota} days`, percent: totals.quota ? Math.round((totals.remaining / totals.quota) * 100) : 0, bar: 'bg-primary' },
       { label: 'CL Remaining', summary: `${totals.clRemaining} days`, percent: 100, bar: 'bg-green-500' },
       { label: 'PL Remaining', summary: `${totals.plRemaining} days`, percent: 100, bar: 'bg-yellow-500' },
       { label: 'Sick Remaining', summary: `${totals.sickRemaining} days`, percent: 100, bar: 'bg-red-500' },

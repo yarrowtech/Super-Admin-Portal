@@ -25,6 +25,7 @@ const periodOptions = [
 // Maps the rating strings the backend already computes (performanceSystem.service.js
 // getRating — thresholds unchanged here) to display tone only.
 const ratingMeta = {
+  'Insufficient Data': { tone: 'neutral', bar: 'bg-neutral-400' },
   Excellent: { tone: 'success', bar: 'bg-emerald-500' },
   Good: { tone: 'info', bar: 'bg-sky-500' },
   Average: { tone: 'neutral', bar: 'bg-neutral-400' },
@@ -151,7 +152,7 @@ const Performance = () => {
   const stats = [
     {
       label: 'Average Score',
-      value: `${compactNumber(summary?.averageScore)} / 100`,
+      value: summary?.averageScore == null ? 'Insufficient data' : compactNumber(summary.averageScore) + ' / 100',
       context: `${summary?.employeeCount || 0} employees in current view`,
       icon: 'insights',
       tone: 'accent',
@@ -279,7 +280,7 @@ const Performance = () => {
         const meta = getRatingMeta(item.rating);
         return (
           <div className="w-24">
-            <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{compactNumber(item.autoScore)} / 100</p>
+            <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{item.autoScore == null ? 'Insufficient data' : compactNumber(item.autoScore) + ' / 100'}</p>
             <div className="mt-1.5">
               <ProgressBar value={item.autoScore} colorClass={meta.bar} />
             </div>
@@ -412,7 +413,7 @@ const Performance = () => {
                     </div>
                     <StatusBadge tone={meta.tone} label={snapshot.rating} dot={false} />
                   </div>
-                  <p className="mt-2.5 text-base font-bold text-neutral-900 dark:text-neutral-100">{compactNumber(snapshot.autoScore)} / 100</p>
+                  <p className="mt-2.5 text-base font-bold text-neutral-900 dark:text-neutral-100">{snapshot.autoScore == null ? 'Insufficient data' : compactNumber(snapshot.autoScore) + ' / 100'}</p>
                 </div>
               );
             })}

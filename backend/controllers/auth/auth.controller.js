@@ -552,6 +552,9 @@ exports.register = async (req, res) => {
     }
 
     const { email, password, role, firstName, lastName, phone, department } = req.body;
+    if (role !== ROLES.FREELANCER) {
+      return res.status(403).json({ success: false, error: 'Internal accounts must be created by an administrator', code: 'REGISTRATION_ROLE_FORBIDDEN' });
+    }
     const normalizedEmail = email?.trim().toLowerCase();
 
     // Check if user already exists

@@ -1,3 +1,4 @@
+const { submitLeave } = require('../../services/leaveWorkflow.service');
 const logger = require('../../utils/logger');
 // backend/controllers/dept/employee.controller.js
 const Task = require('../../models/common/Task');
@@ -546,67 +547,12 @@ exports.setAttendanceLocation = async (req, res) => {
  * @desc    Request leave
  * @access  Private (Employee only)
  */
-exports.requestLeave = async (req, res) => {
+exports.requestLeave = async (req, res, next) => {
   try {
-    const {
-      leaveType,
-      startDate,
-      endDate,
-      reason,
-      isHalfDay = false,
-      halfDaySession = null,
-      handoverNotes,
-      emergencyContact,
-    } = req.body || {};
-
-    const validation = await validateLeaveRequest({
-      employeeId: req.user._id,
-      leaveType,
-      startDate,
-      endDate,
-      isHalfDay,
-    });
-
-    const leave = await Leave.create({
-      employee: req.user._id,
-      leaveType,
-      startDate,
-      endDate,
-      totalDays: validation.totalDays,
-      deductedDays: validation.deductedDays,
-      year: validation.year,
-      isHalfDay: Boolean(isHalfDay || leaveType === 'half_day'),
-      halfDaySession: isHalfDay || leaveType === 'half_day' ? halfDaySession : null,
-      isPaidLeave: validation.isPaidLeave,
-      reason,
-      handoverNotes,
-      emergencyContact,
-      managerApprovalStatus: 'pending',
-      status: 'pending',
-    });
-
+    const leave = await submitLeave(req.user, req.body);
     await leave.populate('employee', 'firstName lastName email');
-    await logLeaveAction({
-      leave,
-      reviewer: req.user._id,
-      role: req.user.role || 'employee',
-      action: 'applied',
-      comment: reason,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Leave request submitted successfully',
-      data: leave
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Request leave error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to request leave',
-      details: error.message
-    });
-  }
+    res.status(201).json({ success: true, message: 'Leave request submitted successfully', data: leave });
+  } catch (error) { next(error); }
 };
 
 /**

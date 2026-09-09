@@ -1,3 +1,5 @@
+const { saveAttendance } = require('../../services/hrAttendance.service');
+const { submitLeave, reviewLeave } = require('../../services/leaveWorkflow.service');
 const logger = require('../../utils/logger');
 // backend/controllers/dept/hr.controller.js
 const mongoose = require('mongoose');
@@ -19,7 +21,7 @@ const Complaint = require('../../models/hr/Complaint');
 // technical debt instead. Holiday, AppraisalCycle, and AppraisalReview were
 // promoted to real models because they ARE read by live pages (Holiday
 // Calendar; the HR Dashboard's "Active cycles"/"Reviews" tile).
-const Department = require('../../models/hr/EmployeeRecord');
+const Department = require('../../models/department/Department');
 const Task = require('../../models/common/Task');
 const Designation = require('../../models/hr/EmployeeRecord');
 const EmployeeDocument = require('../../models/employee/EmployeeDocument');
@@ -37,6 +39,7 @@ const PolicyAcknowledgement = require('../../models/hr/EmployeeRecord');
 const SupportTicket = require('../../models/common/Notification');
 const ExitInterview = require('../../models/hr/EmployeeRecord');
 const { ROLES } = require('../../config/roles');
+const { employeeScope } = require('../../services/employeeScope.service');
 const { getDepartmentForRole } = require('../../utils/roleAllocation');
 const { getCache, setCache } = require('../../services/cache.service');
 const { evaluateAttendanceRecord } = require('../../utils/shiftRules');
@@ -231,30 +234,27 @@ exports.getDashboard = async (req, res) => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const safeCount = async (fn) => {
-      try {
-        return await fn();
-      } catch {
-        return 0;
-      }
-    };
+    const safeCount = (fn) => fn(); // Query failures must surface, never become fabricated zero counts.
 
     const [totalEmployees, activeEmployees, pendingApplicants, pendingLeaves, todayAttendance, openComplaints] = await Promise.all([
-      User.countDocuments({ role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] } }),
-      User.countDocuments({ role: { $nin: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO] }, isActive: true }),
-      safeCount(() => Applicant.countDocuments({ status: 'pending' })),
+      User.countDocuments(employeeScope()),
+      User.countDocuments(employeeScope({ activeOnly: true })),
+      safeCount(() => Applicant.countDocuments({ status: { $in: ['pending', 'applied', 'screening', 'interview', 'offered'] } })),
       Leave.countDocuments({ status: 'pending' }),
-      Attendance.countDocuments({ date: { $gte: dayStart, $lte: dayEnd } }),
+      Attendance.aggregate([
+        { $match: { date: { $gte: dayStart, $lte: dayEnd }, status: { $in: ['present', 'late', 'half-day'] }, checkIn: { $ne: null }, $expr: { $ne: ['$checkIn', '$checkOut'] } } },
+        { $lookup: { from: User.collection.name, localField: 'employee', foreignField: '_id', as: 'account' } },
+        { $unwind: '$account' },
+        { $match: Object.fromEntries(Object.entries(employeeScope({ activeOnly: true })).map(([key, value]) => ['account.' + key, value])) },
+        { $group: { _id: '$employee' } }, { $count: 'total' },
+      ]).then((rows) => rows[0]?.total || 0),
       safeCount(() => Complaint.countDocuments({ status: { $in: ['pending', 'investigating'] } })),
     ]);
 
     const [monthAttendanceRecords, tasks] = await Promise.all([
-      Attendance.find({ date: { $gte: monthStart, $lte: monthEnd } }).select('status workHours date employee'),
+      Attendance.find({ date: { $gte: monthStart, $lte: monthEnd } }).select('status workHours date employee checkIn checkOut').populate('employee', 'department'),
       safeCount(async () =>
-        Task.find({})
-          .select('status createdAt')
-          .sort({ createdAt: -1 })
-          .limit(1000)
+        Task.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }])
       ),
     ]);
 
@@ -281,14 +281,14 @@ exports.getDashboard = async (req, res) => {
     });
     attendanceSummary.totalWorkHours = Math.round(attendanceSummary.totalWorkHours * 100) / 100;
 
-    const taskRows = Array.isArray(tasks) ? tasks : [];
+    const counts = Object.fromEntries(tasks.map((row) => [row._id, row.count]));
     const tasksSummary = {
-      total: taskRows.length,
-      pending: taskRows.filter((item) => item?.status === 'pending').length,
-      inProgress: taskRows.filter((item) => ['in-progress', 'in_progress'].includes(String(item?.status || '').toLowerCase())).length,
-      review: taskRows.filter((item) => ['review', 'in-review', 'in_review'].includes(String(item?.status || '').toLowerCase())).length,
-      completed: taskRows.filter((item) => String(item?.status || '').toLowerCase() === 'completed').length,
-      cancelled: taskRows.filter((item) => String(item?.status || '').toLowerCase() === 'cancelled').length,
+      total: tasks.reduce((sum, row) => sum + row.count, 0),
+      pending: counts.pending || 0,
+      inProgress: (counts['in-progress'] || 0) + (counts.in_progress || 0),
+      review: (counts.review || 0) + (counts['in-review'] || 0) + (counts.in_review || 0),
+      completed: counts.completed || 0,
+      cancelled: counts.cancelled || 0,
     };
 
     const [appraisalCyclesTotal, appraisalCyclesActive, appraisalReviewsTotal, performanceReviewsTotal] = await Promise.all([
@@ -298,9 +298,19 @@ exports.getDashboard = async (req, res) => {
       safeCount(() => Performance.countDocuments({})),
     ]);
 
+    const [departmentStats, usersByRole, pendingWorkUpdates] = await Promise.all([
+      User.aggregate([{ $match: employeeScope() }, { $group: { _id: '$department', count: { $sum: 1 } } }]),
+      User.aggregate([{ $match: employeeScope() }, { $group: { _id: '$role', count: { $sum: 1 } } }]),
+      WorkReport.countDocuments({ status: 'submitted' }),
+    ]);
     res.status(200).json({
       success: true,
       data: {
+        departmentStats,
+        usersByRole,
+        totalDepartments: departmentStats.length,
+        workUpdates: { pending: pendingWorkUpdates, definition: 'Submitted work reports awaiting review' },
+        workforceDefinition: 'Non-platform user accounts, including freelancers; applicants excluded',
         totalEmployees,
         activeEmployees,
         employeeSummary: {
@@ -339,8 +349,7 @@ exports.getDashboard = async (req, res) => {
     logger.error({ err: error }, 'HR dashboard error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch HR dashboard',
-      details: error.message
+      error: 'Failed to fetch HR dashboard'
     });
   }
 };
@@ -387,8 +396,7 @@ exports.getApplicants = async (req, res) => {
     logger.error({ err: error }, 'Get applicants error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch applicants',
-      details: error.message
+      error: 'Failed to fetch applicants'
     });
   }
 };
@@ -414,8 +422,7 @@ exports.createApplicant = async (req, res) => {
     logger.error({ err: error }, 'Create applicant error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create applicant',
-      details: error.message
+      error: 'Failed to create applicant'
     });
   }
 };
@@ -445,8 +452,7 @@ exports.getApplicantById = async (req, res) => {
     logger.error({ err: error }, 'Get applicant error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch applicant',
-      details: error.message
+      error: 'Failed to fetch applicant'
     });
   }
 };
@@ -480,8 +486,7 @@ exports.updateApplicant = async (req, res) => {
     logger.error({ err: error }, 'Update applicant error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update applicant',
-      details: error.message
+      error: 'Failed to update applicant'
     });
   }
 };
@@ -510,8 +515,7 @@ exports.deleteApplicant = async (req, res) => {
     logger.error({ err: error }, 'Delete applicant error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete applicant',
-      details: error.message
+      error: 'Failed to delete applicant'
     });
   }
 };
@@ -597,8 +601,7 @@ exports.getAttendance = async (req, res) => {
     logger.error({ err: error }, 'Get attendance error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch attendance',
-      details: error.message
+      error: 'Failed to fetch attendance'
     });
   }
 };
@@ -608,28 +611,11 @@ exports.getAttendance = async (req, res) => {
  * @desc    Create attendance record
  * @access  Private (HR only)
  */
-exports.createAttendance = async (req, res) => {
+exports.createAttendance = async (req, res, next) => {
   try {
-    const attendance = await Attendance.create({
-      ...req.body,
-      approvedBy: req.user._id
-    });
-
-    await attendance.populate('employee', 'firstName lastName email');
-
-    res.status(201).json({
-      success: true,
-      message: 'Attendance record created successfully',
-      data: attendance
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Create attendance error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create attendance record',
-      details: error.message
-    });
-  }
+    const attendance = await saveAttendance(null, req.body, req.user);
+    res.status(201).json({ success: true, data: attendance, message: 'Attendance saved successfully' });
+  } catch (error) { next(error); }
 };
 
 /**
@@ -637,34 +623,11 @@ exports.createAttendance = async (req, res) => {
  * @desc    Update attendance record
  * @access  Private (HR only)
  */
-exports.updateAttendance = async (req, res) => {
+exports.updateAttendance = async (req, res, next) => {
   try {
-    const attendance = await Attendance.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    ).populate('employee', 'firstName lastName email');
-
-    if (!attendance) {
-      return res.status(404).json({
-        success: false,
-        error: 'Attendance record not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Attendance record updated successfully',
-      data: attendance
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Update attendance error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update attendance record',
-      details: error.message
-    });
-  }
+    const attendance = await saveAttendance(req.params.id, req.body, req.user);
+    res.status(200).json({ success: true, data: attendance, message: 'Attendance saved successfully' });
+  } catch (error) { next(error); }
 };
 
 /**
@@ -695,8 +658,7 @@ exports.getEmployeeAttendance = async (req, res) => {
     logger.error({ err: error }, 'Get employee attendance error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch employee attendance',
-      details: error.message
+      error: 'Failed to fetch employee attendance'
     });
   }
 };
@@ -756,8 +718,7 @@ exports.getEmployees = async (req, res) => {
     logger.error({ err: error }, 'HR employees error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch employees',
-      details: error.message
+      error: 'Failed to fetch employees'
     });
   }
 };
@@ -771,28 +732,12 @@ exports.getEmployees = async (req, res) => {
  * @desc    Request leave for current HR user
  * @access  Private (HR only)
  */
-exports.requestLeave = async (req, res) => {
+exports.requestLeave = async (req, res, next) => {
   try {
-    const leave = await Leave.create({
-      ...req.body,
-      employee: req.user._id
-    });
-
+    const leave = await submitLeave(req.user, req.body);
     await leave.populate('employee', 'firstName lastName email');
-
-    res.status(201).json({
-      success: true,
-      message: 'Leave request submitted successfully',
-      data: leave
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'HR request leave error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to request leave',
-      details: error.message
-    });
-  }
+    res.status(201).json({ success: true, message: 'Leave request submitted successfully', data: leave });
+  } catch (error) { next(error); }
 };
 
 /**
@@ -834,8 +779,7 @@ exports.getLeaveRequests = async (req, res) => {
     logger.error({ err: error }, 'Get leave requests error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch leave requests',
-      details: error.message
+      error: 'Failed to fetch leave requests'
     });
   }
 };
@@ -845,57 +789,14 @@ exports.getLeaveRequests = async (req, res) => {
  * @desc    Approve leave request
  * @access  Private (HR only)
  */
-exports.approveLeave = async (req, res) => {
+exports.approveLeave = async (req, res, next) => {
   try {
-    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
-
-    if (!leave) {
-      return res.status(404).json({
-        success: false,
-        error: 'Leave request not found'
-      });
-    }
-
-    if (!['pending', 'manager-approved'].includes(leave.status)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Leave request is not awaiting HR approval'
-      });
-    }
-
-    if (leave.managerApprovalStatus === 'pending') {
-      leave.managerApprovalStatus = 'bypassed';
-    }
-
-    leave.status = 'approved';
-    leave.approvedBy = req.user._id;
-    leave.approvedDate = Date.now();
-    await leave.save();
-    await syncLeaveAttendance(leave);
-    await logLeaveAction({
-      leave,
-      reviewer: req.user._id,
-      role: req.user.role || 'hr',
-      action: 'hr-approved',
+    const { leave, balance } = await reviewLeave({
+      id: req.params.id, actor: req.user, approve: true, rejectionReason: req.body.rejectionReason,
     });
-    const { balance } = await recomputeLeaveBalance(leave.employee?._id || leave.employee, leave.year || new Date(leave.startDate).getFullYear());
-
-    res.status(200).json({
-      success: true,
-      message: 'Leave request approved successfully',
-      data: leave,
-      meta: {
-        leaveBalance: balance
-      }
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Approve leave error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to approve leave request',
-      details: error.message
-    });
-  }
+    await leave.populate('employee', 'firstName lastName email');
+    res.status(200).json({ success: true, message: 'Leave request reviewed successfully', data: leave, meta: { leaveBalance: balance } });
+  } catch (error) { next(error); }
 };
 
 /**
@@ -903,58 +804,14 @@ exports.approveLeave = async (req, res) => {
  * @desc    Reject leave request
  * @access  Private (HR only)
  */
-exports.rejectLeave = async (req, res) => {
+exports.rejectLeave = async (req, res, next) => {
   try {
-    const { rejectionReason } = req.body;
-    const leave = await Leave.findById(req.params.id).populate('employee', 'firstName lastName email');
-
-    if (!leave) {
-      return res.status(404).json({
-        success: false,
-        error: 'Leave request not found'
-      });
-    }
-
-    if (!['pending', 'manager-approved'].includes(leave.status)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Leave request is not awaiting HR approval'
-      });
-    }
-
-    leave.status = 'rejected';
-    leave.approvedBy = req.user._id;
-    leave.approvedDate = Date.now();
-    leave.rejectionReason = rejectionReason;
-    if (leave.managerApprovalStatus === 'pending') {
-      leave.managerApprovalStatus = 'bypassed';
-    }
-    await leave.save();
-    await logLeaveAction({
-      leave,
-      reviewer: req.user._id,
-      role: req.user.role || 'hr',
-      action: 'hr-rejected',
-      comment: rejectionReason,
+    const { leave, balance } = await reviewLeave({
+      id: req.params.id, actor: req.user, approve: false, rejectionReason: req.body.rejectionReason,
     });
-    const { balance } = await recomputeLeaveBalance(leave.employee?._id || leave.employee, leave.year || new Date(leave.startDate).getFullYear());
-
-    res.status(200).json({
-      success: true,
-      message: 'Leave request rejected',
-      data: leave,
-      meta: {
-        leaveBalance: balance
-      }
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Reject leave error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to reject leave request',
-      details: error.message
-    });
-  }
+    await leave.populate('employee', 'firstName lastName email');
+    res.status(200).json({ success: true, message: 'Leave request reviewed successfully', data: leave, meta: { leaveBalance: balance } });
+  } catch (error) { next(error); }
 };
 
 /**
@@ -1022,8 +879,7 @@ exports.getNotices = async (req, res) => {
     logger.error({ err: error }, 'Get notices error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch notices',
-      details: error.message
+      error: 'Failed to fetch notices'
     });
   }
 };
@@ -1153,8 +1009,7 @@ exports.createNotice = async (req, res) => {
     logger.error({ err: error }, 'Create notice error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create notice',
-      details: error.message
+      error: 'Failed to create notice'
     });
   }
 };
@@ -1297,8 +1152,7 @@ exports.updateNotice = async (req, res) => {
     logger.error({ err: error }, 'Update notice error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update notice',
-      details: error.message
+      error: 'Failed to update notice'
     });
   }
 };
@@ -1332,8 +1186,7 @@ exports.deleteNotice = async (req, res) => {
     logger.error({ err: error }, 'Delete notice error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete notice',
-      details: error.message
+      error: 'Failed to delete notice'
     });
   }
 };
@@ -1379,8 +1232,7 @@ exports.getPerformanceReviews = async (req, res) => {
     logger.error({ err: error }, 'Get performance reviews error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch performance reviews',
-      details: error.message
+      error: 'Failed to fetch performance reviews'
     });
   }
 };
@@ -1408,8 +1260,7 @@ exports.createPerformanceReview = async (req, res) => {
     logger.error({ err: error }, 'Create performance review error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create performance review',
-      details: error.message
+      error: 'Failed to create performance review'
     });
   }
 };
@@ -1445,8 +1296,7 @@ exports.updatePerformanceReview = async (req, res) => {
     logger.error({ err: error }, 'Update performance review error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update performance review',
-      details: error.message
+      error: 'Failed to update performance review'
     });
   }
 };
@@ -1493,8 +1343,7 @@ exports.getTasks = async (req, res) => {
     logger.error({ err: error }, 'HR get tasks error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch tasks',
-      details: error.message
+      error: 'Failed to fetch tasks'
     });
   }
 };
@@ -1534,8 +1383,7 @@ exports.createTask = async (req, res) => {
     logger.error({ err: error }, 'HR create task error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create task',
-      details: error.message
+      error: 'Failed to create task'
     });
   }
 };
@@ -1586,8 +1434,7 @@ exports.updateTask = async (req, res) => {
     logger.error({ err: error }, 'HR update task error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update task',
-      details: error.message
+      error: 'Failed to update task'
     });
   }
 };
@@ -1619,8 +1466,7 @@ exports.closeTask = async (req, res) => {
     logger.error({ err: error }, 'HR close task error');
     res.status(500).json({
       success: false,
-      error: 'Failed to close task',
-      details: error.message
+      error: 'Failed to close task'
     });
   }
 };
@@ -1720,8 +1566,7 @@ exports.getWorkReports = async (req, res) => {
     logger.error({ err: error }, 'Get work reports error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch work reports',
-      details: error.message
+      error: 'Failed to fetch work reports'
     });
   }
 };
@@ -1764,8 +1609,7 @@ exports.reviewWorkReport = async (req, res) => {
     logger.error({ err: error }, 'Review work report error');
     res.status(500).json({
       success: false,
-      error: 'Failed to review work report',
-      details: error.message
+      error: 'Failed to review work report'
     });
   }
 };
@@ -1812,8 +1656,7 @@ exports.getComplaints = async (req, res) => {
     logger.error({ err: error }, 'Get complaints error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch complaints',
-      details: error.message
+      error: 'Failed to fetch complaints'
     });
   }
 };
@@ -1846,8 +1689,7 @@ exports.getComplaintById = async (req, res) => {
     logger.error({ err: error }, 'Get complaint error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch complaint',
-      details: error.message
+      error: 'Failed to fetch complaint'
     });
   }
 };
@@ -1885,8 +1727,7 @@ exports.assignComplaint = async (req, res) => {
     logger.error({ err: error }, 'Assign complaint error');
     res.status(500).json({
       success: false,
-      error: 'Failed to assign complaint',
-      details: error.message
+      error: 'Failed to assign complaint'
     });
   }
 };
@@ -1929,8 +1770,7 @@ exports.resolveComplaint = async (req, res) => {
     logger.error({ err: error }, 'Resolve complaint error');
     res.status(500).json({
       success: false,
-      error: 'Failed to resolve complaint',
-      details: error.message
+      error: 'Failed to resolve complaint'
     });
   }
 };
@@ -1976,8 +1816,7 @@ exports.addComplaintComment = async (req, res) => {
     logger.error({ err: error }, 'Add comment error');
     res.status(500).json({
       success: false,
-      error: 'Failed to add comment',
-      details: error.message
+      error: 'Failed to add comment'
     });
   }
 };
@@ -2070,8 +1909,7 @@ exports.createEmployee = async (req, res) => {
     logger.error({ err: error }, 'Create employee error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create employee',
-      details: error.message
+      error: 'Failed to create employee'
     });
   }
 };
@@ -2174,8 +2012,7 @@ exports.updateEmployee = async (req, res) => {
     logger.error({ err: error }, 'Update employee error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update employee',
-      details: error.message
+      error: 'Failed to update employee'
     });
   }
 };
@@ -2220,8 +2057,7 @@ exports.deleteEmployee = async (req, res) => {
     logger.error({ err: error }, 'Delete employee error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete employee',
-      details: error.message
+      error: 'Failed to delete employee'
     });
   }
 };
@@ -2262,8 +2098,7 @@ exports.toggleEmployeeStatus = async (req, res) => {
     logger.error({ err: error }, 'Toggle employee status error');
     res.status(500).json({
       success: false,
-      error: 'Failed to toggle employee status',
-      details: error.message
+      error: 'Failed to toggle employee status'
     });
   }
 };
@@ -2277,7 +2112,23 @@ exports.getDepartments = async (req, res) => {
     const query = {};
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
-    const departments = await Department.find(query).sort({ name: 1 });
+    const [stored, counts] = await Promise.all([
+      Department.find(query).sort({ name: 1 }).lean(),
+      User.aggregate([{ $match: employeeScope() }, { $group: {
+        _id: '$department', employeeCount: { $sum: 1 },
+        activeCount: { $sum: { $cond: [{ $and: [
+          { $eq: ['$isActive', true] },
+          { $not: [{ $in: ['$accountStatus', ['inactive', 'suspended', 'blocked', 'pending_verification']] }] },
+        ] }, 1, 0] } },
+      } }]),
+    ]);
+    const byName = new Map(stored.map((department) => [department.name, { ...department, employeeCount: 0, activeCount: 0 }]));
+    for (const count of counts) {
+      const name = count._id || 'Unassigned';
+      if (!byName.has(name) && isActive === undefined) byName.set(name, { name });
+      if (byName.has(name)) Object.assign(byName.get(name), { employeeCount: count.employeeCount, activeCount: count.activeCount });
+    }
+    const departments = Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
     res.status(200).json({
       success: true,
       data: departments
@@ -2286,8 +2137,7 @@ exports.getDepartments = async (req, res) => {
     logger.error({ err: error }, 'Get departments error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch departments',
-      details: error.message
+      error: 'Failed to fetch departments'
     });
   }
 };
@@ -2304,8 +2154,7 @@ exports.createDepartment = async (req, res) => {
     logger.error({ err: error }, 'Create department error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create department',
-      details: error.message
+      error: 'Failed to create department'
     });
   }
 };
@@ -2332,33 +2181,17 @@ exports.updateDepartment = async (req, res) => {
     logger.error({ err: error }, 'Update department error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update department',
-      details: error.message
+      error: 'Failed to update department'
     });
   }
 };
 
-exports.deleteDepartment = async (req, res) => {
+exports.deleteDepartment = async (req, res, next) => {
   try {
-    const department = await Department.findByIdAndDelete(req.params.id);
-    if (!department) {
-      return res.status(404).json({
-        success: false,
-        error: 'Department not found'
-      });
-    }
-    res.status(200).json({
-      success: true,
-      message: 'Department deleted successfully'
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Delete department error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete department',
-      details: error.message
-    });
-  }
+    const department = await Department.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
+    if (!department) return res.status(404).json({ success: false, error: 'Department not found' });
+    res.status(200).json({ success: true, message: 'Department archived', data: department });
+  } catch (error) { next(error); }
 };
 
 /**
@@ -2380,8 +2213,7 @@ exports.getDesignations = async (req, res) => {
     logger.error({ err: error }, 'Get designations error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch designations',
-      details: error.message
+      error: 'Failed to fetch designations'
     });
   }
 };
@@ -2398,8 +2230,7 @@ exports.createDesignation = async (req, res) => {
     logger.error({ err: error }, 'Create designation error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create designation',
-      details: error.message
+      error: 'Failed to create designation'
     });
   }
 };
@@ -2426,8 +2257,7 @@ exports.updateDesignation = async (req, res) => {
     logger.error({ err: error }, 'Update designation error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update designation',
-      details: error.message
+      error: 'Failed to update designation'
     });
   }
 };
@@ -2449,8 +2279,7 @@ exports.deleteDesignation = async (req, res) => {
     logger.error({ err: error }, 'Delete designation error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete designation',
-      details: error.message
+      error: 'Failed to delete designation'
     });
   }
 };
@@ -2477,8 +2306,7 @@ exports.getEmployeeDocuments = async (req, res) => {
     logger.error({ err: error }, 'Get employee documents error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch employee documents',
-      details: error.message
+      error: 'Failed to fetch employee documents'
     });
   }
 };
@@ -2496,8 +2324,7 @@ exports.createEmployeeDocument = async (req, res) => {
     logger.error({ err: error }, 'Create employee document error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create employee document',
-      details: error.message
+      error: 'Failed to create employee document'
     });
   }
 };
@@ -2524,8 +2351,7 @@ exports.updateEmployeeDocument = async (req, res) => {
     logger.error({ err: error }, 'Update employee document error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update employee document',
-      details: error.message
+      error: 'Failed to update employee document'
     });
   }
 };
@@ -2547,8 +2373,7 @@ exports.deleteEmployeeDocument = async (req, res) => {
     logger.error({ err: error }, 'Delete employee document error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete employee document',
-      details: error.message
+      error: 'Failed to delete employee document'
     });
   }
 };
@@ -2575,8 +2400,7 @@ exports.getBiometricEnrollments = async (req, res) => {
     logger.error({ err: error }, 'Get biometric enrollments error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch biometric enrollments',
-      details: error.message
+      error: 'Failed to fetch biometric enrollments'
     });
   }
 };
@@ -2594,8 +2418,7 @@ exports.createBiometricEnrollment = async (req, res) => {
     logger.error({ err: error }, 'Create biometric enrollment error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create biometric enrollment',
-      details: error.message
+      error: 'Failed to create biometric enrollment'
     });
   }
 };
@@ -2622,8 +2445,7 @@ exports.updateBiometricEnrollment = async (req, res) => {
     logger.error({ err: error }, 'Update biometric enrollment error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update biometric enrollment',
-      details: error.message
+      error: 'Failed to update biometric enrollment'
     });
   }
 };
@@ -2645,8 +2467,7 @@ exports.deleteBiometricEnrollment = async (req, res) => {
     logger.error({ err: error }, 'Delete biometric enrollment error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete biometric enrollment',
-      details: error.message
+      error: 'Failed to delete biometric enrollment'
     });
   }
 };
@@ -2659,7 +2480,7 @@ exports.getLeavePolicies = async (req, res) => {
     const { year, isActive } = req.query;
     const query = {};
     if (year) query.year = Number(year);
-    if (isActive !== undefined) query.isActive = isActive === 'true';
+    if (isActive !== undefined) query.active = isActive === 'true';
 
     const policies = await LeavePolicy.find(query).sort({ year: -1, createdAt: -1 });
     res.status(200).json({
@@ -2670,34 +2491,18 @@ exports.getLeavePolicies = async (req, res) => {
     logger.error({ err: error }, 'Get leave policies error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch leave policies',
-      details: error.message
+      error: 'Failed to fetch leave policies'
     });
   }
 };
 
-exports.createLeavePolicy = async (req, res) => {
+exports.createLeavePolicy = async (req, res, next) => {
   try {
-    const { year } = req.body || {};
-    await ensurePolicy(Number(year) || new Date().getFullYear());
-    const policy = await LeavePolicy.findOneAndUpdate(
-      { year: Number(year) || new Date().getFullYear() },
-      req.body,
-      { new: true, runValidators: true }
-    );
-    res.status(201).json({
-      success: true,
-      message: 'Leave policy created successfully',
-      data: policy
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'Create leave policy error');
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create leave policy',
-      details: error.message
-    });
-  }
+    const fields = ['year', 'clDays', 'plDays', 'sickDays', 'yearlyPaidLeaveLimit', 'plCarryForwardLimit', 'excludeWeekends', 'excludeHolidays', 'sandwichRuleEnabled', 'active', 'notes'];
+    const payload = Object.fromEntries(fields.filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]]));
+    const policy = await LeavePolicy.create(payload);
+    res.status(201).json({ success: true, data: policy, message: 'Leave policy created successfully' });
+  } catch (error) { next(error); }
 };
 
 exports.updateLeavePolicy = async (req, res) => {
@@ -2722,8 +2527,7 @@ exports.updateLeavePolicy = async (req, res) => {
     logger.error({ err: error }, 'Update leave policy error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update leave policy',
-      details: error.message
+      error: 'Failed to update leave policy'
     });
   }
 };
@@ -2745,8 +2549,7 @@ exports.deleteLeavePolicy = async (req, res) => {
     logger.error({ err: error }, 'Delete leave policy error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete leave policy',
-      details: error.message
+      error: 'Failed to delete leave policy'
     });
   }
 };
@@ -2808,8 +2611,7 @@ exports.getUserProfiles = async (req, res) => {
     logger.error({ err: error }, 'HR get user profiles error');
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch user profiles',
-      details: error.message
+      error: 'Failed to fetch user profiles'
     });
   }
 };
@@ -2852,8 +2654,7 @@ exports.getUserProfileById = async (req, res) => {
     logger.error({ err: error }, 'HR get user profile detail error');
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch user profile',
-      details: error.message
+      error: 'Failed to fetch user profile'
     });
   }
 };
@@ -2910,8 +2711,7 @@ exports.addUserInternalNote = async (req, res) => {
     logger.error({ err: error }, 'HR add user internal note error');
     return res.status(500).json({
       success: false,
-      error: 'Failed to add internal note',
-      details: error.message
+      error: 'Failed to add internal note'
     });
   }
 };
@@ -2948,8 +2748,7 @@ exports.getLeaveBalances = async (req, res) => {
     logger.error({ err: error }, 'Get leave balances error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch leave balances',
-      details: error.message
+      error: 'Failed to fetch leave balances'
     });
   }
 };
@@ -2977,8 +2776,7 @@ exports.getHolidays = async (req, res) => {
     logger.error({ err: error }, 'Get holidays error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch holidays',
-      details: error.message
+      error: 'Failed to fetch holidays'
     });
   }
 };
@@ -2995,8 +2793,7 @@ exports.createHoliday = async (req, res) => {
     logger.error({ err: error }, 'Create holiday error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create holiday',
-      details: error.message
+      error: 'Failed to create holiday'
     });
   }
 };
@@ -3023,8 +2820,7 @@ exports.updateHoliday = async (req, res) => {
     logger.error({ err: error }, 'Update holiday error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update holiday',
-      details: error.message
+      error: 'Failed to update holiday'
     });
   }
 };
@@ -3046,8 +2842,7 @@ exports.deleteHoliday = async (req, res) => {
     logger.error({ err: error }, 'Delete holiday error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete holiday',
-      details: error.message
+      error: 'Failed to delete holiday'
     });
   }
 };
@@ -3074,8 +2869,7 @@ exports.getJobPosts = async (req, res) => {
     logger.error({ err: error }, 'Get job posts error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch job posts',
-      details: error.message
+      error: 'Failed to fetch job posts'
     });
   }
 };
@@ -3100,8 +2894,7 @@ exports.createJobPost = async (req, res) => {
     logger.error({ err: error }, 'Create job post error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create job post',
-      details: error.message
+      error: 'Failed to create job post'
     });
   }
 };
@@ -3128,8 +2921,7 @@ exports.updateJobPost = async (req, res) => {
     logger.error({ err: error }, 'Update job post error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update job post',
-      details: error.message
+      error: 'Failed to update job post'
     });
   }
 };
@@ -3151,8 +2943,7 @@ exports.deleteJobPost = async (req, res) => {
     logger.error({ err: error }, 'Delete job post error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete job post',
-      details: error.message
+      error: 'Failed to delete job post'
     });
   }
 };
@@ -3185,8 +2976,7 @@ exports.getInterviews = async (req, res) => {
     logger.error({ err: error }, 'Get interviews error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch interviews',
-      details: error.message
+      error: 'Failed to fetch interviews'
     });
   }
 };
@@ -3204,8 +2994,7 @@ exports.createInterview = async (req, res) => {
     logger.error({ err: error }, 'Create interview error');
     res.status(500).json({
       success: false,
-      error: 'Failed to schedule interview',
-      details: error.message
+      error: 'Failed to schedule interview'
     });
   }
 };
@@ -3236,8 +3025,7 @@ exports.updateInterview = async (req, res) => {
     logger.error({ err: error }, 'Update interview error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update interview',
-      details: error.message
+      error: 'Failed to update interview'
     });
   }
 };
@@ -3259,8 +3047,7 @@ exports.deleteInterview = async (req, res) => {
     logger.error({ err: error }, 'Delete interview error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete interview',
-      details: error.message
+      error: 'Failed to delete interview'
     });
   }
 };
@@ -3287,8 +3074,7 @@ exports.getOffers = async (req, res) => {
     logger.error({ err: error }, 'Get offers error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch offers',
-      details: error.message
+      error: 'Failed to fetch offers'
     });
   }
 };
@@ -3306,8 +3092,7 @@ exports.createOffer = async (req, res) => {
     logger.error({ err: error }, 'Create offer error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create offer',
-      details: error.message
+      error: 'Failed to create offer'
     });
   }
 };
@@ -3334,8 +3119,7 @@ exports.updateOffer = async (req, res) => {
     logger.error({ err: error }, 'Update offer error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update offer',
-      details: error.message
+      error: 'Failed to update offer'
     });
   }
 };
@@ -3357,8 +3141,7 @@ exports.deleteOffer = async (req, res) => {
     logger.error({ err: error }, 'Delete offer error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete offer',
-      details: error.message
+      error: 'Failed to delete offer'
     });
   }
 };
@@ -3381,8 +3164,7 @@ exports.getAppraisalCycles = async (req, res) => {
     logger.error({ err: error }, 'Get appraisal cycles error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch appraisal cycles',
-      details: error.message
+      error: 'Failed to fetch appraisal cycles'
     });
   }
 };
@@ -3399,8 +3181,7 @@ exports.createAppraisalCycle = async (req, res) => {
     logger.error({ err: error }, 'Create appraisal cycle error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create appraisal cycle',
-      details: error.message
+      error: 'Failed to create appraisal cycle'
     });
   }
 };
@@ -3427,8 +3208,7 @@ exports.updateAppraisalCycle = async (req, res) => {
     logger.error({ err: error }, 'Update appraisal cycle error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update appraisal cycle',
-      details: error.message
+      error: 'Failed to update appraisal cycle'
     });
   }
 };
@@ -3450,8 +3230,7 @@ exports.deleteAppraisalCycle = async (req, res) => {
     logger.error({ err: error }, 'Delete appraisal cycle error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete appraisal cycle',
-      details: error.message
+      error: 'Failed to delete appraisal cycle'
     });
   }
 };
@@ -3481,8 +3260,7 @@ exports.getAppraisalReviews = async (req, res) => {
     logger.error({ err: error }, 'Get appraisal reviews error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch appraisal reviews',
-      details: error.message
+      error: 'Failed to fetch appraisal reviews'
     });
   }
 };
@@ -3503,8 +3281,7 @@ exports.createAppraisalReview = async (req, res) => {
     logger.error({ err: error }, 'Create appraisal review error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create appraisal review',
-      details: error.message
+      error: 'Failed to create appraisal review'
     });
   }
 };
@@ -3536,8 +3313,7 @@ exports.updateAppraisalReview = async (req, res) => {
     logger.error({ err: error }, 'Update appraisal review error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update appraisal review',
-      details: error.message
+      error: 'Failed to update appraisal review'
     });
   }
 };
@@ -3559,8 +3335,7 @@ exports.deleteAppraisalReview = async (req, res) => {
     logger.error({ err: error }, 'Delete appraisal review error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete appraisal review',
-      details: error.message
+      error: 'Failed to delete appraisal review'
     });
   }
 };
@@ -3587,8 +3362,7 @@ exports.getPolicies = async (req, res) => {
     logger.error({ err: error }, 'Get policies error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch policies',
-      details: error.message
+      error: 'Failed to fetch policies'
     });
   }
 };
@@ -3609,8 +3383,7 @@ exports.createPolicy = async (req, res) => {
     logger.error({ err: error }, 'Create policy error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create policy',
-      details: error.message
+      error: 'Failed to create policy'
     });
   }
 };
@@ -3637,8 +3410,7 @@ exports.updatePolicy = async (req, res) => {
     logger.error({ err: error }, 'Update policy error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update policy',
-      details: error.message
+      error: 'Failed to update policy'
     });
   }
 };
@@ -3660,8 +3432,7 @@ exports.deletePolicy = async (req, res) => {
     logger.error({ err: error }, 'Delete policy error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete policy',
-      details: error.message
+      error: 'Failed to delete policy'
     });
   }
 };
@@ -3689,8 +3460,7 @@ exports.getPolicyAcknowledgements = async (req, res) => {
     logger.error({ err: error }, 'Get policy acknowledgements error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch policy acknowledgements',
-      details: error.message
+      error: 'Failed to fetch policy acknowledgements'
     });
   }
 };
@@ -3709,8 +3479,7 @@ exports.createPolicyAcknowledgement = async (req, res) => {
     logger.error({ err: error }, 'Create policy acknowledgement error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create policy acknowledgement',
-      details: error.message
+      error: 'Failed to create policy acknowledgement'
     });
   }
 };
@@ -3732,8 +3501,7 @@ exports.deletePolicyAcknowledgement = async (req, res) => {
     logger.error({ err: error }, 'Delete policy acknowledgement error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete policy acknowledgement',
-      details: error.message
+      error: 'Failed to delete policy acknowledgement'
     });
   }
 };
@@ -3772,8 +3540,7 @@ exports.getSupportTickets = async (req, res) => {
     logger.error({ err: error }, 'Get support tickets error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch support tickets',
-      details: error.message
+      error: 'Failed to fetch support tickets'
     });
   }
 };
@@ -3791,8 +3558,7 @@ exports.createSupportTicket = async (req, res) => {
     logger.error({ err: error }, 'Create support ticket error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create support ticket',
-      details: error.message
+      error: 'Failed to create support ticket'
     });
   }
 };
@@ -3823,8 +3589,7 @@ exports.updateSupportTicket = async (req, res) => {
     logger.error({ err: error }, 'Update support ticket error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update support ticket',
-      details: error.message
+      error: 'Failed to update support ticket'
     });
   }
 };
@@ -3860,8 +3625,7 @@ exports.assignSupportTicket = async (req, res) => {
     logger.error({ err: error }, 'Assign support ticket error');
     res.status(500).json({
       success: false,
-      error: 'Failed to assign support ticket',
-      details: error.message
+      error: 'Failed to assign support ticket'
     });
   }
 };
@@ -3897,8 +3661,7 @@ exports.resolveSupportTicket = async (req, res) => {
     logger.error({ err: error }, 'Resolve support ticket error');
     res.status(500).json({
       success: false,
-      error: 'Failed to resolve support ticket',
-      details: error.message
+      error: 'Failed to resolve support ticket'
     });
   }
 };
@@ -3929,8 +3692,7 @@ exports.closeSupportTicket = async (req, res) => {
     logger.error({ err: error }, 'Close support ticket error');
     res.status(500).json({
       success: false,
-      error: 'Failed to close support ticket',
-      details: error.message
+      error: 'Failed to close support ticket'
     });
   }
 };
@@ -3971,8 +3733,7 @@ exports.addSupportTicketComment = async (req, res) => {
     logger.error({ err: error }, 'Add support ticket comment error');
     res.status(500).json({
       success: false,
-      error: 'Failed to add support ticket comment',
-      details: error.message
+      error: 'Failed to add support ticket comment'
     });
   }
 };
@@ -4000,8 +3761,7 @@ exports.getExitInterviews = async (req, res) => {
     logger.error({ err: error }, 'Get exit interviews error');
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch exit interviews',
-      details: error.message
+      error: 'Failed to fetch exit interviews'
     });
   }
 };
@@ -4022,8 +3782,7 @@ exports.createExitInterview = async (req, res) => {
     logger.error({ err: error }, 'Create exit interview error');
     res.status(500).json({
       success: false,
-      error: 'Failed to create exit interview',
-      details: error.message
+      error: 'Failed to create exit interview'
     });
   }
 };
@@ -4054,8 +3813,7 @@ exports.updateExitInterview = async (req, res) => {
     logger.error({ err: error }, 'Update exit interview error');
     res.status(500).json({
       success: false,
-      error: 'Failed to update exit interview',
-      details: error.message
+      error: 'Failed to update exit interview'
     });
   }
 };
@@ -4077,8 +3835,7 @@ exports.deleteExitInterview = async (req, res) => {
     logger.error({ err: error }, 'Delete exit interview error');
     res.status(500).json({
       success: false,
-      error: 'Failed to delete exit interview',
-      details: error.message
+      error: 'Failed to delete exit interview'
     });
   }
 };

@@ -20,7 +20,7 @@ exports.getOverview = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance overview fetched successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to fetch performance overview'));
+    return res.status(500).json(apiResponse.error('Failed to fetch performance overview'));
   }
 };
 
@@ -39,7 +39,7 @@ exports.getEmployeeSummary = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Employee performance summary fetched successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to fetch employee performance summary'));
+    return res.status(500).json(apiResponse.error('Failed to fetch employee performance summary'));
   }
 };
 
@@ -59,7 +59,7 @@ exports.recalculateSnapshot = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance snapshot generated successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to generate performance snapshot'));
+    return res.status(500).json(apiResponse.error('Failed to generate performance snapshot'));
   }
 };
 
@@ -76,7 +76,7 @@ exports.listSnapshots = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance snapshots fetched successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to fetch performance snapshots'));
+    return res.status(500).json(apiResponse.error('Failed to fetch performance snapshots'));
   }
 };
 
@@ -89,7 +89,7 @@ exports.listAppraisalCycles = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance appraisal cycles fetched successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to fetch appraisal cycles'));
+    return res.status(500).json(apiResponse.error('Failed to fetch appraisal cycles'));
   }
 };
 
@@ -118,6 +118,6 @@ exports.createAppraisalCycle = async (req, res) => {
 
     return res.status(201).json(apiResponse.success(data, 'Performance appraisal cycle created successfully'));
   } catch (error) {
-    return res.status(500).json(apiResponse.error(error.message || 'Failed to create appraisal cycle'));
+    return res.status(500).json(apiResponse.error('Failed to create appraisal cycle'));
   }
 };

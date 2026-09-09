@@ -111,22 +111,7 @@ export const hrApi = {
   getAttendance: async (token, params = {}) => {
     const query = buildQueryString(params);
     const pathSuffix = query ? `?${query}` : '';
-    const endpoints = [
-      `/api/dept/hr/attendance${pathSuffix}`,
-      `/api/hr/attendance${pathSuffix}`,
-      `/api/dept/manager/attendance${pathSuffix}`,
-      `/api/attendance${pathSuffix}`,
-      `/api/employee/attendance${pathSuffix}`,
-      `/api/dept/employee/attendance${pathSuffix}`,
-    ];
-    for (const endpoint of endpoints) {
-      try {
-        return await apiClient.get(endpoint, token);
-      } catch (err) {
-        continue;
-      }
-    }
-    throw new Error('Attendance route not available');
+    return apiClient.get('/api/dept/hr/attendance' + pathSuffix, token);
   },
   exportAttendanceCsv: async ({ token, status, startDate, endDate, selectedIds = [] }) => {
     const params = new URLSearchParams();

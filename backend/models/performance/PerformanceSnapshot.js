@@ -62,6 +62,8 @@ const performanceSnapshotSchema = new mongoose.Schema(
       collaboration: { type: Number, default: 0 },
       productivity: { type: Number, default: 0 },
     },
+    dataStatus: { type: String, enum: ['AVAILABLE', 'INSUFFICIENT_DATA'] },
+    missingSources: [{ type: String }],
     autoScore: {
       type: Number,
       default: 0,
@@ -71,7 +73,7 @@ const performanceSnapshotSchema = new mongoose.Schema(
     },
     rating: {
       type: String,
-      enum: ['Excellent', 'Good', 'Average', 'Needs Improvement', 'Critical Performance Alert'],
+      enum: ['Excellent', 'Good', 'Average', 'Needs Improvement', 'Critical Performance Alert', 'Insufficient Data'],
       default: 'Average',
       index: true,
     },

@@ -1,3 +1,4 @@
+const { projectOverviewScope } = require('../services/projectOverviewAccess.service');
 const express = require('express');
 const mongoose = require('mongoose');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
@@ -162,38 +163,21 @@ const projectFilter = (query = {}) => {
   return filter;
 };
 
-const listProjects = async (query = {}) => {
+const listProjects = async (query = {}, user = {}) => {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(query.limit, 10) || 200, 1), 200);
   const skip = (page - 1) * limit;
-  const filter = projectFilter(query);
+  const filter = { $and: [projectFilter(query), projectOverviewScope(user)] };
   const [items, total] = await Promise.all([
     Project.find(filter)
-      .sort({ updatedAt: -1 })
+      .sort({ updatedAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .select('name description projectCode logo status priority progress startDate endDate deadline budget projectManager teamMembers milestones technologies notes updatedAt')
       .lean(),
     Project.countDocuments(filter),
   ]);
-  const dbKeys = new Set(items.flatMap((item) => [
-    String(item.name || '').toLowerCase(),
-    String(item.projectCode || '').toLowerCase(),
-  ]).filter(Boolean));
-  const registryItems = PROJECT_REGISTRY
-    .filter((item) => !dbKeys.has(String(item.name || '').toLowerCase()) && !dbKeys.has(String(item.code || '').toLowerCase()))
-    .map((item) => ({
-      id: item.code,
-      name: item.name,
-      description: item.description,
-      projectCode: item.code,
-      status: 'in-progress',
-      priority: 'medium',
-      progress: 0,
-      virtual: true,
-    }));
-  const allItems = [...items, ...registryItems];
-  const pageItems = allItems.slice(skip, skip + limit);
+  const pageItems = items;
 
   // Server-side task progress rollup (Phase 2B) — one aggregation for the
   // whole page instead of an N+1 query per project. Non-breaking: the
@@ -241,7 +225,7 @@ const listProjects = async (query = {}) => {
 
   return {
     items: withTaskProgress,
-    pagination: { page, limit, total: allItems.length, totalPages: Math.ceil(allItems.length / limit) || 1 },
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   };
 };
 
@@ -480,7 +464,7 @@ router.use(authorize(...READ_ONLY_PROJECT_ROLES));
 router.get('/projects', async (req, res) => {
   try {
     const portal = resolvePortal(req);
-    const data = await listProjects(req.query || {});
+    const data = await listProjects(req.query || {}, req.user);
     res.json({ success: true, data: { ...data, portal, meta: PORTAL_META[portal] } });
   } catch (err) {
     req.log?.error?.({ err }, 'Project overview list error');
@@ -494,26 +478,13 @@ router.get('/projects/:projectId/overview', async (req, res) => {
     const rawId = String(req.params.projectId || '').trim();
     const id = objectId(rawId);
     const q = new RegExp(`^${rawId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
-    const project = id
-      ? await Project.findById(id).lean()
-      : await Project.findOne({ $or: [{ projectCode: q }, { name: q }] }).lean();
-    const registryProject = PROJECT_REGISTRY.find((item) => (
-      String(item.code || '').toLowerCase() === rawId.toLowerCase() ||
-      String(item.name || '').toLowerCase() === rawId.toLowerCase() ||
-      (Array.isArray(item.aliases) && item.aliases.some((alias) => String(alias).toLowerCase() === rawId.toLowerCase()))
-    ));
-    const resolvedProject = project || (registryProject ? {
-      _id: rawId,
-      name: registryProject.name,
-      description: registryProject.description,
-      projectCode: registryProject.code,
-      status: 'in-progress',
-      priority: 'medium',
-      progress: 0,
-      virtual: true,
-    } : null);
+    const identity = id ? { _id: id } : { $or: [{ projectCode: q }, { name: q }] };
+    const project = await Project.findOne({
+      $and: [identity, projectFilter({}), projectOverviewScope(req.user)],
+    }).lean();
+    const resolvedProject = project;
     if (!resolvedProject) return res.status(404).json({ success: false, error: 'Project not found' });
-    const overview = project ? await getPortalOverview(portal, project, req) : getEmptyPortalOverview(portal, resolvedProject);
+    const overview = await getPortalOverview(portal, project, req);
     res.json({
       success: true,
       data: {
@@ -529,4 +500,5 @@ router.get('/projects/:projectId/overview', async (req, res) => {
   }
 });
 
+router.listProjects = listProjects;
 module.exports = router;

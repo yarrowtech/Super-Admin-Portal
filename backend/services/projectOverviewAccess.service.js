@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
 const { getAccessibleProjects } = require('../utils/projectAccess');
-const projectOverviewScope = (user = {}) => {
+
+// Manager Portal specifically must use the exact same "which projects can this
+// person see" definition as its own Dashboard/Projects/Tasks/Team pages
+// (managerScope.service.js), so Project Overview never shows a different
+// project count than the rest of the Manager Portal for the same login.
+// Every other portal keeps its existing canonical-registry/assignment-based
+// matching below, unchanged.
+const projectOverviewScope = async (user = {}, portal = null) => {
+  if (portal === 'manager') {
+    const { resolveManagerScope } = require('./managerScope.service');
+    const scope = await resolveManagerScope(user);
+    return scope.projects;
+  }
+
   if (['admin', 'super_admin', 'ceo'].includes(user.role)) return {};
   const id = user._id || user.id;
   const clauses = mongoose.isObjectIdOrHexString(id)

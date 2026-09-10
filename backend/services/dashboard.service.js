@@ -239,16 +239,21 @@ const mapTasks = (tasks = []) =>
       : null,
   }));
 
-const mapTeamMembers = (members = []) =>
-  members.map((member) => ({
-    id: member._id?.toString?.() || member.id || null,
-    name: `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email,
-    email: member.email,
-    department: member.department || null,
-    role: member.role,
-    lastLogin: member.lastLogin,
-    isActive: member.isActive,
-  }));
+const mapTeamMembers = (members = [], workloadMap = new Map()) =>
+  members.map((member) => {
+    const workload = workloadMap.get(String(member._id));
+    return {
+      id: member._id?.toString?.() || member.id || null,
+      name: `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email,
+      email: member.email,
+      department: member.department || null,
+      role: member.role,
+      lastLogin: member.lastLogin,
+      isActive: member.isActive,
+      openTasks: workload?.openTasks || 0,
+      overdueTasks: workload?.overdueTasks || 0,
+    };
+  });
 
 const buildManagerSnapshot = async (manager = {}) => {
   const scope = await require('./managerScope.service').resolveManagerScope(manager);
@@ -309,6 +314,15 @@ const buildManagerSnapshot = async (manager = {}) => {
     project.progress = row?.total ? Math.round(row.completed / row.total * 100) : null;
   }
 
+  const memberIds = teamMembers.map((member) => member._id);
+  const memberWorkloadRows = memberIds.length
+    ? await Task.aggregate([
+        { $match: { assignedTo: { $in: memberIds }, status: { $nin: ['completed', 'cancelled'] } } },
+        { $group: { _id: '$assignedTo', openTasks: { $sum: 1 }, overdueTasks: { $sum: { $cond: [{ $lt: ['$dueDate', now] }, 1, 0] } } } },
+      ])
+    : [];
+  const memberWorkloadMap = new Map(memberWorkloadRows.map((row) => [String(row._id), row]));
+
   const projectBreakdown = toBreakdownMap(projectStatusRows, ['planning', 'in-progress', 'on-hold', 'completed', 'cancelled']);
   const taskBreakdown = toBreakdownMap(taskStatusRows, ['pending', 'in-progress', 'review', 'completed', 'cancelled']);
   const totalTasks = taskStatusRows.reduce((sum, row) => sum + (row?.count || 0), 0);
@@ -361,7 +375,7 @@ const buildManagerSnapshot = async (manager = {}) => {
       department,
       totalMembers: totalTeamMembers,
       activeMembers: activeCount,
-      members: mapTeamMembers(teamMembers),
+      members: mapTeamMembers(teamMembers, memberWorkloadMap),
     },
     alerts: {
       overdueProjects: overdueProjectsCount,

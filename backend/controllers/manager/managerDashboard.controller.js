@@ -378,9 +378,25 @@ exports.getProjects = async (req, res) => {
       Project.countDocuments(query)
     ]);
 
+    const now = new Date();
     const progressRows = await Task.aggregate([
       { $match: { project: { $in: projects.map(project => project._id) }, status: { $ne: 'cancelled' } } },
-      { $group: { _id: '$project', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } }
+      {
+        $group: {
+          _id: '$project',
+          total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          overdue: {
+            $sum: {
+              $cond: [
+                { $and: [{ $ne: ['$status', 'completed'] }, { $lt: ['$dueDate', now] }] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
     ]);
     const progressMap = new Map(progressRows.map(row => [String(row._id), row]));
     for (const project of projects) {
@@ -388,6 +404,7 @@ exports.getProjects = async (req, res) => {
       project.progress = row?.total ? Math.round(row.completed / row.total * 100) : null;
       project.openTasks = row ? row.total - row.completed : 0;
       project.taskCount = row?.total || 0;
+      project.overdueTasks = row?.overdue || 0;
     }
     res.status(200).json({
       success: true,

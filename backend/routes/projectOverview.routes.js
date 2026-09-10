@@ -163,11 +163,11 @@ const projectFilter = (query = {}) => {
   return filter;
 };
 
-const listProjects = async (query = {}, user = {}) => {
+const listProjects = async (query = {}, user = {}, portal = null) => {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(query.limit, 10) || 200, 1), 200);
   const skip = (page - 1) * limit;
-  const filter = { $and: [projectFilter(query), projectOverviewScope(user)] };
+  const filter = { $and: [projectFilter(query), await projectOverviewScope(user, portal)] };
   const [items, total] = await Promise.all([
     Project.find(filter)
       .sort({ updatedAt: -1, _id: -1 })
@@ -464,7 +464,7 @@ router.use(authorize(...READ_ONLY_PROJECT_ROLES));
 router.get('/projects', async (req, res) => {
   try {
     const portal = resolvePortal(req);
-    const data = await listProjects(req.query || {}, req.user);
+    const data = await listProjects(req.query || {}, req.user, portal);
     res.json({ success: true, data: { ...data, portal, meta: PORTAL_META[portal] } });
   } catch (err) {
     req.log?.error?.({ err }, 'Project overview list error');
@@ -480,7 +480,7 @@ router.get('/projects/:projectId/overview', async (req, res) => {
     const q = new RegExp(`^${rawId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
     const identity = id ? { _id: id } : { $or: [{ projectCode: q }, { name: q }] };
     const project = await Project.findOne({
-      $and: [identity, projectFilter({}), projectOverviewScope(req.user)],
+      $and: [identity, projectFilter({}), await projectOverviewScope(req.user, portal)],
     }).lean();
     const resolvedProject = project;
     if (!resolvedProject) return res.status(404).json({ success: false, error: 'Project not found' });

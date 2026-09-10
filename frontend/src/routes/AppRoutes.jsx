@@ -376,7 +376,7 @@ export default function AppRoutes() {
           <Route path="tasks" element={<ManagerTasksPage />} />
           <Route path="work-reviews" element={<ManagerWorkReviewsPage />} />
           <Route path="leave" element={<ManagerLeavePage />} />
-          <Route path="project-overview" element={<ProjectOverviewPage portalKey="manager" portalName="Manager Portal" />} />
+          <Route path="project-overview" element={<ProjectOverviewPage portalKey="manager" portalName="Manager Portal" titleOverride="Project Overview" />} />
         </Route>
         <Route
           path="/employee"

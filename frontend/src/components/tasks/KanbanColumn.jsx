@@ -10,7 +10,7 @@ const KanbanColumn = ({ column, tasks, loading, onOpenTask }) => {
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-72 shrink-0 flex-col rounded-2xl border bg-neutral-50/60 p-2.5 transition-colors dark:bg-neutral-900/40 ${
+      className={`flex min-w-60 flex-1 basis-60 flex-col rounded-2xl border bg-neutral-50/60 p-2.5 transition-colors dark:bg-neutral-900/40 ${
         isOver ? 'border-(--portal-accent,var(--color-primary)) bg-(--portal-accent-soft,var(--color-primary-50))' : 'border-neutral-200 dark:border-neutral-800'
       }`}
     >

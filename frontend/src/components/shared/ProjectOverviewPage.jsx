@@ -177,7 +177,7 @@ const ProjectAvatar = ({ name, logo, accent, size = 44 }) =>
     </span>
   );
 
-const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
+const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride }) => {
   const { token } = useAuth();
   const fallback = PORTAL_DEFAULTS[portalKey] || PORTAL_DEFAULTS.manager;
   const [projects, setProjects] = useState([]);
@@ -187,6 +187,8 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
   const [lastSync, setLastSync] = useState(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -252,6 +254,22 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
     () => (selectedId ? projects.find((project) => getProjectId(project) === selectedId) || null : null),
     [projects, selectedId]
   );
+  const statusOptions = useMemo(
+    () => Array.from(new Set(projects.map((project) => project.status).filter(Boolean))).sort(),
+    [projects]
+  );
+  const visibleProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return projects.filter((project) => {
+      if (statusFilter && String(project.status || '') !== statusFilter) return false;
+      if (!q) return true;
+      const haystack = [project.name, project.description, project.projectCode, project.code]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [projects, search, statusFilter]);
   const meta = detail?.meta || fallback;
   const accent = meta.accent || fallback.accent;
   const portalLabel = portalName || fallback.name;
@@ -286,7 +304,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
                 {meta.icon || fallback.icon}
               </span>
               <div className="min-w-0">
-                <h1 className="truncate text-[26px] font-black leading-tight tracking-tight text-slate-950 dark:text-neutral-100">{`${portalLabel} Project Overview`}</h1>
+                <h1 className="truncate text-[26px] font-black leading-tight tracking-tight text-slate-950 dark:text-neutral-100">{titleOverride || `${portalLabel} Project Overview`}</h1>
                 <p className="mt-1 max-w-3xl text-sm leading-5 text-neutral-500 dark:text-neutral-400">Click a project to view read-only {portalLabel.replace(' Portal', '').toLowerCase()} work and project context.</p>
               </div>
             </div>
@@ -326,13 +344,41 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
             </div>
             <p className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Same design across portals. Only department data changes.</p>
           </div>
+
+          {projects.length > 6 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <div className="relative w-full max-w-xs">
+                <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search projects…"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                />
+              </div>
+              {statusOptions.length > 1 && (
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                >
+                  <option value="">All statuses</option>
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className="h-[124px] animate-pulse rounded-[1.35rem] bg-white/80 shadow-sm dark:bg-neutral-800" />)}
             </div>
-          ) : projects.length ? (
+          ) : visibleProjects.length ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {projects.map((item) => {
+              {visibleProjects.map((item) => {
                 const id = getProjectId(item);
                 const itemCanonical = findCanonicalProject(item);
                 const name = item?.name || itemCanonical?.name || item?.projectCode || item?.code || 'Project';
@@ -373,8 +419,12 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName }) => {
           ) : (
             <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-10 text-center dark:border-neutral-800 dark:bg-neutral-950/40">
               <span className="material-symbols-outlined text-[34px] text-neutral-300 dark:text-neutral-700">folder_off</span>
-              <p className="text-sm font-bold text-slate-600 dark:text-neutral-300">No projects are available for this overview.</p>
-              <p className="max-w-sm text-xs leading-5 text-slate-400 dark:text-neutral-500">Project cards will appear here once project data is available.</p>
+              <p className="text-sm font-bold text-slate-600 dark:text-neutral-300">
+                {projects.length ? 'No projects match your search or filter.' : 'No projects are available for this overview.'}
+              </p>
+              <p className="max-w-sm text-xs leading-5 text-slate-400 dark:text-neutral-500">
+                {projects.length ? 'Try a different search term or status.' : 'Project cards will appear here once project data is available.'}
+              </p>
             </div>
           )}
         </section>

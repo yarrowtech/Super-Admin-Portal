@@ -88,6 +88,8 @@ export const getLawSection = (sectionId) =>
 
 export const LAW_FORM_CONFIG = {
   agreements: {
+    actionLabel: 'New Agreement',
+    registerTitle: 'Agreement Lifecycle Register',
     recordTypes: ['B2B Agreement', 'B2C Agreement', 'End User Agreement', 'Third Party Agreement', 'NDA', 'MSA'],
     labels: {
       recordType: 'Agreement type',
@@ -99,12 +101,17 @@ export const LAW_FORM_CONFIG = {
     },
     metadataFields: [
       { name: 'parties', label: 'Parties Involved', placeholder: 'Party A / Party B' },
-      { name: 'validityPeriod', label: 'Validity Period', placeholder: 'Jan 2026 - Dec 2026' },
+      { name: 'counterparty', label: 'Counterparty', placeholder: 'Client / vendor / partner' },
+      { name: 'effectiveDate', label: 'Effective Date', type: 'date' },
+      { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
       { name: 'product', label: 'Product', placeholder: PROJECT_NAME_PLACEHOLDER },
       { name: 'version', label: 'Version', placeholder: 'v1.0' },
+      { name: 'signatureStatus', label: 'Signature Status', placeholder: 'Draft / Sent / Signed' },
     ],
   },
   'privacy-policy': {
+    actionLabel: 'New Policy',
+    registerTitle: 'Policy Review Register',
     recordTypes: ['Privacy Policy', 'Cookie Policy', 'Retention Policy', 'Data Sharing Policy', 'Security Policy'],
     labels: {
       recordType: 'Policy type',
@@ -117,11 +124,16 @@ export const LAW_FORM_CONFIG = {
     metadataFields: [
       { name: 'product', label: 'Product', placeholder: PROJECT_NAME_PLACEHOLDER },
       { name: 'audience', label: 'Audience', placeholder: 'Users / partners / employees' },
+      { name: 'dataCategory', label: 'Data Category', placeholder: 'PII / financial / usage / child data' },
       { name: 'effectiveDate', label: 'Effective Date', type: 'date' },
+      { name: 'nextReviewDate', label: 'Next Review Date', type: 'date' },
+      { name: 'reviewCadence', label: 'Review Cadence', placeholder: 'Quarterly / annual / event-driven' },
       { name: 'notificationMode', label: 'Notify Via', placeholder: 'Email / SMS / in-app' },
     ],
   },
   'disputes-fraud': {
+    actionLabel: 'New Case',
+    registerTitle: 'Dispute and Fraud Case Register',
     recordTypes: ['Customer Dispute', 'Vendor Dispute', 'Fraud Alert', 'Chargeback', 'Legal Investigation'],
     labels: {
       recordType: 'Case type',
@@ -133,12 +145,17 @@ export const LAW_FORM_CONFIG = {
     },
     metadataFields: [
       { name: 'severity', label: 'Severity', placeholder: 'Low / Medium / High / Critical' },
+      { name: 'caseStage', label: 'Case Stage', placeholder: 'Intake / investigation / notice / closure' },
       { name: 'evidenceLink', label: 'Evidence', placeholder: 'Evidence location' },
+      { name: 'fraudAmount', label: 'Fraud Exposure', placeholder: 'Amount at risk' },
+      { name: 'rootCause', label: 'Root Cause', placeholder: 'Payment / identity / vendor / platform' },
       { name: 'product', label: 'Product', placeholder: PROJECT_NAME_PLACEHOLDER },
       { name: 'resolutionEta', label: 'Resolution ETA', type: 'date' },
     ],
   },
   'ip-copyright': {
+    actionLabel: 'Add IP Asset',
+    registerTitle: 'IP Ownership and Renewal Register',
     recordTypes: ['Trademark', 'Copyright', 'Patent', 'Software Ownership'],
     labels: {
       recordType: 'IP type',
@@ -150,8 +167,11 @@ export const LAW_FORM_CONFIG = {
     },
     metadataFields: [
       { name: 'jurisdiction', label: 'Jurisdiction', placeholder: 'Country/Region' },
+      { name: 'assetOwner', label: 'Asset Owner', placeholder: 'Company / team / author' },
+      { name: 'usageScope', label: 'Usage Scope', placeholder: 'Brand / course / software / media' },
       { name: 'filingDate', label: 'Filing Date', type: 'date' },
       { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
+      { name: 'renewalOwner', label: 'Renewal Owner', placeholder: 'Legal owner for renewal' },
       { name: 'documentVault', label: 'Document Vault', placeholder: 'Secure path' },
     ],
   },

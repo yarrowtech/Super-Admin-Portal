@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getLawPriorityClass, lawPrimaryButtonClass, lawSecondaryButtonClass } from './lawUi';
 
 const emptyForm = {
   title: '',
@@ -29,10 +30,13 @@ const LawRecordManager = ({
   onSaveRecord,
   onDeleteRecord,
   title = 'Live Records',
-  compact = false,
   recordTypes = [],
   metadataFields = [],
   labels = {},
+  actionLabel = 'Create Record',
+  formOpen = false,
+  onFormOpen,
+  onFormClose,
 }) => {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
@@ -44,15 +48,12 @@ const LawRecordManager = ({
     setEditingId(null);
     setReferenceFiles([]);
     setSubmitError('');
+    onFormClose?.();
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSubmitError('');
-    if (!editingId && referenceFiles.length === 0) {
-      setSubmitError('Please upload at least one reference PDF.');
-      return;
-    }
     const payload = {
       ...form,
       section,
@@ -86,6 +87,7 @@ const LawRecordManager = ({
       metadata: record.metadata || {},
     });
     setReferenceFiles([]);
+    onFormOpen?.();
   };
 
   const updateMetadata = (field, value) => {
@@ -98,32 +100,33 @@ const LawRecordManager = ({
     }));
   };
 
-  const fieldClass = 'h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100';
+  const fieldClass = 'h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100';
   const labelClass = 'mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300';
 
   return (
-    <section className={`grid grid-cols-1 gap-6 ${compact ? '' : 'lg:grid-cols-[380px,1fr]'}`}>
-      <form
-        onSubmit={handleSubmit}
-        className="h-fit rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
-      >
+    <section className="space-y-3">
+      {formOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" role="dialog" aria-modal="true">
+          <button type="button" className="hidden flex-1 cursor-default sm:block" onClick={resetForm} aria-label="Close record drawer" />
+          <form
+            onSubmit={handleSubmit}
+            className="flex h-full w-full max-w-[620px] flex-col border-l border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950"
+          >
         <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
               <span className="material-symbols-outlined text-[18px]">{editingId ? 'edit_note' : 'add_circle'}</span>
             </div>
             <h2 className="font-bold text-neutral-900 dark:text-white">
               {editingId ? 'Edit Record' : 'Add Record'}
             </h2>
           </div>
-          {editingId && (
-            <button type="button" onClick={resetForm} className="text-sm font-semibold text-primary hover:underline">
-              New
-            </button>
-          )}
+          <button type="button" onClick={resetForm} className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Close drawer">
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
           {recordTypes.length > 0 && (
             <div>
               <label className={labelClass}>{labels.recordType || 'Record type'} <span className="text-rose-500">*</span></label>
@@ -223,7 +226,7 @@ const LawRecordManager = ({
 
           {metadataFields.length > 0 && (
             <div className="border-t border-neutral-100 pt-4 dark:border-neutral-800">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">Additional details</p>
+              <p className="mb-3 text-sm font-semibold text-neutral-800 dark:text-neutral-100">Lifecycle details</p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {metadataFields.map((field) => (
                   <div key={field.name}>
@@ -243,16 +246,15 @@ const LawRecordManager = ({
 
           <div>
             <label className={labelClass}>
-              Reference PDFs {editingId ? '(optional on edit)' : <span className="text-rose-500">*</span>}
+              Reference PDFs
             </label>
-            <label className="relative flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 px-4 py-5 text-center transition hover:border-primary/50 hover:bg-primary/5 dark:border-neutral-700 dark:bg-neutral-950">
+            <label className="relative flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-5 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-950">
               <input
                 type="file"
                 accept="application/pdf"
                 multiple
                 onChange={(event) => setReferenceFiles(Array.from(event.target.files || []))}
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                required={!editingId}
               />
               <span className="material-symbols-outlined text-[22px] text-neutral-400">upload_file</span>
               <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
@@ -279,23 +281,28 @@ const LawRecordManager = ({
             </div>
           ) : null}
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-neutral-200 px-5 py-4 dark:border-neutral-800">
+          <button type="button" onClick={resetForm} className={lawSecondaryButtonClass}>Cancel</button>
+          <button type="submit" disabled={saving} className={lawPrimaryButtonClass}>
             {saving && <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>}
-            {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create Record'}
+            {saving ? 'Saving...' : editingId ? 'Save Changes' : actionLabel}
           </button>
         </div>
-      </form>
+          </form>
+        </div>
+      )}
 
       <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <div className="flex items-center justify-between border-b border-neutral-200 p-4 dark:border-neutral-800">
-          <h2 className="font-bold text-neutral-900 dark:text-white">{title}</h2>
-          <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-            {records.length}
-          </span>
+          <div>
+            <h2 className="font-bold text-neutral-900 dark:text-white">{title}</h2>
+            <p className="text-xs text-neutral-400">Showing {records.length} record{records.length === 1 ? '' : 's'}</p>
+          </div>
+          <button type="button" onClick={onFormOpen} className={lawSecondaryButtonClass}>
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            New
+          </button>
         </div>
         <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
           {records.map((record) => (
@@ -304,7 +311,7 @@ const LawRecordManager = ({
                 <div>
                   <p className="font-semibold text-neutral-900 dark:text-white">{record.title}</p>
                   {record.metadata?.recordType && (
-                    <p className="mt-1 text-xs font-bold uppercase text-primary">{record.metadata.recordType}</p>
+                    <p className="mt-1 text-xs font-bold uppercase text-[var(--portal-accent)]">{record.metadata.recordType}</p>
                   )}
                   <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{record.description || 'No description'}</p>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500">
@@ -334,8 +341,8 @@ const LawRecordManager = ({
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{record.status}</span>
-                  <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300">{record.priority}</span>
+                  <span className="rounded-full bg-[var(--portal-accent-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--portal-accent)]">{record.status}</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ring-inset ${getLawPriorityClass(record.priority)}`}>{record.priority}</span>
                 </div>
               </div>
               <div className="mt-3 flex gap-2">

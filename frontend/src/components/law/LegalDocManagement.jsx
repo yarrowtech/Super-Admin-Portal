@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   createLegalDocument,
@@ -14,10 +13,13 @@ import {
 import { lawApi } from '../../services/law';
 import LegalDocEditor from './LegalDocEditor';
 import LegalDocVersionHistory from './LegalDocVersionHistory';
+import useLawProjectContext from './useLawProjectContext';
+import { LAW_DOCUMENT_TYPES, LAW_PRIORITIES } from './lawStatus';
+import { getLawBadgeClass, getLawPriorityClass, lawControlClass, lawPrimaryButtonClass } from './lawUi';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const DOC_TYPES = ['Contract', 'Agreement', 'Policy', 'NDA', 'Compliance', 'IP', 'Dispute', 'Other'];
-const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
+const DOC_TYPES = LAW_DOCUMENT_TYPES.map((type) => type.value);
+const PRIORITIES = LAW_PRIORITIES;
 
 const STATUS_STYLES = {
   Draft:    { bg: 'bg-neutral-100 dark:bg-neutral-800',    text: 'text-neutral-600 dark:text-neutral-400',  dot: 'bg-neutral-400', pill: 'bg-neutral-100 text-neutral-600 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700' },
@@ -70,10 +72,8 @@ const downloadBlob = (blob, filename) => {
 };
 
 const StatusBadge = ({ status }) => {
-  const s = STATUS_STYLES[status] || STATUS_STYLES.Draft;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${s.pill}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${getLawBadgeClass(status)}`}>
       {status}
     </span>
   );
@@ -144,12 +144,12 @@ const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
             <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Document Title *</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Non-Disclosure Agreement – Project Alpha"
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-rose-500" />
+              className={`${lawControlClass} w-full`} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Word-style template</label>
             <select value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-rose-500">
+              className={`${lawControlClass} w-full`}>
               {Object.entries(LEGAL_TEMPLATES).map(([key, template]) => (
                 <option key={key} value={key}>{template.label}</option>
               ))}
@@ -159,14 +159,14 @@ const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
             <div>
               <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Type</label>
               <select value={type} onChange={(e) => setType(e.target.value)}
-                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-rose-500">
+                className={`${lawControlClass} w-full`}>
                 {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Priority</label>
               <select value={priority} onChange={(e) => setPriority(e.target.value)}
-                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-rose-500">
+                className={`${lawControlClass} w-full`}>
                 {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
               </select>
             </div>
@@ -177,7 +177,7 @@ const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
               disabled={scope.isProjectScope}
-              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-rose-500 disabled:bg-neutral-100 disabled:text-neutral-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:disabled:bg-neutral-800/60"
+              className={`${lawControlClass} w-full disabled:bg-neutral-100 disabled:text-neutral-500 dark:disabled:bg-neutral-800/60`}
             >
               <option value="">In-house Company Legal (no project)</option>
               {projects.map((project) => {
@@ -193,7 +193,7 @@ const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
             Cancel
           </button>
           <button onClick={handleSave} disabled={loading}
-            className="flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
+            className={lawPrimaryButtonClass}>
             {loading ? <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> : <span className="material-symbols-outlined text-sm">add</span>}
             Create Document
           </button>
@@ -210,19 +210,19 @@ const SubmitConfirmModal = ({ doc, onConfirm, onCancel }) => (
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 mx-auto mb-4">
         <span className="material-symbols-outlined text-2xl text-amber-600">send</span>
       </div>
-      <h2 className="mb-2 text-base font-bold text-neutral-900 dark:text-neutral-100">Submit to CEO?</h2>
+      <h2 className="mb-2 text-base font-bold text-neutral-900 dark:text-neutral-100">Submit for approval?</h2>
       <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">
-        <span className="font-semibold text-neutral-700 dark:text-neutral-300">"{doc?.title}"</span> will be sent to the CEO for approval.
+        <span className="font-semibold text-neutral-700 dark:text-neutral-300">"{doc?.title}"</span> will enter the configured approval workflow.
       </p>
       <p className="text-xs text-neutral-400 dark:text-neutral-500 mb-5">
-        You won't be able to edit it until CEO reviews it.
+        You won't be able to edit it until the approver reviews it.
         {doc?.status === 'Rejected' && ' (Re-submission — new major version will be created)'}
       </p>
       <div className="flex gap-2 justify-center">
         <button onClick={onCancel} className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400">
           Cancel
         </button>
-        <button onClick={onConfirm} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+        <button onClick={onConfirm} className="rounded-lg bg-[var(--portal-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110">
           Yes, Submit
         </button>
       </div>
@@ -254,15 +254,10 @@ const VersionPreviewModal = ({ version, onClose }) => (
 
 // ── Main LegalDocManagement Component ─────────────────────────────────────────
 const LegalDocManagement = () => {
-  const { token, user } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { token } = useAuth();
   const editorRef = useRef(null);
-  const selectedProjectId = useMemo(() => {
-    const raw = new URLSearchParams(location.search).get('projectId') || '';
-    return isRealProjectId(raw) ? raw : '';
-  }, [location.search]);
   const [projects, setProjects] = useState([]);
+  const { projectId: selectedProjectId, setProject } = useLawProjectContext(projects);
   const [projectFilter, setProjectFilter] = useState(selectedProjectId || 'company');
 
   // The dropdown is the single control for "which project am I looking at" —
@@ -270,11 +265,11 @@ const LegalDocManagement = () => {
   // nav), picking In-house company legal clears that lock.
   const handleProjectFilterChange = (value) => {
     if (isRealProjectId(value)) {
-      navigate(`${location.pathname}?projectId=${value}`);
+      setProject(value);
       return;
     }
     setProjectFilter(value);
-    if (selectedProjectId) navigate(location.pathname);
+    if (selectedProjectId) setProject('');
   };
   const scope = useMemo(() => {
     const isProjectScope = Boolean(selectedProjectId);
@@ -327,10 +322,6 @@ const LegalDocManagement = () => {
     return () => { cancelled = true; };
   }, [token]);
 
-  useEffect(() => {
-    setProjectFilter(selectedProjectId || 'company');
-  }, [selectedProjectId]);
-
   // ── Fetch documents ─────────────────────────────────────────────────────────
   const fetchDocs = useCallback(async () => {
     setLoading(true);
@@ -369,11 +360,17 @@ const LegalDocManagement = () => {
     }
   }, [token, filterStatus, filterType, filterPriority, searchTerm, sortBy, selectedProjectId, projectFilter]);
 
-  useEffect(() => { fetchDocs(); }, [fetchDocs]);
+  useEffect(() => {
+    const timer = setTimeout(() => { fetchDocs(); }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchDocs]);
 
   useEffect(() => {
-    setActiveDoc(null);
-    setEditorContent('');
+    const timer = setTimeout(() => {
+      setActiveDoc(null);
+      setEditorContent('');
+    }, 0);
+    return () => clearTimeout(timer);
   }, [selectedProjectId]);
 
   // ── Open a document for editing ─────────────────────────────────────────────
@@ -393,6 +390,7 @@ const LegalDocManagement = () => {
   };
 
   // ── Auto-save handler ───────────────────────────────────────────────────────
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleAutoSave = useCallback(async (html) => {
     if (!activeDoc?._id || activeDoc.isLocked) return;
     setSaveStatus('saving');
@@ -408,6 +406,7 @@ const LegalDocManagement = () => {
   }, [token, activeDoc]);
 
   // ── Manual Save Draft ───────────────────────────────────────────────────────
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleSaveDraft = useCallback(async (html) => {
     if (!activeDoc?._id || activeDoc.isLocked) return;
     setSaveStatus('saving');
@@ -496,15 +495,15 @@ const LegalDocManagement = () => {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-neutral-50 dark:bg-neutral-950">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-slate-50 dark:bg-neutral-950">
 
       {/* ── TOP BAR ── */}
       <div className="overflow-hidden border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="h-1 w-full bg-rose-600" />
-        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div className="h-1 w-full bg-[var(--portal-accent)]" />
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-5">
           {/* Title + Scope */}
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 shadow-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--portal-accent)] shadow-sm">
               <span className="material-symbols-outlined text-[20px] text-white">gavel</span>
             </div>
             <div>
@@ -535,11 +534,11 @@ const LegalDocManagement = () => {
 
         {/* Scope / Sort bar — always visible so you can switch projects or
             jump back to the aggregate view even when the URL is locked to one. */}
-        <div className="flex flex-wrap items-center gap-3 border-t border-neutral-100 px-5 py-3 dark:border-neutral-800">
+        <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 px-4 py-3 dark:border-neutral-800 lg:px-5">
           <select
             value={selectedProjectId || projectFilter}
             onChange={(e) => handleProjectFilterChange(e.target.value)}
-            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+            className={`${lawControlClass} bg-neutral-50`}
           >
             <option value="company">In-house company legal</option>
             {projects.map((project) => {
@@ -551,7 +550,7 @@ const LegalDocManagement = () => {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+            className={`${lawControlClass} bg-neutral-50`}
           >
             {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -571,7 +570,7 @@ const LegalDocManagement = () => {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── LEFT PANEL: Document List ── */}
-        <div className="flex w-80 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="flex w-full shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:w-80 xl:w-88">
 
           {/* Panel header */}
           <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
@@ -582,7 +581,7 @@ const LegalDocManagement = () => {
               </div>
               <button
                 onClick={() => setShowNewDocModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-700 transition"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
               >
                 <span className="material-symbols-outlined text-[14px]">add</span>
                 New
@@ -597,7 +596,7 @@ const LegalDocManagement = () => {
                 placeholder="Search documents…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-xl border border-neutral-200 bg-neutral-50 py-2 pl-9 pr-3 text-xs text-neutral-700 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+                className="h-10 w-full rounded-lg border border-neutral-200 bg-neutral-50 pl-9 pr-3 text-xs text-neutral-700 placeholder-neutral-400 focus:border-[var(--portal-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
               />
             </div>
 
@@ -610,7 +609,7 @@ const LegalDocManagement = () => {
                 { value: sortBy,         onChange: (v) => setSortBy(v),         options: null, sortOptions: SORT_OPTIONS },
               ].map((f, i) => (
                 <select key={i} value={f.value} onChange={(e) => f.onChange(e.target.value)}
-                  className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-xs text-neutral-700 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                  className="h-9 rounded-lg border border-neutral-200 bg-neutral-50 px-2 text-xs text-neutral-700 focus:border-[var(--portal-accent)] focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                   {f.sortOptions
                     ? f.sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
                     : f.options.map((o) => <option key={o} value={o}>{o || f.placeholder}</option>)
@@ -653,7 +652,7 @@ const LegalDocManagement = () => {
                 onClick={() => openDoc(doc._id)}
                 className={`group mb-1.5 w-full rounded-xl border p-3 text-left transition-all hover:shadow-sm ${
                   activeDoc?._id === doc._id
-                    ? 'border-rose-400 bg-rose-50 shadow-sm dark:border-rose-700 dark:bg-rose-900/10'
+                    ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] shadow-sm'
                     : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'
                 }`}
               >
@@ -663,7 +662,7 @@ const LegalDocManagement = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{doc.type} · {doc.currentVersion}</span>
-                  <span className={`text-[10px] font-semibold ${PRIORITY_COLORS[doc.priority] || ''}`}>{doc.priority}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${getLawPriorityClass(doc.priority)}`}>{doc.priority}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
                   <span className="material-symbols-outlined text-[11px]">{doc.projectId ? 'folder' : 'business'}</span>
@@ -699,7 +698,7 @@ const LegalDocManagement = () => {
           {!activeDoc ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-neutral-400 dark:text-neutral-600">
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 shadow-inner dark:bg-rose-900/10">
-                <span className="material-symbols-outlined text-4xl text-rose-400">description</span>
+                <span className="material-symbols-outlined text-4xl text-[var(--portal-accent)]">description</span>
               </div>
               <div className="text-center">
                 <h3 className="text-base font-bold text-neutral-700 dark:text-neutral-300">Select or Create a Document</h3>
@@ -709,7 +708,7 @@ const LegalDocManagement = () => {
               </div>
               <button
                 onClick={() => setShowNewDocModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-rose-700 transition"
+                className={lawPrimaryButtonClass}
               >
                 <span className="material-symbols-outlined text-[17px]">add</span>
                 New Legal Document
@@ -744,16 +743,16 @@ const LegalDocManagement = () => {
                   {isEditable && (
                     <button
                       onClick={() => setShowSubmitConfirm(true)}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-700"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-110"
                     >
                       <span className="material-symbols-outlined text-[15px]">send</span>
-                      Submit to CEO
+                      Submit for Approval
                     </button>
                   )}
                   {activeDoc.status === 'Pending' && (
                     <div className="inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-1.5 dark:bg-amber-900/30">
                       <span className="material-symbols-outlined text-[15px] text-amber-600">hourglass_top</span>
-                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Awaiting CEO Review</span>
+                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Awaiting Approval</span>
                     </div>
                   )}
                 </div>
@@ -764,7 +763,7 @@ const LegalDocManagement = () => {
                 <div className="flex items-start gap-3 border-b border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/20">
                   <span className="material-symbols-outlined mt-0.5 text-[17px] text-rose-500">cancel</span>
                   <div>
-                    <p className="text-xs font-bold text-rose-700 dark:text-rose-400">Rejected by CEO</p>
+                    <p className="text-xs font-bold text-rose-700 dark:text-rose-400">Changes requested</p>
                     <p className="text-xs text-rose-600 dark:text-rose-400">{activeDoc.ceoRemarks}</p>
                   </div>
                 </div>
@@ -773,7 +772,7 @@ const LegalDocManagement = () => {
                 <div className="flex items-center gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 dark:border-emerald-800 dark:bg-emerald-900/20">
                   <span className="material-symbols-outlined text-[17px] text-emerald-600">verified</span>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                    <span className="font-bold">Approved</span> by {activeDoc.approvedByName || 'CEO'} on {formatDate(activeDoc.approvedAt)} — read-only.
+                    <span className="font-bold">Approved</span> by {activeDoc.approvedByName || 'Approver'} on {formatDate(activeDoc.approvedAt)} — read-only.
                   </p>
                 </div>
               )}

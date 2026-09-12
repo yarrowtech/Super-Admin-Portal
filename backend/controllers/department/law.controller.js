@@ -1,6 +1,7 @@
 const logger = require('../../utils/logger');
 const Law = require('../../models/department/Law');
 const { v2: cloudinary } = require('cloudinary');
+const { writeAuditTrail } = require('../../services/auditTrail.service');
 
 const LAW_SECTIONS = [
   'dashboard',
@@ -65,6 +66,59 @@ const buildPayload = (body = {}, userId) => {
   }
 
   return payload;
+};
+
+const SECTION_LIFECYCLE_DATE = {
+  agreements: { field: 'expiryDate', label: 'expires' },
+  'privacy-policy': { field: 'nextReviewDate', label: 'review_due' },
+  'disputes-fraud': { field: 'resolutionEta', label: 'resolution_eta' },
+  'ip-copyright': { field: 'expiryDate', label: 'renewal_due' }
+};
+
+const parseLifecycleDate = (value) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const enrichLawRecord = (record) => {
+  const row = typeof record.toObject === 'function' ? record.toObject() : { ...record };
+  const config = SECTION_LIFECYCLE_DATE[row.section] || {};
+  const lifecycleDate = parseLifecycleDate(row.metadata?.[config.field] || row.dueDate);
+  const daysUntil = lifecycleDate ? Math.ceil((lifecycleDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  row.lifecycle = {
+    dateField: config.field || 'dueDate',
+    label: config.label || 'due',
+    date: lifecycleDate,
+    daysUntil,
+    state: daysUntil === null ? 'unscheduled' : daysUntil < 0 ? 'overdue' : daysUntil <= 30 ? 'due_soon' : 'scheduled'
+  };
+  return row;
+};
+
+const auditLawRecord = async ({ req, action, record, metadata = {} }) => {
+  try {
+    await writeAuditTrail({
+      userId: req.user?.id || req.user?._id,
+      role: req.user?.role,
+      module: 'law',
+      action,
+      targetType: 'Law',
+      targetId: record?._id,
+      metadata: {
+        projectId: req.projectId,
+        section: record?.section,
+        status: record?.status,
+        priority: record?.priority,
+        ...metadata
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      riskFlag: record?.priority === 'Critical' ? 'high' : 'medium'
+    });
+  } catch (error) {
+    logger.warn({ err: error }, 'Law record audit failed');
+  }
 };
 
 const sendError = (res, error, fallback, status = 500) => {
@@ -132,8 +186,8 @@ exports.getRecords = async (req, res) => {
       ];
     }
 
-    const records = await Law.find(query).sort({ updatedAt: -1 });
-    res.status(200).json({ success: true, data: records });
+    const records = await Law.find(query).sort({ updatedAt: -1 }).lean();
+    res.status(200).json({ success: true, data: records.map(enrichLawRecord) });
   } catch (error) {
     logger.error({ err: error }, 'Get law records error');
     sendError(res, error, 'Failed to fetch Law records');
@@ -157,7 +211,8 @@ exports.createRecord = async (req, res) => {
       createdBy: req.user?.id || req.user?._id
     });
 
-    res.status(201).json({ success: true, data: record });
+    await auditLawRecord({ req, action: 'law_record_created', record });
+    res.status(201).json({ success: true, data: enrichLawRecord(record) });
   } catch (error) {
     logger.error({ err: error }, 'Create law record error');
     sendError(res, error, 'Failed to create Law record');
@@ -179,7 +234,8 @@ exports.updateRecord = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Law record not found' });
     }
 
-    res.status(200).json({ success: true, data: record });
+    await auditLawRecord({ req, action: 'law_record_updated', record });
+    res.status(200).json({ success: true, data: enrichLawRecord(record) });
   } catch (error) {
     logger.error({ err: error }, 'Update law record error');
     sendError(res, error, 'Failed to update Law record');
@@ -194,6 +250,7 @@ exports.deleteRecord = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Law record not found' });
     }
 
+    await auditLawRecord({ req, action: 'law_record_deleted', record });
     res.status(200).json({ success: true, message: 'Law record deleted successfully' });
   } catch (error) {
     logger.error({ err: error }, 'Delete law record error');
@@ -203,12 +260,12 @@ exports.deleteRecord = async (req, res) => {
 
 exports.getContracts = async (req, res) => {
   try {
-    const contracts = await Law.find({ projectId: req.projectId, section: { $in: ['agreements', 'contracts'] } }).sort({ updatedAt: -1 });
+    const contracts = await Law.find({ projectId: req.projectId, section: { $in: ['agreements', 'contracts'] } }).sort({ updatedAt: -1 }).lean();
     res.status(200).json({
       success: true,
       data: {
         message: 'Contract Management',
-        contracts
+        contracts: contracts.map(enrichLawRecord)
       }
     });
   } catch (error) {
@@ -219,12 +276,12 @@ exports.getContracts = async (req, res) => {
 
 exports.getCompliance = async (req, res) => {
   try {
-    const compliance = await Law.find({ projectId: req.projectId, section: { $in: ['privacy-policy', 'compliance'] } }).sort({ updatedAt: -1 });
+    const compliance = await Law.find({ projectId: req.projectId, section: { $in: ['privacy-policy', 'compliance'] } }).sort({ updatedAt: -1 }).lean();
     res.status(200).json({
       success: true,
       data: {
         message: 'Compliance Management',
-        compliance
+        compliance: compliance.map(enrichLawRecord)
       }
     });
   } catch (error) {

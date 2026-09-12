@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../services/client';
+import { getContractLawStatusLabel } from './lawStatus';
 
 const LAW_STATUS_STYLES = {
   pending:   'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
@@ -43,12 +44,13 @@ export default function LawContractsPage() {
   const [formError, setFormError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedContract, setSelectedContract] = useState(null);
+  const [reviewReason, setReviewReason] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const canListFreelancers = ['admin', 'hr', 'manager'].includes(String(user?.role || '').toLowerCase());
 
   const formatPerson = (person) => (
-    [person?.firstName, person?.lastName].filter(Boolean).join(' ').trim() || person?.email || 'Unknown freelancer'
+    [person?.firstName, person?.lastName].filter(Boolean).join(' ').trim() || person?.email || 'Freelancer not assigned'
   );
 
   const getInitials = (person) => {
@@ -171,11 +173,20 @@ export default function LawContractsPage() {
   };
 
   const handleValidate = async (contractId, decision) => {
+    const reason = reviewReason.trim();
+    if (decision === 'rejected' && !reason) {
+      toast?.error?.('Rejection reason is required');
+      return;
+    }
     setActionLoading(contractId + decision);
     try {
-      await apiClient.put(`/api/outsourcing/contracts/${contractId}/law-validate`, { approved: decision === 'validated' }, token);
+      await apiClient.put(`/api/outsourcing/contracts/${contractId}/law-validate`, {
+        approved: decision === 'validated',
+        reason: decision === 'rejected' ? reason : undefined,
+      }, token);
       toast?.success?.(`Contract ${decision === 'validated' ? 'validated' : 'rejected'}`);
       setSelectedContract(null);
+      setReviewReason('');
       loadData();
     } catch (err) {
       toast?.error?.(err?.message || 'Action failed');
@@ -209,6 +220,11 @@ export default function LawContractsPage() {
     setShowCreateForm(false);
     setFormError('');
     setForm({ ...emptyContract, jobId: '', freelancerId: '' });
+  };
+
+  const openContract = (contract) => {
+    setReviewReason(contract?.lawRejectionReason || '');
+    setSelectedContract(contract);
   };
 
   if (showCreateForm) {
@@ -702,7 +718,7 @@ export default function LawContractsPage() {
           <div className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Contract Review</h2>
-              <button onClick={() => setSelectedContract(null)} className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              <button onClick={() => { setSelectedContract(null); setReviewReason(''); }} className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -712,10 +728,8 @@ export default function LawContractsPage() {
                 <span className="font-medium text-neutral-900 dark:text-neutral-100">{selectedContract.job?.title || '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-500 dark:text-neutral-400">Freelancer</span>
-                <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                  {selectedContract.freelancer?.firstName} {selectedContract.freelancer?.lastName}
-                </span>
+                <span className="text-neutral-500 dark:text-neutral-400">Freelancer / Counterparty</span>
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatPerson(selectedContract.freelancer)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-neutral-500 dark:text-neutral-400">Payment</span>
@@ -741,26 +755,48 @@ export default function LawContractsPage() {
               <div className="flex justify-between items-center">
                 <span className="text-neutral-500 dark:text-neutral-400">Law Status</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${LAW_STATUS_STYLES[selectedContract.lawStatus]}`}>
-                  {selectedContract.lawStatus}
+                  {getContractLawStatusLabel(selectedContract.lawStatus)}
                 </span>
               </div>
+              {selectedContract.lawRejectionReason && (
+                <div>
+                  <p className="text-neutral-500 dark:text-neutral-400 mb-1">Last rejection reason</p>
+                  <p className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
+                    {selectedContract.lawRejectionReason}
+                  </p>
+                </div>
+              )}
             </div>
             {selectedContract.lawStatus === 'pending' && (
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => handleValidate(selectedContract._id, 'validated')}
-                  disabled={!!actionLoading}
-                  className="flex-1 rounded-lg bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
-                >
-                  {actionLoading === selectedContract._id + 'validated' ? 'Validating...' : 'Validate & Approve'}
-                </button>
-                <button
-                  onClick={() => handleValidate(selectedContract._id, 'rejected')}
-                  disabled={!!actionLoading}
-                  className="flex-1 rounded-lg bg-rose-600 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60 transition-colors"
-                >
-                  {actionLoading === selectedContract._id + 'rejected' ? 'Rejecting...' : 'Reject'}
-                </button>
+              <div className="mt-6 space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    Rejection reason
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={reviewReason}
+                    onChange={(event) => setReviewReason(event.target.value)}
+                    placeholder="Required when rejecting this contract"
+                    className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleValidate(selectedContract._id, 'validated')}
+                    disabled={!!actionLoading}
+                    className="flex-1 rounded-lg bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+                  >
+                    {actionLoading === selectedContract._id + 'validated' ? 'Validating...' : 'Validate & Approve'}
+                  </button>
+                  <button
+                    onClick={() => handleValidate(selectedContract._id, 'rejected')}
+                    disabled={!!actionLoading}
+                    className="flex-1 rounded-lg bg-rose-600 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60 transition-colors"
+                  >
+                    {actionLoading === selectedContract._id + 'rejected' ? 'Rejecting...' : 'Reject'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -810,7 +846,7 @@ export default function LawContractsPage() {
               <div
                 key={c._id}
                 className="group flex items-center justify-between gap-4 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer"
-                onClick={() => setSelectedContract(c)}
+                onClick={() => openContract(c)}
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -829,7 +865,7 @@ export default function LawContractsPage() {
                     {c.status}
                   </span>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${LAW_STATUS_STYLES[c.lawStatus] || LAW_STATUS_STYLES.pending}`}>
-                    {c.lawStatus === 'pending' ? 'Review Needed' : c.lawStatus}
+                    {getContractLawStatusLabel(c.lawStatus)}
                   </span>
                   <span className="material-symbols-outlined text-[18px] text-neutral-300 transition-transform group-hover:translate-x-0.5 group-hover:text-neutral-500 dark:text-neutral-600">chevron_right</span>
                 </div>

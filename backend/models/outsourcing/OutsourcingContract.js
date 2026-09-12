@@ -23,6 +23,9 @@ const contractSchema = new mongoose.Schema(
       enum: ['pending', 'validated', 'rejected'],
       default: 'pending'
     },
+    lawReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    lawReviewedAt: { type: Date, default: null },
+    lawRejectionReason: { type: String, trim: true, default: '' },
     ndaSigned: { type: Boolean, default: false },
     agreementSigned: { type: Boolean, default: false },
     paymentTermsAccepted: { type: Boolean, default: false },
@@ -40,6 +43,8 @@ const contractSchema = new mongoose.Schema(
         agreementSigned: { type: Boolean, default: false },
         paymentTermsAccepted: { type: Boolean, default: false },
         signedAt: { type: Date, default: null },
+        lawStatus: { type: String, enum: ['pending', 'validated', 'rejected'], default: 'pending' },
+        lawRejectionReason: { type: String, trim: true, default: '' },
         editedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         editedAt: { type: Date, default: Date.now }
       }

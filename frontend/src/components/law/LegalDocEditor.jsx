@@ -229,13 +229,14 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
-      className={`flex flex-col border border-neutral-200 dark:border-neutral-700 rounded-xl overflow-hidden bg-white dark:bg-neutral-900 shadow-sm transition-all ${
+      className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm transition-all dark:border-neutral-700 dark:bg-neutral-900 ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
       }`}
+      style={{ height: isFullscreen ? '100dvh' : 'calc(100vh - 260px)', minHeight: isFullscreen ? undefined : 520 }}
     >
       {/* ── TOOLBAR ── */}
       {!isReadOnly && (
-        <div className="no-print flex flex-wrap items-center gap-0.5 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-2 py-1.5">
+        <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-neutral-200 bg-neutral-50 px-2 py-1.5 dark:border-neutral-700 dark:bg-neutral-800">
           <select
             title="Font family"
             onChange={(e) => execCmd('fontName', e.target.value)}
@@ -271,7 +272,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
                   }}
                   className={`flex h-8 w-8 items-center justify-center rounded text-sm transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700 ${
                     isCmdActive(btn.cmd)
-                      ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400'
+                      ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
                       : 'text-neutral-600 dark:text-neutral-400'
                   }`}
                 >
@@ -372,7 +373,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
               type="button"
               title="Download PDF"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
+              className="flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
             >
               <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
               Download PDF
@@ -383,8 +384,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
 
       {/* ── A4 EDITOR AREA ── */}
       <div
-        className="flex-1 overflow-auto bg-neutral-100 dark:bg-neutral-950 p-4 md:p-8"
-        style={{ minHeight: isFullscreen ? 'calc(100vh - 120px)' : '500px' }}
+        className="flex-1 overflow-auto bg-neutral-100 p-4 dark:bg-neutral-950 md:p-6"
       >
         {/* A4 page shadow */}
         <div
@@ -396,7 +396,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
             maxWidth: '100%',
             margin: '0 auto',
             padding: '20mm 25mm',
-            boxShadow: '0 2px 24px rgba(0,0,0,0.12)',
+            boxShadow: '0 8px 28px rgba(15,23,42,0.12)',
             fontFamily: "'Times New Roman', 'Georgia', serif",
             fontSize: '12pt',
             lineHeight: '1.8',
@@ -478,7 +478,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
       </div>
 
       {/* ── BOTTOM STATUSBAR ── */}
-      <div className="no-print flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-4 py-2">
+      <div className="no-print sticky bottom-0 z-10 flex items-center justify-between border-t border-neutral-200 bg-neutral-50 px-4 py-2 dark:border-neutral-700 dark:bg-neutral-800">
         <div className="flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
           <span>{wordCount} words</span>
           <span>{charCount} chars</span>
@@ -500,10 +500,10 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:brightness-110"
               >
                 <span className="material-symbols-outlined text-sm">send</span>
-                {doc?.status === 'Rejected' ? 'Submit Again' : 'Submit to CEO'}
+                {doc?.status === 'Rejected' ? 'Submit Again' : 'Submit for Approval'}
               </button>
             )}
           </div>
@@ -512,7 +512,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
           <button
             type="button"
             onClick={handlePrint}
-            className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
+            className="flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
           >
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
             PDF
@@ -532,11 +532,11 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && insertLink()}
-              className="mb-3 w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-rose-500"
+              className="mb-3 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[var(--portal-accent)] dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100"
             />
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowLinkDialog(false)} className="px-3 py-1.5 text-sm text-neutral-600 dark:text-neutral-400">Cancel</button>
-              <button onClick={insertLink} className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white">Insert</button>
+              <button onClick={insertLink} className="rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-sm font-semibold text-white">Insert</button>
             </div>
           </div>
         </div>
@@ -559,7 +559,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowTableDialog(false)} className="px-3 py-1.5 text-sm text-neutral-600 dark:text-neutral-400">Cancel</button>
-              <button onClick={insertTable} className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white">Insert</button>
+              <button onClick={insertTable} className="rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-sm font-semibold text-white">Insert</button>
             </div>
           </div>
         </div>

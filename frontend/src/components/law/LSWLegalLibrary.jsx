@@ -11,6 +11,8 @@ import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
 import IconButton from '../common/IconButton';
 import Button from '../common/Button';
+import useLawProjectContext from './useLawProjectContext';
+import { lawControlClass, lawPrimaryButtonClass, lawSecondaryButtonClass } from './lawUi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
@@ -81,7 +83,7 @@ const DocViewer = ({ doc, versions, token, onClose, toast }) => {
             </div>
             <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100 truncate">{doc.title}</h2>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Version {doc.currentVersion} · {doc.projectName || 'General'} · Approved by {doc.approvedByName || 'CEO'}
+              Version {doc.currentVersion} · {doc.projectName || 'General'} · Approved by {doc.approvedByName || 'Legal approver'}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -106,7 +108,7 @@ const DocViewer = ({ doc, versions, token, onClose, toast }) => {
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '8pt', color: '#888' }}>
                   <div>✓ APPROVED</div>
-                  <div>By: {doc.approvedByName}</div>
+                  <div>By: {doc.approvedByName || 'Legal approver'}</div>
                   <div>Date: {formatDate(doc.approvedAt)}</div>
                 </div>
               </div>
@@ -147,7 +149,7 @@ const DocViewer = ({ doc, versions, token, onClose, toast }) => {
 const DocCard = ({ doc, onView }) => {
   const cfg = TYPE_COLORS[doc.type] || TYPE_COLORS.Other;
   return (
-    <div className="group flex flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-emerald-700">
+    <div className="group flex flex-col rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:border-[var(--portal-accent)] dark:border-neutral-800 dark:bg-neutral-950">
       <div className="mb-4 flex items-start justify-between">
         <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${cfg.icon}`}>
           <span className="material-symbols-outlined text-[22px]">{TYPE_ICON[doc.type] || 'description'}</span>
@@ -171,7 +173,7 @@ const DocCard = ({ doc, onView }) => {
 
       <button
         onClick={() => onView(doc)}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+        className={lawPrimaryButtonClass}
       >
         <span className="material-symbols-outlined text-[15px]">open_in_new</span>
         View Document
@@ -184,6 +186,7 @@ const DocCard = ({ doc, onView }) => {
 const LSWLegalLibrary = () => {
   const { token } = useAuth();
   const toast = useToast();
+  const { projectId, isProjectScoped } = useLawProjectContext();
   const [docs, setDocs]               = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
@@ -199,6 +202,7 @@ const LSWLegalLibrary = () => {
     try {
       const params = {};
       if (filterType) params.type = filterType;
+      if (isProjectScoped) params.projectId = projectId;
       params.sort = 'approved-desc';
       params.limit = 100;
       const res = await getApprovedDocuments(token, params);
@@ -208,9 +212,12 @@ const LSWLegalLibrary = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, filterType]);
+  }, [token, filterType, isProjectScoped, projectId]);
 
-  useEffect(() => { fetchDocs(); }, [fetchDocs]);
+  useEffect(() => {
+    const timer = setTimeout(() => { fetchDocs(); }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchDocs]);
 
   const handleView = async (doc) => {
     try {
@@ -251,7 +258,7 @@ const LSWLegalLibrary = () => {
 
         <PortalHeader
           title="Approved Legal Library"
-          subtitle="Read-only access to all CEO-approved legal documents"
+          subtitle={`Read-only approved document repository${isProjectScoped ? ' for the selected project' : ''}`}
           icon="library_books"
           showSearch={false}
           showNotifications={false}
@@ -259,18 +266,19 @@ const LSWLegalLibrary = () => {
         >
           <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700">
             <span className="material-symbols-outlined text-sm">verified</span>
-            CEO Approved
+            Approved
           </div>
-          <Button variant="secondary" size="md" className="min-h-11" onClick={fetchDocs} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
+          <button type="button" className={lawSecondaryButtonClass} onClick={fetchDocs}>
+            <span className="material-symbols-outlined text-lg">refresh</span>
             Refresh
-          </Button>
+          </button>
         </PortalHeader>
 
         {/* KPI row */}
         <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <KPICard title="Total Approved" value={docs.length} icon="library_books" compact />
           <KPICard title="Document Types" value={topTypes.length > 0 ? DOC_TYPES.filter((t) => docs.some((d) => d.type === t)).length : 0} icon="folder_open" compact />
-          <KPICard title="Projects" value={projects.length} icon="category" compact />
+          <KPICard title="Projects Represented" value={projects.length || (isProjectScoped ? 1 : 0)} icon="category" compact />
           <KPICard title="Matching Filter" value={filtered.length} icon="search" compact />
         </div>
 
@@ -283,7 +291,7 @@ const LSWLegalLibrary = () => {
                 placeholder="Search documents…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="app-input pl-10 pr-9"
+                className={`${lawControlClass} w-full pl-10 pr-9`}
               />
               {searchTerm && (
                 <button
@@ -299,7 +307,7 @@ const LSWLegalLibrary = () => {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="min-h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+              className={lawControlClass}
             >
               <option value="">All Types</option>
               {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
@@ -308,7 +316,7 @@ const LSWLegalLibrary = () => {
               <select
                 value={filterProject}
                 onChange={(e) => setFilterProject(e.target.value)}
-                className="min-h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+                className={lawControlClass}
               >
                 <option value="">All Projects</option>
                 {projects.map((p) => <option key={p}>{p}</option>)}
@@ -318,7 +326,7 @@ const LSWLegalLibrary = () => {
               <button
                 type="button"
                 onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}
-                className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-500 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900"
+                className={lawSecondaryButtonClass}
               >
                 <span className="material-symbols-outlined text-lg">close</span>
                 Clear
@@ -357,7 +365,7 @@ const LSWLegalLibrary = () => {
               <p className="text-sm text-neutral-400 dark:text-neutral-500">
                 {searchTerm || filterType || filterProject
                   ? 'No documents match your current filters.'
-                  : 'Documents will appear here after CEO approval.'}
+                  : 'Documents will appear here after legal approval.'}
               </p>
               {(searchTerm || filterType || filterProject) && (
                 <Button variant="primary" size="sm" onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}>
@@ -367,9 +375,47 @@ const LSWLegalLibrary = () => {
           </div>
         )}
 
+        {!loading && filtered.length > 0 && (
+          <div className="mb-6 hidden overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 lg:block">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-neutral-50 text-xs font-semibold uppercase text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
+                <tr>
+                  <th className="px-4 py-3">Title</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">Project</th>
+                  <th className="px-4 py-3">Version</th>
+                  <th className="px-4 py-3">Approved By</th>
+                  <th className="px-4 py-3">Approval Date</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {filtered.map((doc) => (
+                  <tr key={`table-${doc._id}`} className="transition hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">{doc.title}</p>
+                      <p className="text-xs text-neutral-400">{doc.createdByName || 'Legal team'}</p>
+                    </td>
+                    <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${TYPE_COLORS[doc.type]?.pill || TYPE_COLORS.Other.pill}`}>{doc.type}</span></td>
+                    <td className="px-4 py-3 text-neutral-600 dark:text-neutral-300">{doc.projectName || 'General'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-neutral-500">{doc.currentVersion}</td>
+                    <td className="px-4 py-3 text-neutral-600 dark:text-neutral-300">{doc.approvedByName || 'Legal approver'}</td>
+                    <td className="px-4 py-3 text-neutral-500">{formatDate(doc.approvedAt)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button type="button" onClick={() => handleView(doc)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)]">
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* Grouped document cards */}
         {!loading && Object.keys(grouped).length > 0 && (
-          <div className="space-y-8">
+          <div className="space-y-6 lg:hidden">
             {Object.entries(grouped).map(([type, typeDocs]) => {
               const cfg = TYPE_COLORS[type] || TYPE_COLORS.Other;
               return (

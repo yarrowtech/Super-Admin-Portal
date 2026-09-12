@@ -12,6 +12,35 @@ const withPagination = (query = {}) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
+const SECTION_LIFECYCLE_DATE = {
+  agreements: { field: "expiryDate", label: "expires" },
+  "privacy-policy": { field: "nextReviewDate", label: "review_due" },
+  "disputes-fraud": { field: "resolutionEta", label: "resolution_eta" },
+  "ip-copyright": { field: "expiryDate", label: "renewal_due" },
+};
+
+const parseLifecycleDate = (value) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const enrichLawRecord = (record = {}) => {
+  const config = SECTION_LIFECYCLE_DATE[record.section] || {};
+  const lifecycleDate = parseLifecycleDate(record.metadata?.[config.field] || record.dueDate);
+  const daysUntil = lifecycleDate ? Math.ceil((lifecycleDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  return {
+    ...record,
+    lifecycle: {
+      dateField: config.field || "dueDate",
+      label: config.label || "due",
+      date: lifecycleDate,
+      daysUntil,
+      state: daysUntil === null ? "unscheduled" : daysUntil < 0 ? "overdue" : daysUntil <= 30 ? "due_soon" : "scheduled",
+    },
+  };
+};
+
 const getOverview = async (projectId) => {
   const scope = projectId ? { projectId } : {};
   const [records, contracts, expiringSoon, disputes] = await Promise.all([
@@ -185,7 +214,7 @@ const getModuleDataByProject = async ({ moduleKey, projectId, query = {} }) => {
     Law.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
     Law.countDocuments(filter),
   ]);
-  return { items, section, projectId, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
+  return { items: items.map(enrichLawRecord), section, projectId, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
 };
 
 module.exports = {

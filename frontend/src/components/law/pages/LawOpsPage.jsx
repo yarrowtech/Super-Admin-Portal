@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import LawRecordManager from '../LawRecordManager';
 import { LAW_FORM_CONFIG, getLawSection } from '../lawModuleConfig';
+import { getLawBadgeClass, getLawPriorityClass, lawCardClass, lawControlClass, lawPrimaryButtonClass } from '../lawUi';
 import ThemeToggleButton from '../../common/ThemeToggleButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,13 +22,19 @@ const tone = {
 };
 
 const Pill = ({ value }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${tone[String(value || '').toLowerCase().replace(/ /g, '_')] || tone.draft}`}>
+  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${getLawBadgeClass(value, tone[String(value || '').toLowerCase().replace(/ /g, '_')] || tone.draft)}`}>
     {String(value || 'Unknown')}
   </span>
 );
 
+const PriorityPill = ({ value }) => (
+  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${getLawPriorityClass(value)}`}>
+    {String(value || 'Medium')}
+  </span>
+);
+
 const Card = ({ children, className = '' }) => (
-  <section className={`rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 ${className}`}>{children}</section>
+  <section className={`${lawCardClass} ${className}`}>{children}</section>
 );
 
 const Inner = ({ children, className = '' }) => (
@@ -35,11 +42,11 @@ const Inner = ({ children, className = '' }) => (
 );
 
 const PageHdr = ({ title, subtitle, icon = 'description', action }) => (
-  <header className="mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-    <div className="h-1 w-full bg-indigo-600" />
+  <header className="mb-4 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+    <div className="h-1 w-full bg-[var(--portal-accent)]" />
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 shadow-sm">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--portal-accent)] shadow-sm">
           <span className="material-symbols-outlined text-[20px] text-white">{icon}</span>
         </div>
         <div>
@@ -74,19 +81,44 @@ const Skeleton = ({ rows = 4 }) => (
   </div>
 );
 
-const Btn = ({ children, onClick, variant = 'primary', className = '', ...props }) => (
-  <button
-    onClick={onClick}
-    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-      variant === 'primary'
-        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-        : 'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
-    } ${className}`}
-    {...props}
-  >
-    {children}
-  </button>
-);
+const MODULE_SIGNAL_CONFIG = {
+  agreements: {
+    primaryDate: 'expiryDate',
+    primaryDateLabel: 'Expires',
+    attentionLabel: 'Expiring Soon',
+    detailFields: ['counterparty', 'parties', 'signatureStatus', 'version'],
+  },
+  'privacy-policy': {
+    primaryDate: 'nextReviewDate',
+    primaryDateLabel: 'Review',
+    attentionLabel: 'Reviews Due',
+    detailFields: ['audience', 'dataCategory', 'reviewCadence', 'notificationMode'],
+  },
+  'disputes-fraud': {
+    primaryDate: 'resolutionEta',
+    primaryDateLabel: 'ETA',
+    attentionLabel: 'Critical Cases',
+    detailFields: ['caseStage', 'severity', 'fraudAmount', 'rootCause'],
+  },
+  'ip-copyright': {
+    primaryDate: 'expiryDate',
+    primaryDateLabel: 'Renewal',
+    attentionLabel: 'Renewals Due',
+    detailFields: ['jurisdiction', 'assetOwner', 'usageScope', 'renewalOwner'],
+  },
+};
+
+const parseDateValue = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const daysUntil = (value) => {
+  const date = parseDateValue(value);
+  if (!date) return null;
+  return Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Privacy policy static content (kept intact)
@@ -152,11 +184,9 @@ const LawOpsPage = ({
 }) => {
   const section = getLawSection(sectionId);
   const config = LAW_FORM_CONFIG[sectionId] || {};
+  const signalConfig = MODULE_SIGNAL_CONFIG[sectionId] || {};
   const [searchInput, setSearchInput] = useState(searchTerm);
-
-  useEffect(() => {
-    setSearchInput(searchTerm);
-  }, [searchTerm]);
+  const [formOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => onSearchChange(searchInput), 250);
@@ -184,21 +214,38 @@ const LawOpsPage = ({
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
+  const lifecycleStats = useMemo(() => {
+    const open = filteredRecords.filter((record) => !['active', 'ready', 'archived'].includes(String(record.status || '').toLowerCase())).length;
+    const attention = filteredRecords.filter((record) => {
+      const status = String(record.status || '').toLowerCase();
+      const priority = String(record.priority || '').toLowerCase();
+      const dueIn = daysUntil(record.metadata?.[signalConfig.primaryDate] || record.dueDate);
+      if (sectionId === 'disputes-fraud') return priority === 'critical' || status === 'attention';
+      return dueIn !== null && dueIn <= 30;
+    }).length;
+    const withEvidence = filteredRecords.filter((record) => Array.isArray(record.metadata?.referencePdfs) && record.metadata.referencePdfs.length > 0).length;
+    const inReview = filteredRecords.filter((record) => String(record.status || '').toLowerCase() === 'in review').length;
+    return { open, attention, withEvidence, inReview };
+  }, [filteredRecords, sectionId, signalConfig.primaryDate]);
+
+  const selectedProjectName = projectOptions.find((p) => p.value === selectedProjectId)?.label || 'All Projects';
+
   return (
-    <div className="space-y-5 p-4 md:p-6">
+      <div className="space-y-4 p-3 sm:p-4 lg:p-6">
       {/* Page header */}
       <PageHdr
         title={section.title}
-        subtitle={`${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'}${subtitle ? ` · ${subtitle}` : ''}`}
+        subtitle={`${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'} · ${selectedProjectName}${subtitle ? ` · ${subtitle}` : ''}`}
         icon={section.icon || 'description'}
         action={
-          <a
-            href="#law-crud-form"
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          <button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            className={lawPrimaryButtonClass}
           >
             <span className="material-symbols-outlined text-[16px]">add</span>
-            New Record
-          </a>
+            {config.actionLabel || 'New Record'}
+          </button>
         }
       />
 
@@ -220,14 +267,14 @@ const LawOpsPage = ({
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={`Search ${section.navLabel.toLowerCase()} records…`}
-                className="h-9 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-9 pr-3 text-sm text-neutral-700 outline-none focus:border-indigo-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+                className={`${lawControlClass} w-full bg-neutral-50 pl-9 pr-3`}
               />
             </div>
             {projectOptions.length > 0 && (
               <select
                 value={selectedProjectId}
                 onChange={(e) => onProjectChange?.(e.target.value)}
-                className="h-9 rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-xs font-semibold text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+                className={`${lawControlClass} bg-neutral-50 text-xs font-semibold`}
               >
                 <option value="">All Projects</option>
                 {projectOptions.map((p) => (
@@ -244,6 +291,13 @@ const LawOpsPage = ({
         </Inner>
       </Card>
 
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Card><Inner className="py-4"><p className="text-xs font-semibold text-neutral-400">Open Pipeline</p><p className="mt-1 text-2xl font-black text-neutral-900 dark:text-white">{lifecycleStats.open}</p></Inner></Card>
+        <Card><Inner className="py-4"><p className="text-xs font-semibold text-neutral-400">{signalConfig.attentionLabel || 'Needs Attention'}</p><p className="mt-1 text-2xl font-black text-rose-600">{lifecycleStats.attention}</p></Inner></Card>
+        <Card><Inner className="py-4"><p className="text-xs font-semibold text-neutral-400">In Review</p><p className="mt-1 text-2xl font-black text-blue-600">{lifecycleStats.inReview}</p></Inner></Card>
+        <Card><Inner className="py-4"><p className="text-xs font-semibold text-neutral-400">Evidence Attached</p><p className="mt-1 text-2xl font-black text-emerald-600">{lifecycleStats.withEvidence}</p></Inner></Card>
+      </div>
+
       {/* Privacy policy static info (section-specific) */}
       {sectionId === 'privacy-policy' && (
         <Card>
@@ -253,7 +307,7 @@ const LawOpsPage = ({
               {PRIVACY_SECTIONS.map((item) => (
                 <span
                   key={item.title}
-                  className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300"
+                className="rounded-full border border-[var(--portal-accent)]/20 bg-[var(--portal-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--portal-accent)]"
                 >
                   {item.title}
                 </span>
@@ -269,7 +323,7 @@ const LawOpsPage = ({
                   <div className="space-y-1.5 px-4 pb-4">
                     {item.points.map((point) => (
                       <p key={point} className="flex gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                        <span className="material-symbols-outlined mt-0.5 text-[14px] text-indigo-500">chevron_right</span>
+                        <span className="material-symbols-outlined mt-0.5 text-[14px] text-[var(--portal-accent)]">chevron_right</span>
                         {point}
                       </p>
                     ))}
@@ -331,10 +385,36 @@ const LawOpsPage = ({
                           {record.recordType}
                         </span>
                       )}
+                      {record.metadata?.recordType && !record.recordType && (
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">label</span>
+                          {record.metadata.recordType}
+                        </span>
+                      )}
+                      {signalConfig.primaryDate && record.metadata?.[signalConfig.primaryDate] && (
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">event_upcoming</span>
+                          {signalConfig.primaryDateLabel}: {formatDate(record.metadata[signalConfig.primaryDate])}
+                        </span>
+                      )}
                     </div>
+                    {signalConfig.detailFields?.length > 0 && (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        {signalConfig.detailFields.map((fieldName) => {
+                          const field = config.metadataFields?.find((item) => item.name === fieldName);
+                          const value = record.metadata?.[fieldName];
+                          return value ? (
+                            <div key={fieldName} className="rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+                              <p className="text-[10px] font-bold uppercase text-neutral-400">{field?.label || fieldName}</p>
+                              <p className="truncate text-xs font-semibold text-neutral-700 dark:text-neutral-200">{value}</p>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    {record.priority && <Pill value={record.priority} />}
+                    {record.priority && <PriorityPill value={record.priority} />}
                     {record.status && <Pill value={record.status} />}
                   </div>
                 </div>
@@ -352,7 +432,10 @@ const LawOpsPage = ({
           saving={saving}
           onSaveRecord={onSaveRecord}
           onDeleteRecord={onDeleteRecord}
-          title={`${section.navLabel} Register`}
+          formOpen={formOpen}
+          onFormOpen={() => setFormOpen(true)}
+          onFormClose={() => setFormOpen(false)}
+          title={config.registerTitle || `${section.navLabel} Register`}
           {...config}
         />
       </div>

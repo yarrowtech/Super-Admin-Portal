@@ -168,7 +168,7 @@ const LawDashboard = () => {
   useEffect(() => {
     if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
       setSearchParams({ projectId: effectiveProjectId });
-      try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch {}
+      try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch { /* ignore storage failures */ }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, effectiveProjectId, selectedProjectId]);
@@ -230,6 +230,7 @@ const LawDashboard = () => {
           compliance: complianceQuery.data?.data?.compliance?.length || 0,
         }
       : null
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   ), [activeSection, dashboardQuery.isSuccess, dashboardQuery.isError, dashboardQuery.data, contractsQuery.data, complianceQuery.data]);
 
   // Only records-fetch failures surface as an error; the dashboard summary
@@ -256,7 +257,7 @@ const LawDashboard = () => {
 
   useEffect(() => {
     if (!token || activeSection !== 'agreements' || !selectedProjectId || String(selectedProjectId).startsWith('virtual-')) return;
-    try { localStorage.setItem('activeProjectId', String(selectedProjectId)); } catch {}
+    try { localStorage.setItem('activeProjectId', String(selectedProjectId)); } catch { /* ignore storage failures */ }
   }, [token, activeSection, selectedProjectId]);
 
   const ActivePage = pageComponents[activeSection];
@@ -469,7 +470,7 @@ const LawDashboard = () => {
             value={selectedProjectId}
             onChange={(e) => {
               const next = e.target.value;
-              if (next) { try { localStorage.setItem('activeProjectId', next); } catch {} }
+              if (next) { try { localStorage.setItem('activeProjectId', next); } catch { /* ignore storage failures */ } }
               setSearchParams(next ? { projectId: next } : {});
             }}
             className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
@@ -562,11 +563,11 @@ const LawDashboard = () => {
                   key={sec.id}
                   type="button"
                   onClick={() => navigate(withProjectContext(sec.path))}
-                  className="group flex flex-col items-center gap-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-center transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/20"
+                  className="group flex min-h-[116px] flex-col items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-800 dark:bg-neutral-900"
                 >
-                  <span className="material-symbols-outlined text-[28px] text-neutral-500 transition group-hover:text-indigo-600 dark:text-neutral-400 dark:group-hover:text-indigo-400">{sec.icon}</span>
+                  <span className="material-symbols-outlined text-[26px] text-neutral-500 transition group-hover:text-[var(--portal-accent)] dark:text-neutral-400">{sec.icon}</span>
                   <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">{sec.label}</span>
-                  {count > 0 && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">{count}</span>}
+                  {count > 0 && <span className="rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--portal-accent)]">{count}</span>}
                 </button>
               );
             })}
@@ -589,7 +590,7 @@ const LawDashboard = () => {
                   <div key={item.name} className="flex items-center gap-3">
                     <span className="w-28 truncate text-xs text-neutral-500">{item.name}</span>
                     <div className="flex-1 rounded-full bg-neutral-100 dark:bg-neutral-800" style={{ height: 8 }}>
-                      <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${Math.round((item.value / max) * 100)}%` }} />
+                      <div className="h-2 rounded-full bg-[var(--portal-accent)]" style={{ width: `${Math.round((item.value / max) * 100)}%` }} />
                     </div>
                     <span className="w-6 text-right text-xs font-bold text-neutral-700 dark:text-neutral-300">{item.value}</span>
                   </div>
@@ -611,7 +612,7 @@ const LawDashboard = () => {
                 const pct = Math.round((item.value / total) * 100);
                 const colors = { Low: 'text-neutral-600 bg-neutral-100', Medium: 'text-blue-700 bg-blue-50', High: 'text-amber-700 bg-amber-50', Critical: 'text-rose-700 bg-rose-50' };
                 return (
-                  <div key={item.name} className={`rounded-2xl p-4 ${colors[item.name] || 'bg-neutral-50 text-neutral-700'}`}>
+                  <div key={item.name} className={`rounded-xl p-4 ${colors[item.name] || 'bg-neutral-50 text-neutral-700'}`}>
                     <p className="text-xs font-semibold uppercase opacity-70">{item.name}</p>
                     <p className="mt-1 text-2xl font-bold">{item.value}</p>
                     <p className="text-xs opacity-60">{pct}%</p>
@@ -721,7 +722,7 @@ const LawDashboard = () => {
           selectedProjectId={selectedProjectId}
           onProjectChange={(projectId) => {
             if (projectId) {
-              try { localStorage.setItem('activeProjectId', String(projectId)); } catch {}
+              try { localStorage.setItem('activeProjectId', String(projectId)); } catch { /* ignore storage failures */ }
             }
             setSearchParams(projectId ? { projectId } : {});
           }}

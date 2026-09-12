@@ -4,20 +4,62 @@ import { useAuth } from '../../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import PortalSidebar from '../common/PortalSidebar';
 import { useSidebar } from '../../context/SidebarContext';
+import useLawProjectContext from './useLawProjectContext';
 
 const lawNavItems = [
-  { label: 'Workflow',         icon: 'gavel',          path: '/law/dashboard' },
-  { label: 'Project Overview', icon: 'folder_copy',    path: '/law/project-overview' },
-  { label: 'Outsrc Contracts', icon: 'contract',       path: '/law/contracts' },
-  { label: 'Legal Documents',  icon: 'description',    path: '/law/legal-docs' },
-  { label: 'Approved Library', icon: 'library_books',  path: '/law/legal-library' },
-  { label: 'Agreements',       icon: 'handshake',      path: '/law/agreements' },
-  { label: 'Privacy & Policy', icon: 'policy',         path: '/law/policy' },
-  { label: 'Disputes & Fraud', icon: 'balance',        path: '/law/disputes' },
-  { label: 'IP & Copyright',   icon: 'copyright',      path: '/law/ip' },
-  { label: 'Work on Hire',     icon: 'assignment_ind', path: '/law/work-hire' },
-  { label: 'Third Party',      icon: 'groups',         path: '/law/third-party' },
+  {
+    label: 'Overview',
+    icon: 'dashboard',
+    path: '/law/group/overview',
+    children: [
+      { label: 'Workflow',         icon: 'gavel',       path: '/law/dashboard' },
+      { label: 'Project Overview', icon: 'folder_copy', path: '/law/project-overview' },
+    ],
+  },
+  {
+    label: 'Contracts',
+    icon: 'contract',
+    path: '/law/group/contracts',
+    children: [
+      { label: 'Outsourcing Contracts', icon: 'contract',       path: '/law/contracts' },
+      { label: 'Agreements',            icon: 'handshake',      path: '/law/agreements' },
+      { label: 'Work on Hire',          icon: 'assignment_ind', path: '/law/work-hire' },
+      { label: 'Third Party',           icon: 'groups',         path: '/law/third-party' },
+    ],
+  },
+  {
+    label: 'Documents',
+    icon: 'description',
+    path: '/law/group/documents',
+    children: [
+      { label: 'Legal Documents',  icon: 'description',   path: '/law/legal-docs' },
+      { label: 'Approved Library', icon: 'library_books', path: '/law/legal-library' },
+    ],
+  },
+  {
+    label: 'Compliance',
+    icon: 'policy',
+    path: '/law/group/compliance',
+    children: [
+      { label: 'Privacy & Policy', icon: 'policy',    path: '/law/policy' },
+      { label: 'IP & Copyright',   icon: 'copyright', path: '/law/ip' },
+    ],
+  },
+  {
+    label: 'Risk',
+    icon: 'balance',
+    path: '/law/group/risk',
+    children: [
+      { label: 'Disputes & Fraud', icon: 'balance', path: '/law/disputes' },
+    ],
+  },
 ];
+
+const applyProjectContext = (items, withProjectContext) => items.map((item) => ({
+  ...item,
+  path: item.path?.startsWith('/law/group/') ? item.path : withProjectContext(item.path),
+  children: Array.isArray(item.children) ? applyProjectContext(item.children, withProjectContext) : undefined,
+}));
 
 const LawSidebar = () => {
   const { user, logout } = useAuth();
@@ -25,13 +67,8 @@ const LawSidebar = () => {
   const navigate = useNavigate();
   const { collapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const projectId = new URLSearchParams(location.search).get('projectId') || '';
-  const lawNavWithProject = lawNavItems.map((item) => ({
-    ...item,
-    path: projectId && !String(projectId).startsWith('virtual-')
-      ? `${item.path}?projectId=${encodeURIComponent(projectId)}`
-      : item.path,
-  }));
+  const { withProjectContext } = useLawProjectContext();
+  const lawNavWithProject = applyProjectContext(lawNavItems, withProjectContext);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -78,8 +115,8 @@ const LawSidebar = () => {
           currentPath={location.pathname}
           onLogout={handleLogout}
           footerItems={[
-            { path: '/law/settings', label: 'Settings', icon: 'settings' },
-            { path: '/law/support',  label: 'Support',  icon: 'support_agent' },
+            { path: withProjectContext('/law/settings'), label: 'Settings', icon: 'settings' },
+            { path: withProjectContext('/law/support'),  label: 'Support',  icon: 'support_agent' },
           ]}
         />
       </div>
@@ -103,8 +140,8 @@ const LawSidebar = () => {
               onLogout={handleLogout}
               onNavigate={closeMobile}
               footerItems={[
-                { path: '/law/settings', label: 'Settings', icon: 'settings' },
-                { path: '/law/support',  label: 'Support',  icon: 'support_agent' },
+                { path: withProjectContext('/law/settings'), label: 'Settings', icon: 'settings' },
+                { path: withProjectContext('/law/support'),  label: 'Support',  icon: 'support_agent' },
               ]}
             />
           </div>

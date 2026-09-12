@@ -27,7 +27,7 @@ const disputeValidation = [
 const moduleProjectValidation = [
   param("moduleKey")
     .trim()
-    .isIn(["agreements", "policy", "privacy-policy", "disputes", "ip", "ip-copyright", "third-party"])
+    .isIn(["agreements", "policy", "privacy-policy", "disputes", "ip", "ip-copyright", "third-party", "work-hire"])
     .withMessage("invalid module key"),
   param("projectId").isMongoId().withMessage("Invalid projectId"),
 ];

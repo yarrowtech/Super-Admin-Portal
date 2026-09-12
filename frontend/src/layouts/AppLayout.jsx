@@ -28,7 +28,7 @@ const ROLE_THEME = {
   finance_employee: 'employee',
   finance: 'finance',
   law_head: 'law',
-  law_employee: 'employee',
+  law_employee: 'law',
   law: 'law',
   media_head: 'media',
   media_sales: 'media',

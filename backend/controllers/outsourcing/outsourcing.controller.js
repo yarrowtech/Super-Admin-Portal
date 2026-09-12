@@ -713,9 +713,13 @@ const getContractHistory = async (req, res) => {
 const validateContractByLaw = async (req, res) => {
   try {
     const { contractId } = req.params;
-    const { approved } = req.body || {};
+    const { approved, reason } = req.body || {};
+    const rejectionReason = String(reason || req.body?.remarks || req.body?.rejectionReason || '').trim();
     const contract = await OutsourcingContract.findById(contractId);
     if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
+    if (approved === false && !rejectionReason) {
+      return res.status(400).json({ success: false, error: 'Rejection reason is required' });
+    }
 
     if (!contract.ndaSigned || !contract.agreementSigned || !contract.paymentTermsAccepted) {
       contract.lawStatus = 'rejected';
@@ -726,6 +730,9 @@ const validateContractByLaw = async (req, res) => {
 
     contract.lawStatus = approved === false ? 'rejected' : 'validated';
     contract.status = approved === false ? 'draft' : 'active';
+    contract.lawReviewedBy = req.user._id;
+    contract.lawReviewedAt = new Date();
+    contract.lawRejectionReason = approved === false ? rejectionReason : '';
     await contract.save();
 
     await OutsourcingFreelancer.findOneAndUpdate(
@@ -754,7 +761,9 @@ const validateContractByLaw = async (req, res) => {
         ndaSigned: contract.ndaSigned,
         agreementSigned: contract.agreementSigned,
         paymentTermsAccepted: contract.paymentTermsAccepted,
-        signedAt: contract.lawStatus === 'validated' ? new Date() : contract.signedAt
+        signedAt: contract.lawStatus === 'validated' ? new Date() : contract.signedAt,
+        lawStatus: contract.lawStatus,
+        lawRejectionReason: contract.lawRejectionReason
       }
     });
     if (contract.lawStatus === 'validated') {
@@ -774,7 +783,12 @@ const validateContractByLaw = async (req, res) => {
         ? `Agreement for job "${contract.job}" is signed and active. Work execution can begin.`
         : `Agreement for job "${contract.job}" was rejected by legal review.`,
       type: contract.lawStatus === 'validated' ? 'outsourcing_contract_active' : 'outsourcing_contract_rejected',
-      metadata: { contractId: contract._id, jobId: contract.job, freelancerId: contract.freelancer }
+      metadata: {
+        contractId: contract._id,
+        jobId: contract.job,
+        freelancerId: contract.freelancer,
+        lawRejectionReason: contract.lawRejectionReason || undefined
+      }
     });
     await Notification.create({
       manager: contract.freelancer,
@@ -785,7 +799,7 @@ const validateContractByLaw = async (req, res) => {
         ? `Your agreement for job "${contract.job}" is signed and active.`
         : `Your agreement for job "${contract.job}" was rejected by legal review.`,
       type: contract.lawStatus === 'validated' ? 'outsourcing_contract_active' : 'outsourcing_contract_rejected',
-      metadata: { contractId: contract._id, jobId: contract.job }
+      metadata: { contractId: contract._id, jobId: contract.job, lawRejectionReason: contract.lawRejectionReason || undefined }
     });
 
     return res.status(200).json({ success: true, data: contract });

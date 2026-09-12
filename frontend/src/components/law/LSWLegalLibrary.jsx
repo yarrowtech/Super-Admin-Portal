@@ -9,10 +9,10 @@ import {
 } from '../../api/legalDocument';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
-import IconButton from '../common/IconButton';
 import Button from '../common/Button';
+import FilterToolbar from '../common/FilterToolbar';
+import Modal from '../ui/Modal';
 import useLawProjectContext from './useLawProjectContext';
-import { lawControlClass, lawPrimaryButtonClass, lawSecondaryButtonClass } from './lawUi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
@@ -68,33 +68,34 @@ const DocViewer = ({ doc, versions, token, onClose, toast }) => {
   const cfg = TYPE_COLORS[doc.type] || TYPE_COLORS.Other;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden dark:bg-neutral-900" style={{ maxHeight: '95vh' }}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 px-5 py-4">
-          <div className="min-w-0 flex-1 mr-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${cfg.pill}`}>{doc.type}</span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700">
-                <span className="material-symbols-outlined text-[12px]">verified</span>
-                Approved
-              </span>
-            </div>
-            <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100 truncate">{doc.title}</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Version {doc.currentVersion} · {doc.projectName || 'General'} · Approved by {doc.approvedByName || 'Legal approver'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button variant="danger" size="sm" onClick={handleDownloadPdf} icon={<span className="material-symbols-outlined text-sm">picture_as_pdf</span>}>
-              <span className="hidden sm:inline">Download PDF</span>
-            </Button>
-            <IconButton icon="close" tooltip="Close" onClick={onClose} />
-          </div>
+    <Modal
+      open
+      onClose={onClose}
+      className="sm:max-w-5xl"
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${cfg.pill}`}>{doc.type}</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700">
+            <span className="material-symbols-outlined text-[12px]">verified</span>
+            Approved
+          </span>
+        </span>
+      }
+      description={
+        <>
+          <span className="mt-1 block truncate text-base font-bold text-neutral-900 dark:text-neutral-100">{doc.title}</span>
+          Version {doc.currentVersion} · {doc.projectName || 'General'} · Approved by {doc.approvedByName || 'Legal approver'}
+        </>
+      }
+      footer={
+        <div className="flex justify-end">
+          <Button variant="danger" size="sm" onClick={handleDownloadPdf} icon={<span className="material-symbols-outlined text-sm">picture_as_pdf</span>}>
+            Download PDF
+          </Button>
         </div>
-
-        <div className="flex flex-1 overflow-hidden">
+      }
+    >
+      <div className="-m-4 flex max-h-[65vh] overflow-hidden lg:-m-5">
           {/* Document content */}
           <div id="legal-print-area" className="flex-1 overflow-auto bg-neutral-50 dark:bg-neutral-950 p-6">
             <div
@@ -138,10 +139,9 @@ const DocViewer = ({ doc, versions, token, onClose, toast }) => {
               </div>
             </div>
           )}
-        </div>
       </div>
       <style>{`@media print{body *{visibility:hidden}#legal-print-area,#legal-print-area *{visibility:visible}#legal-print-area{position:absolute;left:0;top:0;width:100%;padding:20mm}@page{size:A4;margin:15mm}}`}</style>
-    </div>
+    </Modal>
   );
 };
 
@@ -171,13 +171,14 @@ const DocCard = ({ doc, onView }) => {
         <p>Approved <span className="text-neutral-600 dark:text-neutral-300">{formatDate(doc.approvedAt)}</span></p>
       </div>
 
-      <button
+      <Button
+        variant="accent"
+        fullWidth
         onClick={() => onView(doc)}
-        className={lawPrimaryButtonClass}
+        icon={<span className="material-symbols-outlined text-[15px]">open_in_new</span>}
       >
-        <span className="material-symbols-outlined text-[15px]">open_in_new</span>
         View Document
-      </button>
+      </Button>
     </div>
   );
 };
@@ -268,10 +269,9 @@ const LSWLegalLibrary = () => {
             <span className="material-symbols-outlined text-sm">verified</span>
             Approved
           </div>
-          <button type="button" className={lawSecondaryButtonClass} onClick={fetchDocs}>
-            <span className="material-symbols-outlined text-lg">refresh</span>
+          <Button variant="secondary" size="sm" onClick={fetchDocs} icon={<span className="material-symbols-outlined text-base">refresh</span>}>
             Refresh
-          </button>
+          </Button>
         </PortalHeader>
 
         {/* KPI row */}
@@ -283,56 +283,20 @@ const LSWLegalLibrary = () => {
         </div>
 
         {/* Search + Filters */}
-        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="relative min-w-50 flex-1">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-neutral-400">search</span>
-              <input
-                type="text"
-                placeholder="Search documents…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className={`${lawControlClass} w-full pl-10 pr-9`}
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-red-600 dark:hover:bg-neutral-700"
-                  aria-label="Clear search"
-                >
-                  <span className="material-symbols-outlined text-lg">close</span>
-                </button>
-              )}
-            </div>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className={lawControlClass}
-            >
-              <option value="">All Types</option>
-              {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-            {projects.length > 0 && (
-              <select
-                value={filterProject}
-                onChange={(e) => setFilterProject(e.target.value)}
-                className={lawControlClass}
-              >
-                <option value="">All Projects</option>
-                {projects.map((p) => <option key={p}>{p}</option>)}
-              </select>
-            )}
-            {(searchTerm || filterType || filterProject) && (
-              <button
-                type="button"
-                onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}
-                className={lawSecondaryButtonClass}
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-                Clear
-              </button>
-            )}
-        </div>
+        <FilterToolbar
+          className="mb-5"
+          search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search documents…' }}
+          primaryFilters={[
+            { key: 'type', label: 'Type', value: filterType, onChange: setFilterType, options: [{ value: '', label: 'All Types' }, ...DOC_TYPES.map((t) => ({ value: t, label: t }))] },
+            ...(projects.length > 0 ? [{ key: 'project', label: 'Project', value: filterProject, onChange: setFilterProject, options: [{ value: '', label: 'All Projects' }, ...projects.map((p) => ({ value: p, label: p }))] }] : []),
+          ]}
+          activeChips={[
+            ...(filterType ? [{ key: 'type', label: `Type: ${filterType}`, onRemove: () => setFilterType('') }] : []),
+            ...(filterProject ? [{ key: 'project', label: `Project: ${filterProject}`, onRemove: () => setFilterProject('') }] : []),
+            ...(searchTerm ? [{ key: 'search', label: `"${searchTerm}"`, onRemove: () => setSearchTerm('') }] : []),
+          ]}
+          onClearAll={(searchTerm || filterType || filterProject) ? () => { setSearchTerm(''); setFilterType(''); setFilterProject(''); } : undefined}
+        />
 
         {/* Error */}
         {!loading && error && (
@@ -368,7 +332,7 @@ const LSWLegalLibrary = () => {
                   : 'Documents will appear here after legal approval.'}
               </p>
               {(searchTerm || filterType || filterProject) && (
-                <Button variant="primary" size="sm" onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}>
+                <Button variant="accent" size="sm" onClick={() => { setSearchTerm(''); setFilterType(''); setFilterProject(''); }}>
                   Clear Filters
                 </Button>
               )}

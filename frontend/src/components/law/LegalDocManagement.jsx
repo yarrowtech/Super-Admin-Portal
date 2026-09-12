@@ -11,11 +11,15 @@ import {
   getLegalDocumentPdf,
 } from '../../api/legalDocument';
 import { lawApi } from '../../services/law';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import LegalDocEditor from './LegalDocEditor';
 import LegalDocVersionHistory from './LegalDocVersionHistory';
 import useLawProjectContext from './useLawProjectContext';
 import { LAW_DOCUMENT_TYPES, LAW_PRIORITIES } from './lawStatus';
-import { getLawBadgeClass, getLawPriorityClass, lawControlClass, lawPrimaryButtonClass } from './lawUi';
+import { lawControlClass } from './lawUi';
+import Modal from '../ui/Modal';
+import CommonButton from '../common/Button';
+import CommonStatusBadge from '../common/StatusBadge';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DOC_TYPES = LAW_DOCUMENT_TYPES.map((type) => type.value);
@@ -71,13 +75,16 @@ const downloadBlob = (blob, filename) => {
   window.URL.revokeObjectURL(url);
 };
 
-const StatusBadge = ({ status }) => {
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${getLawBadgeClass(status)}`}>
-      {status}
-    </span>
-  );
-};
+const STATUS_TONE = { Draft: 'neutral', Pending: 'warning', Approved: 'success', Rejected: 'danger' };
+const PRIORITY_TONE = { Low: 'neutral', Medium: 'info', High: 'warning', Critical: 'danger' };
+
+const StatusBadge = ({ status }) => (
+  <CommonStatusBadge tone={STATUS_TONE[status] || 'neutral'} label={status} />
+);
+
+const PriorityBadge = ({ priority }) => (
+  <CommonStatusBadge tone={PRIORITY_TONE[priority] || 'neutral'} label={priority} dot={false} />
+);
 
 // ── New / Edit Document Form (modal) ──────────────────────────────────────────
 const isRealProjectId = (projectId) => Boolean(projectId) && !String(projectId).startsWith('virtual-');
@@ -130,11 +137,20 @@ const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-2xl">
-        <h2 className="mb-4 text-base font-bold text-neutral-900 dark:text-neutral-100">
-          New Legal Document
-        </h2>
+    <Modal
+      open
+      onClose={onClose}
+      title="New Legal Document"
+      footer={
+        <div className="flex justify-end gap-2">
+          <CommonButton variant="secondary" onClick={onClose}>Cancel</CommonButton>
+          <CommonButton variant="accent" onClick={handleSave} disabled={loading} icon={<span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>{loading ? 'progress_activity' : 'add'}</span>}>
+            {loading ? 'Creating…' : 'Create Document'}
+          </CommonButton>
+        </div>
+      }
+    >
+      <div>
         <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
           <span className="font-semibold text-neutral-800 dark:text-neutral-100">Scope:</span> {scope.label}
         </div>
@@ -188,70 +204,23 @@ const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
             </select>
           </div>
         </div>
-        <div className="mt-5 flex gap-2 justify-end">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            Cancel
-          </button>
-          <button onClick={handleSave} disabled={loading}
-            className={lawPrimaryButtonClass}>
-            {loading ? <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> : <span className="material-symbols-outlined text-sm">add</span>}
-            Create Document
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
-// ── Submit confirm modal ──────────────────────────────────────────────────────
-const SubmitConfirmModal = ({ doc, onConfirm, onCancel }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-    <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-2xl text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 mx-auto mb-4">
-        <span className="material-symbols-outlined text-2xl text-amber-600">send</span>
-      </div>
-      <h2 className="mb-2 text-base font-bold text-neutral-900 dark:text-neutral-100">Submit for approval?</h2>
-      <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">
-        <span className="font-semibold text-neutral-700 dark:text-neutral-300">"{doc?.title}"</span> will enter the configured approval workflow.
-      </p>
-      <p className="text-xs text-neutral-400 dark:text-neutral-500 mb-5">
-        You won't be able to edit it until the approver reviews it.
-        {doc?.status === 'Rejected' && ' (Re-submission — new major version will be created)'}
-      </p>
-      <div className="flex gap-2 justify-center">
-        <button onClick={onCancel} className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400">
-          Cancel
-        </button>
-        <button onClick={onConfirm} className="rounded-lg bg-[var(--portal-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110">
-          Yes, Submit
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
 // ── Version Preview Modal ─────────────────────────────────────────────────────
 const VersionPreviewModal = ({ version, onClose }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-    <div className="flex flex-col w-full max-w-4xl max-h-[90vh] rounded-2xl bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden">
-      <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 px-5 py-4">
-        <div>
-          <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Preview: {version.version}</h2>
-          <p className="text-xs text-neutral-500">By {version.editedByName} • {new Date(version.createdAt).toLocaleString()}</p>
-        </div>
-        <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-          <span className="material-symbols-outlined text-neutral-500">close</span>
-        </button>
-      </div>
+  <Modal open onClose={onClose} title={`Preview: ${version.version}`} description={`By ${version.editedByName} • ${new Date(version.createdAt).toLocaleString()}`} className="sm:max-w-4xl">
+    <div className="-m-4 lg:-m-5 flex max-h-[70vh] flex-col overflow-hidden">
       <div className="flex-1 overflow-auto p-6 bg-neutral-50 dark:bg-neutral-950">
         <div className="mx-auto max-w-3xl bg-white dark:bg-neutral-900 rounded-xl p-8 shadow"
           style={{ fontFamily: "'Times New Roman', serif", fontSize: '12pt', lineHeight: 1.8 }}
           dangerouslySetInnerHTML={{ __html: version.content }} />
       </div>
     </div>
-  </div>
+  </Modal>
 );
-
 // ── Main LegalDocManagement Component ─────────────────────────────────────────
 const LegalDocManagement = () => {
   const { token } = useAuth();
@@ -305,8 +274,8 @@ const LegalDocManagement = () => {
   // Modals
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
-  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(null);
+  const { confirm } = useConfirmDialog();
 
   useEffect(() => {
     if (!token) return;
@@ -434,6 +403,14 @@ const LegalDocManagement = () => {
 
   // ── Submit to CEO ───────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
+    const confirmed = await confirm({
+      title: 'Submit for approval?',
+      message: `"${activeDoc?.title}" will enter the configured approval workflow. You won't be able to edit it until the approver reviews it.${activeDoc?.status === 'Rejected' ? ' (Re-submission — a new major version will be created.)' : ''}`,
+      confirmLabel: 'Yes, Submit',
+      cancelLabel: 'Cancel',
+      tone: 'warning',
+    });
+    if (!confirmed) return;
     const html = editorRef.current?.getContent() || editorContent;
     setSaveStatus('saving');
     try {
@@ -441,7 +418,6 @@ const LegalDocManagement = () => {
       const updatedDoc = res.data?.data || res.data;
       setActiveDoc(updatedDoc);
       setDocs((prev) => prev.map((d) => (d._id === updatedDoc._id ? { ...d, ...updatedDoc } : d)));
-      setShowSubmitConfirm(false);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (err) {
@@ -449,7 +425,7 @@ const LegalDocManagement = () => {
       setTimeout(() => setSaveStatus('idle'), 5000);
       alert(err.message || 'Submit failed');
     }
-  }, [token, activeDoc, editorContent]);
+  }, [token, activeDoc, editorContent, confirm]);
 
   // ── Document created callback ───────────────────────────────────────────────
   const handleDocCreated = async (doc) => {
@@ -662,7 +638,7 @@ const LegalDocManagement = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{doc.type} · {doc.currentVersion}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${getLawPriorityClass(doc.priority)}`}>{doc.priority}</span>
+                  <PriorityBadge priority={doc.priority} />
                 </div>
                 <div className="mt-1 flex items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
                   <span className="material-symbols-outlined text-[11px]">{doc.projectId ? 'folder' : 'business'}</span>
@@ -706,13 +682,13 @@ const LegalDocManagement = () => {
                   Pick a document from the {scope.isProjectScope ? 'project' : 'company'} legal list to start editing, or create a new one.
                 </p>
               </div>
-              <button
+              <CommonButton
+                variant="accent"
                 onClick={() => setShowNewDocModal(true)}
-                className={lawPrimaryButtonClass}
+                icon={<span className="material-symbols-outlined text-[17px]">add</span>}
               >
-                <span className="material-symbols-outlined text-[17px]">add</span>
                 New Legal Document
-              </button>
+              </CommonButton>
             </div>
           ) : (
             <>
@@ -742,7 +718,7 @@ const LegalDocManagement = () => {
                   </button>
                   {isEditable && (
                     <button
-                      onClick={() => setShowSubmitConfirm(true)}
+                      onClick={handleSubmit}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-110"
                     >
                       <span className="material-symbols-outlined text-[15px]">send</span>
@@ -789,7 +765,7 @@ const LegalDocManagement = () => {
                   onContentChange={setEditorContent}
                   onAutoSave={isEditable ? handleAutoSave : undefined}
                   onSaveDraft={isEditable ? handleSaveDraft : undefined}
-                  onSubmit={isEditable ? () => setShowSubmitConfirm(true) : undefined}
+                  onSubmit={isEditable ? handleSubmit : undefined}
                   onDownloadPdf={handleDownloadPdf}
                 />
               </div>
@@ -810,9 +786,6 @@ const LegalDocManagement = () => {
             onRestored={async () => { await openDoc(activeDoc._id); fetchDocs(); }}
             onPreviewVersion={(v) => setPreviewVersion(v)}
           />
-        )}
-        {showSubmitConfirm && (
-          <SubmitConfirmModal doc={activeDoc} onConfirm={handleSubmit} onCancel={() => setShowSubmitConfirm(false)} />
         )}
         {previewVersion && (
           <VersionPreviewModal version={previewVersion} onClose={() => setPreviewVersion(null)} />

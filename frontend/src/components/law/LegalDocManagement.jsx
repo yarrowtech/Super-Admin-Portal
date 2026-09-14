@@ -279,7 +279,13 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
         {documentScope === 'project' && (
           <div>
             <label htmlFor="legal-project" className={labelClass}>Project *</label>
-            <select id="legal-project" value={projectId} onChange={(e) => { setTouched(true); setProjectId(e.target.value); setErrors((prev) => ({ ...prev, projectId: '' })); }} className={fieldBaseClass}>
+            <select
+              id="legal-project"
+              value={projectId}
+              onChange={(e) => { setTouched(true); setProjectId(e.target.value); setErrors((prev) => ({ ...prev, projectId: '' })); }}
+              disabled={scope.isProjectScope}
+              className={`${fieldBaseClass} disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 dark:disabled:bg-neutral-800/60`}
+            >
               <option value="">Select project</option>
               {projects.map((project) => {
                 const id = project._id || project.id;
@@ -287,6 +293,9 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
                 return <option key={id} value={id}>{name}</option>;
               })}
             </select>
+            {scope.isProjectScope && (
+              <p className="mt-1 text-xs text-neutral-400">Matches the project you're currently viewing ({scope.projectName}). Switch to "In-house" to file this elsewhere.</p>
+            )}
             <FieldError error={errors.projectId} />
           </div>
         )}

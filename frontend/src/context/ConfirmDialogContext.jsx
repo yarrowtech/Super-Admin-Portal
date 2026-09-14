@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const ConfirmDialogContext = createContext(null);
 
@@ -15,8 +16,13 @@ const ConfirmDialogPanel = ({ dialog, onClose }) => {
   const requiredWord = dialog.requireTypedConfirmation;
   const canConfirm = !requiredWord || typedValue.trim() === requiredWord;
 
-  return (
-    <div className="app-modal">
+  // Portaled to <body> with a z-index above the standard Modal (z-50) so this
+  // reliably paints on top even when triggered from inside an already-open
+  // modal — otherwise, at equal z-index, DOM order wins and this dialog (part
+  // of the normal React tree) would render *behind* the portaled Modal it was
+  // opened from, leaving Cancel/Confirm invisible and looking unresponsive.
+  return createPortal(
+    <div className="fixed inset-0 z-100 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
       <div className="app-modal-panel max-w-md p-6">
         <div className="flex items-start gap-3">
           <div className={`mt-1 rounded-full p-2 ${dialog.tone === 'danger' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'}`}>
@@ -59,7 +65,8 @@ const ConfirmDialogPanel = ({ dialog, onClose }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

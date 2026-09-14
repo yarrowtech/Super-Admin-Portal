@@ -171,7 +171,10 @@ const LawDashboard = () => {
   useEffect(() => {
     if (activeSection === 'dashboard') return;
     if (selectedProjectId) {
-      autoPromotedSections.current.delete(activeSection);
+      // A real project is already selected — whether we auto-promoted it or
+      // the user picked/bookmarked it — so this section is "resolved" and
+      // must not be auto-promoted again even after a later explicit clear.
+      autoPromotedSections.current.add(activeSection);
       return;
     }
     if (!effectiveProjectId || autoPromotedSections.current.has(activeSection)) return;

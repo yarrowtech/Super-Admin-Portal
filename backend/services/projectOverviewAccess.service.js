@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getAccessibleProjects } = require('../utils/projectAccess');
+const { getAccessibleProjects, getUserProjectAssignments } = require('../utils/projectAccess');
 
 // Manager Portal specifically must use the exact same "which projects can this
 // person see" definition as its own Dashboard/Projects/Tasks/Team pages
@@ -15,6 +15,16 @@ const projectOverviewScope = async (user = {}, portal = null) => {
   }
 
   if (['admin', 'super_admin', 'ceo'].includes(user.role)) return {};
+
+  // No explicit per-project assignment records at all (the common case for
+  // department heads like Law/IT/HR/Finance, who aren't individually
+  // assigned to projects) — treat as unrestricted, matching hasProjectAccess
+  // elsewhere in the app (middlewares/project.middleware.js: "allowed.length
+  // === 0 => full access"). Without this, every project lookup 404s with
+  // "Project not found" for any such user, since the $or below would have no
+  // clauses and fall back to a filter that matches nothing.
+  if (getUserProjectAssignments(user).length === 0) return {};
+
   const id = user._id || user.id;
   const clauses = mongoose.isObjectIdOrHexString(id)
     ? [{ projectManager: id }, { 'teamMembers.employee': id }] : [];

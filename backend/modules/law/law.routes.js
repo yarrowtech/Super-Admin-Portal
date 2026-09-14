@@ -35,6 +35,17 @@ router.post("/contracts/:id/approval-request", requireProjectContext, canManageL
 router.patch("/contracts/approval/:workflowId/decision", canDecideLawApproval, v.contractDecisionValidation, validate, controller.decideContractApproval);
 router.get("/compliance-snapshot", requireProjectContext, controller.getComplianceSnapshot);
 router.post("/disputes", requireProjectContext, v.disputeValidation, validate, controller.raiseDispute);
+
+// Generic Law-record CRUD — Compliance (Privacy & Policy, IP & Copyright),
+// Risk (Disputes & Fraud), and non-outsourcing Contracts (Agreements, Work
+// on Hire, Third Party). Project scope comes from attachOptionalProjectContext
+// above, same as compliance-snapshot — optional here since a record can also
+// be company-wide.
+router.get("/records", v.listValidation, validate, controller.getRecords);
+router.post("/records", v.createRecordValidation, validate, controller.createRecord);
+router.get("/records/:id", v.recordIdValidation, validate, controller.getRecordById);
+router.put("/records/:id", v.updateRecordValidation, validate, controller.updateRecord);
+router.delete("/records/:id", v.recordIdValidation, validate, controller.deleteRecord);
 router.get("/security-compliance-logs", requireProjectContext, v.listValidation, validate, controller.getSecurityComplianceLogs);
 router.get("/:moduleKey/project/:projectId", requireProjectContext, v.moduleProjectValidation, validate, controller.getModuleDataByProject);
 

@@ -51,4 +51,16 @@ export const lawApi = {
     }
     return data;
   },
+  getReferencePdf: async (token, projectId, recordId, index) => {
+    const query = new URLSearchParams({ projectId });
+    const res = await fetch(`${apiClient.getBaseUrl()}/api/dept/law/records/${encodeURIComponent(recordId)}/references/${index}/view?${query}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || 'Unable to load PDF preview');
+    }
+    return res.blob();
+  },
 };

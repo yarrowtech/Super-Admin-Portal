@@ -23,19 +23,19 @@ const NavItem = memo(({ item, collapsed, isActive, onClick, suffix }) => {
     <NavLink
       to={item.path}
       onClick={onClick}
-      className={`group relative flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
+      className={`group relative flex items-center gap-3 rounded-lg py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
         isActive
-          ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+          ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
           : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
       } ${collapsed ? 'justify-center px-0' : ''}`}
       aria-label={collapsed ? item.label : undefined}
     >
       {isActive && !collapsed && (
-        <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-white/70" aria-hidden="true" />
+        <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-[var(--portal-accent)]" aria-hidden="true" />
       )}
       <span className={`relative flex h-5 w-5 shrink-0 items-center justify-center ${collapsed ? 'mx-auto' : ''}`}>
         <span
-          className="material-symbols-outlined text-[20px] leading-none transition-none"
+          className="material-symbols-outlined text-[18px] leading-none transition-none"
           style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
         >
           {item.icon}
@@ -63,20 +63,20 @@ const GroupButton = memo(({ item, collapsed, isActive, isOpen, onToggle }) => (
   <button
     type="button"
     onClick={onToggle}
-    className={`group relative flex w-full items-center gap-3 rounded-xl py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
+    className={`group relative flex w-full items-center gap-3 rounded-lg py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
       isActive
-        ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+        ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
         : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
     } ${collapsed ? 'justify-center px-0' : ''}`}
     aria-expanded={isOpen}
     aria-label={collapsed ? item.label : undefined}
   >
     {isActive && !collapsed && (
-      <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-white/70" aria-hidden="true" />
+      <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-[var(--portal-accent)]" aria-hidden="true" />
     )}
     <span className={`flex h-5 w-5 shrink-0 items-center justify-center ${collapsed ? 'mx-auto' : ''}`}>
       <span
-        className="material-symbols-outlined text-[20px] leading-none"
+        className="material-symbols-outlined text-[18px] leading-none"
         style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
       >
         {item.icon}
@@ -86,7 +86,7 @@ const GroupButton = memo(({ item, collapsed, isActive, isOpen, onToggle }) => (
       <>
         <span className="flex-1 truncate text-left leading-none">{item.label}</span>
         <span
-          className={`material-symbols-outlined shrink-0 text-[16px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isActive ? 'text-white/80' : 'text-neutral-400'}`}
+          className={`material-symbols-outlined shrink-0 text-[16px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isActive ? 'text-[var(--portal-accent)]/70' : 'text-neutral-400'}`}
         >
           expand_more
         </span>
@@ -213,7 +213,7 @@ const PortalSidebar = ({
                     isActive={isActive}
                     onClick={onNavigate}
                     suffix={isActive && !collapsed ? (
-                      <span className="material-symbols-outlined shrink-0 text-[14px] text-white/70">chevron_right</span>
+                      <span className="material-symbols-outlined shrink-0 text-[14px] text-[var(--portal-accent)]/70">chevron_right</span>
                     ) : null}
                   />
                 )}
@@ -299,19 +299,19 @@ const PortalSidebar = ({
                 key={item.path}
                 to={item.path}
                 onClick={onNavigate}
-                className={`group relative flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
+                className={`group relative flex items-center gap-3 rounded-lg py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
                   isActive
-                    ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+                    ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
                     : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
                 aria-label={collapsed ? item.label : undefined}
               >
                 {isActive && !collapsed && (
-                  <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-white/70" aria-hidden="true" />
+                  <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-[var(--portal-accent)]" aria-hidden="true" />
                 )}
                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center ${collapsed ? 'mx-auto' : ''}`}>
                   <span
-                    className="material-symbols-outlined text-[20px] leading-none"
+                    className="material-symbols-outlined text-[18px] leading-none"
                     style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
                   >
                     {item.icon}

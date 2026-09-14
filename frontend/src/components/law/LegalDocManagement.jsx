@@ -12,6 +12,7 @@ import {
   getLegalListItems,
   getLegalResponseData,
   deleteLegalDocument,
+  setDocumentCustomerAgreement,
 } from '../../api/legalDocument';
 import { lawApi } from '../../services/law';
 import { useToast } from '../../context/ToastContext';
@@ -384,6 +385,7 @@ const LegalDocManagement = () => {
   const { token, user } = useAuth();
   const toast = useToast();
   const editorRef = useRef(null);
+  const moreActionsRef = useRef(null);
   const [projects, setProjects] = useState([]);
   const { projectId: selectedProjectId, setProject } = useLawProjectContext(projects);
   const [projectFilter, setProjectFilter] = useState(selectedProjectId || 'company');
@@ -432,6 +434,22 @@ const LegalDocManagement = () => {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
+
+  useEffect(() => {
+    if (!showMoreActions) return undefined;
+    const closeMenu = (event) => {
+      if (event.type === 'keydown' && event.key !== 'Escape') return;
+      if (event.type === 'mousedown' && moreActionsRef.current?.contains(event.target)) return;
+      setShowMoreActions(false);
+    };
+    document.addEventListener('mousedown', closeMenu);
+    document.addEventListener('keydown', closeMenu);
+    return () => {
+      document.removeEventListener('mousedown', closeMenu);
+      document.removeEventListener('keydown', closeMenu);
+    };
+  }, [showMoreActions]);
 
   // Modals
   const [showNewDocModal, setShowNewDocModal] = useState(false);
@@ -519,6 +537,7 @@ const LegalDocManagement = () => {
 
   // ── Open a document for editing ─────────────────────────────────────────────
   const openDoc = async (id) => {
+    setError('');
     try {
       const res = await getLegalDocumentById(token, id);
       const doc = getLegalResponseData(res);
@@ -529,7 +548,9 @@ const LegalDocManagement = () => {
         editorRef.current.focus();
       }
     } catch (err) {
-      alert(err.message || 'Failed to open document');
+      const message = err.message || 'Unable to load document.';
+      setError(message);
+      toast.error(message);
     }
   };
 
@@ -562,7 +583,6 @@ const LegalDocManagement = () => {
         type: activeDoc.type,
         priority: activeDoc.priority,
         projectId: activeDoc.projectId || undefined,
-        projectName: activeDoc.projectName || '',
         changeSummary: 'Draft saved',
       });
       const updatedDoc = getLegalResponseData(res);
@@ -574,9 +594,9 @@ const LegalDocManagement = () => {
     } catch (err) {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 5000);
-      alert(err.message || 'Save failed');
+      toast.error(`${err.message || 'Save failed.'} Your changes are still available locally.`);
     }
-  }, [token, activeDoc]);
+  }, [token, activeDoc, toast]);
 
   // ── Submit to CEO ───────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
@@ -600,9 +620,9 @@ const LegalDocManagement = () => {
     } catch (err) {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 5000);
-      alert(err.message || 'Submit failed');
+      toast.error(err.message || 'Submission failed. Your draft remains available.');
     }
-  }, [token, activeDoc, editorContent, confirm]);
+  }, [token, activeDoc, editorContent, confirm, toast]);
 
   // ── Document created callback ───────────────────────────────────────────────
   const handleDocCreated = async (doc) => {
@@ -644,15 +664,40 @@ const LegalDocManagement = () => {
     }
   }, [token, activeDoc, confirm, toast]);
 
+  // ── Record the project client's agreement to this document ─────────────────
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const handleSetCustomerAgreement = useCallback(async (agreed) => {
+    if (!activeDoc?._id) return;
+    if (agreed) {
+      const confirmed = await confirm({
+        title: 'Mark customer as agreed?',
+        message: `Confirm that ${scope.projectName || 'the client'} has agreed to "${activeDoc.title}". This is recorded against the document.`,
+        confirmLabel: 'Mark Agreed',
+        cancelLabel: 'Cancel',
+        tone: 'warning',
+      });
+      if (!confirmed) return;
+    }
+    try {
+      const res = await setDocumentCustomerAgreement(token, activeDoc._id, agreed);
+      const updatedDoc = getLegalResponseData(res);
+      setActiveDoc((prev) => ({ ...prev, customerAgreement: updatedDoc.customerAgreement }));
+      setDocs((prev) => prev.map((d) => (d._id === activeDoc._id ? { ...d, customerAgreement: updatedDoc.customerAgreement } : d)));
+      toast.success(agreed ? 'Customer agreement recorded.' : 'Customer agreement cleared.');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update customer agreement');
+    }
+  }, [token, activeDoc, confirm, toast, scope.projectName]);
+
   const handleDownloadPdf = useCallback(async () => {
     if (!activeDoc?._id) return;
     try {
       const { blob, filename } = await getLegalDocumentPdf(token, activeDoc._id);
       downloadBlob(blob, filename);
     } catch (err) {
-      alert(err.message || 'PDF download failed');
+      toast.error(err.message || 'PDF download failed');
     }
-  }, [token, activeDoc]);
+  }, [token, activeDoc, toast]);
 
   // ── Filtered docs ────────────────────────────────────────────────────────────
   const filteredDocs = docs.filter((d) => {
@@ -689,30 +734,27 @@ const LegalDocManagement = () => {
       {!isEditorFullscreen && (
       <div className="overflow-hidden border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <div className="h-1 w-full bg-[var(--portal-accent)]" />
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-4 lg:px-6">
           {/* Title + Scope */}
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--portal-accent)] shadow-sm">
               <span className="material-symbols-outlined text-[20px] text-white">gavel</span>
             </div>
             <div>
-              <h1 className="text-[17px] font-black leading-tight text-neutral-900 dark:text-neutral-100">Legal Documents</h1>
-              <div className="mt-0.5 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[13px] text-neutral-400">{scope.isProjectScope ? 'folder' : 'business'}</span>
-                <span className="text-xs text-neutral-500 dark:text-neutral-400">{scope.label}</span>
-              </div>
+              <h1 className="text-xl font-black leading-tight text-neutral-900 dark:text-neutral-100">Legal Documents</h1>
+              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Manage, review and approve legal documents for {scope.projectName || 'the company'}.</p>
             </div>
           </div>
 
           {/* KPI chips */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" aria-label="Document status summary">
             {[
               { label: 'Total',    value: stats.total,    icon: 'description',   pill: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300' },
               { label: 'Pending',  value: stats.pending,  icon: 'hourglass_top', pill: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300' },
               { label: 'Approved', value: stats.approved, icon: 'verified',      pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' },
               { label: 'Rejected', value: stats.rejected, icon: 'cancel',        pill: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300' },
             ].map(({ label, value, icon, pill }) => (
-              <div key={label} className={`flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-1.5 dark:border-neutral-700 ${pill}`}>
+              <div key={label} className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 ${pill}`}>
                 <span className="material-symbols-outlined text-[15px]">{icon}</span>
                 <span className="text-xs font-semibold">{label}</span>
                 <span className="text-sm font-bold">{value}</span>
@@ -743,7 +785,8 @@ const LegalDocManagement = () => {
           >
             {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <div className="flex items-center gap-2 ml-auto text-xs text-neutral-400">
+          <CommonButton className="ml-auto" variant="accent" onClick={() => setShowNewDocModal(true)} icon={<span className="material-symbols-outlined text-[17px]">add</span>}>New Document</CommonButton>
+          <div className="hidden items-center gap-2 text-xs text-neutral-400 lg:flex">
             <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
               <span className="material-symbols-outlined text-[13px]">business</span>
               In-house: {stats.company}
@@ -761,7 +804,7 @@ const LegalDocManagement = () => {
 
         {/* ── LEFT PANEL: Document List ── */}
         {!isEditorFullscreen && !isNavCollapsed && (
-        <div className="flex w-full shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:w-80 xl:w-88">
+        <div className={`${activeDoc ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:w-80 xl:w-88`}>
 
           {/* Panel header */}
           <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
@@ -864,21 +907,11 @@ const LegalDocManagement = () => {
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDoc(doc._id); }}
                 className={`group relative mb-1.5 w-full cursor-pointer rounded-xl border p-3 text-left transition-all hover:shadow-sm ${
                   activeDoc?._id === doc._id
-                    ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] shadow-sm'
-                    : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'
+                    ? 'border-y-neutral-200 border-r-neutral-200 border-l-[3px] border-l-[var(--portal-accent)] bg-[var(--portal-accent-soft)]'
+                    : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-800/60'
                 }`}
               >
-                {canDelete && !doc.isLocked && (
-                  <button
-                    type="button"
-                    title="Move to trash"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteDoc(doc); }}
-                    className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-neutral-300 opacity-0 transition-opacity hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100 dark:hover:bg-rose-900/30"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">delete</span>
-                  </button>
-                )}
-                <div className="mb-1.5 flex items-start justify-between gap-1 pr-6">
+                <div className="mb-1.5 flex items-start justify-between gap-1">
                   <p className="flex-1 text-xs font-semibold leading-snug text-neutral-900 line-clamp-2 dark:text-neutral-100">{doc.title}</p>
                   <StatusBadge status={doc.status} />
                 </div>
@@ -971,9 +1004,43 @@ const LegalDocManagement = () => {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <div ref={moreActionsRef} className="relative">
+                    <button type="button" onClick={() => setShowMoreActions((value) => !value)} aria-haspopup="menu" aria-expanded={showMoreActions} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                      <span className="material-symbols-outlined text-[17px]">more_horiz</span><span className="hidden lg:inline">More</span>
+                    </button>
+                    {showMoreActions && <div role="menu" className="absolute right-0 top-11 z-30 w-56 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); setShowVersionHistory(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">history</span>Version History</button>
+                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleDownloadPdf(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">picture_as_pdf</span>Download PDF</button>
+                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); setIsEditorFullscreen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">fullscreen</span>Open Fullscreen</button>
+                      {activeDoc.projectId && <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleSetCustomerAgreement(!activeDoc.customerAgreement?.agreed); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">verified_user</span>{activeDoc.customerAgreement?.agreed ? 'Clear Customer Agreement' : 'Mark Customer Agreed'}</button>}
+                      {canDelete && !activeDoc.isLocked && <><div className="my-1 border-t border-neutral-100 dark:border-neutral-800"/><button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleDeleteDoc(activeDoc); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"><span className="material-symbols-outlined text-[17px]">delete</span>Move to Trash</button></>}
+                    </div>}
+                  </div>
+                  {isEditable && <button type="button" onClick={() => handleSaveDraft(editorRef.current?.getContent() || editorContent)} className="hidden h-9 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 sm:inline-flex"><span className="material-symbols-outlined text-[16px]">save</span>Save Draft</button>}
+                  {activeDoc.projectId && (
+                    activeDoc.customerAgreement?.agreed ? (
+                      <button
+                        onClick={() => handleSetCustomerAgreement(false)}
+                        title={`Agreed ${formatDate(activeDoc.customerAgreement.agreedAt)} — click to clear`}
+                        className="hidden items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">verified_user</span>
+                        Customer Agreed
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleSetCustomerAgreement(true)}
+                        title="Record that the project client has agreed to this document"
+                        className="hidden items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">verified_user</span>
+                        Mark Customer Agreed
+                      </button>
+                    )
+                  )}
                   <button
                     onClick={() => setShowVersionHistory(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                    className="hidden items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700"
                   >
                     <span className="material-symbols-outlined text-[15px]">history</span>
                     History
@@ -982,7 +1049,7 @@ const LegalDocManagement = () => {
                     <button
                       onClick={() => handleDeleteDoc(activeDoc)}
                       title="Move to trash"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-rose-900/20"
+                      className="hidden h-8 w-8 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500"
                     >
                       <span className="material-symbols-outlined text-[15px]">delete</span>
                     </button>
@@ -993,7 +1060,7 @@ const LegalDocManagement = () => {
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-110"
                     >
                       <span className="material-symbols-outlined text-[15px]">send</span>
-                      Submit for Approval
+                      <span className="hidden sm:inline">Submit for Approval</span><span className="sm:hidden">Submit</span>
                     </button>
                   )}
                   {activeDoc.status === 'Pending' && (
@@ -1032,7 +1099,7 @@ const LegalDocManagement = () => {
                   key={activeDoc._id}
                   initialContent={activeDoc.latestContent || ''}
                   isReadOnly={!isEditable}
-                  document={activeDoc}
+                  document={{ ...activeDoc, projectName: scope.projectName || activeDoc.projectName }}
                   saveStatus={saveStatus}
                   lastSavedAt={lastSavedAt}
                   fullscreen={isEditorFullscreen}

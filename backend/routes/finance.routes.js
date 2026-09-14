@@ -5,6 +5,7 @@ const financeController = require('../controllers/finance/financeDashboard.contr
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
+const { attachOptionalProjectContext } = require('../middlewares/project.middleware');
 const modularFinanceRoutes = require('../modules/finance/finance.routes');
 
 // All routes require authentication and finance/admin role
@@ -58,9 +59,9 @@ router.post('/invoices/:id/notes', canWriteFinance, financeController.createInvo
 router.get('/invoice-notes', financeController.getInvoiceNotes);
 
 // Payments and Receivables
-router.get('/payments', financeController.getPayments);
-router.post('/payments', canWriteFinance, financeController.createPayment);
-router.put('/payments/:id', canWriteFinance, financeController.updatePayment);
+router.get('/payments', attachOptionalProjectContext, financeController.getPayments);
+router.post('/payments', attachOptionalProjectContext, canWriteFinance, financeController.createPayment);
+router.put('/payments/:id', attachOptionalProjectContext, canWriteFinance, financeController.updatePayment);
 
 // Expense Management
 router.get('/expenses', financeController.getExpenses);
@@ -91,9 +92,9 @@ router.get('/reports/tax-summary', financeController.getTaxSummary);
 router.get('/reports/itr-summary', financeController.getItrSummary);
 
 // Compliance, Audit, and Taxation
-router.get('/compliance', financeController.getCompliance);
-router.post('/compliance', canWriteFinance, financeController.createCompliance);
-router.put('/compliance/:id', canWriteFinance, financeController.updateCompliance);
+router.get('/compliance', attachOptionalProjectContext, financeController.getCompliance);
+router.post('/compliance', attachOptionalProjectContext, canWriteFinance, financeController.createCompliance);
+router.put('/compliance/:id', attachOptionalProjectContext, canWriteFinance, financeController.updateCompliance);
 
 // Vendors and Clients
 router.get('/vendors', financeController.getVendors);

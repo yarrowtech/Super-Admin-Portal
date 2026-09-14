@@ -1,3 +1,6 @@
+const mongoose = require('mongoose');
+const Project = require('../models/common/Project');
+
 const getAssignedProjectTokens = (user) => {
   const legacyProjects = Array.isArray(user?.metadata?.projects) ? user.metadata.projects : [];
   const normalizedAssignments = Array.isArray(user?.assignedProjects) ? user.assignedProjects : [];
@@ -39,33 +42,38 @@ const normalizeProjectId = (projectId) => {
   return normalized;
 };
 
-const requireProjectContext = (req, res, next) => {
+const resolveProjectContext = async (req, res, next, required) => {
   const projectId = normalizeProjectId(extractProjectId(req));
   if (!projectId) {
-    const baseUrl = String(req.baseUrl || '');
-    if (baseUrl.startsWith('/api/dept/hr') || baseUrl.startsWith('/api/dashboard')) {
-      return next();
-    }
+    if (!required) return next();
     return res.status(400).json({ success: false, error: "ProjectId required" });
   }
-  if (!hasProjectAccess(req.user, projectId)) {
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    return res.status(400).json({ success: false, error: 'Invalid projectId' });
+  }
+  const project = await Project.findById(projectId).select('name projectCode status archivedAt').lean();
+  if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+  if (project.archivedAt) return res.status(410).json({ success: false, error: 'Project archived' });
+  if (!hasResolvedProjectAccess(req.user, project)) {
     return res.status(403).json({ success: false, error: "No access to requested project" });
   }
-  req.projectId = String(projectId);
+  req.projectId = String(project._id);
+  req.project = project;
   req.query = { ...(req.query || {}), projectId: req.projectId };
-  next();
+  return next();
 };
 
-const attachOptionalProjectContext = (req, res, next) => {
-  const projectId = normalizeProjectId(extractProjectId(req));
-  if (projectId && !hasProjectAccess(req.user, projectId)) {
-    return res.status(403).json({ success: false, error: "No access to requested project" });
-  }
-  if (projectId) {
-    req.projectId = String(projectId);
-    req.query = { ...(req.query || {}), projectId: req.projectId };
-  }
-  next();
+const requireProjectContext = (req, res, next) => resolveProjectContext(req, res, next, true).catch(next);
+
+const attachOptionalProjectContext = (req, res, next) => resolveProjectContext(req, res, next, false).catch(next);
+
+const hasResolvedProjectAccess = (user, project) => {
+  const allowed = getAssignedProjectTokens(user);
+  if (allowed.length === 0) return true;
+  const identities = [project?._id, project?.projectCode, project?.name]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  return allowed.some((token) => identities.includes(token.toLowerCase()));
 };
 
 module.exports = {
@@ -74,4 +82,5 @@ module.exports = {
   extractProjectId,
   normalizeProjectId,
   hasProjectAccess,
+  hasResolvedProjectAccess,
 };

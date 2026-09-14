@@ -1,5 +1,4 @@
 import React, {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -119,7 +118,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
   ref
 ) {
   const autoSaveTimer = useRef(null);
-  const [isFullscreen, setIsFullscreen] = useState(fullscreen);
+  const isFullscreen = Boolean(fullscreen);
   const [zoom, setZoom] = useState(100);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -129,7 +128,17 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
   const [tableCols, setTableCols] = useState(3);
   const [showFind, setShowFind] = useState(false);
   const [findTerm, setFindTerm] = useState('');
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const exitFullscreen = (event) => {
+      if (event.key !== 'Escape') return;
+      onToggleFullscreen?.(false);
+    };
+    document.addEventListener('keydown', exitFullscreen);
+    return () => document.removeEventListener('keydown', exitFullscreen);
+  }, [isFullscreen, onToggleFullscreen]);
 
   useEffect(() => {
     if (!lastSavedAt) return;
@@ -248,7 +257,6 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
   const handleSubmit = () => onSubmit?.(editor?.getHTML() || '');
 
   const toggleFS = () => {
-    setIsFullscreen((f) => !f);
     onToggleFullscreen?.(!isFullscreen);
   };
 
@@ -272,11 +280,11 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
       className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm transition-all dark:border-neutral-700 dark:bg-neutral-900 ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
       }`}
-      style={{ height: isFullscreen ? '100dvh' : 'calc(100vh - 260px)', minHeight: isFullscreen ? undefined : 520 }}
+      style={{ height: isFullscreen ? '100dvh' : 'calc(100dvh - 220px)', minHeight: isFullscreen ? undefined : 480 }}
     >
       {/* ── TOOLBAR ── */}
       {!isReadOnly && (
-        <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-neutral-200 bg-neutral-50 px-2 py-1.5 dark:border-neutral-700 dark:bg-neutral-800">
+        <div className="no-print sticky top-0 z-10 flex flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-neutral-200 bg-neutral-50 px-2 py-1.5 md:flex-wrap dark:border-neutral-700 dark:bg-neutral-800" role="toolbar" aria-label="Legal document formatting toolbar">
           {/* Undo/redo */}
           <ToolbarBtn title="Undo (Ctrl+Z)" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
             <span className="material-symbols-outlined text-[18px]">undo</span>
@@ -513,6 +521,10 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
             Read-only — Document is {doc?.status === 'Approved' ? 'approved and locked' : 'locked'}
           </span>
           <div className="ml-auto flex items-center gap-2">
+            {isFullscreen && <button type="button" title="Exit fullscreen (Esc)" aria-label="Exit fullscreen" onClick={toggleFS} className="flex h-8 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700">
+              <span className="material-symbols-outlined text-sm">fullscreen_exit</span>
+              Exit Fullscreen
+            </button>}
             <button type="button" title="Download PDF" onClick={handlePrint} className="flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110">
               <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
               Download PDF
@@ -527,11 +539,11 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
           id="legal-print-area"
           style={{
             background: 'white',
-            width: '210mm',
+            width: '794px',
             minHeight: '297mm',
             maxWidth: '100%',
             margin: '0 auto',
-            padding: '20mm 25mm',
+            padding: 'clamp(32px, 7vw, 76px)',
             boxShadow: '0 8px 28px rgba(15,23,42,0.12)',
             fontFamily: "'Times New Roman', 'Georgia', serif",
             fontSize: '12pt',

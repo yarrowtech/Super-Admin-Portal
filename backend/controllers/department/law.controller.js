@@ -336,3 +336,46 @@ exports.uploadReferencePdfs = async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to upload reference PDFs', details: error.message });
   }
 };
+
+exports.viewReferencePdf = async (req, res) => {
+  try {
+    const record = await Law.findOne({ _id: req.params.id, projectId: req.projectId })
+      .select('metadata.referencePdfs')
+      .lean();
+    if (!record) return res.status(404).json({ success: false, error: 'Policy record not found' });
+
+    const files = Array.isArray(record.metadata?.referencePdfs) ? record.metadata.referencePdfs : [];
+    const index = Number.parseInt(req.params.index, 10);
+    const file = Number.isInteger(index) ? files[index] : null;
+    if (!file?.url) return res.status(404).json({ success: false, error: 'PDF attachment not found' });
+
+    let pdfBuffer;
+    if (String(file.url).startsWith('data:application/pdf;base64,')) {
+      pdfBuffer = Buffer.from(String(file.url).split(',')[1] || '', 'base64');
+    } else {
+      const sourceUrl = new URL(file.url);
+      if (sourceUrl.protocol !== 'https:' || sourceUrl.hostname !== 'res.cloudinary.com') {
+        return res.status(400).json({ success: false, error: 'Unsupported PDF storage location' });
+      }
+      const sourceResponse = await fetch(sourceUrl, { signal: AbortSignal.timeout(15000) });
+      if (!sourceResponse.ok) throw new Error(`PDF storage returned ${sourceResponse.status}`);
+      pdfBuffer = Buffer.from(await sourceResponse.arrayBuffer());
+    }
+
+    if (!pdfBuffer.length || pdfBuffer.length > 15 * 1024 * 1024) {
+      return res.status(422).json({ success: false, error: 'PDF is empty or exceeds the preview limit' });
+    }
+    const filename = String(file.originalName || 'policy.pdf').replace(/[\r\n"\\]/g, '_');
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Length': String(pdfBuffer.length),
+      'Cache-Control': 'private, max-age=300',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    return res.send(pdfBuffer);
+  } catch (error) {
+    logger.error({ err: error, recordId: req.params.id }, 'View law reference PDF error');
+    return res.status(502).json({ success: false, error: 'Unable to load PDF preview' });
+  }
+};

@@ -13,6 +13,13 @@ const legalAttachmentSchema = new mongoose.Schema(
     mimeType: { type: String, trim: true, default: '' },
     fileSize: { type: Number, default: 0 },
     purpose: { type: String, enum: ['source', 'supporting', 'attachment'], default: 'attachment' },
+    // Files upload to Cloudinary (see utils/cloudinaryUpload.js); `url` is
+    // either a Cloudinary secure_url or, when Cloudinary isn't configured, an
+    // inline base64 data URI. `data` (legacy raw Buffer) is kept only to read
+    // attachments created before this moved off in-document storage.
+    url: { type: String, default: '' },
+    publicId: { type: String, default: '' },
+    storageProvider: { type: String, enum: ['cloudinary', 'inline'], default: 'cloudinary' },
     data: Buffer,
     uploadedAt: { type: Date, default: Date.now },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -76,6 +83,17 @@ const legalDocumentSchema = new mongoose.Schema(
     deletedAt: { type: Date, default: null, index: true },
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     deletedByName: { type: String, default: '' },
+
+    // Records that the project's client (Project.client) has acknowledged/
+    // agreed to this document — used for Policy-type docs, but not restricted
+    // to them. The client's identity lives on the Project, not duplicated here.
+    customerAgreement: {
+      agreed: { type: Boolean, default: false },
+      agreedAt: { type: Date, default: null },
+      recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      recordedByName: { type: String, default: '' },
+      notes: { type: String, trim: true, default: '' },
+    },
   },
   { timestamps: true }
 );

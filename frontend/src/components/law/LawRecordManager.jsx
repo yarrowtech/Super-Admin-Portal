@@ -5,6 +5,7 @@ import Select from '../ui/Select';
 import Button from '../common/Button';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { useToast } from '../../context/ToastContext';
+import PolicyFormModal from './PolicyFormModal';
 
 const emptyForm = {
   title: '',
@@ -64,6 +65,8 @@ const LawRecordManager = ({
   formOpen = false,
   editingRecord = null,
   onFormClose,
+  projectId,
+  projectName,
 }) => {
   const { confirm } = useConfirmDialog();
   const toast = useToast();
@@ -128,6 +131,10 @@ const LawRecordManager = ({
 
   const gridClass = 'grid grid-cols-1 gap-4 sm:grid-cols-2';
   const fullSpan = 'sm:col-span-2';
+
+  if (section === 'privacy-policy') {
+    return <PolicyFormModal open={formOpen} editingRecord={editingRecord} saving={saving} projectId={projectId} projectName={projectName} onClose={requestClose} onSave={onSaveRecord} />;
+  }
 
   return (
     <Modal

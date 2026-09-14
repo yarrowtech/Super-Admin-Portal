@@ -55,6 +55,7 @@ router.get(
 router.put('/:id/auto-save', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.autoSave);
 router.put('/:id/save-draft', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.saveDraft);
 router.post('/:id/submit', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.submit);
+router.patch('/:id/customer-agreement', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.setCustomerAgreement);
 router.post('/:id/approve', authorize(ROLES.CEO, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.approve);
 router.post('/:id/reject', authorize(ROLES.CEO, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.reject);
 router.delete('/:id', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.deleteDocument);

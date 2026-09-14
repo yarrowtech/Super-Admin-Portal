@@ -4,6 +4,8 @@ const LegalDocumentVersion = require('../models/law/LegalDocumentVersion.v2');
 const LegalAuditLog = require('../models/law/LegalAuditLog');
 const logger = require('../utils/logger');
 const { hasProjectAccess } = require('../middlewares/project.middleware');
+const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
+const { extractTextFromFile } = require('../utils/extractDocumentText');
 
 const VALID_TYPES = new Set(['Contract', 'Agreement', 'Policy', 'NDA', 'Compliance', 'IP', 'Dispute', 'Other']);
 const VALID_STATUSES = new Set(['Draft', 'Pending', 'Approved', 'Rejected']);
@@ -59,7 +61,12 @@ const parseTags = (value) => {
 
 const parseString = (value, max = 1000) => String(value || '').trim().slice(0, max);
 
-const attachmentFromRequest = (req) => {
+// Uploads every attached file to Cloudinary (raw resource) instead of
+// storing it as a Buffer inside the document — attachments were previously
+// write-only (every list/detail query explicitly excludes `.data`, so there
+// was no way to actually retrieve one); Cloudinary gives each attachment a
+// real, servable URL.
+const attachmentFromRequest = async (req) => {
   const files = [];
   if (req.file) files.push({ file: req.file, purpose: 'source' });
   const sourceFiles = Array.isArray(req.files?.sourceFile) ? req.files.sourceFile : [];
@@ -68,14 +75,21 @@ const attachmentFromRequest = (req) => {
   sourceFiles.forEach((file) => files.push({ file, purpose: 'source' }));
   legacyFiles.forEach((file) => files.push({ file, purpose: 'source' }));
   supportingFiles.forEach((file) => files.push({ file, purpose: 'supporting' }));
-  return files.map(({ file, purpose }) => ({
-    originalFileName: file.originalname || 'attachment',
-    mimeType: file.mimetype || '',
-    fileSize: file.size || 0,
-    purpose,
-    data: file.buffer,
-    uploadedBy: req.user?._id || req.user?.id,
-    uploadedAt: new Date(),
+  return Promise.all(files.map(async ({ file, purpose }) => {
+    const uploaded = await uploadBufferToCloudinary(file, {
+      folder: `legal-documents/${req.body?.projectId || 'company'}`,
+    });
+    return {
+      originalFileName: file.originalname || 'attachment',
+      mimeType: file.mimetype || '',
+      fileSize: file.size || 0,
+      purpose,
+      url: uploaded.url,
+      publicId: uploaded.publicId || '',
+      storageProvider: uploaded.provider,
+      uploadedBy: req.user?._id || req.user?.id,
+      uploadedAt: new Date(),
+    };
   }));
 };
 
@@ -230,6 +244,15 @@ exports.create = async (req, res) => {
     const resolvedType = VALID_TYPES.has(type) ? type : 'Other';
     const trimmedDocNumber = parseString(documentNumber, 80);
     const finalDocumentNumber = trimmedDocNumber || await generateDocumentNumber(resolvedType);
+    const normalizedSourceType = VALID_SOURCE_TYPES.has(sourceType) ? sourceType : 'blank';
+    // "Upload" source: pull the document straight into the editor instead of
+    // leaving it blank — extraction runs on whichever file is the primary
+    // upload, independent of where that file ends up being stored.
+    const sourceFile = req.file || (Array.isArray(req.files?.sourceFile) ? req.files.sourceFile[0] : null);
+    const extractedContent = normalizedSourceType === 'upload' && sourceFile
+      ? await extractTextFromFile(sourceFile)
+      : '';
+    const uploadedAttachments = await attachmentFromRequest(req);
     const doc = await LegalDocument.create({
       title: parseString(title, 180),
       documentNumber: finalDocumentNumber,
@@ -244,8 +267,8 @@ exports.create = async (req, res) => {
       assignedTo: parseString(assignedTo, 160),
       assignedToId: assignedToId || undefined,
       legalTeam: parseString(legalTeam, 120),
-      latestContent: content || '',
-      sourceType: VALID_SOURCE_TYPES.has(sourceType) ? sourceType : 'blank',
+      latestContent: extractedContent || content || '',
+      sourceType: normalizedSourceType,
       templateId: parseString(templateId, 80),
       templateName: parseString(templateName, 120),
       currentVersion: 'v1.0',
@@ -264,7 +287,7 @@ exports.create = async (req, res) => {
       expiryDate,
       reviewDate,
       signedDate,
-      attachments: attachmentFromRequest(req),
+      attachments: uploadedAttachments,
     });
     await snapshot(doc, req, 'Document created');
     await audit(req, doc._id, 'CREATE', 'Document created', { title: doc.title, type: doc.type, projectId: doc.projectId || null });
@@ -419,6 +442,34 @@ exports.submit = async (req, res) => {
     return res.json({ success: true, data: doc });
   } catch (err) {
     logger.error({ err }, 'legalDocument.submit failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.message });
+  }
+};
+
+// Records whether the project's client (Project.client — no separate customer
+// registry) has acknowledged this document. Only meaningful for project-linked
+// documents, since the client identity lives on the Project record.
+exports.setCustomerAgreement = async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, 'document id');
+    const doc = await LegalDocument.findById(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
+    if (!doc.projectId) return res.status(400).json({ success: false, error: 'Customer agreement requires a project-linked document' });
+    const agreed = Boolean(req.body.agreed);
+    const actor = actorFrom(req);
+    doc.customerAgreement = {
+      agreed,
+      agreedAt: agreed ? new Date() : null,
+      recordedBy: actor.id,
+      recordedByName: actor.name,
+      notes: parseString(req.body.notes, 500),
+    };
+    await doc.save();
+    await audit(req, doc._id, agreed ? 'CUSTOMER_AGREED' : 'CUSTOMER_AGREEMENT_CLEARED', req.body.notes || '', {});
+    return res.json({ success: true, data: doc });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.setCustomerAgreement failed');
     return res.status(err.statusCode || 500).json({ success: false, error: err.message });
   }
 };

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema(
   {
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
     invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceInvoice' },
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceClient' },
     customerName: { type: String, trim: true },
@@ -26,5 +27,6 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ status: 1 });
 paymentSchema.index({ paymentDate: -1 });
+paymentSchema.index({ projectId: 1, status: 1, paymentDate: -1 });
 
 module.exports = mongoose.models['FinancePayment'] || mongoose.model('FinancePayment', paymentSchema);

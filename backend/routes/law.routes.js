@@ -8,8 +8,6 @@ const { uploadMany } = require('../middlewares/upload.middleware');
 const { ROLES } = require('../config/roles');
 const modularLawRoutes = require('../modules/law/law.routes');
 const Project = require('../models/common/Project');
-const { CANONICAL_PROJECT_NAMES } = require('../utils/projectAccess');
-const STRICT_PROJECT_NAMES = CANONICAL_PROJECT_NAMES;
 
 // All routes require authentication and LAW role
 router.use(authenticate);
@@ -23,14 +21,18 @@ router.get('/projects', async (req, res) => {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 200);
     const skip = (page - 1) * limit;
-    const filter = { name: { $in: STRICT_PROJECT_NAMES } };
+    // The Law Portal is an organization-wide registry. Return every persisted
+    // project instead of maintaining a second allow-list that can drift from
+    // the actual project catalogue.
+    const clauses = [];
     if (String(req.query.source || '').toLowerCase() === 'manager') {
-      filter.projectManager = { $exists: true, $ne: null };
+      clauses.push({ projectManager: { $exists: true, $ne: null } });
     }
     if (req.query.search) {
       const q = new RegExp(req.query.search, 'i');
-      filter.$or = [{ name: q }, { description: q }];
+      clauses.push({ $or: [{ name: q }, { description: q }, { projectCode: q }] });
     }
+    const filter = clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
     const [items, total] = await Promise.all([
       Project.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
       Project.countDocuments(filter),
@@ -47,6 +49,7 @@ router.get('/projects', async (req, res) => {
 // Law/Legal specific routes
 router.get('/dashboard', lawController.getDashboard);
 router.post('/references/upload', requireProjectContext, uploadMany('files', 10), lawController.uploadReferencePdfs);
+router.get('/records/:id/references/:index/view', requireProjectContext, lawController.viewReferencePdf);
 router.get('/records', lawController.getRecords);
 router.post('/records', requireProjectContext, lawController.createRecord);
 router.put('/records/:id', requireProjectContext, lawController.updateRecord);

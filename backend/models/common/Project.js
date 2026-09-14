@@ -7,6 +7,12 @@ const projectSchema = new mongoose.Schema(
       required: [true, 'Project name is required'],
       trim: true
     },
+    normalizedName: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      select: false
+    },
     description: {
       type: String,
       required: [true, 'Description is required'],
@@ -14,8 +20,8 @@ const projectSchema = new mongoose.Schema(
     },
     projectCode: {
       type: String,
-      unique: true,
-      trim: true
+      trim: true,
+      uppercase: true
     },
     logo: {
       url: String,
@@ -111,6 +117,20 @@ const projectSchema = new mongoose.Schema(
     notes: {
       type: String,
       trim: true
+    },
+    archivedAt: {
+      type: Date,
+      default: null
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
     }
   },
   {
@@ -118,7 +138,12 @@ const projectSchema = new mongoose.Schema(
   }
 );
 
-projectSchema.pre('save', function (next) {
+const normalizeProjectName = (value) => String(value || '').trim().toLocaleLowerCase('en-US');
+
+projectSchema.pre('validate', function (next) {
+  this.name = String(this.name || '').trim();
+  this.normalizedName = normalizeProjectName(this.name);
+  if (this.projectCode) this.projectCode = String(this.projectCode).trim().toUpperCase();
   if (!this.projectCode) {
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
@@ -129,8 +154,24 @@ projectSchema.pre('save', function (next) {
   next();
 });
 
+projectSchema.pre(['findOneAndUpdate', 'updateOne'], function (next) {
+  const update = this.getUpdate() || {};
+  const target = update.$set || update;
+  if (target.name !== undefined) {
+    target.name = String(target.name || '').trim();
+    target.normalizedName = normalizeProjectName(target.name);
+  }
+  if (target.projectCode !== undefined) target.projectCode = String(target.projectCode || '').trim().toUpperCase();
+  next();
+});
+
+// Kept non-unique until scripts/auditProjectIntegrity.js confirms existing data is clean.
+projectSchema.index({ normalizedName: 1 });
+projectSchema.index({ projectCode: 1 }, { unique: true, partialFilterExpression: { projectCode: { $type: 'string' } } });
 projectSchema.index({ status: 1 });
 projectSchema.index({ projectManager: 1 });
 projectSchema.index({ startDate: -1 });
+
+projectSchema.statics.normalizeName = normalizeProjectName;
 
 module.exports = mongoose.models.Project || mongoose.model('Project', projectSchema);

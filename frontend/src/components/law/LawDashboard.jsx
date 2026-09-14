@@ -144,7 +144,13 @@ const LawDashboard = () => {
   // Projects list — needed on every section to resolve a fallback project
   // when none is explicitly selected.
   const projectsQuery = useQueries({
-    queries: [{ queryKey: QK.law.projects({ limit: 100 }), queryFn: () => lawApi.getProjects(token, { limit: 100 }), enabled }],
+    queries: [{
+      queryKey: QK.law.projects({ limit: 100, catalogVersion: 2 }),
+      queryFn: () => lawApi.getProjects(token, { limit: 100 }),
+      enabled,
+      staleTime: 0,
+      refetchOnMount: 'always',
+    }],
   })[0];
   const projects = useMemo(() => {
     const projectItems = projectsQuery.data?.data?.items || [];
@@ -703,6 +709,7 @@ const LawDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['law', 'moduleData'] });
     } catch (err) {
       setError(err.message || 'Unable to save Law record.');
+      throw err;
     } finally {
       setSaving(false);
     }

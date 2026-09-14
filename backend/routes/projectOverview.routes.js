@@ -6,6 +6,7 @@ const { ROLES } = require('../config/roles');
 const Project = require('../models/common/Project');
 const Law = require('../models/department/Law');
 const LawContract = require('../models/law/LawContract');
+const LegalDocument = require('../models/law/LegalDocument.v2');
 const ITAsset = require('../models/it/ITAsset');
 const ITTicket = require('../models/it/ITTicket');
 const Invoice = require('../models/finance/Invoice');
@@ -243,28 +244,66 @@ const baseProjectSummary = (project) => ({
   technologies: Array.isArray(project?.technologies) ? project.technologies : [],
   notes: project?.notes || '',
   budget: project?.budget || {},
+  client: project?.client || null,
 });
 
 const getLawOverview = async (projectId) => {
   const scope = { projectId };
-  const [records, contracts, pendingContracts, expiringSoon, disputes, recentRecords, recentContracts] = await Promise.all([
+  // Legal Documents (Documents > Legal Documents) live in a separate
+  // collection from the generic Law records above — without querying it too,
+  // documents created there never show up on the project overview even
+  // though they're real legal work done against this project.
+  const legalDocScope = { projectId, deletedAt: null };
+  const agreedScope = { ...legalDocScope, 'customerAgreement.agreed': true };
+  // Compliance = the two sections under the Law Portal's Compliance nav
+  // group (Privacy & Policy, IP & Copyright). Broken out on its own instead
+  // of being folded silently into the generic "Legal Records" total, since
+  // that's specifically what gets created via New Policy / New IP record.
+  const complianceScope = { ...scope, section: { $in: ['privacy-policy', 'ip-copyright'] } };
+  const [
+    records, contracts, pendingContracts, expiringSoon, disputes, legalDocs, customerAgreed, compliance,
+    recentRecords, recentContracts, recentLegalDocs, recentAgreements, recentCompliance,
+  ] = await Promise.all([
     Law.countDocuments(scope),
     LawContract.countDocuments(scope),
     LawContract.countDocuments({ ...scope, approvalStatus: { $in: ['pending', 'draft'] } }),
     LawContract.countDocuments({ ...scope, expiryDate: { $gte: new Date(), $lte: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30) } }),
     Law.countDocuments({ ...scope, section: { $in: ['cases', 'disputes-fraud'] } }),
+    LegalDocument.countDocuments(legalDocScope),
+    LegalDocument.countDocuments(agreedScope),
+    Law.countDocuments(complianceScope),
     Law.find(scope).sort({ updatedAt: -1 }).limit(6).select('title section status priority updatedAt').lean(),
     LawContract.find(scope).sort({ updatedAt: -1 }).limit(6).select('title contractType status approvalStatus expiryDate updatedAt').lean(),
+    LegalDocument.find(legalDocScope).sort({ updatedAt: -1 }).limit(6).select('title documentNumber type status priority updatedAt').lean(),
+    LegalDocument.find(agreedScope).sort({ 'customerAgreement.agreedAt': -1 }).limit(6).select('title type priority customerAgreement').lean(),
+    Law.find(complianceScope).sort({ updatedAt: -1 }).limit(6).select('title section status priority updatedAt').lean(),
   ]);
+  // The client's own row rendering picks up whatever `updatedAt` a row
+  // carries — reuse that for the agreement date instead of the doc's own
+  // updatedAt, since what matters here is *when the client agreed*.
+  const recentAgreementRows = recentAgreements.map((doc) => ({
+    _id: doc._id,
+    title: doc.title,
+    type: doc.type,
+    priority: doc.priority,
+    status: 'Customer Agreed',
+    updatedAt: doc.customerAgreement?.agreedAt || null,
+  }));
   return {
     metrics: [
       { label: 'Legal Records', value: records, icon: 'description' },
+      { label: 'Legal Documents', value: legalDocs, icon: 'article' },
+      { label: 'Compliance', value: compliance, icon: 'policy' },
       { label: 'Contracts', value: contracts, icon: 'contract' },
       { label: 'Pending Approval', value: pendingContracts, icon: 'pending_actions' },
       { label: 'Expiring Soon', value: expiringSoon, icon: 'event_busy' },
       { label: 'Disputes', value: disputes, icon: 'balance' },
+      { label: 'Customer Agreed', value: legalDocs ? `${customerAgreed}/${legalDocs}` : 0, icon: 'verified_user' },
     ],
     sections: [
+      { title: 'Recent Legal Documents', type: 'records', rows: recentLegalDocs },
+      { title: 'Recent Compliance Records', type: 'records', rows: recentCompliance },
+      { title: 'Customer Agreements', type: 'records', rows: recentAgreementRows },
       { title: 'Recent Legal Records', type: 'records', rows: recentRecords },
       { title: 'Recent Contracts', type: 'contracts', rows: recentContracts },
     ],

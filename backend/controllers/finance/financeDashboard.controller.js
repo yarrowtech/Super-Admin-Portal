@@ -924,7 +924,7 @@ exports.getInvoiceNotes = async (req, res) => {
 exports.getPayments = async (req, res) => {
   try {
     const { status } = req.query;
-    const query = status ? { status } : {};
+    const query = { ...(status ? { status } : {}), ...(req.projectId ? { projectId: req.projectId } : {}) };
     const payments = await Payment.find(query).sort({ paymentDate: -1 });
     res.status(200).json({ success: true, data: payments });
   } catch (err) {
@@ -937,6 +937,7 @@ exports.createPayment = async (req, res) => {
     const payload = req.body || {};
     const payment = await Payment.create({
       ...payload,
+      projectId: req.projectId || null,
       createdBy: req.user?.id
     });
 
@@ -965,7 +966,11 @@ exports.createPayment = async (req, res) => {
 
 exports.updatePayment = async (req, res) => {
   try {
-    const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const payment = await Payment.findOneAndUpdate(
+      { _id: req.params.id, ...(req.projectId ? { projectId: req.projectId } : {}) },
+      { ...req.body, ...(req.projectId ? { projectId: req.projectId } : {}) },
+      { new: true, runValidators: true }
+    );
     res.status(200).json({ success: true, data: payment });
   } catch (err) {
     sendError(res, err, 'Failed to update payment');
@@ -1177,7 +1182,7 @@ exports.createReport = async (req, res) => {
  */
 exports.getCompliance = async (req, res) => {
   try {
-    const records = await ComplianceRecord.find().sort({ createdAt: -1 });
+    const records = await ComplianceRecord.find(req.projectId ? { projectId: req.projectId } : {}).sort({ createdAt: -1 });
     res.status(200).json({ success: true, data: records });
   } catch (err) {
     sendError(res, err, 'Failed to fetch compliance records');
@@ -1188,6 +1193,7 @@ exports.createCompliance = async (req, res) => {
   try {
     const record = await ComplianceRecord.create({
       ...req.body,
+      projectId: req.projectId || null,
       createdBy: req.user?.id
     });
     res.status(201).json({ success: true, data: record });
@@ -1198,7 +1204,11 @@ exports.createCompliance = async (req, res) => {
 
 exports.updateCompliance = async (req, res) => {
   try {
-    const record = await ComplianceRecord.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const record = await ComplianceRecord.findOneAndUpdate(
+      { _id: req.params.id, ...(req.projectId ? { projectId: req.projectId } : {}) },
+      { ...req.body, ...(req.projectId ? { projectId: req.projectId } : {}) },
+      { new: true, runValidators: true }
+    );
     res.status(200).json({ success: true, data: record });
   } catch (err) {
     sendError(res, err, 'Failed to update compliance record');

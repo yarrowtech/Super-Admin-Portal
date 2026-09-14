@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import LawRecordManager from '../LawRecordManager';
 import { LAW_FORM_CONFIG, getLawSection } from '../lawModuleConfig';
 import { PortalHeader, StatusBadge, KPICard } from '../../common';
-import { Card, CardBody, DataTable, EmptyState, CardSkeleton } from '../../ui';
+import { Card, CardBody, DataTable, EmptyState, CardSkeleton, Modal } from '../../ui';
 import FilterToolbar from '../../common/FilterToolbar';
 import { useConfirmDialog } from '../../../context/ConfirmDialogContext';
 import { useToast } from '../../../context/ToastContext';
+import { resolvePrivacySections, NOT_CONFIGURED_SECTIONS } from '../privacyPolicyContent';
+import { useAuth } from '../../../context/AuthContext';
+import { lawApi } from '../../../services/law';
 
 const MODULE_SIGNAL_CONFIG = {
   agreements: {
@@ -73,49 +76,6 @@ const daysUntil = (value) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Privacy policy static content (kept intact)
-// ─────────────────────────────────────────────────────────────────────────────
-const PRIVACY_SECTIONS = [
-  {
-    title: 'Information We Collect',
-    points: [
-      'Account Information: Name, email address, phone number, and role used to create and manage user accounts.',
-      'Usage Data: Pages visited, features used, quiz results, time spent, and browser/device information.',
-      'Content You Provide: Answers, notes, feedback, and uploaded study material for service delivery and personalization.',
-    ],
-  },
-  {
-    title: 'How We Use Your Information',
-    points: [
-      'Provide and maintain platform services.',
-      'Improve product performance and user experience.',
-      'Send updates, legal notices, and service communication.',
-    ],
-  },
-  {
-    title: 'Data Sharing',
-    points: [
-      'Shared only with trusted processors and service providers under legal controls.',
-      'Never sold as commercial personal data.',
-    ],
-  },
-  {
-    title: 'Data Security',
-    points: [
-      'Encryption in transit and at rest.',
-      'Access control and audit logs enforced.',
-    ],
-  },
-  {
-    title: 'Your Rights',
-    points: [
-      'Access, correction, portability, and deletion requests.',
-      'Consent withdrawal and communication preference controls.',
-    ],
-  },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 const LawOpsPage = ({
@@ -135,6 +95,7 @@ const LawOpsPage = ({
   onDeleteRecord,
   forceOpenForm = false,
 }) => {
+  const { token } = useAuth();
   const section = getLawSection(sectionId);
   const config = LAW_FORM_CONFIG[sectionId] || {};
   const signalConfig = MODULE_SIGNAL_CONFIG[sectionId] || {};
@@ -143,6 +104,33 @@ const LawOpsPage = ({
   const [searchInput, setSearchInput] = useState(searchTerm);
   const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [pdfViewer, setPdfViewer] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState({ url: '', loading: false, error: '' });
+
+  useEffect(() => {
+    if (!pdfViewer?.record?._id || !pdfViewer?.pdf || !selectedProjectId || !token) {
+      return undefined;
+    }
+    let cancelled = false;
+    let objectUrl = '';
+    const index = pdfViewer.files.findIndex((file) => file === pdfViewer.pdf || file.url === pdfViewer.pdf.url);
+    queueMicrotask(() => {
+      if (!cancelled) setPdfPreview({ url: '', loading: true, error: '' });
+    });
+    lawApi.getReferencePdf(token, selectedProjectId, pdfViewer.record._id, Math.max(index, 0))
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+        setPdfPreview({ url: objectUrl, loading: false, error: '' });
+      })
+      .catch((error) => {
+        if (!cancelled) setPdfPreview({ url: '', loading: false, error: error.message || 'Unable to display this PDF.' });
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [pdfViewer, selectedProjectId, token]);
 
   useEffect(() => {
     const timer = setTimeout(() => onSearchChange(searchInput), 250);
@@ -150,10 +138,12 @@ const LawOpsPage = ({
   }, [searchInput, onSearchChange]);
 
   useEffect(() => {
-    if (forceOpenForm) {
+    if (!forceOpenForm) return undefined;
+    const timer = window.setTimeout(() => {
       setEditingRecord(null);
       setFormOpen(true);
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [forceOpenForm]);
 
   const filteredRecords = useMemo(() => records.filter((record) => {
@@ -192,6 +182,10 @@ const LawOpsPage = ({
   }, [filteredRecords, sectionId, signalConfig.primaryDate]);
 
   const selectedProjectName = projectOptions.find((p) => p.value === selectedProjectId)?.label || 'All Projects';
+  const activePrivacySections = useMemo(
+    () => (selectedProjectId ? resolvePrivacySections(selectedProjectName) : NOT_CONFIGURED_SECTIONS),
+    [selectedProjectId, selectedProjectName]
+  );
 
   const openCreate = () => {
     setEditingRecord(null);
@@ -220,6 +214,18 @@ const LawOpsPage = ({
     }
   };
 
+  const getRecordPdfs = (record) => Array.isArray(record?.metadata?.referencePdfs)
+    ? record.metadata.referencePdfs.filter((pdf) => pdf?.url)
+    : [];
+
+  const openPdf = (record, pdf = getRecordPdfs(record)[0]) => {
+    if (!pdf?.url) {
+      toast.error('No PDF is attached to this policy.');
+      return;
+    }
+    setPdfViewer({ record, pdf, files: getRecordPdfs(record) });
+  };
+
   const columns = [
     {
       key: 'title',
@@ -228,7 +234,7 @@ const LawOpsPage = ({
         <div className="min-w-0">
           <p className="truncate font-semibold text-neutral-900 dark:text-white">{record.title || 'Untitled'}</p>
           {record.referenceNumber && (
-            <p className="truncate text-[11px] font-mono text-neutral-400">{record.referenceNumber}</p>
+            <p className="mt-1 truncate text-[11px] font-medium text-neutral-400">Version {record.referenceNumber}</p>
           )}
         </div>
       ),
@@ -258,6 +264,19 @@ const LawOpsPage = ({
       label: 'Status',
       render: (record) => record.status ? <StatusBadge tone={toneFor(STATUS_TONE, record.status)} label={record.status} /> : '—',
     },
+    ...(sectionId === 'privacy-policy' ? [{
+      key: 'documents',
+      label: 'PDF',
+      render: (record) => {
+        const pdfs = getRecordPdfs(record);
+        return pdfs.length ? (
+          <button type="button" onClick={() => openPdf(record)} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-[var(--portal-accent)] hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30 dark:bg-rose-950/30" aria-label={`View PDF for ${record.title}`}>
+            <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+            View{pdfs.length > 1 ? ` (${pdfs.length})` : ''}
+          </button>
+        ) : <span className="text-xs text-neutral-400">Not attached</span>;
+      },
+    }] : []),
   ];
 
   return (
@@ -305,35 +324,56 @@ const LawOpsPage = ({
       {sectionId === 'privacy-policy' && (
         <Card>
           <CardBody>
-            <h3 className="mb-3 text-sm font-semibold text-neutral-900 dark:text-white">Policy Overview</h3>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {PRIVACY_SECTIONS.map((item) => (
-                <span
-                  key={item.title}
-                  className="rounded-full border border-[var(--portal-accent)]/20 bg-[var(--portal-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--portal-accent)]"
-                >
-                  {item.title}
-                </span>
-              ))}
-            </div>
-            <div className="space-y-3">
-              {PRIVACY_SECTIONS.map((item) => (
-                <details key={item.title} className="group rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900">
-                  <summary className="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">
-                    {item.title}
-                    <span className="material-symbols-outlined text-[18px] text-neutral-400 transition group-open:rotate-180">expand_more</span>
-                  </summary>
-                  <div className="space-y-1.5 px-4 pb-4">
-                    {item.points.map((point) => (
-                      <p key={point} className="flex gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                        <span className="material-symbols-outlined mt-0.5 text-[14px] text-[var(--portal-accent)]">chevron_right</span>
-                        {point}
-                      </p>
-                    ))}
-                  </div>
-                </details>
-              ))}
-            </div>
+            <h3 className="mb-3 text-sm font-semibold text-neutral-900 dark:text-white">
+              Policy Overview{selectedProjectId ? ` · ${selectedProjectName}` : ''}
+            </h3>
+            {!selectedProjectId ? (
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                Select a project above to view its policy — data collection, usage, sharing, security and rights are project-specific and shown per project, not as one shared template.
+              </p>
+            ) : activePrivacySections.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-center text-[13px] text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+                No privacy configuration available for this project.
+              </div>
+            ) : (
+              <>
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {activePrivacySections.map((item) => (
+                    <span
+                      key={item.title}
+                      className="rounded-full border border-[var(--portal-accent)]/20 bg-[var(--portal-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--portal-accent)]"
+                    >
+                      {item.title}
+                    </span>
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  {activePrivacySections.map((item) => (
+                    <details key={item.key || item.title} className="group rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900">
+                      <summary className="flex cursor-pointer items-center justify-between px-4 py-3.5 text-sm font-semibold text-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--portal-accent)]/40 dark:text-white">
+                        {item.title}
+                        <span className="material-symbols-outlined text-[18px] text-neutral-400 transition group-open:rotate-180">expand_more</span>
+                      </summary>
+                      <div className="space-y-3 px-4 pb-4">
+                        {(item.items || item.points || []).map((entry) => {
+                          const structured = typeof entry === 'object';
+                          const key = structured ? `${entry.title}:${entry.description}` : entry;
+                          return (
+                          <div key={key} className="flex gap-2 text-[13px] leading-6 text-neutral-600 dark:text-neutral-400">
+                            <span className="material-symbols-outlined mt-0.5 text-[14px] text-[var(--portal-accent)]">chevron_right</span>
+                            <p>
+                              {structured && <strong className="font-semibold text-neutral-900 dark:text-neutral-100">{entry.title}: </strong>}
+                              {structured ? entry.description : entry}
+                            </p>
+                          </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </>
+            )}
           </CardBody>
         </Card>
       )}
@@ -358,6 +398,7 @@ const LawOpsPage = ({
                 rows={filteredRecords}
                 rowKey={(record) => record._id || record.id}
                 rowActions={(record) => [
+                  ...(getRecordPdfs(record).length ? [{ label: 'View PDF', icon: 'picture_as_pdf', onClick: () => openPdf(record) }] : []),
                   { label: 'Edit', icon: 'edit', onClick: () => openEdit(record) },
                   { label: 'Delete', icon: 'delete', tone: 'danger', onClick: () => handleDelete(record) },
                 ]}
@@ -393,6 +434,7 @@ const LawOpsPage = ({
                   {record.priority && <StatusBadge tone={toneFor(PRIORITY_TONE, record.priority)} label={record.priority} />}
                 </div>
                 <div className="mt-3 flex gap-2">
+                  {getRecordPdfs(record).length > 0 && <button type="button" onClick={() => openPdf(record)} className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-[var(--portal-accent)] dark:bg-rose-950/30"><span className="material-symbols-outlined text-[15px]">picture_as_pdf</span>View PDF</button>}
                   <button type="button" onClick={() => openEdit(record)} className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-bold text-neutral-700 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
                     Edit
                   </button>
@@ -414,9 +456,20 @@ const LawOpsPage = ({
         formOpen={formOpen}
         editingRecord={editingRecord}
         onFormClose={() => setFormOpen(false)}
+        projectId={selectedProjectId}
+        projectName={selectedProjectId ? selectedProjectName : ''}
         title={config.registerTitle || `${section.navLabel} Register`}
         {...config}
       />
+
+      <Modal open={Boolean(pdfViewer)} onClose={() => setPdfViewer(null)} title={pdfViewer?.record?.title || 'Policy PDF'} description={pdfViewer?.pdf?.originalName || 'Supporting policy document'} className="w-[calc(100vw-24px)] max-w-6xl sm:w-[calc(100vw-48px)]" footer={pdfViewer && <div className="flex w-full items-center justify-between gap-3"><span className="text-xs text-neutral-500">{pdfViewer.files.length} PDF{pdfViewer.files.length === 1 ? '' : 's'} attached</span><a href={pdfPreview.url || pdfViewer.pdf.url} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--portal-accent)] px-4 text-sm font-bold text-white"><span className="material-symbols-outlined text-[17px]">open_in_new</span>Open in New Tab</a></div>}>
+        {pdfViewer && <div className="-m-4 flex h-[72dvh] min-h-[420px] flex-col bg-neutral-100 lg:-m-5 dark:bg-neutral-950">
+          {pdfViewer.files.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">{pdfViewer.files.map((pdf, index) => <button key={`${pdf.url}-${index}`} type="button" onClick={() => setPdfViewer((prev) => ({ ...prev, pdf }))} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold ${pdfViewer.pdf.url === pdf.url ? 'bg-[var(--portal-accent)] text-white' : 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200'}`}>{pdf.originalName || `PDF ${index + 1}`}</button>)}</div>}
+          {pdfPreview.loading && <div className="flex flex-1 items-center justify-center gap-3 text-sm text-neutral-500"><span className="material-symbols-outlined animate-spin text-[var(--portal-accent)]">progress_activity</span>Loading PDF preview…</div>}
+          {pdfPreview.error && <div className="flex flex-1 flex-col items-center justify-center p-6 text-center"><span className="material-symbols-outlined text-4xl text-rose-500">error</span><p className="mt-3 font-bold text-neutral-800 dark:text-neutral-100">Unable to display this PDF</p><p className="mt-1 max-w-md text-sm text-neutral-500">{pdfPreview.error}</p><a href={pdfViewer.pdf.url} target="_blank" rel="noreferrer" className="mt-4 rounded-lg bg-[var(--portal-accent)] px-4 py-2 text-sm font-bold text-white">Download Original</a></div>}
+          {pdfPreview.url && <iframe src={pdfPreview.url} title={`${pdfViewer.record.title} PDF preview`} className="h-full w-full flex-1 border-0 bg-white" />}
+        </div>}
+      </Modal>
     </div>
   );
 };

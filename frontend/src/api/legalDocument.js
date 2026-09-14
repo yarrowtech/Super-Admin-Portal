@@ -68,6 +68,10 @@ export const saveDraft = (token, id, payload) =>
 export const submitDocument = (token, id, payload = {}) =>
   apiClient.post(`${P}/${id}/submit`, payload, token);
 
+/** Record whether the project's client has agreed to this document */
+export const setDocumentCustomerAgreement = (token, id, agreed, notes = '') =>
+  apiClient.patch(`${P}/${id}/customer-agreement`, { agreed, notes }, token);
+
 // ── CEO PORTAL ────────────────────────────────────────────────────────────────
 
 /** Get all pending documents (CEO) */

@@ -135,7 +135,7 @@ exports.getSecurityComplianceLogs = async (req, res) => {
 
 exports.getProjects = async (req, res) => {
   try {
-    const data = await lawService.listProjects(req.query || {});
+    const data = await lawService.listProjects(req.query || {}, req.user || {});
     res.status(200).json({ success: true, data });
   } catch (err) {
     logger.error({ err }, "Law module getProjects error");
@@ -154,5 +154,61 @@ exports.getModuleDataByProject = async (req, res) => {
   } catch (err) {
     logger.error({ err }, "Law module getModuleDataByProject error");
     res.status(err.statusCode || 500).json({ success: false, error: "Failed to fetch project-wise law data", details: err.message });
+  }
+};
+
+// Generic Law-record CRUD backing the Compliance (Privacy & Policy, IP &
+// Copyright), Risk (Disputes & Fraud), and non-outsourcing Contracts
+// (Agreements, Work on Hire, Third Party) pages.
+exports.getRecords = async (req, res) => {
+  try {
+    const data = await lawService.listRecords(req.query || {}, req.projectId);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "Law module getRecords error");
+    res.status(err.statusCode || 500).json({ success: false, error: "Failed to fetch law records", details: err.message });
+  }
+};
+
+exports.createRecord = async (req, res) => {
+  try {
+    const data = await lawService.createRecord(req.body || {}, req.user?.id || req.user?._id, req.projectId);
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "Law module createRecord error");
+    res.status(err.statusCode || 500).json({ success: false, error: "Failed to create record", details: err.message });
+  }
+};
+
+exports.getRecordById = async (req, res) => {
+  try {
+    const data = await lawService.getRecordById(req.params.id, req.projectId);
+    if (!data) return res.status(404).json({ success: false, error: "Record not found" });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "Law module getRecordById error");
+    res.status(500).json({ success: false, error: "Failed to fetch record", details: err.message });
+  }
+};
+
+exports.updateRecord = async (req, res) => {
+  try {
+    const data = await lawService.updateRecord(req.params.id, req.body || {}, req.user?.id || req.user?._id, req.projectId);
+    if (!data) return res.status(404).json({ success: false, error: "Record not found" });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "Law module updateRecord error");
+    res.status(err.statusCode || 500).json({ success: false, error: "Failed to update record", details: err.message });
+  }
+};
+
+exports.deleteRecord = async (req, res) => {
+  try {
+    const data = await lawService.deleteRecord(req.params.id, req.user?.id || req.user?._id, req.projectId);
+    if (!data) return res.status(404).json({ success: false, error: "Record not found" });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "Law module deleteRecord error");
+    res.status(500).json({ success: false, error: "Failed to delete record", details: err.message });
   }
 };

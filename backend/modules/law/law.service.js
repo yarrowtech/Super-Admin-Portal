@@ -5,6 +5,7 @@ const ActivityLog = require("../../models/auth/ActivityLog");
 const Project = require("../../models/common/Project");
 const { createApprovalRequest, decideApprovalRequest } = require("../../services/approvalEngine.service");
 const { writeAuditTrail } = require("../../services/auditTrail.service");
+const { projectOverviewScope } = require("../../services/projectOverviewAccess.service");
 
 const withPagination = (query = {}) => {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -177,19 +178,124 @@ const getSecurityComplianceLogs = async (query = {}, projectId) => {
   return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
 };
 
-const listProjects = async (query = {}) => {
+const listProjects = async (query = {}, user = {}) => {
   const { page, limit, skip } = withPagination(query);
-  const filter = {};
+  const filter = await projectOverviewScope(user, 'law');
   if (query.status) filter.status = query.status;
   if (query.search) {
     const q = new RegExp(query.search, "i");
-    filter.$or = [{ name: q }, { description: q }];
+    filter.$and = [...(filter.$and || []), { $or: [{ name: q }, { description: q }, { projectCode: q }] }];
   }
   const [items, total] = await Promise.all([
     Project.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
     Project.countDocuments(filter),
   ]);
   return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
+};
+
+// Sections managed through the generic Law-record CRUD (Compliance, Risk and
+// the non-outsourcing Contracts pages) — Legal Documents is a separate
+// system (LegalDocument.v2 / legalDocument.v2.controller.js) and never
+// touches this collection.
+const LAW_RECORD_SECTIONS = ["agreements", "privacy-policy", "disputes-fraud", "ip-copyright", "work-hire", "third-party"];
+
+const listRecords = async (query = {}, projectId) => {
+  const { page, limit, skip } = withPagination(query);
+  const filter = {};
+  if (projectId) filter.projectId = projectId;
+  if (query.section && LAW_RECORD_SECTIONS.includes(query.section)) filter.section = query.section;
+  if (query.status) filter.status = query.status;
+  if (query.search) {
+    filter.$or = [
+      { title: { $regex: query.search, $options: "i" } },
+      { description: { $regex: query.search, $options: "i" } },
+      { referenceNumber: { $regex: query.search, $options: "i" } },
+    ];
+  }
+  const [items, total] = await Promise.all([
+    Law.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+    Law.countDocuments(filter),
+  ]);
+  return { items: items.map(enrichLawRecord), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
+};
+
+const createRecord = async (payload = {}, actorId, projectId) => {
+  if (!LAW_RECORD_SECTIONS.includes(payload.section)) {
+    const err = new Error("A valid section is required");
+    err.statusCode = 400;
+    throw err;
+  }
+  const row = await Law.create({
+    section: payload.section,
+    title: payload.title,
+    description: payload.description || "",
+    status: payload.status || "Draft",
+    priority: payload.priority || "Medium",
+    owner: payload.owner || "",
+    dueDate: payload.dueDate || undefined,
+    referenceNumber: payload.referenceNumber || "",
+    tags: Array.isArray(payload.tags) ? payload.tags : [],
+    notes: payload.notes || "",
+    projectId: projectId || undefined,
+    createdBy: actorId,
+    updatedBy: actorId,
+    metadata: payload.metadata || {},
+  });
+  await writeAuditTrail({
+    userId: actorId,
+    module: "law",
+    action: "law_record_created",
+    targetType: "Law",
+    targetId: row._id,
+    metadata: { section: row.section, projectId: row.projectId || null },
+  });
+  return enrichLawRecord(row.toObject());
+};
+
+const getRecordById = async (id, projectId) => {
+  const filter = { _id: id };
+  if (projectId) filter.projectId = projectId;
+  const row = await Law.findOne(filter).lean();
+  return row ? enrichLawRecord(row) : null;
+};
+
+const RECORD_UPDATABLE_FIELDS = ["title", "description", "status", "priority", "owner", "dueDate", "referenceNumber", "tags", "notes", "metadata"];
+
+const updateRecord = async (id, payload = {}, actorId, projectId) => {
+  const filter = { _id: id };
+  if (projectId) filter.projectId = projectId;
+  const updates = { updatedBy: actorId };
+  RECORD_UPDATABLE_FIELDS.forEach((field) => {
+    if (payload[field] !== undefined) updates[field] = payload[field];
+  });
+  const row = await Law.findOneAndUpdate(filter, updates, { new: true, runValidators: true });
+  if (!row) return null;
+  await writeAuditTrail({
+    userId: actorId,
+    module: "law",
+    action: "law_record_updated",
+    targetType: "Law",
+    targetId: row._id,
+    metadata: { section: row.section },
+  });
+  return enrichLawRecord(row.toObject());
+};
+
+const deleteRecord = async (id, actorId, projectId) => {
+  const filter = { _id: id };
+  if (projectId) filter.projectId = projectId;
+  const row = await Law.findOneAndDelete(filter);
+  if (row) {
+    await writeAuditTrail({
+      userId: actorId,
+      module: "law",
+      action: "law_record_deleted",
+      targetType: "Law",
+      targetId: row._id,
+      metadata: { section: row.section },
+    });
+  }
+  return row;
 };
 
 const mapModuleToLawSection = (moduleKey = "") => {
@@ -241,4 +347,9 @@ module.exports = {
   getSecurityComplianceLogs,
   listProjects,
   getModuleDataByProject,
+  listRecords,
+  createRecord,
+  getRecordById,
+  updateRecord,
+  deleteRecord,
 };

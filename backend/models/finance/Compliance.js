@@ -10,6 +10,7 @@ const complianceAttachmentSchema = new mongoose.Schema(
 
 const complianceSchema = new mongoose.Schema(
   {
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
     type: {
       type: String,
       enum: ['gst', 'tds', 'statutory', 'audit', 'other'],
@@ -31,5 +32,6 @@ const complianceSchema = new mongoose.Schema(
 );
 
 complianceSchema.index({ type: 1, status: 1 });
+complianceSchema.index({ projectId: 1, status: 1, dueDate: 1 });
 
 module.exports = mongoose.models.FinanceCompliance || mongoose.model('FinanceCompliance', complianceSchema);

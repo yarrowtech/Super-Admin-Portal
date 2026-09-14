@@ -32,6 +32,28 @@ const moduleProjectValidation = [
   param("projectId").isMongoId().withMessage("Invalid projectId"),
 ];
 
+const LAW_RECORD_SECTIONS = ["agreements", "privacy-policy", "disputes-fraud", "ip-copyright", "work-hire", "third-party"];
+const LAW_RECORD_STATUSES = ["Draft", "Pending", "In Review", "Active", "Ready", "Attention", "Archived"];
+const LAW_RECORD_PRIORITIES = ["Low", "Medium", "High", "Critical"];
+
+const recordIdValidation = [param("id").isMongoId().withMessage("Invalid record id")];
+
+const createRecordValidation = [
+  body("section").trim().isIn(LAW_RECORD_SECTIONS).withMessage("A valid section is required"),
+  body("title").trim().notEmpty().withMessage("title is required"),
+  body("status").optional().isIn(LAW_RECORD_STATUSES).withMessage("invalid status"),
+  body("priority").optional().isIn(LAW_RECORD_PRIORITIES).withMessage("invalid priority"),
+  body("dueDate").optional({ checkFalsy: true }).isISO8601().withMessage("dueDate must be a valid date"),
+];
+
+const updateRecordValidation = [
+  param("id").isMongoId().withMessage("Invalid record id"),
+  body("title").optional().trim().notEmpty().withMessage("title cannot be empty"),
+  body("status").optional().isIn(LAW_RECORD_STATUSES).withMessage("invalid status"),
+  body("priority").optional().isIn(LAW_RECORD_PRIORITIES).withMessage("invalid priority"),
+  body("dueDate").optional({ checkFalsy: true }).isISO8601().withMessage("dueDate must be a valid date"),
+];
+
 module.exports = {
   listValidation,
   contractIdValidation,
@@ -39,4 +61,7 @@ module.exports = {
   contractDecisionValidation,
   disputeValidation,
   moduleProjectValidation,
+  recordIdValidation,
+  createRecordValidation,
+  updateRecordValidation,
 };

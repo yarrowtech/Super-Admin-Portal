@@ -3,6 +3,7 @@ const LegalDocument = require('../models/law/LegalDocument.v2');
 const LegalDocumentVersion = require('../models/law/LegalDocumentVersion.v2');
 const LegalAuditLog = require('../models/law/LegalAuditLog');
 const logger = require('../utils/logger');
+const { hasProjectAccess } = require('../middlewares/project.middleware');
 
 const VALID_TYPES = new Set(['Contract', 'Agreement', 'Policy', 'NDA', 'Compliance', 'IP', 'Dispute', 'Other']);
 const VALID_STATUSES = new Set(['Draft', 'Pending', 'Approved', 'Rejected']);
@@ -25,6 +26,14 @@ const ensureObjectId = (value, label) => {
 const isRealObjectId = (value) => {
   const raw = String(value || '').trim();
   return raw && raw !== 'all' && !raw.startsWith('virtual-') && mongoose.Types.ObjectId.isValid(raw);
+};
+
+const ensureProjectAccess = (req, projectId) => {
+  if (projectId && !hasProjectAccess(req.user, projectId)) {
+    const error = new Error('No access to requested project');
+    error.statusCode = 403;
+    throw error;
+  }
 };
 
 const actorFrom = (req) => ({
@@ -110,6 +119,7 @@ const listDocuments = async (req, res, baseFilter = {}, defaultSort = 'updated-d
   const normalizedPage = normalizePagination(page, 1, 1000000);
   const normalizedLimit = normalizePagination(limit, 50, 100);
   const skip = (normalizedPage - 1) * normalizedLimit;
+  if (req.query.projectId) ensureProjectAccess(req, req.query.projectId);
   const filter = listFilter(req.query, baseFilter);
   let query = LegalDocument.find(filter);
   if (omitContent) query = query.select('-latestContent');
@@ -125,6 +135,7 @@ exports.create = async (req, res) => {
     const { title, type, projectId, projectName, content, priority, tags, owner } = req.body;
     if (!title || !String(title).trim()) return res.status(400).json({ success: false, error: 'Title is required' });
     if (projectId) ensureObjectId(projectId, 'projectId');
+    ensureProjectAccess(req, projectId);
     const actor = actorFrom(req);
     const doc = await LegalDocument.create({
       title: String(title).trim(),
@@ -169,6 +180,7 @@ exports.myDocuments = async (req, res) => {
 exports.forProject = async (req, res) => {
   try {
     ensureObjectId(req.query.projectId, 'projectId');
+    ensureProjectAccess(req, req.query.projectId);
     return await listDocuments(req, res, {}, 'updated-desc', false);
   } catch (err) {
     logger.error({ err }, 'legalDocument.forProject failed');
@@ -208,6 +220,7 @@ exports.getById = async (req, res) => {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id).lean();
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     return res.json({ success: true, data: doc });
   } catch (err) {
     logger.error({ err }, 'legalDocument.getById failed');
@@ -220,12 +233,14 @@ exports.autoSave = async (req, res) => {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     if (doc.isLocked) return res.status(403).json({ success: false, error: 'Document is locked' });
     if (req.body.content !== undefined) doc.latestContent = req.body.content;
     if (req.body.title !== undefined) doc.title = String(req.body.title).trim();
     if (req.body.type !== undefined) doc.type = VALID_TYPES.has(req.body.type) ? req.body.type : doc.type;
     if (req.body.projectId !== undefined && req.body.projectId) {
       ensureObjectId(req.body.projectId, 'projectId');
+      ensureProjectAccess(req, req.body.projectId);
       doc.projectId = req.body.projectId;
     }
     if (req.body.projectName !== undefined) doc.projectName = String(req.body.projectName || '').trim();
@@ -243,6 +258,7 @@ exports.saveDraft = async (req, res) => {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     if (doc.isLocked) return res.status(403).json({ success: false, error: 'Document is locked' });
     const { title, type, content, projectId, projectName, owner, priority, tags, changeSummary } = req.body;
     if (title !== undefined) doc.title = String(title).trim();
@@ -250,6 +266,7 @@ exports.saveDraft = async (req, res) => {
     if (content !== undefined) doc.latestContent = content;
     if (projectId !== undefined && projectId) {
       ensureObjectId(projectId, 'projectId');
+      ensureProjectAccess(req, projectId);
       doc.projectId = projectId;
     }
     if (projectName !== undefined) doc.projectName = String(projectName || '').trim();
@@ -273,6 +290,7 @@ exports.submit = async (req, res) => {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     if (doc.isLocked) return res.status(403).json({ success: false, error: 'Document is locked' });
     if (!['Draft', 'Rejected'].includes(doc.status)) return res.status(400).json({ success: false, error: `Cannot submit a document with status: ${doc.status}` });
     if (req.body.content !== undefined) doc.latestContent = req.body.content;
@@ -299,6 +317,7 @@ exports.approve = async (req, res) => {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     if (doc.status !== 'Pending') return res.status(400).json({ success: false, error: 'Only pending documents can be approved' });
     const actor = actorFrom(req);
     doc.status = 'Approved';
@@ -326,6 +345,7 @@ exports.reject = async (req, res) => {
     if (!remarks) return res.status(400).json({ success: false, error: 'Rejection remarks are required' });
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     if (doc.status !== 'Pending') return res.status(400).json({ success: false, error: 'Only pending documents can be rejected' });
     doc.status = 'Rejected';
     doc.ceoRemarks = remarks;
@@ -346,6 +366,9 @@ exports.reject = async (req, res) => {
 exports.getVersions = async (req, res) => {
   try {
     ensureObjectId(req.params.id, 'document id');
+    const doc = await LegalDocument.findById(req.params.id).select('projectId').lean();
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     const versions = await LegalDocumentVersion.find({ documentId: req.params.id }).sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: versions });
   } catch (err) {
@@ -359,6 +382,9 @@ exports.getVersionById = async (req, res) => {
     ensureObjectId(req.params.versionId, 'version id');
     const version = await LegalDocumentVersion.findById(req.params.versionId).lean();
     if (!version) return res.status(404).json({ success: false, error: 'Version not found' });
+    const doc = await LegalDocument.findById(version.documentId).select('projectId').lean();
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     return res.json({ success: true, data: version });
   } catch (err) {
     logger.error({ err }, 'legalDocument.getVersionById failed');
@@ -372,6 +398,7 @@ exports.restoreVersion = async (req, res) => {
     ensureObjectId(req.params.versionId, 'version id');
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     if (doc.isLocked) return res.status(403).json({ success: false, error: 'Document is locked and cannot be restored' });
     const version = await LegalDocumentVersion.findById(req.params.versionId);
     if (!version) return res.status(404).json({ success: false, error: 'Version not found' });
@@ -393,6 +420,7 @@ exports.deleteDocument = async (req, res) => {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     if (doc.isLocked) return res.status(403).json({ success: false, error: 'Cannot delete an approved document' });
     await audit(req, doc._id, 'DELETE', 'Document deleted', { status: doc.status, version: doc.currentVersion });
     await LegalDocumentVersion.deleteMany({ documentId: doc._id });
@@ -409,6 +437,7 @@ exports.generatePdf = async (req, res) => {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id).lean();
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    ensureProjectAccess(req, doc.projectId);
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${doc.title || 'Legal Document'}</title><style>body{font-family:"Times New Roman",serif;margin:0;padding:32px;color:#111}.page{max-width:900px;margin:auto}.content{font-size:12pt;line-height:1.7}</style></head><body><div class="page"><h1>${doc.title || 'Legal Document'}</h1><div>Type: ${doc.type || 'Other'} | Version: ${doc.currentVersion || 'v1.0'} | Status: ${doc.status || 'Draft'}</div><hr><main class="content">${doc.latestContent || '<p>No content available.</p>'}</main></div></body></html>`;
     let puppeteer;
     try {

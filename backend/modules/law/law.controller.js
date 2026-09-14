@@ -79,6 +79,7 @@ exports.createContractApproval = async (req, res) => {
     const data = await lawService.createContractApproval({
       contractId: req.params.id,
       requestedBy: req.user?.id || req.user?._id,
+      projectId: req.projectId,
     });
     res.status(201).json({ success: true, data });
   } catch (err) {

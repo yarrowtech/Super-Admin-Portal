@@ -26,10 +26,10 @@ const hasProjectAccess = (user, projectId) => {
 };
 
 const extractProjectId = (req) =>
+  req.params?.projectId ||
   req.query?.projectId ||
   req.headers["x-project-id"] ||
   req.body?.projectId ||
-  req.params?.projectId ||
   null;
 
 const normalizeProjectId = (projectId) => {
@@ -56,9 +56,12 @@ const requireProjectContext = (req, res, next) => {
   next();
 };
 
-const attachOptionalProjectContext = (req, _res, next) => {
+const attachOptionalProjectContext = (req, res, next) => {
   const projectId = normalizeProjectId(extractProjectId(req));
-  if (projectId && hasProjectAccess(req.user, projectId)) {
+  if (projectId && !hasProjectAccess(req.user, projectId)) {
+    return res.status(403).json({ success: false, error: "No access to requested project" });
+  }
+  if (projectId) {
     req.projectId = String(projectId);
     req.query = { ...(req.query || {}), projectId: req.projectId };
   }
@@ -70,4 +73,5 @@ module.exports = {
   attachOptionalProjectContext,
   extractProjectId,
   normalizeProjectId,
+  hasProjectAccess,
 };

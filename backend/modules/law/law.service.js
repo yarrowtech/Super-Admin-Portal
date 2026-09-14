@@ -73,7 +73,11 @@ const createContract = async (payload = {}, actorId, projectId) =>
   LawContract.create({ ...payload, projectId, createdBy: actorId, updatedBy: actorId });
 const getContractById = async (id, projectId) => LawContract.findOne({ _id: id, projectId }).lean();
 const updateContract = async (id, payload = {}, actorId, projectId) =>
-  LawContract.findOneAndUpdate({ _id: id, projectId }, { ...payload, updatedBy: actorId }, { new: true });
+  LawContract.findOneAndUpdate(
+    { _id: id, projectId },
+    { ...payload, projectId, updatedBy: actorId },
+    { new: true, runValidators: true }
+  );
 const deleteContract = async (id, projectId) => LawContract.findOneAndDelete({ _id: id, projectId });
 
 const complianceSnapshot = async (projectId) => {
@@ -85,7 +89,13 @@ const complianceSnapshot = async (projectId) => {
   return { complianceRows, financeInvoices: invoices };
 };
 
-const createContractApproval = async ({ contractId, requestedBy }) => {
+const createContractApproval = async ({ contractId, requestedBy, projectId }) => {
+  const contract = await LawContract.findOne({ _id: contractId, projectId }).select('_id').lean();
+  if (!contract) {
+    const err = new Error('Contract not found');
+    err.statusCode = 404;
+    throw err;
+  }
   const workflow = await createApprovalRequest({
     module: "law",
     entityType: "contract",

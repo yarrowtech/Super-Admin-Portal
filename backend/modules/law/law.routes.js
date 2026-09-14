@@ -31,7 +31,7 @@ router.post("/contracts", requireProjectContext, canManageLawContract, v.createC
 router.get("/contracts/:id", requireProjectContext, v.contractIdValidation, validate, controller.getContractById);
 router.put("/contracts/:id", requireProjectContext, canManageLawContract, v.contractIdValidation, validate, controller.updateContract);
 router.delete("/contracts/:id", requireProjectContext, canManageLawContract, v.contractIdValidation, validate, controller.deleteContract);
-router.post("/contracts/:id/approval-request", canManageLawContract, v.contractIdValidation, validate, controller.createContractApproval);
+router.post("/contracts/:id/approval-request", requireProjectContext, canManageLawContract, v.contractIdValidation, validate, controller.createContractApproval);
 router.patch("/contracts/approval/:workflowId/decision", canDecideLawApproval, v.contractDecisionValidation, validate, controller.decideContractApproval);
 router.get("/compliance-snapshot", requireProjectContext, controller.getComplianceSnapshot);
 router.post("/disputes", requireProjectContext, v.disputeValidation, validate, controller.raiseDispute);

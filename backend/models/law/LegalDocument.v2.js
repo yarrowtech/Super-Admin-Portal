@@ -67,6 +67,15 @@ const legalDocumentSchema = new mongoose.Schema(
     priority: { type: String, enum: PRIORITIES, default: 'Medium' },
     tags: { type: [String], default: [] },
     attachments: { type: [legalAttachmentSchema], default: [] },
+
+    isArchived: { type: Boolean, default: false, index: true },
+    archivedAt: { type: Date },
+    archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    archivedByName: { type: String, default: '' },
+
+    deletedAt: { type: Date, default: null, index: true },
+    deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    deletedByName: { type: String, default: '' },
   },
   { timestamps: true }
 );
@@ -76,6 +85,7 @@ legalDocumentSchema.index({ scope: 1, projectId: 1, createdAt: -1 });
 legalDocumentSchema.index({ status: 1, projectId: 1, createdAt: -1 });
 legalDocumentSchema.index({ createdBy: 1, status: 1, createdAt: -1 });
 legalDocumentSchema.index({ isPublished: 1, type: 1, createdAt: -1 });
+legalDocumentSchema.index({ deletedAt: 1, createdAt: -1 });
 legalDocumentSchema.index({ title: 'text', documentNumber: 'text', description: 'text' });
 
 module.exports = mongoose.models.LegalDocument || mongoose.model('LegalDocument', legalDocumentSchema);

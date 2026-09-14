@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { lawApi } from '../../services/law';
@@ -164,12 +164,20 @@ const LawDashboard = () => {
 
   // Auto-promote the resolved fallback project into the URL/localStorage the
   // first time a project-scoped section is visited with none selected yet —
-  // purely local, no extra network call.
+  // purely local, no extra network call. Tracked per-section so that once a
+  // user explicitly clears the project filter (Clear all / chip remove), it
+  // stays cleared instead of the fallback snapping right back on next render.
+  const autoPromotedSections = useRef(new Set());
   useEffect(() => {
-    if (activeSection !== 'dashboard' && effectiveProjectId && !selectedProjectId) {
-      setSearchParams({ projectId: effectiveProjectId });
-      try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch { /* ignore storage failures */ }
+    if (activeSection === 'dashboard') return;
+    if (selectedProjectId) {
+      autoPromotedSections.current.delete(activeSection);
+      return;
     }
+    if (!effectiveProjectId || autoPromotedSections.current.has(activeSection)) return;
+    autoPromotedSections.current.add(activeSection);
+    setSearchParams({ projectId: effectiveProjectId });
+    try { localStorage.setItem('activeProjectId', String(effectiveProjectId)); } catch { /* ignore storage failures */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, effectiveProjectId, selectedProjectId]);
 

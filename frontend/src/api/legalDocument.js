@@ -98,9 +98,29 @@ export const getAllDocuments = (token, params = {}) => {
   return apiClient.get(`${P}/registry/all${q ? `?${q}` : ''}`, token, { cache: false, forceRefresh: true });
 };
 
-/** Delete a document (admin only, must not be approved/locked) */
+/** Move a document to trash (soft delete; must not be approved/locked) */
 export const deleteLegalDocument = (token, id) =>
   apiClient.delete(`${P}/${id}`, token);
+
+/** Get trashed documents */
+export const getTrashDocuments = (token) =>
+  apiClient.get(`${P}/registry/trash`, token, { cache: false, forceRefresh: true });
+
+/** Restore a document out of trash */
+export const restoreFromTrash = (token, id) =>
+  apiClient.post(`${P}/${id}/restore-trash`, {}, token);
+
+/** Permanently delete a trashed document (admin only, irreversible) */
+export const permanentlyDeleteDocument = (token, id) =>
+  apiClient.delete(`${P}/${id}/permanent`, token);
+
+/** Archive a document */
+export const archiveDocument = (token, id) =>
+  apiClient.post(`${P}/${id}/archive`, {}, token);
+
+/** Restore a document from archive */
+export const restoreFromArchive = (token, id) =>
+  apiClient.post(`${P}/${id}/unarchive`, {}, token);
 
 // ── VERSION CONTROL ───────────────────────────────────────────────────────────
 

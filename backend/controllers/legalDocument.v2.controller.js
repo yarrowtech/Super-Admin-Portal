@@ -119,9 +119,19 @@ const snapshot = async (doc, req, changeSummary) => {
   });
 };
 
+const documentNumberPrefix = { Contract: 'CON', Agreement: 'AGR', Policy: 'POL', NDA: 'NDA', Compliance: 'CMP', IP: 'IP', Dispute: 'DIS', Other: 'GEN' };
+
+const generateDocumentNumber = async (type) => {
+  const prefix = documentNumberPrefix[type] || 'GEN';
+  const year = new Date().getFullYear();
+  const count = await LegalDocument.countDocuments({ documentNumber: new RegExp(`^LEG-${prefix}-${year}-`) });
+  const seq = String(count + 1).padStart(3, '0');
+  return `LEG-${prefix}-${year}-${seq}`;
+};
+
 const listFilter = (query, base = {}) => {
   const { status, type, priority, projectId, scope, search } = query;
-  const filter = { ...base };
+  const filter = { ...base, deletedAt: null };
   if (status && VALID_STATUSES.has(status)) filter.status = status;
   if (type && VALID_TYPES.has(type)) filter.type = type;
   if (priority && VALID_PRIORITIES.has(priority)) filter.priority = priority;
@@ -132,6 +142,8 @@ const listFilter = (query, base = {}) => {
   } else if (scope === 'project') {
     filter.projectId = { $exists: true, $ne: null };
   }
+  if (query.archived === 'true') filter.isArchived = true;
+  else if (!base.isArchived) filter.isArchived = { $ne: true };
   if (search) filter.$text = { $search: search };
   return filter;
 };
@@ -204,9 +216,12 @@ exports.create = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Expiry date must be after effective date' });
     }
     const actor = actorFrom(req);
+    const resolvedType = VALID_TYPES.has(type) ? type : 'Other';
+    const trimmedDocNumber = parseString(documentNumber, 80);
+    const finalDocumentNumber = trimmedDocNumber || await generateDocumentNumber(resolvedType);
     const doc = await LegalDocument.create({
       title: parseString(title, 180),
-      documentNumber: parseString(documentNumber, 80),
+      documentNumber: finalDocumentNumber,
       description: parseString(description, 1000),
       type: VALID_TYPES.has(type) ? type : 'Other',
       category: parseString(category, 80),
@@ -484,18 +499,115 @@ exports.restoreVersion = async (req, res) => {
   }
 };
 
+// Soft delete — moves the document to Trash. Versions and audit history are
+// preserved; only ADMIN/SUPER_ADMIN can permanently delete afterwards.
 exports.deleteDocument = async (req, res) => {
   try {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
     if (doc.isLocked) return res.status(403).json({ success: false, error: 'Cannot delete an approved document' });
-    await audit(req, doc._id, 'DELETE', 'Document deleted', { status: doc.status, version: doc.currentVersion });
-    await LegalDocumentVersion.deleteMany({ documentId: doc._id });
-    await doc.deleteOne();
-    return res.json({ success: true, message: 'Document deleted' });
+    if (doc.deletedAt) return res.status(400).json({ success: false, error: 'Document is already in trash' });
+    const actor = actorFrom(req);
+    doc.deletedAt = new Date();
+    doc.deletedBy = actor.id;
+    doc.deletedByName = actor.name;
+    await doc.save();
+    await audit(req, doc._id, 'DELETE', 'Moved to trash', { status: doc.status, version: doc.currentVersion });
+    emit(req, 'legal:document:trashed', { documentId: doc._id, title: doc.title });
+    return res.json({ success: true, message: 'Document moved to trash', data: doc });
   } catch (err) {
     logger.error({ err }, 'legalDocument.delete failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getTrash = async (req, res) => {
+  try {
+    const filter = { deletedAt: { $ne: null } };
+    const items = await LegalDocument.find(filter).select('-latestContent -attachments.data').sort({ deletedAt: -1 }).limit(200).lean();
+    return res.json({ success: true, data: { items, total: items.length } });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.getTrash failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.message });
+  }
+};
+
+exports.restoreFromTrash = async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, 'document id');
+    const doc = await LegalDocument.findById(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (!doc.deletedAt) return res.status(400).json({ success: false, error: 'Document is not in trash' });
+    doc.deletedAt = null;
+    doc.deletedBy = undefined;
+    doc.deletedByName = '';
+    await doc.save();
+    await audit(req, doc._id, 'RESTORE', 'Restored from trash', { version: doc.currentVersion });
+    emit(req, 'legal:document:restored', { documentId: doc._id, title: doc.title });
+    return res.json({ success: true, data: doc });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.restoreFromTrash failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.message });
+  }
+};
+
+// Hard delete. Only reachable for documents already in trash — this is the
+// last, irreversible step, so the route restricts it to ADMIN/SUPER_ADMIN.
+exports.permanentDelete = async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, 'document id');
+    const doc = await LegalDocument.findById(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (!doc.deletedAt) return res.status(400).json({ success: false, error: 'Only trashed documents can be permanently deleted' });
+    await audit(req, doc._id, 'DELETE', 'Permanently deleted', { status: doc.status, version: doc.currentVersion });
+    await LegalDocumentVersion.deleteMany({ documentId: doc._id });
+    await doc.deleteOne();
+    return res.json({ success: true, message: 'Document permanently deleted' });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.permanentDelete failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.message });
+  }
+};
+
+exports.archiveDocument = async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, 'document id');
+    const doc = await LegalDocument.findById(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (doc.deletedAt) return res.status(400).json({ success: false, error: 'Cannot archive a trashed document' });
+    if (doc.isArchived) return res.status(400).json({ success: false, error: 'Document is already archived' });
+    const actor = actorFrom(req);
+    doc.isArchived = true;
+    doc.archivedAt = new Date();
+    doc.archivedBy = actor.id;
+    doc.archivedByName = actor.name;
+    await doc.save();
+    await audit(req, doc._id, 'ARCHIVE', 'Document archived', { version: doc.currentVersion });
+    emit(req, 'legal:document:archived', { documentId: doc._id, title: doc.title });
+    return res.json({ success: true, data: doc });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.archiveDocument failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.message });
+  }
+};
+
+exports.restoreFromArchive = async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, 'document id');
+    const doc = await LegalDocument.findById(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (!doc.isArchived) return res.status(400).json({ success: false, error: 'Document is not archived' });
+    doc.isArchived = false;
+    doc.archivedAt = null;
+    doc.archivedBy = undefined;
+    doc.archivedByName = '';
+    await doc.save();
+    await audit(req, doc._id, 'RESTORE', 'Restored from archive', { version: doc.currentVersion });
+    emit(req, 'legal:document:unarchived', { documentId: doc._id, title: doc.title });
+    return res.json({ success: true, data: doc });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.restoreFromArchive failed');
     return res.status(err.statusCode || 500).json({ success: false, error: err.message });
   }
 };

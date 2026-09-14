@@ -11,6 +11,7 @@ import {
   getLegalDocumentPdf,
   getLegalListItems,
   getLegalResponseData,
+  deleteLegalDocument,
 } from '../../api/legalDocument';
 import { lawApi } from '../../services/law';
 import { useToast } from '../../context/ToastContext';
@@ -27,21 +28,7 @@ import CommonStatusBadge from '../common/StatusBadge';
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DOC_TYPES = LAW_DOCUMENT_TYPES.map((type) => type.value);
 const PRIORITIES = LAW_PRIORITIES;
-const CATEGORY_OPTIONS = ['Corporate', 'Commercial', 'Employment', 'Compliance', 'Intellectual Property', 'Finance', 'Vendor', 'Client', 'Internal', 'Regulatory', 'Other'];
-const CONFIDENTIALITY_OPTIONS = ['Internal', 'Confidential', 'Restricted'];
-const LEGAL_TEAMS = ['Corporate Legal', 'Contracts', 'Compliance', 'IP & Copyright', 'Disputes', 'External Counsel'];
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const ATTACHMENT_TYPES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
-const SUPPORTING_ATTACHMENT_TYPES = new Set([
-  ...ATTACHMENT_TYPES,
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'image/png',
-  'image/jpeg',
-]);
 
 const STATUS_STYLES = {
   Draft:    { bg: 'bg-neutral-100 dark:bg-neutral-800',    text: 'text-neutral-600 dark:text-neutral-400',  dot: 'bg-neutral-400', pill: 'bg-neutral-100 text-neutral-600 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700' },
@@ -81,24 +68,7 @@ const LEGAL_TEMPLATES = {
   },
 };
 
-const TEMPLATE_OPTIONS = [
-  { value: 'blank', label: 'Create from Blank Document' },
-  { value: 'nda', label: 'Non-Disclosure Agreement' },
-  { value: 'agreement', label: 'Service Agreement' },
-  { value: 'policy', label: 'Company Policy' },
-];
-
 const FieldError = ({ error }) => error ? <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p> : null;
-
-const FormSection = ({ title, icon, children }) => (
-  <section className="space-y-3 border-t border-neutral-200 pt-4 first:border-t-0 first:pt-0 dark:border-neutral-800">
-    <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-      <span className="material-symbols-outlined text-[16px] text-[var(--portal-accent)]">{icon}</span>
-      {title}
-    </h3>
-    {children}
-  </section>
-);
 
 const fieldBaseClass = `${lawControlClass} w-full`;
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
@@ -145,34 +115,87 @@ const resolveProjectName = (projectId) => {
   }
 };
 
-const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
-  const [title, setTitle] = useState(doc?.title || '');
-  const [type, setType] = useState(doc?.type || 'Other');
-  const [priority, setPriority] = useState(doc?.priority || 'Medium');
-  const [selectedProjectId, setSelectedProjectId] = useState(doc?.projectId || scope.projectId || '');
-  const [templateKey, setTemplateKey] = useState('blank');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { token } = useAuth();
+const SOURCE_UPLOAD_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
 
-  const handleSave = async () => {
-    if (!title.trim()) { setError('Title is required'); return; }
+// ── New Legal Document Modal — create first, manage details afterward ─────────
+const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
+  const { token } = useAuth();
+  const { confirm } = useConfirmDialog();
+  const [title, setTitle] = useState('');
+  const [type, setType] = useState('Agreement');
+  const [priority, setPriority] = useState('Medium');
+  const [documentScope, setDocumentScope] = useState(scope.isProjectScope ? 'project' : 'company');
+  const [projectId, setProjectId] = useState(scope.projectId || '');
+  const [sourceType, setSourceType] = useState('blank');
+  const [templateKey, setTemplateKey] = useState('');
+  const [sourceFile, setSourceFile] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  const handleClose = async () => {
+    if (!touched) return onClose();
+    const discard = await confirm({ title: 'Discard unsaved changes?', message: 'Your changes have not been saved.', confirmLabel: 'Discard Changes', cancelLabel: 'Keep Editing', tone: 'warning' });
+    if (discard) onClose();
+  };
+
+  const selectSourceFile = (file) => {
+    if (!file) return;
+    setTouched(true);
+    const extensionOk = /\.(pdf|docx?)$/i.test(file.name || '');
+    if (!SOURCE_UPLOAD_TYPES.has(file.type) && !extensionOk) {
+      setErrors((prev) => ({ ...prev, sourceFile: 'Only PDF or DOC/DOCX files are supported.' }));
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setErrors((prev) => ({ ...prev, sourceFile: 'File must be 10 MB or smaller.' }));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, sourceFile: '' }));
+    setSourceFile(file);
+  };
+
+  const validate = () => {
+    const next = {};
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) next.title = 'Document title is required.';
+    else if (trimmedTitle.length < 3) next.title = 'Title must be at least 3 characters.';
+    if (documentScope === 'project' && !isRealProjectId(projectId)) next.projectId = 'Select a project.';
+    if (sourceType === 'template' && !templateKey) next.templateKey = 'Select a template.';
+    if (sourceType === 'upload' && !sourceFile) next.sourceFile = 'Upload a document file.';
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleCreate = async () => {
+    if (loading || !validate()) return;
     setLoading(true);
-    setError('');
+    setApiError('');
     try {
-      const chosenProject = projects.find((item) => String(item._id || item.id) === String(selectedProjectId));
+      const chosenProject = projects.find((item) => String(item._id || item.id) === String(projectId));
+      const template = LEGAL_TEMPLATES[templateKey];
       const payload = {
-        title,
+        title: title.trim(),
         type,
         priority,
-        content: LEGAL_TEMPLATES[templateKey]?.content || '',
-        projectName: chosenProject ? (chosenProject.name || chosenProject.projectName || chosenProject.projectCode || '') : '',
+        scope: documentScope,
+        sourceType,
+        projectName: documentScope === 'project' && chosenProject ? (chosenProject.name || chosenProject.projectName || chosenProject.projectCode || '') : '',
+        templateId: sourceType === 'template' ? templateKey : '',
+        templateName: sourceType === 'template' ? template?.label : '',
+        content: sourceType === 'template' ? (template?.content || '') : '',
       };
-      if (selectedProjectId) payload.projectId = selectedProjectId;
+      if (documentScope === 'project') payload.projectId = projectId;
+      if (sourceFile) payload.sourceFile = sourceFile;
       const res = await createLegalDocument(token, payload);
       onCreated(getLegalResponseData(res));
     } catch (err) {
-      setError(err.message || 'Failed to create document');
+      setApiError(err.message || 'Unable to create legal document.');
     } finally {
       setLoading(false);
     }
@@ -181,256 +204,156 @@ const DocFormModal = ({ doc, scope, projects, onClose, onCreated }) => {
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={handleClose}
       title="New Legal Document"
+      description="Create a legal document. Additional details can be managed after creation."
+      className="w-[calc(100%-24px)] sm:max-w-[700px]"
       footer={
-        <div className="flex justify-end gap-2">
-          <CommonButton variant="secondary" onClick={onClose}>Cancel</CommonButton>
-          <CommonButton variant="accent" onClick={handleSave} disabled={loading} icon={<span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>{loading ? 'progress_activity' : 'add'}</span>}>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <CommonButton variant="secondary" onClick={handleClose} disabled={loading}>Cancel</CommonButton>
+          <CommonButton
+            variant="accent"
+            onClick={handleCreate}
+            disabled={loading}
+            icon={<span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>{loading ? 'progress_activity' : 'add'}</span>}
+          >
             {loading ? 'Creating…' : 'Create Document'}
           </CommonButton>
         </div>
       }
     >
-      <div>
-        <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-          <span className="font-semibold text-neutral-800 dark:text-neutral-100">Scope:</span> {scope.label}
+      <div className="space-y-4">
+        {apiError && <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{apiError}</div>}
+
+        <div>
+          <label htmlFor="legal-title" className={labelClass}>Document Title *</label>
+          <input
+            id="legal-title"
+            autoFocus
+            value={title}
+            onChange={(e) => { setTouched(true); setTitle(e.target.value); setErrors((prev) => ({ ...prev, title: '' })); }}
+            placeholder="e.g. Vendor Service Agreement"
+            maxLength={180}
+            className={fieldBaseClass}
+          />
+          <FieldError error={errors.title} />
         </div>
-        {error && <p className="mb-3 rounded-lg bg-red-50 dark:bg-red-900/20 p-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-        <div className="space-y-3">
+
+        <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Document Title *</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Non-Disclosure Agreement – Project Alpha"
-              className={`${lawControlClass} w-full`} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Word-style template</label>
-            <select value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}
-              className={`${lawControlClass} w-full`}>
-              {Object.entries(LEGAL_TEMPLATES).map(([key, template]) => (
-                <option key={key} value={key}>{template.label}</option>
-              ))}
+            <label htmlFor="legal-type" className={labelClass}>Document Type *</label>
+            <select id="legal-type" value={type} onChange={(e) => { setTouched(true); setType(e.target.value); }} className={fieldBaseClass}>
+              {LAW_DOCUMENT_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value)}
-                className={`${lawControlClass} w-full`}>
-                {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Priority</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value)}
-                className={`${lawControlClass} w-full`}>
-                {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Project (optional)</label>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              disabled={scope.isProjectScope}
-              className={`${lawControlClass} w-full disabled:bg-neutral-100 disabled:text-neutral-500 dark:disabled:bg-neutral-800/60`}
-            >
-              <option value="">In-house Company Legal (no project)</option>
+            <label htmlFor="legal-priority" className={labelClass}>Priority</label>
+            <select id="legal-priority" value={priority} onChange={(e) => { setTouched(true); setPriority(e.target.value); }} className={fieldBaseClass}>
+              {PRIORITIES.map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <span className={labelClass}>Scope</span>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Document scope">
+            {[
+              { value: 'project', label: 'Project', icon: 'folder' },
+              { value: 'company', label: 'In-house', icon: 'business' },
+            ].map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                role="radio"
+                aria-checked={documentScope === item.value}
+                onClick={() => { setTouched(true); setDocumentScope(item.value); if (item.value === 'company') setProjectId(''); }}
+                className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition ${documentScope === item.value ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]' : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:text-neutral-300'}`}
+              >
+                <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {documentScope === 'project' && (
+          <div>
+            <label htmlFor="legal-project" className={labelClass}>Project *</label>
+            <select id="legal-project" value={projectId} onChange={(e) => { setTouched(true); setProjectId(e.target.value); setErrors((prev) => ({ ...prev, projectId: '' })); }} className={fieldBaseClass}>
+              <option value="">Select project</option>
               {projects.map((project) => {
                 const id = project._id || project.id;
                 const name = project.name || project.projectName || project.projectCode || id;
                 return <option key={id} value={id}>{name}</option>;
               })}
             </select>
+            <FieldError error={errors.projectId} />
+          </div>
+        )}
+
+        <div>
+          <span className={labelClass}>Document Source</span>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { value: 'blank', label: 'Blank', icon: 'draft' },
+              { value: 'template', label: 'Use Template', icon: 'description' },
+              { value: 'upload', label: 'Upload', icon: 'upload_file' },
+            ].map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => { setTouched(true); setSourceType(item.value); setErrors((prev) => ({ ...prev, templateKey: '', sourceFile: '' })); }}
+                className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-xs font-semibold transition ${sourceType === item.value ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]' : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:text-neutral-300'}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
           </div>
         </div>
-      </div>
-    </Modal>
-  );
-};
 
-// ── Version Preview Modal ─────────────────────────────────────────────────────
-const NewLegalDocumentModal = ({ scope, projects, user, onClose, onCreated }) => {
-  const { token } = useAuth();
-  const { confirm } = useConfirmDialog();
-  const [form, setForm] = useState(() => ({
-    title: '',
-    documentNumber: `LEG-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`,
-    description: '',
-    type: 'Agreement',
-    category: 'Commercial',
-    priority: 'Medium',
-    documentScope: scope.isProjectScope ? 'project' : 'company',
-    projectId: scope.projectId || '',
-    assignedTo: '',
-    owner: [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.email || '',
-    legalTeam: 'Contracts',
-    effectiveDate: '',
-    expiryDate: '',
-    reviewDate: '',
-    signedDate: '',
-    sourceType: 'blank',
-    templateKey: 'blank',
-    confidentiality: 'Internal',
-    internalNotes: '',
-  }));
-  const [tags, setTags] = useState([]);
-  const [tagInput, setTagInput] = useState('');
-  const [sourceFile, setSourceFile] = useState(null);
-  const [supportingAttachments, setSupportingAttachments] = useState([]);
-  const [errors, setErrors] = useState({});
-  const [apiError, setApiError] = useState('');
-  const [loadingAction, setLoadingAction] = useState('');
-  const [touched, setTouched] = useState(false);
+        {sourceType === 'template' && (
+          <div>
+            <label htmlFor="legal-template" className={labelClass}>Template *</label>
+            <select id="legal-template" value={templateKey} onChange={(e) => { setTouched(true); setTemplateKey(e.target.value); setErrors((prev) => ({ ...prev, templateKey: '' })); }} className={fieldBaseClass}>
+              <option value="">Select template</option>
+              {Object.entries(LEGAL_TEMPLATES).filter(([key]) => key !== 'blank').map(([key, tpl]) => (
+                <option key={key} value={key}>{tpl.label}</option>
+              ))}
+            </select>
+            <FieldError error={errors.templateKey} />
+          </div>
+        )}
 
-  const update = (key, value) => {
-    setTouched(true);
-    setForm((prev) => ({
-      ...prev,
-      [key]: value,
-      ...(key === 'documentScope' && value === 'company' ? { projectId: '' } : {}),
-      ...(key === 'sourceType' && value === 'template' ? { templateKey: 'nda' } : {}),
-      ...(key === 'sourceType' && value !== 'template' ? { templateKey: 'blank' } : {}),
-    }));
-    setErrors((prev) => ({ ...prev, [key]: '' }));
-  };
-
-  const handleClose = async () => {
-    if (!touched) return onClose();
-    const discard = await confirm({ title: 'Discard unsaved changes?', message: 'Your changes have not been saved.', confirmLabel: 'Discard Changes', cancelLabel: 'Keep Editing', tone: 'warning' });
-    if (discard) onClose();
-  };
-
-  const validateAttachment = (file) => {
-    if (!file) return '';
-    const extensionOk = /\.(pdf|doc|docx)$/i.test(file.name || '');
-    if (!ATTACHMENT_TYPES.has(file.type) && !extensionOk) return 'Only PDF, DOC, or DOCX files are supported.';
-    if (file.size > MAX_ATTACHMENT_BYTES) return 'Attachment must be 10 MB or smaller.';
-    return '';
-  };
-
-  const selectAttachment = (file) => {
-    setTouched(true);
-    const message = validateAttachment(file);
-    setErrors((prev) => ({ ...prev, sourceFile: message }));
-    if (!message) setSourceFile(file);
-  };
-
-  const validateSupportingAttachment = (file) => {
-    if (!file) return '';
-    const extensionOk = /\.(pdf|doc|docx|xlsx|png|jpe?g)$/i.test(file.name || '');
-    if (!SUPPORTING_ATTACHMENT_TYPES.has(file.type) && !extensionOk) return 'Only PDF, DOC, DOCX, XLSX, PNG, or JPG files are supported.';
-    if (file.size > MAX_ATTACHMENT_BYTES) return 'Each attachment must be 10 MB or smaller.';
-    return '';
-  };
-
-  const selectSupportingAttachments = (files = []) => {
-    const incoming = Array.from(files).filter(Boolean);
-    if (!incoming.length) return;
-    setTouched(true);
-    const firstError = incoming.map(validateSupportingAttachment).find(Boolean) || '';
-    setErrors((prev) => ({ ...prev, supportingAttachments: firstError }));
-    if (firstError) return;
-    setSupportingAttachments((prev) => [...prev, ...incoming].slice(0, 10));
-  };
-
-  const addTag = () => {
-    const next = tagInput.trim();
-    if (!next) return;
-    setTouched(true);
-    setTags((prev) => (prev.includes(next) ? prev : [...prev, next].slice(0, 20)));
-    setTagInput('');
-  };
-
-  const validate = (mode = 'create') => {
-    const next = {};
-    if (!form.title.trim()) next.title = 'Document title is required.';
-    else if (form.title.trim().length < 3) next.title = 'Document title must be at least 3 characters.';
-    if (mode === 'create' && !form.type) next.type = 'Select a document type.';
-    if (form.documentScope === 'project' && !isRealProjectId(form.projectId)) next.projectId = 'Select a project for a project legal document.';
-    if (mode === 'create' && form.sourceType === 'template' && (!form.templateKey || form.templateKey === 'blank')) next.templateKey = 'Select a legal template.';
-    if (mode === 'create' && form.sourceType === 'upload' && !sourceFile) next.sourceFile = 'Upload an existing document file, or choose Blank Document.';
-    if (form.effectiveDate && form.expiryDate && new Date(form.expiryDate) < new Date(form.effectiveDate)) next.expiryDate = 'Expiry date must be after effective date.';
-    if (form.reviewDate && form.expiryDate && new Date(form.reviewDate) > new Date(form.expiryDate)) next.reviewDate = 'Review date should be before expiry date.';
-    const sourceFileError = validateAttachment(sourceFile);
-    if (sourceFileError) next.sourceFile = sourceFileError;
-    const supportingError = supportingAttachments.map(validateSupportingAttachment).find(Boolean);
-    if (supportingError) next.supportingAttachments = supportingError;
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
-
-  const handleSubmit = async (mode = 'create') => {
-    if (loadingAction || !validate(mode)) return;
-    setLoadingAction(mode);
-    setApiError('');
-    try {
-      const chosenProject = projects.find((item) => String(item._id || item.id) === String(form.projectId));
-      const template = LEGAL_TEMPLATES[form.templateKey] || LEGAL_TEMPLATES.blank;
-      const payload = {
-        title: form.title.trim(),
-        documentNumber: form.documentNumber.trim(),
-        description: form.description.trim(),
-        type: form.type,
-        category: form.category,
-        priority: form.priority,
-        scope: form.documentScope === 'project' ? 'project' : 'company',
-        projectName: chosenProject ? (chosenProject.name || chosenProject.projectName || chosenProject.projectCode || '') : '',
-        assignedTo: form.assignedTo.trim(),
-        owner: form.owner.trim(),
-        legalTeam: form.legalTeam,
-        effectiveDate: form.effectiveDate,
-        expiryDate: form.expiryDate,
-        reviewDate: form.reviewDate,
-        signedDate: form.signedDate,
-        sourceType: form.sourceType,
-        templateId: form.sourceType === 'template' ? form.templateKey : '',
-        templateName: form.sourceType === 'template' ? template.label : '',
-        content: form.sourceType === 'template' ? template.content : '',
-        tags,
-        confidentiality: form.confidentiality,
-        internalNotes: form.internalNotes.trim(),
-      };
-      if (form.documentScope === 'project') payload.projectId = form.projectId;
-      if (sourceFile) payload.sourceFile = sourceFile;
-      if (supportingAttachments.length) payload.supportingAttachments = supportingAttachments;
-      const res = await createLegalDocument(token, payload);
-      onCreated(getLegalResponseData(res));
-    } catch (err) {
-      setApiError(err.message || 'Unable to create legal document.');
-    } finally {
-      setLoadingAction('');
-    }
-  };
-
-  const projectDisabled = form.documentScope === 'company';
-  const loading = Boolean(loadingAction);
-
-  return (
-    <Modal open onClose={handleClose} title="New Legal Document" description="Create a new legal document and assign its classification, ownership and workflow details." className="w-[calc(100%-24px)] sm:max-w-[860px]" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end"><CommonButton variant="secondary" onClick={handleClose} disabled={loading}>Cancel</CommonButton><CommonButton variant="secondary" onClick={() => handleSubmit('draft')} disabled={loading}>{loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}</CommonButton><CommonButton variant="accent" onClick={() => handleSubmit('create')} disabled={loading} icon={<span className={`material-symbols-outlined text-sm ${loadingAction === 'create' ? 'animate-spin' : ''}`}>{loadingAction === 'create' ? 'progress_activity' : 'add'}</span>}>{loadingAction === 'create' ? 'Creating...' : 'Create Document'}</CommonButton></div>}>
-      <div className="space-y-5">
-        {apiError && <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{apiError}</div>}
-        <FormSection title="Basic Information" icon="article">
-          <div><label htmlFor="legal-title" className={labelClass}>Document Title *</label><input id="legal-title" value={form.title} onChange={(e) => update('title', e.target.value)} placeholder="e.g. Non-Disclosure Agreement - Project Alpha" className={fieldBaseClass} /><FieldError error={errors.title} /></div>
-          <div className="grid gap-3 md:grid-cols-2"><div><label htmlFor="legal-number" className={labelClass}>Document Number</label><input id="legal-number" value={form.documentNumber} onChange={(e) => update('documentNumber', e.target.value)} placeholder="LEG-2026-00124" className={fieldBaseClass} /></div><div><label htmlFor="legal-type" className={labelClass}>Document Type *</label><select id="legal-type" value={form.type} onChange={(e) => update('type', e.target.value)} className={fieldBaseClass}>{LAW_DOCUMENT_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><FieldError error={errors.type} /></div></div>
-          <div><label htmlFor="legal-description" className={labelClass}>Description</label><textarea id="legal-description" maxLength={1000} value={form.description} onChange={(e) => update('description', e.target.value)} placeholder="Enter a short description of this document..." rows={3} className={`${fieldBaseClass} min-h-24 resize-y`} /><div className="mt-1 flex justify-between text-xs text-neutral-400"><FieldError error={errors.description} /><span>{form.description.length}/1000</span></div></div>
-        </FormSection>
-        <FormSection title="Classification" icon="category">
-          <div className="grid gap-3 md:grid-cols-2"><div><label htmlFor="legal-category" className={labelClass}>Category</label><select id="legal-category" value={form.category} onChange={(e) => update('category', e.target.value)} className={fieldBaseClass}>{CATEGORY_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></div><div><label htmlFor="legal-priority" className={labelClass}>Priority *</label><select id="legal-priority" value={form.priority} onChange={(e) => update('priority', e.target.value)} className={fieldBaseClass}>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></div></div>
-          <div><span className={labelClass}>Document Scope *</span><div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Document scope">{[{ value: 'project', label: 'Project', icon: 'folder', text: 'Attach this document to a selected project.' }, { value: 'company', label: 'In-house / Internal', icon: 'business', text: 'Use for internal company legal records.' }].map((item) => <button key={item.value} type="button" role="radio" aria-checked={form.documentScope === item.value} onClick={() => update('documentScope', item.value)} className={`rounded-xl border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30 ${form.documentScope === item.value ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)]' : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900'}`}><span className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-neutral-100"><span className="material-symbols-outlined text-[18px] text-[var(--portal-accent)]">{item.icon}</span>{item.label}</span><span className="mt-1 block text-xs text-neutral-500 dark:text-neutral-400">{item.text}</span></button>)}</div></div>
-        </FormSection>
-        <FormSection title="Scope & Project" icon="folder">
-          <div><label htmlFor="legal-project" className={labelClass}>Project {form.documentScope === 'project' ? '*' : ''}</label><select id="legal-project" value={form.projectId} onChange={(e) => update('projectId', e.target.value)} disabled={projectDisabled} className={`${fieldBaseClass} disabled:bg-neutral-100 disabled:text-neutral-500 dark:disabled:bg-neutral-800/60`}><option value="">Select project</option>{projects.map((project) => { const id = project._id || project.id; const name = project.name || project.projectName || project.projectCode || id; return <option key={id} value={id}>{name}</option>; })}</select><FieldError error={errors.projectId} /></div>
-        </FormSection>
-        <FormSection title="Ownership" icon="groups">
-          <div className="grid gap-3 md:grid-cols-2"><div><label htmlFor="legal-owner" className={labelClass}>Document Owner</label><input id="legal-owner" value={form.owner} onChange={(e) => update('owner', e.target.value)} className={fieldBaseClass} /></div><div><label htmlFor="legal-assigned" className={labelClass}>Assigned To</label><input id="legal-assigned" value={form.assignedTo} onChange={(e) => update('assignedTo', e.target.value)} placeholder="Name or email" className={fieldBaseClass} /></div><div><label htmlFor="legal-team" className={labelClass}>Legal Department / Team</label><select id="legal-team" value={form.legalTeam} onChange={(e) => update('legalTeam', e.target.value)} className={fieldBaseClass}>{LEGAL_TEAMS.map((item) => <option key={item}>{item}</option>)}</select></div></div>
-        </FormSection>
-        <FormSection title="Important Dates" icon="event"><div className="grid gap-3 md:grid-cols-2">{[['effectiveDate', 'Effective Date'], ['expiryDate', 'Expiry Date'], ['reviewDate', 'Review Date'], ['signedDate', 'Signed Date']].map(([key, label]) => <div key={key}><label htmlFor={`legal-${key}`} className={labelClass}>{label}</label><input id={`legal-${key}`} type="date" value={form[key]} onChange={(e) => update(key, e.target.value)} className={fieldBaseClass} /><FieldError error={errors[key]} /></div>)}</div></FormSection>
-        <FormSection title="Document Source" icon="edit_document"><div className="grid gap-2 md:grid-cols-3">{[{ value: 'blank', label: 'Blank Document', icon: 'draft' }, { value: 'template', label: 'Use Template', icon: 'description' }, { value: 'upload', label: 'Upload Existing Document', icon: 'upload_file' }].map((item) => <button key={item.value} type="button" onClick={() => update('sourceType', item.value)} className={`rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${form.sourceType === item.value ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]' : 'border-neutral-200 text-neutral-700 hover:border-neutral-300 dark:border-neutral-700 dark:text-neutral-300'}`}><span className="flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">{item.icon}</span>{item.label}</span></button>)}</div>{form.sourceType === 'template' && <div><label htmlFor="legal-template" className={labelClass}>Legal Template *</label><select id="legal-template" value={form.templateKey} onChange={(e) => update('templateKey', e.target.value)} className={fieldBaseClass}>{TEMPLATE_OPTIONS.filter((item) => item.value !== 'blank').map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><FieldError error={errors.templateKey} /></div>}{form.sourceType === 'upload' && <div><label htmlFor="legal-source-file" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); selectAttachment(e.dataTransfer.files?.[0]); }} className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-5 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900/60"><span className="material-symbols-outlined text-3xl text-[var(--portal-accent)]">upload_file</span><span className="mt-2 text-sm font-bold text-neutral-800 dark:text-neutral-100">Upload Legal Document</span><span className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">PDF / DOC / DOCX up to 10 MB</span><input id="legal-source-file" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={(e) => selectAttachment(e.target.files?.[0])} /></label>{sourceFile && !errors.sourceFile && <div className="mt-2 flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"><span className="material-symbols-outlined text-[18px] text-[var(--portal-accent)]">description</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{sourceFile.name}</p><p className="text-xs text-neutral-400">{(sourceFile.size / 1024 / 1024).toFixed(2)} MB - Ready to upload</p></div><button type="button" onClick={() => setSourceFile(null)} className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600 dark:hover:bg-neutral-800" aria-label="Remove uploaded document"><span className="material-symbols-outlined text-[18px]">delete</span></button></div>}<FieldError error={errors.sourceFile} /></div>}</FormSection>
-        <FormSection title="Tags & Notes" icon="sell"><div><label htmlFor="legal-tags" className={labelClass}>Tags</label><div className="rounded-lg border border-neutral-200 bg-white p-2 focus-within:border-[var(--portal-accent)] focus-within:ring-2 focus-within:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900"><div className="mb-2 flex flex-wrap gap-1.5">{tags.map((tag) => <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[var(--portal-accent-soft)] px-2 py-1 text-xs font-semibold text-[var(--portal-accent)]">{tag}<button type="button" onClick={() => setTags((prev) => prev.filter((item) => item !== tag))} aria-label={`Remove ${tag}`}><span className="material-symbols-outlined text-[13px]">close</span></button></span>)}</div><input id="legal-tags" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} onBlur={addTag} placeholder="Type tag and press Enter" className="w-full bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400 dark:text-neutral-100" /></div></div><div className="grid gap-3 md:grid-cols-2"><div><label htmlFor="legal-confidentiality" className={labelClass}>Confidentiality</label><select id="legal-confidentiality" value={form.confidentiality} onChange={(e) => update('confidentiality', e.target.value)} className={fieldBaseClass}>{CONFIDENTIALITY_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></div></div><div><label htmlFor="legal-notes" className={labelClass}>Internal Notes</label><textarea id="legal-notes" value={form.internalNotes} onChange={(e) => update('internalNotes', e.target.value)} rows={3} placeholder="Internal notes are visible only to authorized portal users." className={`${fieldBaseClass} min-h-24 resize-y`} /></div></FormSection>
-        <FormSection title="Attachments" icon="attach_file"><label htmlFor="legal-supporting-attachments" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); selectSupportingAttachments(e.dataTransfer.files); }} className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900/60"><span className="material-symbols-outlined text-3xl text-[var(--portal-accent)]">attach_file</span><span className="mt-2 text-sm font-bold text-neutral-800 dark:text-neutral-100">Drop supporting files here or browse</span><span className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">PDF / DOCX / XLSX / PNG / JPG up to 10 MB each</span><input id="legal-supporting-attachments" multiple type="file" accept=".pdf,.doc,.docx,.xlsx,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg" className="sr-only" onChange={(e) => selectSupportingAttachments(e.target.files)} /></label>{supportingAttachments.length > 0 && <div className="space-y-2">{supportingAttachments.map((file, index) => <div key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"><span className="material-symbols-outlined text-[18px] text-[var(--portal-accent)]">description</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{file.name}</p><p className="text-xs text-neutral-400">{(file.size / 1024 / 1024).toFixed(2)} MB - Ready to upload</p></div><button type="button" onClick={() => setSupportingAttachments((prev) => prev.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600 dark:hover:bg-neutral-800" aria-label={`Remove ${file.name}`}><span className="material-symbols-outlined text-[18px]">delete</span></button></div>)}</div>}<FieldError error={errors.supportingAttachments} /></FormSection>
+        {sourceType === 'upload' && (
+          <div>
+            <label htmlFor="legal-source-file" className={labelClass}>Upload Document *</label>
+            <label
+              htmlFor="legal-source-file"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); selectSourceFile(e.dataTransfer.files?.[0]); }}
+              className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-5 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900/60"
+            >
+              <span className="material-symbols-outlined text-2xl text-[var(--portal-accent)]">upload_file</span>
+              <span className="mt-1.5 text-xs font-bold text-neutral-800 dark:text-neutral-100">Drop DOCX/PDF here or browse</span>
+              <span className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">Uploaded PDFs are imported as reference documents.</span>
+              <input id="legal-source-file" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={(e) => selectSourceFile(e.target.files?.[0])} />
+            </label>
+            {sourceFile && !errors.sourceFile && (
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900">
+                <span className="material-symbols-outlined text-[18px] text-[var(--portal-accent)]">description</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{sourceFile.name}</p>
+                  <p className="text-xs text-neutral-400">{(sourceFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                </div>
+                <button type="button" onClick={() => setSourceFile(null)} className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600 dark:hover:bg-neutral-800" aria-label="Remove uploaded document">
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+              </div>
+            )}
+            <FieldError error={errors.sourceFile} />
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -497,6 +420,9 @@ const LegalDocManagement = () => {
   const [activeDoc, setActiveDoc] = useState(null); // currently open doc
   const [editorContent, setEditorContent] = useState('');
   const [saveStatus, setSaveStatus] = useState('idle');
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
 
   // Modals
   const [showNewDocModal, setShowNewDocModal] = useState(false);
@@ -599,6 +525,7 @@ const LegalDocManagement = () => {
       await autoSaveDocument(token, activeDoc._id, html);
       setActiveDoc((prev) => ({ ...prev, latestContent: html }));
       setSaveStatus('saved');
+      setLastSavedAt(Date.now());
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch {
       setSaveStatus('error');
@@ -625,6 +552,7 @@ const LegalDocManagement = () => {
       setActiveDoc(updatedDoc);
       setDocs((prev) => prev.map((d) => (d._id === updatedDoc._id ? { ...d, ...updatedDoc } : d)));
       setSaveStatus('saved');
+      setLastSavedAt(Date.now());
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (err) {
       setSaveStatus('error');
@@ -673,6 +601,32 @@ const LegalDocManagement = () => {
     await fetchDocs({ filterStatus: '', filterType: '', filterPriority: '', searchTerm: '' });
   };
 
+  const canDelete = ['law_head', 'admin', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+
+  // ── Move a document to Trash (soft delete) ──────────────────────────────────
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const handleDeleteDoc = useCallback(async (doc) => {
+    const shouldProceed = await confirm({
+      title: 'Move to Trash?',
+      message: `"${doc.title}" will be moved to Trash. It can be restored later.`,
+      confirmLabel: 'Move to Trash',
+      cancelLabel: 'Cancel',
+      tone: 'danger',
+    });
+    if (!shouldProceed) return;
+    try {
+      await deleteLegalDocument(token, doc._id);
+      setDocs((prev) => prev.filter((d) => d._id !== doc._id));
+      if (activeDoc?._id === doc._id) {
+        setActiveDoc(null);
+        setEditorContent('');
+      }
+      toast.success(`"${doc.title}" was moved to trash.`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete document');
+    }
+  }, [token, activeDoc, confirm, toast]);
+
   const handleDownloadPdf = useCallback(async () => {
     if (!activeDoc?._id) return;
     try {
@@ -715,6 +669,7 @@ const LegalDocManagement = () => {
     <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-slate-50 dark:bg-neutral-950">
 
       {/* ── TOP BAR ── */}
+      {!isEditorFullscreen && (
       <div className="overflow-hidden border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <div className="h-1 w-full bg-[var(--portal-accent)]" />
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-5">
@@ -783,10 +738,12 @@ const LegalDocManagement = () => {
           </div>
         </div>
       </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── LEFT PANEL: Document List ── */}
+        {!isEditorFullscreen && !isNavCollapsed && (
         <div className="flex w-full shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:w-80 xl:w-88">
 
           {/* Panel header */}
@@ -796,13 +753,22 @@ const LegalDocManagement = () => {
                 <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Documents</p>
                 <p className="mt-0.5 text-xs text-neutral-400">{docs.length} total</p>
               </div>
-              <button
-                onClick={() => setShowNewDocModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
-              >
-                <span className="material-symbols-outlined text-[14px]">add</span>
-                New
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowNewDocModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
+                >
+                  <span className="material-symbols-outlined text-[14px]">add</span>
+                  New
+                </button>
+                <button
+                  onClick={() => setIsNavCollapsed(true)}
+                  title="Collapse document navigator"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  <span className="material-symbols-outlined text-[16px]">left_panel_close</span>
+                </button>
+              </div>
             </div>
 
             {/* Search */}
@@ -834,6 +800,15 @@ const LegalDocManagement = () => {
                 </select>
               ))}
             </div>
+            {(filterStatus || filterType || filterPriority || searchTerm || sortBy !== 'updated-desc') && (
+              <button
+                onClick={() => { setFilterStatus(''); setFilterType(''); setFilterPriority(''); setSearchTerm(''); setSortBy('updated-desc'); }}
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-500 hover:text-[var(--portal-accent)] dark:text-neutral-400"
+              >
+                <span className="material-symbols-outlined text-[13px]">restart_alt</span>
+                Reset Filters
+              </button>
+            )}
           </div>
 
           {/* Document list */}
@@ -864,19 +839,35 @@ const LegalDocManagement = () => {
             )}
 
             {!loading && filteredDocs.map((doc) => (
-              <button
+              <div
                 key={doc._id}
+                role="button"
+                tabIndex={0}
                 onClick={() => openDoc(doc._id)}
-                className={`group mb-1.5 w-full rounded-xl border p-3 text-left transition-all hover:shadow-sm ${
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDoc(doc._id); }}
+                className={`group relative mb-1.5 w-full cursor-pointer rounded-xl border p-3 text-left transition-all hover:shadow-sm ${
                   activeDoc?._id === doc._id
                     ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] shadow-sm'
                     : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'
                 }`}
               >
-                <div className="mb-1.5 flex items-start justify-between gap-1">
+                {canDelete && !doc.isLocked && (
+                  <button
+                    type="button"
+                    title="Move to trash"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteDoc(doc); }}
+                    className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-neutral-300 opacity-0 transition-opacity hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100 dark:hover:bg-rose-900/30"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">delete</span>
+                  </button>
+                )}
+                <div className="mb-1.5 flex items-start justify-between gap-1 pr-6">
                   <p className="flex-1 text-xs font-semibold leading-snug text-neutral-900 line-clamp-2 dark:text-neutral-100">{doc.title}</p>
                   <StatusBadge status={doc.status} />
                 </div>
+                {doc.documentNumber && (
+                  <p className="mb-1 text-[10px] font-mono text-neutral-400 dark:text-neutral-500">{doc.documentNumber}</p>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{doc.type} · {doc.currentVersion}</span>
                   <PriorityBadge priority={doc.priority} />
@@ -891,7 +882,7 @@ const LegalDocManagement = () => {
                     Remark: {doc.ceoRemarks}
                   </p>
                 )}
-              </button>
+              </div>
             ))}
           </div>
 
@@ -909,6 +900,17 @@ const LegalDocManagement = () => {
             })}
           </div>
         </div>
+        )}
+
+        {isNavCollapsed && !isEditorFullscreen && (
+          <button
+            onClick={() => setIsNavCollapsed(false)}
+            title="Expand document navigator"
+            className="flex w-8 shrink-0 flex-col items-center justify-center gap-2 border-r border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 hover:text-[var(--portal-accent)] dark:border-neutral-800 dark:bg-neutral-900"
+          >
+            <span className="material-symbols-outlined text-[16px]">left_panel_open</span>
+          </button>
+        )}
 
         {/* ── RIGHT PANEL: Editor or Empty State ── */}
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -934,6 +936,7 @@ const LegalDocManagement = () => {
           ) : (
             <>
               {/* Doc toolbar */}
+              {!isEditorFullscreen && (
               <div className="flex items-center gap-3 border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900">
                 <button
                   onClick={() => setActiveDoc(null)}
@@ -944,6 +947,7 @@ const LegalDocManagement = () => {
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{activeDoc.title}</h2>
                   <div className="mt-0.5 flex items-center gap-2">
+                    {activeDoc.documentNumber && <span className="font-mono text-xs text-neutral-400">{activeDoc.documentNumber}</span>}
                     <StatusBadge status={activeDoc.status} />
                     <span className="text-xs text-neutral-400">{activeDoc.type} · {activeDoc.currentVersion}</span>
                     {activeDoc.projectName && <span className="text-xs text-neutral-400">· {activeDoc.projectName}</span>}
@@ -957,6 +961,15 @@ const LegalDocManagement = () => {
                     <span className="material-symbols-outlined text-[15px]">history</span>
                     History
                   </button>
+                  {canDelete && !activeDoc.isLocked && (
+                    <button
+                      onClick={() => handleDeleteDoc(activeDoc)}
+                      title="Move to trash"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-rose-900/20"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">delete</span>
+                    </button>
+                  )}
                   {isEditable && (
                     <button
                       onClick={handleSubmit}
@@ -974,9 +987,10 @@ const LegalDocManagement = () => {
                   )}
                 </div>
               </div>
+              )}
 
               {/* Status banners */}
-              {activeDoc.status === 'Rejected' && activeDoc.ceoRemarks && (
+              {!isEditorFullscreen && activeDoc.status === 'Rejected' && activeDoc.ceoRemarks && (
                 <div className="flex items-start gap-3 border-b border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/20">
                   <span className="material-symbols-outlined mt-0.5 text-[17px] text-rose-500">cancel</span>
                   <div>
@@ -985,7 +999,7 @@ const LegalDocManagement = () => {
                   </div>
                 </div>
               )}
-              {activeDoc.status === 'Approved' && (
+              {!isEditorFullscreen && activeDoc.status === 'Approved' && (
                 <div className="flex items-center gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 dark:border-emerald-800 dark:bg-emerald-900/20">
                   <span className="material-symbols-outlined text-[17px] text-emerald-600">verified</span>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
@@ -995,7 +1009,7 @@ const LegalDocManagement = () => {
               )}
 
               {/* Editor */}
-              <div className="flex-1 overflow-hidden p-4">
+              <div className={isEditorFullscreen ? 'flex-1 overflow-hidden' : 'flex-1 overflow-hidden p-4'}>
                 <LegalDocEditor
                   ref={editorRef}
                   key={activeDoc._id}
@@ -1003,11 +1017,15 @@ const LegalDocManagement = () => {
                   isReadOnly={!isEditable}
                   document={activeDoc}
                   saveStatus={saveStatus}
+                  lastSavedAt={lastSavedAt}
+                  fullscreen={isEditorFullscreen}
+                  onToggleFullscreen={setIsEditorFullscreen}
                   onContentChange={setEditorContent}
                   onAutoSave={isEditable ? handleAutoSave : undefined}
                   onSaveDraft={isEditable ? handleSaveDraft : undefined}
                   onSubmit={isEditable ? handleSubmit : undefined}
                   onDownloadPdf={handleDownloadPdf}
+                  onOpenHistory={() => setShowVersionHistory(true)}
                 />
               </div>
             </>
@@ -1016,7 +1034,7 @@ const LegalDocManagement = () => {
 
         {/* ── MODALS ── */}
         {showNewDocModal && (
-          <NewLegalDocumentModal scope={scope} projects={projects} user={user} onClose={() => setShowNewDocModal(false)} onCreated={handleDocCreated} />
+          <NewLegalDocumentModal scope={scope} projects={projects} onClose={() => setShowNewDocModal(false)} onCreated={handleDocCreated} />
         )}
         {showVersionHistory && activeDoc && (
           <LegalDocVersionHistory

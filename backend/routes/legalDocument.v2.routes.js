@@ -29,6 +29,11 @@ router.get(
   ctrl.getApproved
 );
 router.get('/registry/all', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO), ctrl.getAll);
+router.get(
+  '/registry/trash',
+  authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  ctrl.getTrash
+);
 
 router.get(
   '/version/:versionId',
@@ -52,7 +57,11 @@ router.put('/:id/save-draft', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLE
 router.post('/:id/submit', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.submit);
 router.post('/:id/approve', authorize(ROLES.CEO, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.approve);
 router.post('/:id/reject', authorize(ROLES.CEO, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.reject);
-router.delete('/:id', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.deleteDocument);
+router.delete('/:id', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.deleteDocument);
+router.post('/:id/restore-trash', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.restoreFromTrash);
+router.delete('/:id/permanent', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.permanentDelete);
+router.post('/:id/archive', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.archiveDocument);
+router.post('/:id/unarchive', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.restoreFromArchive);
 
 router.get(
   '/:id/versions',

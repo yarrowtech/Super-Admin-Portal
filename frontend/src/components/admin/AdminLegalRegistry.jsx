@@ -15,6 +15,11 @@ import {
   getLegalDocumentPdf,
   getLegalListItems,
   getLegalResponseData,
+  getTrashDocuments,
+  restoreFromTrash,
+  permanentlyDeleteDocument,
+  archiveDocument,
+  restoreFromArchive,
 } from '../../api/legalDocument';
 
 const STATUS_TONE = { Draft: 'neutral', Pending: 'warning', Approved: 'success', Rejected: 'danger' };
@@ -181,14 +186,21 @@ const AdminLegalRegistry = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewDoc, setViewDoc] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [view, setView] = useState('active'); // active | archived | trash
 
   const fetchDocs = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
+      if (view === 'trash') {
+        const res = await getTrashDocuments(token);
+        setDocs(getLegalListItems(res));
+        return;
+      }
       const params = {};
       if (filterStatus) params.status = filterStatus;
       if (filterType) params.type = filterType;
+      if (view === 'archived') params.archived = 'true';
       const res = await getAllDocuments(token, params);
       setDocs(getLegalListItems(res));
     } catch (err) {
@@ -196,7 +208,7 @@ const AdminLegalRegistry = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, filterStatus, filterType]);
+  }, [token, filterStatus, filterType, view]);
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
@@ -211,9 +223,9 @@ const AdminLegalRegistry = () => {
 
   const handleDelete = async (doc) => {
     const shouldProceed = await confirm({
-      title: 'Delete document?',
-      message: `This will permanently delete "${doc.title}". This action cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: 'Move to Trash?',
+      message: `"${doc.title}" will be moved to Trash. It can be restored later.`,
+      confirmLabel: 'Move to Trash',
       tone: 'danger',
     });
     if (!shouldProceed) return;
@@ -221,9 +233,66 @@ const AdminLegalRegistry = () => {
     try {
       await deleteLegalDocument(token, doc._id);
       setDocs((prev) => prev.filter((d) => d._id !== doc._id));
-      toast.success('Document deleted.');
+      toast.success('Document moved to trash.');
     } catch (err) {
       toast.error(err.message || 'Delete failed');
+    }
+  };
+
+  const handleRestoreTrash = async (doc) => {
+    try {
+      await restoreFromTrash(token, doc._id);
+      setDocs((prev) => prev.filter((d) => d._id !== doc._id));
+      toast.success('Document restored.');
+    } catch (err) {
+      toast.error(err.message || 'Restore failed');
+    }
+  };
+
+  const handlePermanentDelete = async (doc) => {
+    const shouldProceed = await confirm({
+      title: 'Permanently delete document?',
+      message: `This will permanently remove "${doc.title}" and all its versions. This cannot be undone.`,
+      confirmLabel: 'Delete Permanently',
+      tone: 'danger',
+      requireTypedConfirmation: 'DELETE',
+    });
+    if (!shouldProceed) return;
+
+    try {
+      await permanentlyDeleteDocument(token, doc._id);
+      setDocs((prev) => prev.filter((d) => d._id !== doc._id));
+      toast.success('Document permanently deleted.');
+    } catch (err) {
+      toast.error(err.message || 'Permanent delete failed');
+    }
+  };
+
+  const handleArchive = async (doc) => {
+    const shouldProceed = await confirm({
+      title: 'Archive this document?',
+      message: `"${doc.title}" will be archived and become read-only. It can be restored later.`,
+      confirmLabel: 'Archive',
+      tone: 'warning',
+    });
+    if (!shouldProceed) return;
+
+    try {
+      await archiveDocument(token, doc._id);
+      setDocs((prev) => prev.filter((d) => d._id !== doc._id));
+      toast.success('Document archived.');
+    } catch (err) {
+      toast.error(err.message || 'Archive failed');
+    }
+  };
+
+  const handleUnarchive = async (doc) => {
+    try {
+      await restoreFromArchive(token, doc._id);
+      setDocs((prev) => prev.filter((d) => d._id !== doc._id));
+      toast.success('Document restored from archive.');
+    } catch (err) {
+      toast.error(err.message || 'Restore failed');
     }
   };
 
@@ -268,6 +337,28 @@ const AdminLegalRegistry = () => {
             Refresh
           </Button>
         </PortalHeader>
+
+        {/* View tabs */}
+        <div className="mb-5 inline-flex items-center gap-1 rounded-xl border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900">
+          {[
+            { value: 'active', label: 'Active', icon: 'description' },
+            { value: 'archived', label: 'Archived', icon: 'archive' },
+            { value: 'trash', label: 'Trash', icon: 'delete' },
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setView(tab.value)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                view === tab.value
+                  ? 'bg-[var(--portal-accent)] text-white'
+                  : 'text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[15px]">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
         {/* Stats */}
         <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -353,8 +444,20 @@ const AdminLegalRegistry = () => {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             <IconButton icon="visibility" tooltip="View document" size="sm" onClick={() => handleView(doc._id)} />
-                            {!doc.isLocked && (
-                              <IconButton icon="delete" tone="danger" tooltip="Delete document" size="sm" onClick={() => handleDelete(doc)} />
+                            {view === 'active' && !doc.isLocked && (
+                              <>
+                                <IconButton icon="archive" tooltip="Archive document" size="sm" onClick={() => handleArchive(doc)} />
+                                <IconButton icon="delete" tone="danger" tooltip="Move to trash" size="sm" onClick={() => handleDelete(doc)} />
+                              </>
+                            )}
+                            {view === 'archived' && (
+                              <IconButton icon="unarchive" tooltip="Restore from archive" size="sm" onClick={() => handleUnarchive(doc)} />
+                            )}
+                            {view === 'trash' && (
+                              <>
+                                <IconButton icon="restore_from_trash" tooltip="Restore document" size="sm" onClick={() => handleRestoreTrash(doc)} />
+                                <IconButton icon="delete_forever" tone="danger" tooltip="Delete permanently" size="sm" onClick={() => handlePermanentDelete(doc)} />
+                              </>
                             )}
                           </div>
                         </td>
@@ -388,8 +491,20 @@ const AdminLegalRegistry = () => {
                   </div>
                   <div className="mt-3 flex items-center justify-end gap-1 border-t border-neutral-100 pt-3 dark:border-neutral-800">
                     <IconButton icon="visibility" tooltip="View document" onClick={() => handleView(doc._id)} />
-                    {!doc.isLocked && (
-                      <IconButton icon="delete" tone="danger" tooltip="Delete document" onClick={() => handleDelete(doc)} />
+                    {view === 'active' && !doc.isLocked && (
+                      <>
+                        <IconButton icon="archive" tooltip="Archive document" onClick={() => handleArchive(doc)} />
+                        <IconButton icon="delete" tone="danger" tooltip="Move to trash" onClick={() => handleDelete(doc)} />
+                      </>
+                    )}
+                    {view === 'archived' && (
+                      <IconButton icon="unarchive" tooltip="Restore from archive" onClick={() => handleUnarchive(doc)} />
+                    )}
+                    {view === 'trash' && (
+                      <>
+                        <IconButton icon="restore_from_trash" tooltip="Restore document" onClick={() => handleRestoreTrash(doc)} />
+                        <IconButton icon="delete_forever" tone="danger" tooltip="Delete permanently" onClick={() => handlePermanentDelete(doc)} />
+                      </>
                     )}
                   </div>
                 </div>

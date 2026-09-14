@@ -403,15 +403,96 @@ button {
 }
 
 .portal-shell[data-role='law'] {
-  --portal-accent: #7f1d1d;
-  --portal-accent-soft: rgba(127, 29, 29, 0.11);
+  --portal-accent: #8f1d2c;
+  --portal-accent-soft: rgba(143, 29, 44, 0.12);
+  --surface-page: #f5f6f8;
+  --surface-sidebar: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #eef2f6;
+  --surface-border: rgba(31, 41, 55, 0.1);
+  --surface-border-hover: rgba(143, 29, 44, 0.28);
 }
 
 .portal-shell[data-role='law']::before {
   background:
-    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.86)),
-    radial-gradient(560px 220px at 8% 0%, rgba(127, 29, 29, 0.1), transparent 68%),
-    radial-gradient(620px 260px at 100% 16%, rgba(15, 23, 42, 0.06), transparent 66%);
+    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.92)),
+    radial-gradient(640px 260px at 10% 0%, rgba(143, 29, 44, 0.1), transparent 68%),
+    radial-gradient(560px 260px at 100% 12%, rgba(2, 132, 199, 0.08), transparent 66%);
+}
+
+.dark .portal-shell[data-role='law'] {
+  --portal-accent: #f05a6d;
+  --portal-accent-soft: rgba(240, 90, 109, 0.14);
+  --surface-page: #101216;
+  --surface-sidebar: #111318;
+  --surface-1: #171a20;
+  --surface-2: #1d222a;
+  --surface-3: #242a33;
+  --surface-border: rgba(255, 255, 255, 0.09);
+  --surface-border-hover: rgba(240, 90, 109, 0.32);
+}
+
+.dark .portal-shell[data-role='law']::before {
+  background:
+    linear-gradient(180deg, rgba(16, 18, 22, 0.98), rgba(18, 22, 28, 0.94)),
+    radial-gradient(620px 260px at 8% 0%, rgba(240, 90, 109, 0.14), transparent 68%),
+    radial-gradient(640px 280px at 100% 14%, rgba(14, 165, 233, 0.1), transparent 68%);
+}
+
+.portal-shell[data-role='law'] .portal-content {
+  background: var(--surface-page);
+}
+
+.portal-shell[data-role='law'] .law-dashboard {
+  max-width: 1600px;
+  margin-inline: auto;
+}
+
+.portal-shell[data-role='law'] .law-dashboard-header,
+.portal-shell[data-role='law'] .law-kpi-card,
+.portal-shell[data-role='law'] .law-section-card {
+  border-color: var(--surface-border) !important;
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent) !important;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08) !important;
+}
+
+.dark .portal-shell[data-role='law'] .law-dashboard-header,
+.dark .portal-shell[data-role='law'] .law-kpi-card,
+.dark .portal-shell[data-role='law'] .law-section-card {
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28) !important;
+}
+
+.portal-shell[data-role='law'] .law-dashboard-header {
+  border-radius: 18px;
+}
+
+.portal-shell[data-role='law'] .law-project-select {
+  border-color: var(--surface-border);
+  background: var(--surface-2);
+}
+
+.portal-shell[data-role='law'] .law-kpi-card {
+  min-height: 154px;
+}
+
+.portal-shell[data-role='law'] .law-kpi-card--compact {
+  min-height: 118px;
+}
+
+.portal-shell[data-role='law'] .law-module-tile {
+  border-color: var(--surface-border);
+  background: var(--surface-2);
+}
+
+.portal-shell[data-role='law'] .law-module-tile:hover {
+  border-color: var(--surface-border-hover);
+  box-shadow: inset 0 0 0 1px var(--portal-accent-soft);
+}
+
+.portal-shell[data-role='law'] .law-quick-actions > button {
+  border-color: var(--surface-border);
+  background: var(--surface-1);
 }
 
 .portal-shell[data-role='outsourcing'] {

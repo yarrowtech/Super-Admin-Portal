@@ -1,13 +1,23 @@
 const express = require('express');
 const ctrl = require('../controllers/legalDocument.v2.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
+const { uploadFields } = require('../middlewares/upload.middleware');
 const { ROLES } = require('../config/roles');
 
 const router = express.Router();
 
 router.use(authenticate);
 
-router.post('/create', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.create);
+router.post(
+  '/create',
+  authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  uploadFields([
+    { name: 'attachment', maxCount: 1 },
+    { name: 'sourceFile', maxCount: 1 },
+    { name: 'attachments', maxCount: 10 },
+  ]),
+  ctrl.create
+);
 router.get('/my/documents', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.myDocuments);
 router.get('/project/documents', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.forProject);
 

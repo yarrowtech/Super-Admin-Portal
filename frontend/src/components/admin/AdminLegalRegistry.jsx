@@ -13,6 +13,8 @@ import {
   getLegalDocumentById,
   deleteLegalDocument,
   getLegalDocumentPdf,
+  getLegalListItems,
+  getLegalResponseData,
 } from '../../api/legalDocument';
 
 const STATUS_TONE = { Draft: 'neutral', Pending: 'warning', Approved: 'success', Rejected: 'danger' };
@@ -188,7 +190,7 @@ const AdminLegalRegistry = () => {
       if (filterStatus) params.status = filterStatus;
       if (filterType) params.type = filterType;
       const res = await getAllDocuments(token, params);
-      setDocs(res.data?.data?.items || []);
+      setDocs(getLegalListItems(res));
     } catch (err) {
       setError(err.message || 'Failed to load documents');
     } finally {
@@ -201,7 +203,7 @@ const AdminLegalRegistry = () => {
   const handleView = async (id) => {
     try {
       const res = await getLegalDocumentById(token, id);
-      setViewDoc(res.data?.data || res.data);
+      setViewDoc(getLegalResponseData(res));
     } catch (err) {
       toast.error(err.message || 'Failed to load document');
     }

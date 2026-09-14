@@ -7,6 +7,8 @@ import {
   rejectDocument,
   getDocumentVersions,
   getLegalDocumentPdf,
+  getLegalListItems,
+  getLegalResponseData,
 } from '../../api/legalDocument';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -257,7 +259,7 @@ const CEOLegalApproval = () => {
       if (filterType) params.type = filterType;
       if (filterPriority) params.priority = filterPriority;
       const res = await getPendingDocuments(token, params);
-      setDocs(res.data?.data?.items || []);
+      setDocs(getLegalListItems(res));
     } catch (err) {
       setError(err.message || 'Failed to load pending documents');
     } finally {
@@ -273,8 +275,8 @@ const CEOLegalApproval = () => {
         getLegalDocumentById(token, id),
         getDocumentVersions(token, id),
       ]);
-      if (docRes.status === 'fulfilled') setSelectedDoc(docRes.value.data?.data || docRes.value.data);
-      if (verRes.status === 'fulfilled') setVersions(verRes.value.data?.data || []);
+      if (docRes.status === 'fulfilled') setSelectedDoc(getLegalResponseData(docRes.value));
+      if (verRes.status === 'fulfilled') setVersions(getLegalResponseData(verRes.value) || []);
     } catch (err) {
       alert(err.message || 'Failed to load document');
     }

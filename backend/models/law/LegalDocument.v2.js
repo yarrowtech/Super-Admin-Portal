@@ -3,16 +3,43 @@ const mongoose = require('mongoose');
 const DOCUMENT_TYPES = ['Contract', 'Agreement', 'Policy', 'NDA', 'Compliance', 'IP', 'Dispute', 'Other'];
 const DOCUMENT_STATUSES = ['Draft', 'Pending', 'Approved', 'Rejected'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
+const DOCUMENT_SCOPES = ['project', 'company'];
+const SOURCE_TYPES = ['blank', 'template', 'upload'];
+const CONFIDENTIALITY_LEVELS = ['Internal', 'Confidential', 'Restricted'];
+
+const legalAttachmentSchema = new mongoose.Schema(
+  {
+    originalFileName: { type: String, trim: true, default: '' },
+    mimeType: { type: String, trim: true, default: '' },
+    fileSize: { type: Number, default: 0 },
+    purpose: { type: String, enum: ['source', 'supporting', 'attachment'], default: 'attachment' },
+    data: Buffer,
+    uploadedAt: { type: Date, default: Date.now },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  },
+  { _id: true }
+);
 
 const legalDocumentSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
+    documentNumber: { type: String, trim: true, default: '', index: true },
+    description: { type: String, trim: true, default: '' },
     type: { type: String, enum: DOCUMENT_TYPES, default: 'Other', index: true },
+    category: { type: String, trim: true, default: '' },
+    scope: { type: String, enum: DOCUMENT_SCOPES, default: 'company', index: true },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true },
     projectName: { type: String, trim: true, default: '' },
     owner: { type: String, trim: true, default: '' },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    assignedTo: { type: String, trim: true, default: '' },
+    assignedToId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    legalTeam: { type: String, trim: true, default: '' },
 
     latestContent: { type: String, default: '' },
+    sourceType: { type: String, enum: SOURCE_TYPES, default: 'blank' },
+    templateId: { type: String, trim: true, default: '' },
+    templateName: { type: String, trim: true, default: '' },
     currentVersion: { type: String, default: 'v1.0' },
     versionMajor: { type: Number, default: 1 },
     versionMinor: { type: Number, default: 0 },
@@ -27,20 +54,28 @@ const legalDocumentSchema = new mongoose.Schema(
     approvedByName: { type: String, default: '' },
 
     ceoRemarks: { type: String, default: '' },
+    internalNotes: { type: String, trim: true, default: '' },
+    confidentiality: { type: String, enum: CONFIDENTIALITY_LEVELS, default: 'Internal' },
     submittedAt: { type: Date },
     approvedAt: { type: Date },
     rejectedAt: { type: Date },
+    effectiveDate: { type: Date },
+    expiryDate: { type: Date },
+    reviewDate: { type: Date },
+    signedDate: { type: Date },
 
     priority: { type: String, enum: PRIORITIES, default: 'Medium' },
     tags: { type: [String], default: [] },
+    attachments: { type: [legalAttachmentSchema], default: [] },
   },
   { timestamps: true }
 );
 
 legalDocumentSchema.index({ status: 1, createdAt: -1 });
+legalDocumentSchema.index({ scope: 1, projectId: 1, createdAt: -1 });
 legalDocumentSchema.index({ status: 1, projectId: 1, createdAt: -1 });
 legalDocumentSchema.index({ createdBy: 1, status: 1, createdAt: -1 });
 legalDocumentSchema.index({ isPublished: 1, type: 1, createdAt: -1 });
-legalDocumentSchema.index({ title: 'text' });
+legalDocumentSchema.index({ title: 'text', documentNumber: 'text', description: 'text' });
 
 module.exports = mongoose.models.LegalDocument || mongoose.model('LegalDocument', legalDocumentSchema);

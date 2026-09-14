@@ -7,6 +7,9 @@ const logger = require('../utils/logger');
 const VALID_TYPES = new Set(['Contract', 'Agreement', 'Policy', 'NDA', 'Compliance', 'IP', 'Dispute', 'Other']);
 const VALID_STATUSES = new Set(['Draft', 'Pending', 'Approved', 'Rejected']);
 const VALID_PRIORITIES = new Set(['Low', 'Medium', 'High', 'Critical']);
+const VALID_SCOPES = new Set(['project', 'company']);
+const VALID_SOURCE_TYPES = new Set(['blank', 'template', 'upload']);
+const VALID_CONFIDENTIALITY = new Set(['Internal', 'Confidential', 'Restricted']);
 
 const normalizePagination = (value, fallback, max) => {
   const parsed = parseInt(value, 10);
@@ -25,6 +28,46 @@ const ensureObjectId = (value, label) => {
 const isRealObjectId = (value) => {
   const raw = String(value || '').trim();
   return raw && raw !== 'all' && !raw.startsWith('virtual-') && mongoose.Types.ObjectId.isValid(raw);
+};
+
+const parseOptionalDate = (value) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
+const parseTags = (value) => {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean).slice(0, 20);
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parseTags(parsed);
+  } catch {
+    // Fall through to comma-separated parsing.
+  }
+  return String(value).split(',').map((item) => item.trim()).filter(Boolean).slice(0, 20);
+};
+
+const parseString = (value, max = 1000) => String(value || '').trim().slice(0, max);
+
+const attachmentFromRequest = (req) => {
+  const files = [];
+  if (req.file) files.push({ file: req.file, purpose: 'source' });
+  const sourceFiles = Array.isArray(req.files?.sourceFile) ? req.files.sourceFile : [];
+  const legacyFiles = Array.isArray(req.files?.attachment) ? req.files.attachment : [];
+  const supportingFiles = Array.isArray(req.files?.attachments) ? req.files.attachments : [];
+  sourceFiles.forEach((file) => files.push({ file, purpose: 'source' }));
+  legacyFiles.forEach((file) => files.push({ file, purpose: 'source' }));
+  supportingFiles.forEach((file) => files.push({ file, purpose: 'supporting' }));
+  return files.map(({ file, purpose }) => ({
+    originalFileName: file.originalname || 'attachment',
+    mimeType: file.mimetype || '',
+    fileSize: file.size || 0,
+    purpose,
+    data: file.buffer,
+    uploadedBy: req.user?._id || req.user?.id,
+    uploadedAt: new Date(),
+  }));
 };
 
 const actorFrom = (req) => ({
@@ -97,6 +140,8 @@ const sortFor = (value, fallback = 'updated-desc') => {
   const map = {
     'updated-asc': { updatedAt: 1 },
     'title-asc': { title: 1 },
+    'title-desc': { title: -1 },
+    'created-desc': { createdAt: -1 },
     'priority-desc': { priority: -1, updatedAt: -1 },
     'approved-desc': { approvedAt: -1 },
     'submitted-desc': { submittedAt: -1 },
@@ -112,7 +157,7 @@ const listDocuments = async (req, res, baseFilter = {}, defaultSort = 'updated-d
   const skip = (normalizedPage - 1) * normalizedLimit;
   const filter = listFilter(req.query, baseFilter);
   let query = LegalDocument.find(filter);
-  if (omitContent) query = query.select('-latestContent');
+  query = query.select(`${omitContent ? '-latestContent ' : ''}-attachments.data`);
   const [items, total] = await Promise.all([
     query.sort(sortFor(sort, defaultSort)).skip(skip).limit(normalizedLimit).lean(),
     LegalDocument.countDocuments(filter),
@@ -122,17 +167,61 @@ const listDocuments = async (req, res, baseFilter = {}, defaultSort = 'updated-d
 
 exports.create = async (req, res) => {
   try {
-    const { title, type, projectId, projectName, content, priority, tags, owner } = req.body;
+    const {
+      title,
+      documentNumber,
+      description,
+      type,
+      category,
+      scope,
+      projectId,
+      projectName,
+      content,
+      priority,
+      tags,
+      owner,
+      ownerId,
+      assignedTo,
+      assignedToId,
+      legalTeam,
+      sourceType,
+      templateId,
+      templateName,
+      internalNotes,
+      confidentiality,
+    } = req.body;
     if (!title || !String(title).trim()) return res.status(400).json({ success: false, error: 'Title is required' });
+    const normalizedScope = VALID_SCOPES.has(scope) ? scope : (projectId ? 'project' : 'company');
+    if (normalizedScope === 'project' && !projectId) return res.status(400).json({ success: false, error: 'Project is required for project documents' });
     if (projectId) ensureObjectId(projectId, 'projectId');
+    if (ownerId) ensureObjectId(ownerId, 'ownerId');
+    if (assignedToId) ensureObjectId(assignedToId, 'assignedToId');
+    const effectiveDate = parseOptionalDate(req.body.effectiveDate);
+    const expiryDate = parseOptionalDate(req.body.expiryDate);
+    const reviewDate = parseOptionalDate(req.body.reviewDate);
+    const signedDate = parseOptionalDate(req.body.signedDate);
+    if (effectiveDate && expiryDate && expiryDate < effectiveDate) {
+      return res.status(400).json({ success: false, error: 'Expiry date must be after effective date' });
+    }
     const actor = actorFrom(req);
     const doc = await LegalDocument.create({
-      title: String(title).trim(),
+      title: parseString(title, 180),
+      documentNumber: parseString(documentNumber, 80),
+      description: parseString(description, 1000),
       type: VALID_TYPES.has(type) ? type : 'Other',
-      projectId: projectId || undefined,
-      projectName: projectName ? String(projectName).trim() : '',
-      owner: owner ? String(owner).trim() : actor.name,
+      category: parseString(category, 80),
+      scope: normalizedScope,
+      projectId: normalizedScope === 'project' ? projectId : undefined,
+      projectName: normalizedScope === 'project' && projectName ? parseString(projectName, 160) : '',
+      owner: owner ? parseString(owner, 160) : actor.name,
+      ownerId: ownerId || actor.id,
+      assignedTo: parseString(assignedTo, 160),
+      assignedToId: assignedToId || undefined,
+      legalTeam: parseString(legalTeam, 120),
       latestContent: content || '',
+      sourceType: VALID_SOURCE_TYPES.has(sourceType) ? sourceType : 'blank',
+      templateId: parseString(templateId, 80),
+      templateName: parseString(templateName, 120),
       currentVersion: 'v1.0',
       versionMajor: 1,
       versionMinor: 0,
@@ -142,7 +231,14 @@ exports.create = async (req, res) => {
       createdBy: actor.id,
       createdByName: actor.name,
       priority: VALID_PRIORITIES.has(priority) ? priority : 'Medium',
-      tags: Array.isArray(tags) ? tags : [],
+      tags: parseTags(tags),
+      internalNotes: parseString(internalNotes, 2000),
+      confidentiality: VALID_CONFIDENTIALITY.has(confidentiality) ? confidentiality : 'Internal',
+      effectiveDate,
+      expiryDate,
+      reviewDate,
+      signedDate,
+      attachments: attachmentFromRequest(req),
     });
     await snapshot(doc, req, 'Document created');
     await audit(req, doc._id, 'CREATE', 'Document created', { title: doc.title, type: doc.type, projectId: doc.projectId || null });

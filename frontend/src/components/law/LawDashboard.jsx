@@ -456,8 +456,9 @@ const LawDashboard = () => {
     ];
 
     return (
-      <div className="space-y-5 p-4 md:p-6">
+      <div className="law-dashboard space-y-5 p-4 md:p-6">
         <PortalHeader
+          className="law-dashboard-header"
           title="Law Portal"
           subtitle={`Legal operations & compliance${selectedProjectLabel !== 'All Projects' ? ` · ${selectedProjectLabel}` : ''}`}
           icon="balance"
@@ -473,7 +474,7 @@ const LawDashboard = () => {
               if (next) { try { localStorage.setItem('activeProjectId', next); } catch { /* ignore storage failures */ } }
               setSearchParams(next ? { projectId: next } : {});
             }}
-            className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+            className="law-project-select h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
           >
             <option value="">All Projects</option>
             {projectOptions.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -502,6 +503,7 @@ const LawDashboard = () => {
               tone="accent"
               priority="primary"
               context={`${analytics.sectionCount} legal modules tracked`}
+              className="law-kpi-card"
             />
             <KPICard
               title="Needs Attention"
@@ -511,6 +513,7 @@ const LawDashboard = () => {
               priority="primary"
               context={`${analytics.riskRate}% of all records`}
               tooltip="Records with status 'Attention' or priority 'Critical'"
+              className="law-kpi-card"
             />
             <KPICard
               title="Overdue"
@@ -519,6 +522,7 @@ const LawDashboard = () => {
               tone="danger"
               priority="primary"
               context="Past due date, unresolved"
+              className="law-kpi-card"
             />
             <KPICard
               title="Resolved"
@@ -527,6 +531,7 @@ const LawDashboard = () => {
               tone="success"
               priority="primary"
               context={`${analytics.completionRate}% complete`}
+              className="law-kpi-card"
             />
           </div>
         )}
@@ -536,16 +541,17 @@ const LawDashboard = () => {
           <CardSkeleton count={4} />
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <KPICard title="In Review" value={analytics.openPipeline} icon="find_in_page" tone="info" priority="secondary" />
-            <KPICard title="Due in 7 Days" value={analytics.dueSoon} icon="schedule" tone="warning" priority="secondary" />
-            <KPICard title="Sections" value={analytics.sectionCount} icon="folder_open" tone="neutral" priority="secondary" />
-            <KPICard title="Permissions" value={apiSummary?.permissions?.length || 0} icon="lock" tone="neutral" priority="secondary" />
+            <KPICard title="In Review" value={analytics.openPipeline} icon="find_in_page" tone="info" priority="secondary" className="law-kpi-card law-kpi-card--compact" />
+            <KPICard title="Due in 7 Days" value={analytics.dueSoon} icon="schedule" tone="warning" priority="secondary" className="law-kpi-card law-kpi-card--compact" />
+            <KPICard title="Sections" value={analytics.sectionCount} icon="folder_open" tone="neutral" priority="secondary" className="law-kpi-card law-kpi-card--compact" />
+            <KPICard title="Permissions" value={apiSummary?.permissions?.length || 0} icon="lock" tone="neutral" priority="secondary" className="law-kpi-card law-kpi-card--compact" />
           </div>
         )}
 
-        {quickActions.length > 0 && <QuickActions actions={quickActions} />}
+        {quickActions.length > 0 && <QuickActions actions={quickActions} className="law-quick-actions" />}
 
         <AttentionPanel
+          className="law-section-card"
           title="Needs Attention"
           items={attentionItems}
           loading={loading}
@@ -554,7 +560,7 @@ const LawDashboard = () => {
         />
 
         {/* Law sections navigation grid */}
-        <SectionCard title="Legal Modules" icon="apps">
+        <SectionCard title="Legal Modules" icon="apps" className="law-section-card">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {SECTIONS.map((sec) => {
               const count = analytics.sectionData.find((s) => s.name === sec.id)?.value ?? 0;
@@ -563,7 +569,7 @@ const LawDashboard = () => {
                   key={sec.id}
                   type="button"
                   onClick={() => navigate(withProjectContext(sec.path))}
-                  className="group flex min-h-[116px] flex-col items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-800 dark:bg-neutral-900"
+                  className="law-module-tile group flex min-h-[116px] flex-col items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-800 dark:bg-neutral-900"
                 >
                   <span className="material-symbols-outlined text-[26px] text-neutral-500 transition group-hover:text-[var(--portal-accent)] dark:text-neutral-400">{sec.icon}</span>
                   <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">{sec.label}</span>
@@ -579,6 +585,7 @@ const LawDashboard = () => {
           <SectionCard
             title="Records by Section"
             icon="bar_chart"
+            className="law-section-card"
             empty={analytics.sectionData.length === 0}
             emptyIcon="bar_chart"
             emptyTitle="No section data yet"
@@ -602,6 +609,7 @@ const LawDashboard = () => {
           <SectionCard
             title="Priority Distribution"
             icon="assessment"
+            className="law-section-card"
             empty={analytics.priorityData.every((d) => d.value === 0)}
             emptyIcon="assessment"
             emptyTitle="No priority data yet"
@@ -627,6 +635,7 @@ const LawDashboard = () => {
         <SectionCard
           title="Recent Legal Records"
           icon="description"
+          className="law-section-card"
           description={`${analytics.recentRecords.length} item${analytics.recentRecords.length === 1 ? '' : 's'} across all legal modules`}
           noBodyPadding
           loading={loading}

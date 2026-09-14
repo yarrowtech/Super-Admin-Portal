@@ -91,7 +91,7 @@ const createContractApproval = async ({ contractId, requestedBy }) => {
     entityType: "contract",
     entityId: contractId,
     requestedBy,
-    steps: [{ role: "legal_head" }, { role: "admin" }],
+    steps: [{ role: "law_head" }, { role: "admin" }],
   });
   await writeAuditTrail({
     userId: requestedBy,

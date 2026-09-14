@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 
 const contractSchema = new mongoose.Schema(
   {
+    // Legacy contracts predate project scoping; all newly created contracts
+    // are required to provide this in the controller and request validation.
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null, index: true },
     job: { type: mongoose.Schema.Types.ObjectId, ref: 'OutsourcingJob', required: true, unique: true },
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     freelancer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -56,6 +59,7 @@ const contractSchema = new mongoose.Schema(
 
 contractSchema.index({ freelancer: 1, status: 1 });
 contractSchema.index({ client: 1, status: 1 });
+contractSchema.index({ projectId: 1, updatedAt: -1 });
 
 module.exports =
   mongoose.models.OutsourcingContract || mongoose.model('OutsourcingContract', contractSchema);

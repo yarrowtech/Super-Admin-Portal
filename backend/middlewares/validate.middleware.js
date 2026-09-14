@@ -226,6 +226,7 @@ const outsourcingCreateJobValidation = [
 ];
 
 const outsourcingCreateContractValidation = [
+  body('projectId').trim().isMongoId().withMessage('projectId must be a valid ID'),
   body('jobId').trim().isMongoId().withMessage('jobId must be a valid ID'),
   body('freelancerId').trim().isMongoId().withMessage('freelancerId must be a valid ID'),
   body('paymentType').trim().isIn(['hourly', 'daily', 'weekly', 'fixed']).withMessage('Invalid paymentType'),

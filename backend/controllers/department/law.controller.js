@@ -293,21 +293,30 @@ exports.getCompliance = async (req, res) => {
 exports.uploadReferencePdfs = async (req, res) => {
   try {
     const files = Array.isArray(req.files) ? req.files : [];
+    const allowedReferenceTypes = new Set([
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+    ]);
     if (!files.length) {
-      return res.status(400).json({ success: false, error: 'At least one PDF is required' });
+      return res.status(400).json({ success: false, error: 'At least one reference file is required' });
     }
-    if (files.some((file) => file.mimetype !== 'application/pdf')) {
-      return res.status(400).json({ success: false, error: 'Only PDF files are allowed' });
+    if (files.some((file) => !allowedReferenceTypes.has(file.mimetype))) {
+      return res.status(400).json({ success: false, error: 'Only PDF, DOC, DOCX, PNG, JPG, and WEBP files are allowed' });
     }
 
     const uploads = await Promise.all(
       files.map(async (file) => {
         if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
           return {
-            url: `data:application/pdf;base64,${file.buffer.toString('base64')}`,
+            url: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
             publicId: null,
             originalName: file.originalname,
             bytes: file.size,
+            contentType: file.mimetype,
             provider: 'inline'
           };
         }
@@ -325,6 +334,7 @@ exports.uploadReferencePdfs = async (req, res) => {
           publicId: uploaded.public_id,
           originalName: file.originalname,
           bytes: file.size,
+          contentType: file.mimetype,
           provider: 'cloudinary'
         };
       })
@@ -332,8 +342,8 @@ exports.uploadReferencePdfs = async (req, res) => {
 
     return res.status(201).json({ success: true, data: uploads });
   } catch (error) {
-    logger.error({ err: error }, 'Upload law reference pdfs error');
-    return res.status(500).json({ success: false, error: 'Failed to upload reference PDFs', details: error.message });
+    logger.error({ err: error }, 'Upload law reference files error');
+    return res.status(500).json({ success: false, error: 'Failed to upload reference files', details: error.message });
   }
 };
 

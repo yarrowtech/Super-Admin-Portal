@@ -12,6 +12,7 @@ const OutsourcingWorkSession = require('../../models/outsourcing/OutsourcingWork
 const OutsourcingSupportTicket = require('../../models/outsourcing/OutsourcingSupportTicket');
 const Notification = require('../../models/common/Notification');
 const ActivityLog = require('../../models/auth/ActivityLog');
+const Project = require('../../models/common/Project');
 const { buildProjectAccessSummary } = require('../../utils/projectAccess');
 const { ROLES, isValidRole } = require('../../config/roles');
 
@@ -540,10 +541,13 @@ const rejectJob = async (req, res) => {
 
 const createContract = async (req, res) => {
   try {
-    const { jobId, freelancerId, paymentType, rate, currency, escrowAmount, startDate, endDate, terms, ndaSigned, agreementSigned, paymentTermsAccepted } = req.body || {};
-    if (!jobId || !freelancerId || !paymentType || rate === undefined) {
-      return res.status(400).json({ success: false, error: 'jobId, freelancerId, paymentType and rate are required' });
+    const { projectId, jobId, freelancerId, paymentType, rate, currency, escrowAmount, startDate, endDate, terms, ndaSigned, agreementSigned, paymentTermsAccepted } = req.body || {};
+    if (!projectId || !jobId || !freelancerId || !paymentType || rate === undefined) {
+      return res.status(400).json({ success: false, error: 'projectId, jobId, freelancerId, paymentType and rate are required' });
     }
+
+    const projectExists = await Project.exists({ _id: projectId });
+    if (!projectExists) return res.status(400).json({ success: false, error: 'Invalid projectId' });
 
     if (!PAYMENT_TYPES.includes(paymentType)) {
       return res.status(400).json({ success: false, error: 'Invalid paymentType' });
@@ -569,6 +573,7 @@ const createContract = async (req, res) => {
     await job.save();
 
     const contract = await OutsourcingContract.create({
+      projectId,
       job: job._id,
       client: null,
       freelancer: freelancer._id,
@@ -640,7 +645,7 @@ const updateContractTerms = async (req, res) => {
   try {
     const { contractId } = req.params;
     const { terms, changeSummary } = req.body || {};
-    const contract = await OutsourcingContract.findById(contractId);
+    const contract = await OutsourcingContract.findOne({ _id: contractId, ...(req.query.projectId ? { projectId: req.query.projectId } : {}) });
     if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
 
     if (!['draft', 'rejected'].includes(contract.status) && contract.lawStatus !== 'rejected') {
@@ -686,7 +691,7 @@ const updateContractTerms = async (req, res) => {
 
 const getContractHistory = async (req, res) => {
   try {
-    const contract = await OutsourcingContract.findById(req.params.contractId)
+    const contract = await OutsourcingContract.findOne({ _id: req.params.contractId, ...(req.query.projectId ? { projectId: req.query.projectId } : {}) })
       .populate('revisions.editedBy', 'firstName lastName email role')
       .populate('job', 'title')
       .populate('freelancer', 'firstName lastName email');
@@ -715,7 +720,7 @@ const validateContractByLaw = async (req, res) => {
     const { contractId } = req.params;
     const { approved, reason } = req.body || {};
     const rejectionReason = String(reason || req.body?.remarks || req.body?.rejectionReason || '').trim();
-    const contract = await OutsourcingContract.findById(contractId);
+    const contract = await OutsourcingContract.findOne({ _id: contractId, ...(req.query.projectId ? { projectId: req.query.projectId } : {}) });
     if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
     if (approved === false && !rejectionReason) {
       return res.status(400).json({ success: false, error: 'Rejection reason is required' });
@@ -958,11 +963,13 @@ const completeFreelancerLifecycle = async (req, res) => {
 const listContracts = async (req, res) => {
   try {
     const query = {};
+    if (req.query.projectId) query.projectId = req.query.projectId;
     if (!isAdmin(req.user)) {
       const me = await User.findById(req.user._id);
       if (isWorkerUser(me)) query.freelancer = req.user._id;
     }
     const contracts = await OutsourcingContract.find(query)
+      .populate('projectId', 'name projectCode')
       .populate('job', 'title status')
       .populate('createdBy', 'firstName lastName email')
       .populate('freelancer', 'firstName lastName email')

@@ -6,6 +6,7 @@ import Button from '../common/Button';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { useToast } from '../../context/ToastContext';
 import PolicyFormModal from './PolicyFormModal';
+import ContractFormModal from './ContractFormModal';
 
 const emptyForm = {
   title: '',
@@ -134,6 +135,10 @@ const LawRecordManager = ({
 
   if (section === 'privacy-policy') {
     return <PolicyFormModal open={formOpen} editingRecord={editingRecord} saving={saving} projectId={projectId} projectName={projectName} onClose={requestClose} onSave={onSaveRecord} />;
+  }
+
+  if (['agreements', 'work-hire', 'third-party'].includes(section)) {
+    return <ContractFormModal open={formOpen} section={section} editingRecord={editingRecord} saving={saving} projectId={projectId} projectName={projectName} recordTypes={recordTypes} onClose={requestClose} onSave={onSaveRecord} />;
   }
 
   return (

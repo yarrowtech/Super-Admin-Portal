@@ -20,7 +20,7 @@ const LAW_SECTIONS = [
   'reporting'
 ];
 
-const LAW_STATUSES = ['Draft', 'Pending', 'In Review', 'Active', 'Ready', 'Attention', 'Archived'];
+const LAW_STATUSES = ['Draft', 'Pending', 'In Review', 'Pending Approval', 'Approved', 'Active', 'Ready', 'Attention', 'Expired', 'Terminated', 'Archived'];
 const LAW_PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 const lawSchema = new mongoose.Schema(

@@ -31,7 +31,7 @@ const PAYMENT_TYPE_OPTIONS = [
   { value: 'weekly', label: 'Weekly' },
 ];
 
-export default function LawContractsPage() {
+export default function LawContractsPage({ selectedProjectId = '', selectedProjectName = 'All Projects' }) {
   const { token, user } = useAuth();
   const toast = useToast();
   const { confirm } = useConfirmDialog();
@@ -95,7 +95,7 @@ export default function LawContractsPage() {
     setLoading(true);
     try {
       const [contractsRes, jobsRes, freelancersResult] = await Promise.all([
-        apiClient.get('/api/outsourcing/contracts', token),
+        apiClient.get(`/api/outsourcing/contracts${selectedProjectId ? `?projectId=${encodeURIComponent(selectedProjectId)}` : ''}`, token),
         apiClient.get('/api/outsourcing/jobs', token),
         canListFreelancers
           ? apiClient.get('/api/outsourcing/users', token).then((res) => ({ ok: true, res })).catch(() => ({ ok: false, res: null }))
@@ -112,9 +112,11 @@ export default function LawContractsPage() {
     } finally {
       setLoading(false);
     }
-  }, [canListFreelancers, token, toast]);
+  }, [canListFreelancers, selectedProjectId, token, toast]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    queueMicrotask(loadData);
+  }, [loadData]);
 
   const contractedJobIds = new Set(
     contracts
@@ -139,6 +141,7 @@ export default function LawContractsPage() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setFormError('');
+    if (!selectedProjectId) { setFormError('Select a project before creating a contract'); return; }
     if (!form.jobId) { setFormError('Select a job'); return; }
     if (!form.freelancerId) { setFormError('Select a freelancer'); return; }
     if (!form.rate || isNaN(Number(form.rate))) { setFormError('Enter a valid rate'); return; }
@@ -149,6 +152,7 @@ export default function LawContractsPage() {
     setSaving(true);
     try {
       await apiClient.post('/api/outsourcing/contracts', {
+        projectId: selectedProjectId,
         job: form.jobId,
         jobId: form.jobId,
         freelancerId: form.freelancerId,
@@ -192,7 +196,7 @@ export default function LawContractsPage() {
     }
     setActionLoading(contractId + decision);
     try {
-      await apiClient.put(`/api/outsourcing/contracts/${contractId}/law-validate`, {
+      await apiClient.put(`/api/outsourcing/contracts/${contractId}/law-validate?projectId=${encodeURIComponent(selectedProjectId)}`, {
         approved: decision === 'validated',
         reason: decision === 'rejected' ? reason : undefined,
       }, token);
@@ -251,7 +255,7 @@ export default function LawContractsPage() {
     <div className="portal-page-inner space-y-4">
       <PortalHeader
         title="Outsourcing Contracts"
-        subtitle="Create agreements and validate freelancer contracts"
+        subtitle={`Create agreements and validate freelancer contracts · ${selectedProjectName}`}
         icon="handshake"
         primaryAction={{ label: 'New Contract', icon: 'add', onClick: () => setShowCreateForm(true) }}
       />
@@ -305,18 +309,25 @@ export default function LawContractsPage() {
       <Modal
         open={showCreateForm}
         onClose={closeCreateForm}
-        title="New Agreement / Contract"
-        description="Only accepted jobs without existing contracts are available."
+        title="New Outsourcing Contract"
+        description={selectedProjectId ? `Create a new outsourcing contract for ${selectedProjectName}.` : 'Select a project before creating a contract.'}
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={closeCreateForm} disabled={saving}>Cancel</Button>
-            <Button type="submit" form="law-contract-create-form" variant="accent" disabled={saving || !contractableJobs.length || !form.jobId}>
+            <Button type="submit" form="law-contract-create-form" variant="accent" disabled={saving || !selectedProjectId || !contractableJobs.length || !form.jobId}>
               {saving ? 'Creating…' : 'Create Contract'}
             </Button>
           </div>
         }
       >
         <form id="law-contract-create-form" onSubmit={handleCreate} className="space-y-5">
+          <div>
+            <span className="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-200">Project <span className="text-rose-600">*</span></span>
+            <div className="flex min-h-11 items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm font-semibold text-neutral-800 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">
+              <span className="material-symbols-outlined text-base text-[var(--portal-accent)]">lock</span>
+              {selectedProjectId ? selectedProjectName : 'No project selected'}
+            </div>
+          </div>
           {contractableJobs.length === 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
               No accepted jobs without contracts are available. Contracts can only be created after a freelancer accepts an assigned job.

@@ -104,6 +104,8 @@ const LawOpsPage = ({
   const [searchInput, setSearchInput] = useState(searchTerm);
   const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
   const [pdfViewer, setPdfViewer] = useState(null);
   const [pdfPreview, setPdfPreview] = useState({ url: '', loading: false, error: '' });
 
@@ -147,11 +149,13 @@ const LawOpsPage = ({
   }, [forceOpenForm]);
 
   const filteredRecords = useMemo(() => records.filter((record) => {
-    const textMatch = `${record.title || ''} ${record.description || ''} ${record.referenceNumber || ''}`
+    const textMatch = `${record.title || ''} ${record.description || ''} ${record.referenceNumber || ''} ${record.metadata?.counterparty || ''} ${record.metadata?.primaryParty || ''}`
       .toLowerCase()
       .includes(searchTerm.trim().toLowerCase());
-    return textMatch;
-  }), [records, searchTerm]);
+    const statusMatch = !statusFilter || record.status === statusFilter;
+    const priorityMatch = !priorityFilter || record.priority === priorityFilter;
+    return textMatch && statusMatch && priorityMatch;
+  }), [priorityFilter, records, searchTerm, statusFilter]);
 
   const projectOptions = useMemo(() => {
     return projects.map((project) => ({
@@ -182,6 +186,7 @@ const LawOpsPage = ({
   }, [filteredRecords, sectionId, signalConfig.primaryDate]);
 
   const selectedProjectName = projectOptions.find((p) => p.value === selectedProjectId)?.label || 'All Projects';
+  const isContractSection = ['agreements', 'work-hire', 'third-party'].includes(sectionId);
   const activePrivacySections = useMemo(
     () => (selectedProjectId ? resolvePrivacySections(selectedProjectName) : NOT_CONFIGURED_SECTIONS),
     [selectedProjectId, selectedProjectName]
@@ -249,6 +254,17 @@ const LawOpsPage = ({
       label: config.labels?.owner || 'Owner',
       render: (record) => record.owner || 'Unassigned',
     },
+    ...(isContractSection ? [{
+      key: 'counterparty',
+      label: 'Counterparty',
+      render: (record) => record.metadata?.counterparty || '—',
+    }, {
+      key: 'value',
+      label: 'Value',
+      render: (record) => record.metadata?.contractValue
+        ? `${record.metadata?.currency || 'INR'} ${Number(record.metadata.contractValue).toLocaleString('en-IN')}`
+        : '—',
+    }] : []),
     {
       key: 'primaryDate',
       label: signalConfig.primaryDateLabel || 'Due',
@@ -302,16 +318,23 @@ const LawOpsPage = ({
           onChange: setSearchInput,
           placeholder: `Search ${section.navLabel.toLowerCase()} records…`,
         }}
-        primaryFilters={projectOptions.length > 0 ? [{
+        primaryFilters={[
+          ...(projectOptions.length > 0 ? [{
           key: 'project',
           label: 'Project',
           value: selectedProjectId,
           onChange: (value) => onProjectChange?.(value),
           options: [{ value: '', label: 'All Projects' }, ...projectOptions],
           width: 'w-44',
-        }] : []}
-        activeChips={selectedProjectId ? [{ key: 'project', label: `Project: ${selectedProjectName}`, onRemove: () => onProjectChange?.('') }] : []}
-        onClearAll={selectedProjectId ? () => onProjectChange?.('') : undefined}
+          }] : []),
+          ...(isContractSection ? [{ key: 'status', label: 'Status', value: statusFilter, onChange: setStatusFilter, options: [{ value: '', label: 'All Statuses' }, ...['Draft', 'In Review', 'Pending Approval', 'Approved', 'Active', 'Expired', 'Terminated', 'Archived'].map((value) => ({ value, label: value }))] }, { key: 'priority', label: 'Priority', value: priorityFilter, onChange: setPriorityFilter, options: [{ value: '', label: 'All Priorities' }, ...['Low', 'Medium', 'High', 'Critical'].map((value) => ({ value, label: value }))] }] : []),
+        ]}
+        activeChips={[
+          ...(selectedProjectId ? [{ key: 'project', label: `Project: ${selectedProjectName}`, onRemove: () => onProjectChange?.('') }] : []),
+          ...(statusFilter ? [{ key: 'status', label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter('') }] : []),
+          ...(priorityFilter ? [{ key: 'priority', label: `Priority: ${priorityFilter}`, onRemove: () => setPriorityFilter('') }] : []),
+        ]}
+        onClearAll={(selectedProjectId || statusFilter || priorityFilter) ? () => { onProjectChange?.(''); setStatusFilter(''); setPriorityFilter(''); } : undefined}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

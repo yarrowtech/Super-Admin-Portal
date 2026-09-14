@@ -33,7 +33,7 @@ const moduleProjectValidation = [
 ];
 
 const LAW_RECORD_SECTIONS = ["agreements", "privacy-policy", "disputes-fraud", "ip-copyright", "work-hire", "third-party"];
-const LAW_RECORD_STATUSES = ["Draft", "Pending", "In Review", "Active", "Ready", "Attention", "Archived"];
+const LAW_RECORD_STATUSES = ["Draft", "Pending", "In Review", "Pending Approval", "Approved", "Active", "Ready", "Attention", "Expired", "Terminated", "Archived"];
 const LAW_RECORD_PRIORITIES = ["Low", "Medium", "High", "Critical"];
 
 const recordIdValidation = [param("id").isMongoId().withMessage("Invalid record id")];

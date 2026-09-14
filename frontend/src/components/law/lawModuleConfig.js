@@ -176,6 +176,8 @@ export const LAW_FORM_CONFIG = {
     ],
   },
   'work-hire': {
+    actionLabel: 'New Work on Hire Contract',
+    registerTitle: 'Work on Hire Contract Register',
     recordTypes: ['Freelancer Contract', 'Consultant Contract', 'Research Contract', 'Development Contract'],
     labels: {
       recordType: 'Contract type',
@@ -193,6 +195,8 @@ export const LAW_FORM_CONFIG = {
     ],
   },
   'third-party': {
+    actionLabel: 'New Third Party Contract',
+    registerTitle: 'Third Party Contract Register',
     recordTypes: ['Vendor Onboarding', 'API Agreement', 'DPA', 'Compliance Verification', 'Risk Review'],
     labels: {
       recordType: 'Third-party record',

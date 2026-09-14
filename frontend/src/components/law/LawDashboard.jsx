@@ -737,9 +737,18 @@ const LawDashboard = () => {
   return (
     <>
       {ActivePage ? (
-        <ActivePage records={records} onSectionChange={(section) => navigate(withProjectContext(sectionToPath(section)))} />
+        <ActivePage
+          key={`${activeSection}-${selectedProjectId || 'all-projects'}`}
+          records={records}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          selectedProjectName={selectedProjectLabel}
+          onProjectChange={(projectId) => setSearchParams(projectId ? { projectId } : {})}
+          onSectionChange={(section) => navigate(withProjectContext(sectionToPath(section)))}
+        />
       ) : (
         <LawOpsPage
+          key={`${activeSection}-${selectedProjectId || 'all-projects'}`}
           sectionId={activeSection}
           searchTerm={searchTerm}
           error={error}

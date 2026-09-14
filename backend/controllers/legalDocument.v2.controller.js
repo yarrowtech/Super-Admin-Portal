@@ -31,14 +31,14 @@ const isRealObjectId = (value) => {
   return raw && raw !== 'all' && !raw.startsWith('virtual-') && mongoose.Types.ObjectId.isValid(raw);
 };
 
-<<<<<<< HEAD
 const ensureProjectAccess = (req, projectId) => {
   if (projectId && !hasProjectAccess(req.user, projectId)) {
     const error = new Error('No access to requested project');
     error.statusCode = 403;
     throw error;
   }
-=======
+};
+
 const parseOptionalDate = (value) => {
   if (!value) return undefined;
   const date = new Date(value);
@@ -77,7 +77,6 @@ const attachmentFromRequest = (req) => {
     uploadedBy: req.user?._id || req.user?.id,
     uploadedAt: new Date(),
   }));
->>>>>>> c220ac3d7801e862e0c2359b576d5f27d7ec0bb8
 };
 
 const actorFrom = (req) => ({
@@ -217,9 +216,7 @@ exports.create = async (req, res) => {
     const normalizedScope = VALID_SCOPES.has(scope) ? scope : (projectId ? 'project' : 'company');
     if (normalizedScope === 'project' && !projectId) return res.status(400).json({ success: false, error: 'Project is required for project documents' });
     if (projectId) ensureObjectId(projectId, 'projectId');
-<<<<<<< HEAD
     ensureProjectAccess(req, projectId);
-=======
     if (ownerId) ensureObjectId(ownerId, 'ownerId');
     if (assignedToId) ensureObjectId(assignedToId, 'assignedToId');
     const effectiveDate = parseOptionalDate(req.body.effectiveDate);
@@ -229,7 +226,6 @@ exports.create = async (req, res) => {
     if (effectiveDate && expiryDate && expiryDate < effectiveDate) {
       return res.status(400).json({ success: false, error: 'Expiry date must be after effective date' });
     }
->>>>>>> c220ac3d7801e862e0c2359b576d5f27d7ec0bb8
     const actor = actorFrom(req);
     const resolvedType = VALID_TYPES.has(type) ? type : 'Other';
     const trimmedDocNumber = parseString(documentNumber, 80);

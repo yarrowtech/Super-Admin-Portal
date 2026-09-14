@@ -445,7 +445,13 @@ const LegalDocManagement = () => {
   }, [token]);
 
   // ── Fetch documents ─────────────────────────────────────────────────────────
+  // Requests can resolve out of order (e.g. switching projects fires a new
+  // call before the previous one's response lands) — fetchSeqRef lets a
+  // response detect it's stale and skip updating state so it can't clobber
+  // a newer, already-applied result with an older error or document list.
+  const fetchSeqRef = useRef(0);
   const fetchDocs = useCallback(async (overrides = {}) => {
+    const requestSeq = ++fetchSeqRef.current;
     setLoading(true);
     setError('');
     try {
@@ -474,6 +480,7 @@ const LegalDocManagement = () => {
         params.scope = 'company';
         res = await getMyDocuments(token, params);
       }
+      if (requestSeq !== fetchSeqRef.current) return;
       const items = getLegalListItems(res);
       setDocs(items.filter((doc) => {
         const docProjectId = String(doc.projectId || '');
@@ -481,9 +488,10 @@ const LegalDocManagement = () => {
         return !docProjectId;
       }));
     } catch (err) {
+      if (requestSeq !== fetchSeqRef.current) return;
       setError(err.message || 'Failed to load documents');
     } finally {
-      setLoading(false);
+      if (requestSeq === fetchSeqRef.current) setLoading(false);
     }
   }, [token, filterStatus, filterType, filterPriority, searchTerm, sortBy, selectedProjectId, projectFilter]);
 

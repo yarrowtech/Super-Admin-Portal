@@ -25,6 +25,7 @@ const PortalHeader = ({
   refreshing = false,
   primaryAction,
   secondaryAction,
+  className = '',
   // Legacy props accepted but no-op
   showSearch,
   showNotifications,
@@ -48,7 +49,7 @@ const PortalHeader = ({
   const hasMetaRow = Boolean(lastUpdated || onRefresh || dateRange || primaryAction || secondaryAction);
 
   return (
-    <header className="mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+    <header className={`mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 ${className}`.trim()}>
       {/* Accent top bar */}
       <div className="h-1 w-full" style={{ background: 'var(--portal-accent)' }} />
 

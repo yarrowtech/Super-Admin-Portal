@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getDocumentVersions, restoreVersion } from '../../api/legalDocument';
+import { getDocumentVersions, getLegalResponseData, restoreVersion } from '../../api/legalDocument';
 import { useAuth } from '../../context/AuthContext';
 
 const formatDate = (d) =>
@@ -16,7 +16,7 @@ const LegalDocVersionHistory = ({ docId, isLocked, currentVersion, onRestored, o
     if (!docId) return;
     setLoading(true);
     getDocumentVersions(token, docId)
-      .then((res) => setVersions(res.data?.data || []))
+      .then((res) => setVersions(getLegalResponseData(res) || []))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [docId, token]);

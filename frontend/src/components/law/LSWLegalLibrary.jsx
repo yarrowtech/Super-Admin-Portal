@@ -6,6 +6,8 @@ import {
   getLegalDocumentById,
   getDocumentVersions,
   getLegalDocumentPdf,
+  getLegalListItems,
+  getLegalResponseData,
 } from '../../api/legalDocument';
 import PortalHeader from '../common/PortalHeader';
 import KPICard from '../common/KPICard';
@@ -207,7 +209,7 @@ const LSWLegalLibrary = () => {
       params.sort = 'approved-desc';
       params.limit = 100;
       const res = await getApprovedDocuments(token, params);
-      setDocs(res.data?.data?.items || []);
+      setDocs(getLegalListItems(res));
     } catch (err) {
       setError(normalizeLegalError(err));
     } finally {
@@ -226,8 +228,8 @@ const LSWLegalLibrary = () => {
         getLegalDocumentById(token, doc._id),
         getDocumentVersions(token, doc._id),
       ]);
-      setViewDoc(docRes.status === 'fulfilled' ? docRes.value.data?.data || docRes.value.data : doc);
-      setViewVersions(verRes.status === 'fulfilled' ? verRes.value.data?.data || [] : []);
+      setViewDoc(docRes.status === 'fulfilled' ? getLegalResponseData(docRes.value) : doc);
+      setViewVersions(verRes.status === 'fulfilled' ? getLegalResponseData(verRes.value) || [] : []);
     } catch {
       setViewDoc(doc);
       setViewVersions([]);

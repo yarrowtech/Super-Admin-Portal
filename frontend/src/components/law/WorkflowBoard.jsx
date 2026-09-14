@@ -42,8 +42,8 @@ const WORKFLOWS = {
 const roleActions = (role, currentStep, steps) => {
   const lowerRole = String(role || '').toLowerCase();
   const isAdmin = lowerRole === 'admin' || lowerRole === 'super_admin';
-  const isLegalHead = lowerRole === 'legal_head';
-  const isLawyer = lowerRole === 'lawyer' || lowerRole === 'law';
+  const isLegalHead = lowerRole === 'law_head' || lowerRole === 'legal_head';
+  const isLawyer = lowerRole === 'law_employee' || lowerRole === 'lawyer' || lowerRole === 'law';
 
   if (isAdmin) {
     return {
@@ -170,7 +170,7 @@ const WorkflowBoard = ({ moduleType, records = [], userRole, onUpdateStatus }) =
             <button
               type="button"
               onClick={() => onUpdateStatus(activeRecord._id, action.nextStatus)}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              className="rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30"
             >
               Move Next
             </button>

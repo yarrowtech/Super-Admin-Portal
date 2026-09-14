@@ -1,8 +1,47 @@
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
 import Button from './Button';
 
 const Modal = ({ open, title, description, children, onClose, footer, className }) => {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previouslyFocused = document.activeElement;
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusFirst = () => {
+      const focusable = dialogRef.current?.querySelectorAll(focusableSelector);
+      focusable?.[0]?.focus?.();
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose?.();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(dialogRef.current?.querySelectorAll(focusableSelector) || [])
+        .filter((node) => !node.disabled && node.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.setTimeout(focusFirst, 0);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
   // Rendered into <body> via a portal so the overlay's `position: fixed` always
@@ -11,7 +50,7 @@ const Modal = ({ open, title, description, children, onClose, footer, className 
   // page-enter animation), leaving the modal mis-anchored on a scrolled page.
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
-      <div className={cn('flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:max-w-2xl sm:rounded-2xl', className)}>
+      <div ref={dialogRef} className={cn('flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:max-w-2xl sm:rounded-2xl', className)}>
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-4 dark:border-neutral-800">
           <div className="min-w-0">
             <h2 className="text-lg font-black text-neutral-900 dark:text-neutral-100">{title}</h2>

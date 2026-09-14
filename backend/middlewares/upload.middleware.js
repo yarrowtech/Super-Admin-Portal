@@ -10,7 +10,9 @@ const allowedMimeTypes = new Set([
   'image/webp',
   'text/plain',
   'application/zip',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ]);
 
 const upload = multer({
@@ -41,6 +43,7 @@ const runUpload = (middleware) => (req, res, next) => {
 
 const uploadSingle = (fieldName = 'file') => runUpload(upload.single(fieldName));
 const uploadMany = (fieldName = 'files', maxCount = 5) => runUpload(upload.array(fieldName, maxCount));
+const uploadFields = (fields = []) => runUpload(upload.fields(fields));
 
 const jpegOnlyUpload = multer({
   storage: multer.memoryStorage(),
@@ -81,6 +84,7 @@ const uploadCsv = (fieldName = 'file') => runUpload(csvOnlyUpload.single(fieldNa
 module.exports = {
   uploadSingle,
   uploadMany,
+  uploadFields,
   uploadJpegImages,
   uploadCsv
 };

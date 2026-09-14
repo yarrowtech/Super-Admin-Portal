@@ -15,12 +15,12 @@ router.use(attachOptionalProjectContext);
 
 const canManageLawContract = (req, res, next) => {
   const role = String(req.user?.role || "").toLowerCase();
-  if (["law", "legal_head", "finance", "finance_manager", "admin", "super_admin"].includes(role)) return next();
+  if ([ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(role)) return next();
   return res.status(403).json({ success: false, error: "Role cannot manage contracts" });
 };
 const canDecideLawApproval = (req, res, next) => {
   const role = String(req.user?.role || "").toLowerCase();
-  if (["legal_head", "admin", "super_admin"].includes(role)) return next();
+  if ([ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(role)) return next();
   return res.status(403).json({ success: false, error: "Role cannot decide legal approvals" });
 };
 

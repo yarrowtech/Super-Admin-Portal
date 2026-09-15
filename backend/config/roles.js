@@ -44,6 +44,8 @@ const ROLE_PERMISSIONS = {
     "system_settings",
     "audit_logs",
     "strategic_decisions",
+    "policy.read", "policy.create", "policy.update", "policy.delete", "policy.review", "policy.approve", "policy.publish", "policy.archive",
+    "policy.assignment.read", "policy.assignment.manage", "policy.acceptance.read", "policy.audit.read",
   ],
   [ROLES.ADMIN]: [
     "manage_all_users",
@@ -58,6 +60,8 @@ const ROLE_PERMISSIONS = {
     "view_all_data",
     "system_settings",
     "audit_logs",
+    "policy.read", "policy.create", "policy.update", "policy.delete", "policy.review", "policy.approve", "policy.publish", "policy.archive",
+    "policy.assignment.read", "policy.assignment.manage", "policy.acceptance.read", "policy.audit.read",
   ],
   [ROLES.CEO]: [
     "view_all_departments",
@@ -122,6 +126,7 @@ const ROLE_PERMISSIONS = {
     "contract_review",
     "legal_advice",
     "approve_legal_workflows",
+    "policy.read", "policy.create", "policy.update", "policy.review", "policy.approve", "policy.assignment.read", "policy.audit.read",
   ],
   [ROLES.LAW_EMPLOYEE]: [
     "legal_documents",

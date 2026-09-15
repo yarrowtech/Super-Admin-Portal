@@ -208,6 +208,9 @@ app.use("/api/portal-support", routes.portalSupportRoutes);
 app.use("/api/logs", routes.logRoutes);
 app.use("/api/portfolios", routes.portfolioRoutes);
 app.use("/api/portfolio-hierarchy", routes.portfolioHierarchyRoutes);
+// Versioned central policy API. This is additive; legacy Law routes continue
+// serving existing legal-record screens during phased migration.
+app.use("/api/v1", routes.policyRoutes);
 
 logger.info({ routeCount: countExpressRoutes(app) }, "Routes loaded");
 

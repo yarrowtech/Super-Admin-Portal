@@ -14,7 +14,8 @@
     "db:final-seed": "node scripts/final_seed_users.js",
     "test:hr-integrity": "node --test __tests__/hrIntegrity.test.js",
     "audit:projects": "node scripts/auditProjectIntegrity.js",
-    "migrate:projects": "node scripts/auditProjectIntegrity.js --apply"
+    "migrate:projects": "node scripts/auditProjectIntegrity.js --apply",
+    "audit:policy-migration": "node scripts/auditPolicyMigration.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

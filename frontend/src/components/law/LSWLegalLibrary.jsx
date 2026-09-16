@@ -99,22 +99,20 @@ const DocViewer = ({ doc, versions, token, onClose, toast }) => {
     >
       <div className="-m-4 flex max-h-[65vh] overflow-hidden lg:-m-5">
           {/* Document content */}
-          <div id="legal-print-area" className="flex-1 overflow-auto bg-neutral-50 dark:bg-neutral-950 p-6">
+          <div id="legal-print-area" className="flex-1 overflow-auto bg-neutral-100 dark:bg-neutral-950 p-6">
             <div
-              className="mx-auto max-w-3xl bg-white dark:bg-neutral-900 rounded-xl p-10 shadow border border-neutral-100 dark:border-neutral-800"
-              style={{ fontFamily: "'Times New Roman', serif", fontSize: '12pt', lineHeight: 1.8 }}
+              className="mx-auto bg-white dark:bg-neutral-900 shadow"
+              style={{
+                width: '210mm',
+                minHeight: '297mm',
+                maxWidth: '100%',
+                padding: '20mm 25mm',
+                boxSizing: 'border-box',
+                fontFamily: "'Times New Roman', serif",
+                fontSize: '12pt',
+                lineHeight: 1.8,
+              }}
             >
-              <div style={{ borderBottom: '2px solid #1a1a1a', paddingBottom: '4mm', marginBottom: '8mm', display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '18pt', fontWeight: 700 }}>{doc.title}</div>
-                  <div style={{ fontSize: '9pt', color: '#555', marginTop: '2mm' }}>{doc.type} · Version {doc.currentVersion} · {doc.projectName || 'General'}</div>
-                </div>
-                <div style={{ textAlign: 'right', fontSize: '8pt', color: '#888' }}>
-                  <div>✓ APPROVED</div>
-                  <div>By: {doc.approvedByName || 'Legal approver'}</div>
-                  <div>Date: {formatDate(doc.approvedAt)}</div>
-                </div>
-              </div>
               <div dangerouslySetInnerHTML={{ __html: doc.latestContent || '<p style="color:#aaa">No content available.</p>' }} />
               <div style={{ borderTop: '1px solid #ddd', marginTop: '8mm', paddingTop: '3mm', fontSize: '8pt', color: '#999', display: 'flex', justifyContent: 'space-between' }}>
                 <span>Approved on {formatDate(doc.approvedAt)}</span>

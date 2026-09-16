@@ -102,9 +102,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
     initialContent = '',
     isReadOnly = false,
     onContentChange,
-    onSaveDraft,
     onAutoSave,
-    onSubmit,
     onDownloadPdf,
     onOpenClauseLibrary,
     onOpenHistory,
@@ -252,9 +250,6 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
     if (onDownloadPdf) { onDownloadPdf(); return; }
     window.print();
   };
-
-  const handleSaveDraft = () => onSaveDraft?.(editor?.getHTML() || '');
-  const handleSubmit = () => onSubmit?.(editor?.getHTML() || '');
 
   const toggleFS = () => {
     onToggleFullscreen?.(!isFullscreen);
@@ -539,12 +534,13 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
           id="legal-print-area"
           style={{
             background: 'white',
-            width: '794px',
+            width: '210mm',
             minHeight: '297mm',
             maxWidth: '100%',
             margin: '0 auto',
-            padding: 'clamp(32px, 7vw, 76px)',
-            boxShadow: '0 8px 28px rgba(15,23,42,0.12)',
+            padding: '20mm 25mm',
+            boxSizing: 'border-box',
+            boxShadow: '0 1px 4px rgba(15,23,42,0.15)',
             fontFamily: "'Times New Roman', 'Georgia', serif",
             fontSize: '12pt',
             lineHeight: '1.8',
@@ -554,22 +550,6 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
             transformOrigin: 'top center',
           }}
         >
-          <div className="print-header" style={{ marginBottom: '8mm', borderBottom: '2px solid #333', paddingBottom: '4mm' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontSize: '18pt', fontWeight: 700, color: '#1a1a1a' }}>{doc?.title || 'Legal Document'}</div>
-                <div style={{ fontSize: '9pt', color: '#666', marginTop: '2mm' }}>
-                  {doc?.documentNumber ? `${doc.documentNumber} • ` : ''}{doc?.type} • Version {doc?.currentVersion} • {doc?.projectName || ''}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', fontSize: '8pt', color: '#888' }}>
-                <div>Status: {doc?.status || 'Draft'}</div>
-                <div>Created by: {doc?.createdByName || '—'}</div>
-                {doc?.approvedAt && <div>Approved: {new Date(doc.approvedAt).toLocaleDateString()}</div>}
-              </div>
-            </div>
-          </div>
-
           <EditorContent editor={editor} className="legal-editor-body" />
 
           {doc?.status === 'Draft' && (
@@ -592,20 +572,6 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
           {lastSavedAt && !isReadOnly && <span>Autosaved {savedAgo}</span>}
         </div>
 
-        {!isReadOnly && (
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={handleSaveDraft} className="flex items-center gap-1.5 rounded-lg border border-neutral-300 dark:border-neutral-600 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
-              <span className="material-symbols-outlined text-sm">save</span>
-              Save Draft
-            </button>
-            {onSubmit && (
-              <button type="button" onClick={handleSubmit} className="flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:brightness-110">
-                <span className="material-symbols-outlined text-sm">send</span>
-                {doc?.status === 'Rejected' ? 'Submit Again' : 'Submit for Approval'}
-              </button>
-            )}
-          </div>
-        )}
         {isReadOnly && (
           <button type="button" onClick={handlePrint} className="flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110">
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>

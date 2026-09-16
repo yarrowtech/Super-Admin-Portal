@@ -372,9 +372,18 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
 const VersionPreviewModal = ({ version, onClose }) => (
   <Modal open onClose={onClose} title={`Preview: ${version.version}`} description={`By ${version.editedByName} • ${new Date(version.createdAt).toLocaleString()}`} className="sm:max-w-4xl">
     <div className="-m-4 lg:-m-5 flex max-h-[70vh] flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto p-6 bg-neutral-50 dark:bg-neutral-950">
-        <div className="mx-auto max-w-3xl bg-white dark:bg-neutral-900 rounded-xl p-8 shadow"
-          style={{ fontFamily: "'Times New Roman', serif", fontSize: '12pt', lineHeight: 1.8 }}
+      <div className="flex-1 overflow-auto p-6 bg-neutral-100 dark:bg-neutral-950">
+        <div className="mx-auto bg-white dark:bg-neutral-900 shadow"
+          style={{
+            width: '210mm',
+            minHeight: '297mm',
+            maxWidth: '100%',
+            padding: '20mm 25mm',
+            boxSizing: 'border-box',
+            fontFamily: "'Times New Roman', serif",
+            fontSize: '12pt',
+            lineHeight: 1.8,
+          }}
           dangerouslySetInnerHTML={{ __html: version.content }} />
       </div>
     </div>
@@ -601,9 +610,9 @@ const LegalDocManagement = () => {
   // ── Submit to CEO ───────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     const confirmed = await confirm({
-      title: 'Submit for approval?',
-      message: `"${activeDoc?.title}" will enter the configured approval workflow. You won't be able to edit it until the approver reviews it.${activeDoc?.status === 'Rejected' ? ' (Re-submission — a new major version will be created.)' : ''}`,
-      confirmLabel: 'Yes, Submit',
+      title: 'Finalize document?',
+      message: `"${activeDoc?.title}" will be marked Approved and locked from further edits.${activeDoc?.status === 'Rejected' ? ' (A new major version will be created.)' : ''}`,
+      confirmLabel: 'Yes, Finalize',
       cancelLabel: 'Cancel',
       tone: 'warning',
     });
@@ -1059,8 +1068,8 @@ const LegalDocManagement = () => {
                       onClick={handleSubmit}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-110"
                     >
-                      <span className="material-symbols-outlined text-[15px]">send</span>
-                      <span className="hidden sm:inline">Submit for Approval</span><span className="sm:hidden">Submit</span>
+                      <span className="material-symbols-outlined text-[15px]">verified</span>
+                      <span className="hidden sm:inline">Finalize Document</span><span className="sm:hidden">Finalize</span>
                     </button>
                   )}
                   {activeDoc.status === 'Pending' && (
@@ -1106,8 +1115,6 @@ const LegalDocManagement = () => {
                   onToggleFullscreen={setIsEditorFullscreen}
                   onContentChange={setEditorContent}
                   onAutoSave={isEditable ? handleAutoSave : undefined}
-                  onSaveDraft={isEditable ? handleSaveDraft : undefined}
-                  onSubmit={isEditable ? handleSubmit : undefined}
                   onDownloadPdf={handleDownloadPdf}
                   onOpenHistory={() => setShowVersionHistory(true)}
                 />

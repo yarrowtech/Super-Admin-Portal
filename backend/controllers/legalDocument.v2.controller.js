@@ -430,15 +430,20 @@ exports.submit = async (req, res) => {
     if (req.body.content !== undefined) doc.latestContent = req.body.content;
     if (!doc.latestContent || !String(doc.latestContent).trim()) return res.status(400).json({ success: false, error: 'Content required before submission' });
     Object.assign(doc, bumpVersion(doc, doc.status === 'Rejected'));
-    doc.status = 'Pending';
+    const actor = actorFrom(req);
+    doc.status = 'Approved';
+    doc.isLocked = true;
+    doc.isPublished = true;
     doc.submittedAt = new Date();
-    doc.approvedAt = null;
+    doc.approvedBy = actor.id;
+    doc.approvedByName = actor.name;
+    doc.approvedAt = new Date();
     doc.rejectedAt = null;
     doc.ceoRemarks = '';
     await doc.save();
-    await snapshot(doc, req, 'Submitted to CEO for approval');
-    await audit(req, doc._id, 'SUBMIT', 'Submitted to CEO for approval', { version: doc.currentVersion });
-    emit(req, 'legal:document:submitted', { documentId: doc._id, title: doc.title, status: doc.status });
+    await snapshot(doc, req, 'Finalized document');
+    await audit(req, doc._id, 'SUBMIT', 'Finalized document', { version: doc.currentVersion });
+    emit(req, 'legal:document:approved', { documentId: doc._id, title: doc.title, approvedBy: actor.name });
     return res.json({ success: true, data: doc });
   } catch (err) {
     logger.error({ err }, 'legalDocument.submit failed');
@@ -697,7 +702,7 @@ exports.generatePdf = async (req, res) => {
     const doc = await LegalDocument.findById(req.params.id).lean();
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
     ensureProjectAccess(req, doc.projectId);
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${doc.title || 'Legal Document'}</title><style>body{font-family:"Times New Roman",serif;margin:0;padding:32px;color:#111}.page{max-width:900px;margin:auto}.content{font-size:12pt;line-height:1.7}</style></head><body><div class="page"><h1>${doc.title || 'Legal Document'}</h1><div>Type: ${doc.type || 'Other'} | Version: ${doc.currentVersion || 'v1.0'} | Status: ${doc.status || 'Draft'}</div><hr><main class="content">${doc.latestContent || '<p>No content available.</p>'}</main></div></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${doc.title || 'Legal Document'}</title><style>body{font-family:"Times New Roman",serif;margin:0;padding:0;color:#1a1a1a}.header{border-bottom:2px solid #333;padding-bottom:4mm;margin-bottom:8mm}h1{font-size:18pt;font-weight:700;margin:0}.meta{font-size:9pt;color:#666;margin-top:2mm}.content{font-size:12pt;line-height:1.8}.content p{margin:0 0 4mm;text-align:justify}</style></head><body><div class="header"><h1>${doc.title || 'Legal Document'}</h1><div class="meta">Type: ${doc.type || 'Other'} | Version: ${doc.currentVersion || 'v1.0'} | Status: ${doc.status || 'Draft'}</div></div><main class="content">${doc.latestContent || '<p>No content available.</p>'}</main></body></html>`;
     let puppeteer;
     try {
       puppeteer = require('puppeteer');
@@ -708,12 +713,12 @@ exports.generatePdf = async (req, res) => {
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'load' });
-      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', right: '16mm', bottom: '20mm', left: '16mm' } });
+      const pdfBytes = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', right: '25mm', bottom: '20mm', left: '25mm' } });
       await audit(req, doc._id, 'PDF_GENERATE', 'PDF generated', { version: doc.currentVersion });
       const safeTitle = String(doc.title || 'legal-document').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'legal-document';
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}-${doc.currentVersion || 'v1-0'}.pdf"`);
-      return res.send(pdfBuffer);
+      return res.send(Buffer.from(pdfBytes));
     } finally {
       await browser.close();
     }

@@ -19,9 +19,6 @@ const emptyContract = {
   escrowAmount: '',
   startDate: '',
   endDate: '',
-  ndaSigned: false,
-  agreementSigned: false,
-  paymentTermsAccepted: false,
 };
 
 const PAYMENT_TYPE_OPTIONS = [
@@ -161,9 +158,9 @@ export default function LawContractsPage({ selectedProjectId = '', selectedProje
         currency: form.currency,
         escrowAmount: form.escrowAmount === '' ? undefined : Number(form.escrowAmount),
         terms: form.terms,
-        ndaSigned: Boolean(form.ndaSigned),
-        agreementSigned: Boolean(form.agreementSigned),
-        paymentTermsAccepted: Boolean(form.paymentTermsAccepted),
+        ndaSigned: true,
+        agreementSigned: true,
+        paymentTermsAccepted: true,
         startDate: form.startDate || undefined,
         endDate: form.endDate || undefined,
       }, token);
@@ -399,27 +396,6 @@ export default function LawContractsPage({ selectedProjectId = '', selectedProje
               className="w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
             />
           </label>
-
-          <div className="space-y-3 border-t border-neutral-100 pt-4 dark:border-neutral-800">
-            {[
-              ['ndaSigned', 'NDA signed'],
-              ['agreementSigned', 'Agreement signed'],
-              ['paymentTermsAccepted', 'Payment terms accepted'],
-            ].map(([key, label]) => (
-              <label key={key} className="flex items-center gap-3 text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                <input
-                  type="checkbox"
-                  checked={Boolean(form[key])}
-                  onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.checked }))}
-                  className="h-4 w-4 rounded border-neutral-300 accent-[var(--portal-accent)]"
-                />
-                {label}
-              </label>
-            ))}
-            <p className="pl-7 text-xs text-neutral-500 dark:text-neutral-400">
-              All three must be checked before LAW validation can activate the contract.
-            </p>
-          </div>
 
           {formError && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-200">

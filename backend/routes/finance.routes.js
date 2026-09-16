@@ -34,6 +34,7 @@ const canControlFinance = (req, res, next) => {
 // Finance dashboard
 router.get('/dashboard', financeController.getDashboard);
 router.get('/departments', financeController.getDepartmentFinancials);
+router.get('/departments/catalog', financeController.listDepartments);
 router.get('/requests', financeController.getFinanceRequests);
 router.get('/requests/:id', financeController.getFinanceRequestDetail);
 router.patch('/requests/:id/:action', canWriteFinance, financeController.updateFinanceRequestAction);

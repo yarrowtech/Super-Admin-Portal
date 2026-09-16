@@ -15,7 +15,11 @@
     "test:hr-integrity": "node --test __tests__/hrIntegrity.test.js",
     "audit:projects": "node scripts/auditProjectIntegrity.js",
     "migrate:projects": "node scripts/auditProjectIntegrity.js --apply",
-    "audit:policy-migration": "node scripts/auditPolicyMigration.js"
+    "audit:policy-migration": "node scripts/auditPolicyMigration.js",
+    "audit:departments": "node scripts/migrateDepartmentCanonical.js",
+    "migrate:departments": "node scripts/migrateDepartmentCanonical.js --apply",
+    "audit:financial-periods": "node scripts/seedFinancialPeriods.js",
+    "seed:financial-periods": "node scripts/seedFinancialPeriods.js --apply"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

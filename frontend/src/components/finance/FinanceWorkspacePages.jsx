@@ -167,8 +167,6 @@ const SkeletonBlock = () => (
   </div>
 );
 
-const FINANCE_DEPARTMENTS = ['IT', 'HR', 'Media', 'Law', 'Executive', 'Outsourcing'];
-
 // Overview-only KPI classification. dashboard.kpis[] carries no explicit importance
 // flag, so priority/polarity are assigned by domain judgement (see task notes).
 const PRIMARY_FINANCE_KPI_LABELS = new Set(['Total Cash', 'Outstanding Receivables', 'Pending Approvals', 'Total Expenses']);
@@ -202,12 +200,13 @@ export const FinanceOverviewPage = () => {
   const [departmentScope, setDepartmentScope] = useState('All Departments');
   const [dashboardSearch, setDashboardSearch] = useState('');
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [dashboardRes, invoicesRes, expensesRes, profitLossRes, balanceSheetRes] = await Promise.allSettled([
+    const [dashboardRes, invoicesRes, expensesRes, profitLossRes, balanceSheetRes, catalogRes] = await Promise.allSettled([
       financeApi.getDashboard(token),
       financeApi.getInvoices(token),
       financeApi.getExpenses(token),
       financeApi.getProfitLoss(token),
       financeApi.getBalanceSheet(token),
+      financeApi.getDepartmentCatalog(token),
     ]);
     return {
       dashboard: dashboardRes.status === 'fulfilled' ? unwrap(dashboardRes.value) : null,
@@ -215,6 +214,7 @@ export const FinanceOverviewPage = () => {
       expenses: expensesRes.status === 'fulfilled' ? toList(unwrap(expensesRes.value)) : [],
       profitLoss: profitLossRes.status === 'fulfilled' ? unwrap(profitLossRes.value) : { revenue: 0, expenses: 0, netIncome: 0 },
       balanceSheet: balanceSheetRes.status === 'fulfilled' ? unwrap(balanceSheetRes.value) : { assets: 0, liabilities: 0, equity: 0 },
+      departmentCatalog: catalogRes.status === 'fulfilled' ? toList(unwrap(catalogRes.value)) : [],
       // Per-source failure reasons from Promise.allSettled — lets the Overview surface
       // a real error on just the section(s) whose backing call failed, instead of the
       // whole page silently rendering zeros.
@@ -236,7 +236,8 @@ export const FinanceOverviewPage = () => {
   const sourceErrors = data.errors || {};
   const roleExperience = dashboard.roleExperience || (String(user?.role || '').toLowerCase() === 'finance_employee' ? 'employee' : 'head');
   const isFinanceHead = roleExperience === 'head';
-  const departments = ['All Departments', 'IT', 'HR', 'Media', 'Law', 'Executive', 'Outsourcing'];
+  const departmentCatalog = data.departmentCatalog || [];
+  const departments = ['All Departments', ...departmentCatalog.filter((d) => !d.isSystem).map((d) => d.name)];
   const scopedDepartmentRows = useMemo(() => {
     const rows = dashboard.departmentFinancials || [];
     const scoped = departmentScope === 'All Departments' ? rows : rows.filter((row) => row.department === departmentScope);
@@ -836,6 +837,8 @@ export const FinanceDepartmentProfilesPage = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  // URL identifier is the department's stable `code` (e.g. "IT"), not its display name,
+  // so links survive a department rename.
   const selectedDepartment = searchParams.get('department') || 'IT';
   const activeTab = searchParams.get('tab') || 'overview';
 
@@ -852,7 +855,8 @@ export const FinanceDepartmentProfilesPage = () => {
 
   const departments = data.departments || [];
   const profileData = data.profile || {};
-  const profile = profileData.profile || departments.find((item) => item.department === selectedDepartment) || {};
+  const profile = profileData.profile || departments.find((item) => item.code === selectedDepartment) || {};
+  const selectedDepartmentName = profile.department || selectedDepartment;
   const tabRows = {
     requests: profileData.requests || [],
     expenses: profileData.expenses || [],
@@ -885,7 +889,7 @@ export const FinanceDepartmentProfilesPage = () => {
             <div className="min-w-0">
               <p className="truncate text-sm font-black text-neutral-900 dark:text-neutral-100">{row.requestId || row.invoiceNumber || row.title || row.reference || row.label || row.action || row.type || 'Finance record'}</p>
               <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                {row.type || row.category || row.resourceType || selectedDepartment} - {fmtDateOnly(row.submittedDate || row.createdAt || row.dueDate)}
+                {row.type || row.category || row.resourceType || selectedDepartmentName} - {fmtDateOnly(row.submittedDate || row.createdAt || row.dueDate)}
               </p>
             </div>
             <div className="shrink-0 text-right">
@@ -904,15 +908,15 @@ export const FinanceDepartmentProfilesPage = () => {
     <main className="portal-page">
       <div className="portal-page-inner max-w-[1500px] space-y-5">
         <Header
-          title={`${selectedDepartment} Financial Profile`}
+          title={`${selectedDepartmentName} Financial Profile`}
           subtitle="Department financial context only: budgets, requests, payments, transactions and audit"
           icon="domain"
           user={user}
-          crumbs={['Finance', selectedDepartment]}
+          crumbs={['Finance', selectedDepartmentName]}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <select className={input} value={selectedDepartment} onChange={(event) => setDepartment(event.target.value)}>
-                {FINANCE_DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
+                {departments.map((department) => <option key={department.code} value={department.code}>{department.department}</option>)}
               </select>
               <Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard')}>Command Center</Button>
             </div>
@@ -940,10 +944,10 @@ export const FinanceDepartmentProfilesPage = () => {
                   <div className="space-y-2">
                     {departments.map((row) => (
                       <button
-                        key={row.department}
+                        key={row.code}
                         type="button"
-                        onClick={() => setDepartment(row.department)}
-                        className={`w-full rounded-xl border p-3 text-left transition ${row.department === selectedDepartment ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-neutral-200 bg-neutral-50 hover:border-emerald-300 dark:border-neutral-800 dark:bg-neutral-900'}`}
+                        onClick={() => setDepartment(row.code)}
+                        className={`w-full rounded-xl border p-3 text-left transition ${row.code === selectedDepartment ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-neutral-200 bg-neutral-50 hover:border-emerald-300 dark:border-neutral-800 dark:bg-neutral-900'}`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{row.department}</p>
@@ -970,7 +974,7 @@ export const FinanceDepartmentProfilesPage = () => {
                         <div className={statBox}><p className="text-xs font-bold uppercase text-neutral-500">Pending Payments</p><p className="mt-2 text-2xl font-black">{profile.pendingPayments || 0}</p></div>
                       </div>
                     )}
-                    {activeTab !== 'overview' && renderRowList(tabRows[activeTab] || [], `No ${activeTab} for ${selectedDepartment}`)}
+                    {activeTab !== 'overview' && renderRowList(tabRows[activeTab] || [], `No ${activeTab} for ${selectedDepartmentName}`)}
                   </div>
                 </div>
               </section>
@@ -994,18 +998,20 @@ const emptyInvoiceForm = {
   gstRate: 18,
   tdsRate: 0,
   discount: 0,
+  departmentId: '',
 };
 
 export const FinanceInvoicesPage = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [invoicesRes, notesRes] = await Promise.all([financeApi.getInvoices(token), financeApi.getInvoiceNotes(token)]);
-    return { invoices: toList(unwrap(invoicesRes)), notes: toList(unwrap(notesRes)) };
+    const [invoicesRes, notesRes, catalogRes] = await Promise.all([financeApi.getInvoices(token), financeApi.getInvoiceNotes(token), financeApi.getDepartmentCatalog(token)]);
+    return { invoices: toList(unwrap(invoicesRes)), notes: toList(unwrap(notesRes)), departmentCatalog: toList(unwrap(catalogRes)) };
   }, [token]);
 
   const invoices = data.invoices || [];
   const notes = data.notes || [];
+  const departmentCatalog = data.departmentCatalog || [];
 
   const [form, setForm] = useState(emptyInvoiceForm);
   const [editingId, setEditingId] = useState(null);
@@ -1027,6 +1033,7 @@ export const FinanceInvoicesPage = () => {
       gstRate: invoice.gstRate ?? firstItem.taxRate ?? 18,
       tdsRate: invoice.tdsRate || 0,
       discount: invoice.discount || 0,
+      departmentId: invoice.departmentId || '',
     });
   };
 
@@ -1043,6 +1050,7 @@ export const FinanceInvoicesPage = () => {
         discount: Number(form.discount) || 0,
         gstRate: Number(form.gstRate) || 0,
         tdsRate: Number(form.tdsRate) || 0,
+        departmentId: form.departmentId || undefined,
         items: [{ description: form.description, quantity: Number(form.quantity) || 0, rate: Number(form.rate) || 0, taxRate: Number(form.gstRate ?? form.taxRate) || 0 }],
       };
       if (editingId) {
@@ -1097,6 +1105,10 @@ export const FinanceInvoicesPage = () => {
                   <option value="sent">Sent</option>
                   <option value="paid">Paid</option>
                   <option value="overdue">Overdue</option>
+                </select>
+                <select className={input} value={form.departmentId} onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}>
+                  <option value="">No department</option>
+                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
                 </select>
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <div className="flex gap-2">
@@ -1316,12 +1328,13 @@ export const FinanceInvoiceDetailPage = () => {
 export const FinancePaymentsPage = () => {
   const { token, user } = useAuth();
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [paymentsRes, invoicesRes] = await Promise.all([financeApi.getPayments(token), financeApi.getInvoices(token)]);
-    return { payments: toList(unwrap(paymentsRes)), invoices: toList(unwrap(invoicesRes)) };
+    const [paymentsRes, invoicesRes, catalogRes] = await Promise.all([financeApi.getPayments(token), financeApi.getInvoices(token), financeApi.getDepartmentCatalog(token)]);
+    return { payments: toList(unwrap(paymentsRes)), invoices: toList(unwrap(invoicesRes)), departmentCatalog: toList(unwrap(catalogRes)) };
   }, [token]);
 
   const payments = data.payments || [];
   const invoices = data.invoices || [];
+  const departmentCatalog = data.departmentCatalog || [];
 
   const outstandingInvoices = useMemo(() => invoices.filter((invoice) => Number(invoice.balanceDue || 0) > 0 && invoice.status !== 'paid'), [invoices]);
   const customerBalances = useMemo(() => {
@@ -1333,7 +1346,7 @@ export const FinancePaymentsPage = () => {
     return Object.entries(map).map(([name, balance]) => ({ name, balance })).sort((a, b) => b.balance - a.balance);
   }, [outstandingInvoices]);
 
-  const [form, setForm] = useState({ invoice: '', customerName: '', amount: 0, method: 'bank', reference: '' });
+  const [form, setForm] = useState({ invoice: '', customerName: '', amount: 0, method: 'bank', reference: '', departmentId: '' });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -1343,10 +1356,10 @@ export const FinancePaymentsPage = () => {
     setFormError('');
     try {
       await financeApi.createPayment(
-        { invoice: form.invoice || undefined, customerName: form.customerName, amount: Number(form.amount) || 0, method: form.method, reference: form.reference },
+        { invoice: form.invoice || undefined, customerName: form.customerName, amount: Number(form.amount) || 0, method: form.method, reference: form.reference, departmentId: form.departmentId || undefined },
         token
       );
-      setForm({ invoice: '', customerName: '', amount: 0, method: 'bank', reference: '' });
+      setForm({ invoice: '', customerName: '', amount: 0, method: 'bank', reference: '', departmentId: '' });
       refetch();
     } catch (err) {
       setFormError(err.message || 'Failed to record payment');
@@ -1382,6 +1395,10 @@ export const FinancePaymentsPage = () => {
                   <option value="online">Online</option>
                 </select>
                 <input className={input} placeholder="Reference" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
+                <select className={input} value={form.departmentId} onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}>
+                  <option value="">No department</option>
+                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
+                </select>
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Payment'}</Button>
               </form>
@@ -1456,8 +1473,12 @@ export const FinancePaymentsPage = () => {
 
 export const FinanceExpensesPage = () => {
   const { token, user } = useAuth();
-  const { loading, error, data, refetch } = useAsync(async () => ({ expenses: toList(unwrap(await financeApi.getExpenses(token))) }), [token]);
+  const { loading, error, data, refetch } = useAsync(async () => {
+    const [expensesRes, catalogRes] = await Promise.all([financeApi.getExpenses(token), financeApi.getDepartmentCatalog(token)]);
+    return { expenses: toList(unwrap(expensesRes)), departmentCatalog: toList(unwrap(catalogRes)) };
+  }, [token]);
   const expenses = data.expenses || [];
+  const departmentCatalog = data.departmentCatalog || [];
 
   const [form, setForm] = useState({ title: '', category: '', amount: 0, status: 'submitted', department: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -1499,7 +1520,10 @@ export const FinanceExpensesPage = () => {
                 <input className={input} placeholder="Expense title" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
                 <input className={input} placeholder="Category" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} />
                 <input className={input} type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} />
-                <input className={input} placeholder="Department" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))} />
+                <select className={input} value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))} required>
+                  <option value="" disabled>Select department</option>
+                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d.code} value={d.name}>{d.name}</option>)}
+                </select>
                 <select className={input} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
                   <option value="submitted">Submitted</option>
                   <option value="verified">Verified</option>
@@ -1553,11 +1577,12 @@ export const FinanceExpensesPage = () => {
 export const FinanceBudgetsPage = () => {
   const { token, user } = useAuth();
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [budgetsRes, costCentersRes] = await Promise.all([financeApi.getBudgets(token), financeApi.getCostCenters(token)]);
-    return { budgets: toList(unwrap(budgetsRes)), costCenters: toList(unwrap(costCentersRes)) };
+    const [budgetsRes, costCentersRes, catalogRes] = await Promise.all([financeApi.getBudgets(token), financeApi.getCostCenters(token), financeApi.getDepartmentCatalog(token)]);
+    return { budgets: toList(unwrap(budgetsRes)), costCenters: toList(unwrap(costCentersRes)), departmentCatalog: toList(unwrap(catalogRes)) };
   }, [token]);
   const budgets = data.budgets || [];
   const costCenters = data.costCenters || [];
+  const departmentCatalog = data.departmentCatalog || [];
 
   const [budgetForm, setBudgetForm] = useState({ department: '', fiscalYear: '', allocated: 0, spent: 0, notes: '' });
   const [costCenterForm, setCostCenterForm] = useState({ name: '', code: '', department: '', budget: 0, spent: 0 });
@@ -1605,7 +1630,10 @@ export const FinanceBudgetsPage = () => {
             <div className={inner}>
               <SectionHdr title="Allocate Budget" />
               <form onSubmit={saveBudget} className="space-y-3">
-                <input className={input} placeholder="Department" value={budgetForm.department} onChange={(e) => setBudgetForm((p) => ({ ...p, department: e.target.value }))} required />
+                <select className={input} value={budgetForm.department} onChange={(e) => setBudgetForm((p) => ({ ...p, department: e.target.value }))} required>
+                  <option value="" disabled>Select department</option>
+                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d.code} value={d.name}>{d.name}</option>)}
+                </select>
                 <input className={input} placeholder="Fiscal year" value={budgetForm.fiscalYear} onChange={(e) => setBudgetForm((p) => ({ ...p, fiscalYear: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-2">
                   <input className={input} type="number" placeholder="Allocated" value={budgetForm.allocated} onChange={(e) => setBudgetForm((p) => ({ ...p, allocated: e.target.value }))} />
@@ -1620,7 +1648,10 @@ export const FinanceBudgetsPage = () => {
                 <form onSubmit={saveCostCenter} className="mt-3 space-y-2">
                   <input className={input} placeholder="Cost center name" value={costCenterForm.name} onChange={(e) => setCostCenterForm((p) => ({ ...p, name: e.target.value }))} required />
                   <input className={input} placeholder="Code" value={costCenterForm.code} onChange={(e) => setCostCenterForm((p) => ({ ...p, code: e.target.value }))} />
-                  <input className={input} placeholder="Department" value={costCenterForm.department} onChange={(e) => setCostCenterForm((p) => ({ ...p, department: e.target.value }))} />
+                  <select className={input} value={costCenterForm.department} onChange={(e) => setCostCenterForm((p) => ({ ...p, department: e.target.value }))}>
+                    <option value="">Select department</option>
+                    {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d.code} value={d.name}>{d.name}</option>)}
+                  </select>
                   <div className="grid grid-cols-2 gap-2">
                     <input className={input} type="number" placeholder="Budget" value={costCenterForm.budget} onChange={(e) => setCostCenterForm((p) => ({ ...p, budget: e.target.value }))} />
                     <input className={input} type="number" placeholder="Spent" value={costCenterForm.spent} onChange={(e) => setCostCenterForm((p) => ({ ...p, spent: e.target.value }))} />
@@ -2352,16 +2383,23 @@ export const FinanceActivityPage = () => {
   const [actingRequest, setActingRequest] = useState(null);
 
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [requestsRes, transactionsRes, auditRes] = await Promise.all([
+    const [requestsRes, transactionsRes, auditRes, catalogRes] = await Promise.all([
       financeApi.getRequests(token, { page: 1, limit: 25, ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)) }),
       financeApi.getTransactions(token, { page: 1, limit: 25 }),
       financeApi.getAuditLogs(token, { page: 1, limit: 25 }),
+      financeApi.getDepartmentCatalog(token),
     ]);
-    return { requests: toList(unwrap(requestsRes)), transactions: toList(unwrap(transactionsRes)), auditLogs: toList(unwrap(auditRes)) };
+    return {
+      requests: toList(unwrap(requestsRes)),
+      transactions: toList(unwrap(transactionsRes)),
+      auditLogs: toList(unwrap(auditRes)),
+      departmentCatalog: toList(unwrap(catalogRes)),
+    };
   }, [token, filters.search, filters.department, filters.status, filters.requestType, filters.priority]);
   const requests = data.requests || [];
   const transactions = data.transactions || [];
   const auditLogs = data.auditLogs || [];
+  const departmentCatalog = data.departmentCatalog || [];
   const availableRequestActions = (row) => {
     const status = String(row.status || '').toLowerCase();
     const actions = [];
@@ -2403,7 +2441,7 @@ export const FinanceActivityPage = () => {
                 <input className={`${input} md:col-span-2`} placeholder="Search request ID, employee, department..." value={filters.search} onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))} />
                 <select className={input} value={filters.department} onChange={(e) => setFilters((p) => ({ ...p, department: e.target.value }))}>
                   <option value="">All Departments</option>
-                  {FINANCE_DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
+                  {departmentCatalog.filter((d) => !d.isSystem).map((department) => <option key={department.code} value={department.name}>{department.name}</option>)}
                 </select>
                 <select className={input} value={filters.status} onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}>
                   <option value="">All Status</option>

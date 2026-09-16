@@ -41,7 +41,8 @@ const invoiceSchema = new mongoose.Schema(
     notes: { type: String, trim: true },
     terms: { type: String, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null }
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
+    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', index: true, default: null }
   },
   { timestamps: true }
 );

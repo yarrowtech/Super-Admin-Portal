@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Invoice = require('../../models/finance/Invoice');
 const InvoiceNote = require('../../models/finance/InvoiceNote');
 const Payment = require('../../models/finance/Payment');
@@ -13,8 +14,9 @@ const Account = require('../../models/finance/Account');
 const JournalEntry = require('../../models/finance/JournalEntry');
 const AuditLog = require('../../models/finance/AuditLog');
 const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
+const Department = require('../../models/department/Department');
+const { getFinanceStatusThresholds } = require('../../config/financeThresholds');
 
-const FINANCE_DEPARTMENTS = ['IT', 'HR', 'Media', 'Law', 'Executive', 'Outsourcing'];
 const FINANCE_HEAD_ROLES = new Set(['finance_manager', 'admin', 'super_admin']);
 const FINANCE_EMPLOYEE_ROLES = new Set(['finance_employee']);
 const FINANCE_OPERATOR_ROLES = new Set(['finance_employee', 'finance_manager', 'admin', 'super_admin']);
@@ -85,22 +87,53 @@ const deriveBudgetStatus = (allocated, spent) => {
   return { utilization, status: 'on-track' };
 };
 
-const normalizeExpensePayload = (payload = {}) => ({
-  title: payload.title || payload.description || payload.name || 'Expense Entry',
-  category: payload.category || 'general',
-  amount: Number(payload.amount) || 0,
-  department: payload.department || payload.costCenter || 'General',
-  incurredDate: payload.incurredDate || payload.date || new Date(),
-  notes: payload.notes || ''
-});
+// Resolves a request's department reference (by `departmentId` or a legacy free-text
+// `department`/`costCenter`/`name` string) against the canonical Department collection, and
+// returns both the real ref and the display name so callers can dual-write the deprecated
+// string field alongside it during the migration window.
+const resolveDepartmentFields = async (payload = {}) => {
+  const rawId = payload.departmentId;
+  if (rawId && mongoose.Types.ObjectId.isValid(rawId)) {
+    const dept = await Department.findById(rawId).select('name').lean();
+    if (dept) return { departmentId: dept._id, department: dept.name };
+  }
+  const rawName = String(payload.department || payload.costCenter || payload.name || '').trim();
+  if (rawName) {
+    const dept = await Department.findOne({
+      $or: [
+        { name: new RegExp(`^${rawName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        { code: rawName.toUpperCase() },
+      ],
+    }).select('name').lean();
+    if (dept) return { departmentId: dept._id, department: dept.name };
+  }
+  return { departmentId: null, department: rawName || 'General' };
+};
 
-const normalizeBudgetPayload = (payload = {}) => ({
-  department: payload.department || payload.name || 'General',
-  fiscalYear: payload.fiscalYear || payload.year || String(new Date().getFullYear()),
-  allocated: Number(payload.allocated ?? payload.allocatedAmount) || 0,
-  spent: Number(payload.spent ?? payload.spentAmount) || 0,
-  notes: payload.notes || ''
-});
+const normalizeExpensePayload = async (payload = {}) => {
+  const { departmentId, department } = await resolveDepartmentFields(payload);
+  return {
+    title: payload.title || payload.description || payload.name || 'Expense Entry',
+    category: payload.category || 'general',
+    amount: Number(payload.amount) || 0,
+    department,
+    departmentId,
+    incurredDate: payload.incurredDate || payload.date || new Date(),
+    notes: payload.notes || ''
+  };
+};
+
+const normalizeBudgetPayload = async (payload = {}) => {
+  const { departmentId, department } = await resolveDepartmentFields(payload);
+  return {
+    department,
+    departmentId,
+    fiscalYear: payload.fiscalYear || payload.year || String(new Date().getFullYear()),
+    allocated: Number(payload.allocated ?? payload.allocatedAmount) || 0,
+    spent: Number(payload.spent ?? payload.spentAmount) || 0,
+    notes: payload.notes || ''
+  };
+};
 
 const normalizePayrollPayload = (payload = {}) => {
   const year = Number(payload.year) || new Date().getFullYear();
@@ -210,12 +243,6 @@ const buildKpi = (label, value, previousValue, drillDown) => ({
   drillDown,
 });
 
-const getItemDepartment = (item) => {
-  const raw = item?.department || item?.costCenter || item?.meta?.department || '';
-  const found = FINANCE_DEPARTMENTS.find((dept) => dept.toLowerCase() === String(raw).toLowerCase());
-  return found || 'Finance';
-};
-
 const getCurrentAndPreviousRanges = () => {
   const now = new Date();
   const currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -224,34 +251,104 @@ const getCurrentAndPreviousRanges = () => {
   return { currentStart, previousStart, previousEnd };
 };
 
-const buildDepartmentFinancials = ({ invoices = [], expenses = [], payments = [], budgets = [] }) =>
-  FINANCE_DEPARTMENTS.map((department) => {
-    const departmentBudgets = budgets.filter((item) => getItemDepartment(item) === department);
-    const departmentExpenses = expenses.filter((item) => getItemDepartment(item) === department);
-    const departmentInvoices = invoices.filter((item) => getItemDepartment(item) === department);
-    const allocated = departmentBudgets.reduce((sum, item) => sum + (Number(item.allocated) || 0), 0);
-    const spent = departmentExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const budgetSpent = departmentBudgets.reduce((sum, item) => sum + (Number(item.spent) || 0), 0);
-    const used = Math.max(spent, budgetSpent);
-    const reserved = departmentExpenses
-      .filter((item) => ['submitted', 'verified'].includes(String(item.status || '').toLowerCase()))
-      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+const deriveDepartmentStatus = (utilization, remaining) => {
+  if (remaining < 0) return 'over-budget';
+  const t = getFinanceStatusThresholds();
+  if (utilization >= t.CRITICAL) return 'critical';
+  if (utilization >= t.WARNING) return 'warning';
+  if (utilization >= t.WATCH) return 'watch';
+  return 'healthy';
+};
+
+const aggregateById = (rows = []) => new Map(rows.map((row) => [String(row._id), row]));
+
+// Real Mongo aggregation grouped by `departmentId`, replacing the old pattern of pulling
+// full Invoice/Expense/Payment/Budget collections into Node and filtering them per entry of
+// a hardcoded department array. Every ACTIVE department gets a row (including zero-activity
+// ones), so a brand-new department shows up automatically with no code change.
+const computeDepartmentFinancials = async () => {
+  const [budgetAgg, expenseAgg, invoiceAgg, paymentAgg, approvalAgg, departments] = await Promise.all([
+    Budget.aggregate([
+      { $match: { departmentId: { $ne: null } } },
+      { $group: { _id: '$departmentId', allocated: { $sum: '$allocated' }, budgetSpent: { $sum: '$spent' } } },
+    ]),
+    Expense.aggregate([
+      { $match: { departmentId: { $ne: null } } },
+      { $group: {
+          _id: '$departmentId',
+          spent: { $sum: '$amount' },
+          reserved: { $sum: { $cond: [{ $in: ['$status', ['submitted', 'verified']] }, '$amount', 0] } },
+          pendingRequests: { $sum: { $cond: [{ $in: ['$status', ['submitted', 'pending']] }, 1, 0] } },
+          expenseCount: { $sum: 1 },
+      } },
+    ]),
+    Invoice.aggregate([
+      { $match: { departmentId: { $ne: null } } },
+      { $group: {
+          _id: '$departmentId',
+          outstandingInvoices: { $sum: { $cond: [{ $in: ['$status', ['draft', 'sent', 'overdue']] }, 1, 0] } },
+          invoiceCount: { $sum: 1 },
+      } },
+    ]),
+    Payment.aggregate([
+      { $match: { departmentId: { $ne: null } } },
+      { $group: {
+          _id: '$departmentId',
+          pendingPayments: { $sum: { $cond: [{ $ne: ['$status', 'reconciled'] }, 1, 0] } },
+          paymentCount: { $sum: 1 },
+      } },
+    ]),
+    ApprovalWorkflow.aggregate([
+      { $match: { module: 'finance', entityType: 'expense', status: 'pending', entityId: { $regex: /^[0-9a-fA-F]{24}$/ } } },
+      { $addFields: { entityObjectId: { $toObjectId: '$entityId' } } },
+      { $lookup: { from: 'financeexpenses', localField: 'entityObjectId', foreignField: '_id', as: 'expense' } },
+      { $unwind: '$expense' },
+      { $match: { 'expense.departmentId': { $ne: null } } },
+      { $group: { _id: '$expense.departmentId', pendingApprovals: { $sum: 1 } } },
+    ]),
+    Department.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean(),
+  ]);
+
+  const budgetMap = aggregateById(budgetAgg);
+  const expenseMap = aggregateById(expenseAgg);
+  const invoiceMap = aggregateById(invoiceAgg);
+  const paymentMap = aggregateById(paymentAgg);
+  const approvalMap = aggregateById(approvalAgg);
+
+  return departments.map((dept) => {
+    const id = String(dept._id);
+    const b = budgetMap.get(id) || {};
+    const e = expenseMap.get(id) || {};
+    const inv = invoiceMap.get(id) || {};
+    const pay = paymentMap.get(id) || {};
+    const appr = approvalMap.get(id) || {};
+
+    const allocated = b.allocated || 0;
+    const used = Math.max(e.spent || 0, b.budgetSpent || 0);
+    const reserved = e.reserved || 0;
     const remaining = allocated - used - reserved;
-    const utilization = allocated > 0 ? (used / allocated) * 100 : 0;
-    const status = remaining < 0 ? 'over-budget' : utilization >= 80 ? 'warning' : utilization >= 60 ? 'attention' : 'healthy';
+    const utilization = allocated > 0 ? Number(((used / allocated) * 100).toFixed(1)) : 0;
+
     return {
-      department,
+      departmentId: id,
+      code: dept.code,
+      department: dept.name,
       budget: allocated,
       spent: used,
       reserved,
       remaining,
-      utilization: Number(utilization.toFixed(1)),
-      pendingRequests: departmentExpenses.filter((item) => ['submitted', 'pending'].includes(String(item.status || '').toLowerCase())).length,
-      pendingInvoices: departmentInvoices.filter((item) => ['draft', 'sent', 'overdue'].includes(String(item.status || '').toLowerCase())).length,
-      pendingPayments: payments.filter((item) => getItemDepartment(item) === department && item.status !== 'reconciled').length,
-      status,
+      utilization,
+      pendingRequests: e.pendingRequests || 0,
+      pendingApprovals: appr.pendingApprovals || 0,
+      pendingInvoices: inv.outstandingInvoices || 0,
+      pendingPayments: pay.pendingPayments || 0,
+      expenseCount: e.expenseCount || 0,
+      invoiceCount: inv.invoiceCount || 0,
+      paymentCount: pay.paymentCount || 0,
+      status: deriveDepartmentStatus(utilization, remaining),
     };
   });
+};
 
 const buildFinanceRequests = ({ expenses = [], approvals = [] }) => {
   const approvalByEntity = new Map(
@@ -265,7 +362,8 @@ const buildFinanceRequests = ({ expenses = [], approvals = [] }) => {
       id: String(item._id),
       requestId: `REQ-${String(item._id).slice(-6).toUpperCase()}`,
       source: 'department',
-      department: getItemDepartment(item),
+      department: item.department || 'Unassigned',
+      departmentId: item.departmentId ? String(item.departmentId) : null,
       requester: item.submittedBy || 'Department user',
       employeeId: '',
       type: item.category === 'reimbursement' ? 'Reimbursement' : 'Expense',
@@ -480,7 +578,7 @@ exports.getDashboard = async (req, res) => {
     const currentSpend = currentExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const previousSpend = previousExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-    const departmentFinancials = buildDepartmentFinancials({ invoices, expenses, payments, budgets });
+    const departmentFinancials = await computeDepartmentFinancials();
 
     const financeRequests = buildFinanceRequests({ expenses, approvals: pendingApprovals });
     const pendingRequests = financeRequests
@@ -995,7 +1093,7 @@ exports.getExpenses = async (req, res) => {
 
 exports.createExpense = async (req, res) => {
   try {
-    const payload = normalizeExpensePayload(req.body || {});
+    const payload = await normalizeExpensePayload(req.body || {});
     const expense = await Expense.create({
       ...payload,
       submittedBy: req.user?.id,
@@ -1014,7 +1112,7 @@ exports.createExpense = async (req, res) => {
       action: 'finance_request_submitted',
       resourceType: 'finance_request',
       resourceId: expense._id,
-      meta: { department: expense.department, amount: expense.amount, category: expense.category },
+      meta: { department: expense.department, departmentId: expense.departmentId ? String(expense.departmentId) : null, amount: expense.amount, category: expense.category },
     });
     res.status(201).json({ success: true, data: expense });
   } catch (err) {
@@ -1029,7 +1127,8 @@ exports.updateExpense = async (req, res) => {
     if (req.body?.status && String(req.body.status).toLowerCase() !== String(existing.status || '').toLowerCase()) {
       return res.status(409).json({ success: false, error: 'Use finance request lifecycle actions to change status' });
     }
-    const payload = { ...normalizeExpensePayload(req.body || {}), ...req.body };
+    const normalized = await normalizeExpensePayload(req.body || {});
+    const payload = { ...normalized, ...req.body, department: normalized.department, departmentId: normalized.departmentId };
     const expense = await Expense.findByIdAndUpdate(req.params.id, payload, { new: true });
     res.status(200).json({ success: true, data: expense });
   } catch (err) {
@@ -1055,7 +1154,7 @@ exports.getBudgets = async (req, res) => {
 
 exports.createBudget = async (req, res) => {
   try {
-    const payload = normalizeBudgetPayload(req.body || {});
+    const payload = await normalizeBudgetPayload(req.body || {});
     const { utilization, status } = deriveBudgetStatus(payload.allocated, payload.spent);
     const budget = await Budget.create({
       ...payload,
@@ -1071,7 +1170,8 @@ exports.createBudget = async (req, res) => {
 
 exports.updateBudget = async (req, res) => {
   try {
-    const payload = { ...normalizeBudgetPayload(req.body || {}), ...req.body };
+    const normalized = await normalizeBudgetPayload(req.body || {});
+    const payload = { ...normalized, ...req.body, department: normalized.department, departmentId: normalized.departmentId };
     if (payload.allocated !== undefined || payload.spent !== undefined) {
       const existing = await Budget.findById(req.params.id);
       if (!existing) {
@@ -1104,7 +1204,8 @@ exports.getCostCenters = async (req, res) => {
 
 exports.createCostCenter = async (req, res) => {
   try {
-    const costCenter = await CostCenter.create(req.body);
+    const { departmentId, department } = await resolveDepartmentFields(req.body || {});
+    const costCenter = await CostCenter.create({ ...req.body, departmentId, department });
     res.status(201).json({ success: true, data: costCenter });
   } catch (err) {
     sendError(res, err, 'Failed to create cost center');
@@ -1113,7 +1214,13 @@ exports.createCostCenter = async (req, res) => {
 
 exports.updateCostCenter = async (req, res) => {
   try {
-    const costCenter = await CostCenter.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const payload = { ...req.body };
+    if (payload.departmentId !== undefined || payload.department !== undefined) {
+      const resolved = await resolveDepartmentFields(payload);
+      payload.departmentId = resolved.departmentId;
+      payload.department = resolved.department;
+    }
+    const costCenter = await CostCenter.findByIdAndUpdate(req.params.id, payload, { new: true });
     res.status(200).json({ success: true, data: costCenter });
   } catch (err) {
     sendError(res, err, 'Failed to update cost center');
@@ -1275,15 +1382,21 @@ exports.deleteInvoice = async (req, res) => {
   }
 };
 
+exports.listDepartments = async (req, res) => {
+  try {
+    const departments = await Department.find({ isActive: true })
+      .sort({ sortOrder: 1, name: 1 })
+      .select('name code description isSystem')
+      .lean();
+    res.status(200).json({ success: true, data: departments });
+  } catch (err) {
+    sendError(res, err, 'Failed to fetch department catalog');
+  }
+};
+
 exports.getDepartmentFinancials = async (req, res) => {
   try {
-    const [invoices, expenses, payments, budgets] = await Promise.all([
-      Invoice.find().sort({ createdAt: -1 }).lean(),
-      Expense.find().sort({ createdAt: -1 }).lean(),
-      Payment.find().sort({ paymentDate: -1 }).lean(),
-      Budget.find().sort({ createdAt: -1 }).lean(),
-    ]);
-    const rows = buildDepartmentFinancials({ invoices, expenses, payments, budgets });
+    const rows = await computeDepartmentFinancials();
     res.status(200).json({ success: true, data: rows });
   } catch (err) {
     sendError(res, err, 'Failed to fetch department financials');
@@ -1292,22 +1405,27 @@ exports.getDepartmentFinancials = async (req, res) => {
 
 exports.getDepartmentFinancialProfile = async (req, res) => {
   try {
-    const departmentParam = String(req.params.departmentId || '').trim();
-    const department = FINANCE_DEPARTMENTS.find((item) => item.toLowerCase() === departmentParam.toLowerCase());
+    const code = String(req.params.departmentId || '').trim().toUpperCase();
+    const department = await Department.findOne({ code, isActive: true }).lean();
     if (!department) return res.status(404).json({ success: false, error: 'Department not found' });
+    const deptId = department._id;
 
-    const [invoices, expenses, payments, budgets, approvals, auditLogs] = await Promise.all([
-      Invoice.find().sort({ createdAt: -1 }).lean(),
-      Expense.find({ department }).sort({ createdAt: -1 }).lean(),
-      Payment.find().sort({ paymentDate: -1 }).lean(),
-      Budget.find({ department }).sort({ createdAt: -1 }).lean(),
-      ApprovalWorkflow.find({ module: 'finance' }).sort({ createdAt: -1 }).lean(),
-      AuditLog.find().sort({ createdAt: -1 }).limit(50).lean(),
+    const [expenses, budgets, invoices, payments, expenseIds, auditLogs, allRows] = await Promise.all([
+      Expense.find({ departmentId: deptId }).sort({ createdAt: -1 }).lean(),
+      Budget.find({ departmentId: deptId }).sort({ createdAt: -1 }).lean(),
+      Invoice.find({ departmentId: deptId }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ departmentId: deptId }).sort({ paymentDate: -1 }).lean(),
+      Expense.find({ departmentId: deptId }).distinct('_id'),
+      AuditLog.find({ 'meta.departmentId': String(deptId) }).sort({ createdAt: -1 }).limit(50).lean(),
+      computeDepartmentFinancials(),
     ]);
+    const approvals = await ApprovalWorkflow.find({
+      module: 'finance',
+      entityType: 'expense',
+      entityId: { $in: expenseIds.map(String) },
+    }).sort({ createdAt: -1 }).lean();
 
-    const departmentInvoices = invoices.filter((item) => getItemDepartment(item) === department);
-    const departmentPayments = payments.filter((item) => getItemDepartment(item) === department);
-    const profile = buildDepartmentFinancials({ invoices, expenses, payments, budgets }).find((row) => row.department === department);
+    const profile = allRows.find((row) => row.departmentId === String(deptId)) || null;
     const requests = buildFinanceRequests({ expenses, approvals });
 
     res.status(200).json({
@@ -1316,16 +1434,16 @@ exports.getDepartmentFinancialProfile = async (req, res) => {
         profile,
         requests,
         expenses,
-        invoices: departmentInvoices,
+        invoices,
         budgets,
-        payments: departmentPayments,
+        payments,
         transactions: [
-          ...departmentInvoices.map((item) => ({ id: String(item._id), type: 'invoice', reference: item.invoiceNumber, amount: getAmountFromInvoice(item), status: item.status, createdAt: item.createdAt })),
+          ...invoices.map((item) => ({ id: String(item._id), type: 'invoice', reference: item.invoiceNumber, amount: getAmountFromInvoice(item), status: item.status, createdAt: item.createdAt })),
           ...expenses.map((item) => ({ id: String(item._id), type: 'expense', reference: item.title, amount: Number(item.amount) || 0, status: item.status, createdAt: item.createdAt })),
-          ...departmentPayments.map((item) => ({ id: String(item._id), type: 'payment', reference: item.reference, amount: Number(item.amount) || 0, status: item.status, createdAt: item.createdAt })),
+          ...payments.map((item) => ({ id: String(item._id), type: 'payment', reference: item.reference, amount: Number(item.amount) || 0, status: item.status, createdAt: item.createdAt })),
         ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
         documents: expenses.flatMap((item) => (item.documents || []).map((doc) => ({ ...doc, requestId: `REQ-${String(item._id).slice(-6).toUpperCase()}` }))),
-        activity: auditLogs.filter((item) => JSON.stringify(item.meta || {}).toLowerCase().includes(department.toLowerCase())),
+        activity: auditLogs,
       },
     });
   } catch (err) {

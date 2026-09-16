@@ -13,3 +13,4 @@ exports.Account = require('./Account');
 exports.JournalEntry = require('./JournalEntry');
 exports.AuditLog = require('./AuditLog');
 exports.ApprovalWorkflow = require('./ApprovalWorkflow');
+exports.FinancialPeriod = require('./FinancialPeriod');

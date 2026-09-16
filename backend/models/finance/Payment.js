@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const paymentSchema = new mongoose.Schema(
   {
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
+    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', index: true, default: null },
     invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceInvoice' },
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceClient' },
     customerName: { type: String, trim: true },

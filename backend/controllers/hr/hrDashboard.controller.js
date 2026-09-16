@@ -2144,7 +2144,16 @@ exports.getDepartments = async (req, res) => {
 
 exports.createDepartment = async (req, res) => {
   try {
-    const department = await Department.create(req.body);
+    const name = String(req.body?.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Department name is required' });
+    }
+    const code = String(req.body?.code || name)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const department = await Department.create({ ...req.body, name, code });
     res.status(201).json({
       success: true,
       message: 'Department created successfully',

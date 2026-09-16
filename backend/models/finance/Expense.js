@@ -18,7 +18,9 @@ const expenseSchema = new mongoose.Schema(
       enum: ['draft', 'submitted', 'pending', 'under_review', 'needs_information', 'verified', 'pending_approval', 'approved', 'rejected', 'processing', 'completed', 'cancelled', 'paid'],
       default: 'submitted'
     },
+    // @deprecated legacy free-text department — kept for backward compatibility during migration.
     department: { type: String, trim: true },
+    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', index: true, default: null },
     incurredDate: { type: Date, default: Date.now },
     documents: { type: [expenseDocumentSchema], default: [] },
     notes: { type: String, trim: true },

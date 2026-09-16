@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export const financeApi = {
   getDashboard: (token) => apiClient.get('/api/dept/finance/dashboard', token),
   getDepartmentFinancials: (token) => apiClient.get('/api/dept/finance/departments', token, { cache: false }),
+  getDepartmentCatalog: (token) => apiClient.get('/api/dept/finance/departments/catalog', token, { cache: false }),
   getDepartmentFinancialProfile: (token, departmentId) => apiClient.get(`/api/dept/finance/departments/${encodeURIComponent(departmentId)}`, token, { cache: false }),
   getRequests: (token, params = {}) => {
     const query = new URLSearchParams(params).toString();

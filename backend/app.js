@@ -4,6 +4,7 @@ require("dotenv").config();
 
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
@@ -153,10 +154,12 @@ if (isProd) {
 app.use('/api', cacheHeaders);
 
 app.get("/", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Super Admin API is running",
-  });
+  // Keep machine/API clients backward-compatible while giving direct browser
+  // visits to the API domain a clear, useful landing screen.
+  if (req.accepts(["html", "json"]) === "html") {
+    return res.status(200).sendFile(path.join(__dirname, "public", "api-landing.html"));
+  }
+  return res.status(200).json({ success: true, message: "Super Admin API is running" });
 });
 
 app.get("/health", (req, res) => {

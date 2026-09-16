@@ -8,7 +8,9 @@ const policyVersionSchema = new mongoose.Schema({
   changeSummary: { type: String, trim: true, default: '' },
   // Sanitized rich-text HTML. The API never returns this as executable markup.
   content: { type: String, default: '' },
-  status: { type: String, enum: ['DRAFT', 'PUBLISHED', 'ARCHIVED'], default: 'DRAFT', index: true },
+  // Version workflow is independent from the policy's current published state.
+  // This allows v1 to remain live while v2 proceeds through review.
+  status: { type: String, enum: ['DRAFT', 'IN_REVIEW', 'APPROVED', 'PUBLISHED', 'ARCHIVED'], default: 'DRAFT', index: true },
   effectiveDate: { type: Date, default: null },
   publishedAt: { type: Date, default: null },
   publishedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

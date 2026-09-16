@@ -76,11 +76,15 @@ async function updatePolicy(id, payload, actorId) {
 async function createVersion(policyId, payload, actorId) {
   const policy = await Policy.findOne({ _id: objectId(policyId), deletedAt: null });
   if (!policy) throw err('POLICY_NOT_FOUND', 404, 'Policy not found');
+  const existingDraft = await PolicyVersion.exists({ policyId: policy._id, status: { $in: ['DRAFT', 'IN_REVIEW', 'APPROVED'] } });
+  if (existingDraft) throw err('CONFLICT', 409, 'Finish or archive the existing draft version before creating another version');
   const latest = await PolicyVersion.findOne({ policyId: policy._id }).sort({ versionNumber: -1 }).lean();
   const versionNumber = latest ? latest.versionNumber + 1 : 1;
   const version = await PolicyVersion.create({ policyId: policy._id, versionNumber, title: cleanText(payload.title || policy.title), summary: cleanText(payload.summary), changeSummary: cleanText(payload.changeSummary), content: cleanText(payload.content), effectiveDate: payload.effectiveDate || policy.effectiveDate || null, createdBy: actorId });
   const incoming = Array.isArray(payload.sections) ? payload.sections.slice(0, 100) : [];
   if (incoming.length) await PolicySection.insertMany(incoming.map((section, index) => ({ policyVersionId: version._id, key: slugify(section.key || section.title), title: cleanText(section.title), content: cleanText(section.content), order: Number.isFinite(Number(section.order)) ? Number(section.order) : index, enabled: section.enabled !== false })));
+  // A new draft must never replace the currently published version. For a
+  // brand-new policy it is retained as a draft pointer solely for authoring.
   if (!policy.currentVersionId) { policy.currentVersionId = version._id; await policy.save(); }
   await audit(actorId, 'VERSION_CREATED', policy._id, {}, null, versionNumber); return version;
 }
@@ -88,15 +92,30 @@ const transitions = { DRAFT: ['IN_REVIEW'], IN_REVIEW: ['APPROVED'], APPROVED: [
 async function transition(policyId, target, actorId) {
   const policy = await Policy.findOne({ _id: objectId(policyId), deletedAt: null });
   if (!policy) throw err('POLICY_NOT_FOUND', 404, 'Policy not found');
-  if (!transitions[policy.status]?.includes(target)) throw err('INVALID_POLICY_STATE', 409, `Cannot transition ${policy.status} to ${target}`);
-  let version = policy.currentVersionId ? await PolicyVersion.findById(policy.currentVersionId) : null;
-  if (target === 'PUBLISHED') {
-    version = await PolicyVersion.findOne({ policyId: policy._id, status: 'DRAFT' }).sort({ versionNumber: -1 });
-    if (!version || version.status !== 'DRAFT') throw err('INVALID_POLICY_STATE', 409, 'A draft version is required before publishing');
-    if (version.effectiveDate && version.effectiveDate > new Date()) throw err('INVALID_POLICY_STATE', 409, 'Version is not yet effective');
-    version.status = 'PUBLISHED'; version.publishedAt = new Date(); version.publishedBy = actorId; await version.save(); policy.currentVersionId = version._id;
+  let version;
+  if (target === 'ARCHIVED' && policy.status === 'PUBLISHED') {
+    version = policy.currentVersionId ? await PolicyVersion.findById(policy.currentVersionId) : null;
+    if (!version || version.status !== 'PUBLISHED') throw err('INVALID_POLICY_STATE', 409, 'Published version is missing');
+    version.status = 'ARCHIVED'; await version.save();
+    policy.status = 'ARCHIVED'; policy.updatedBy = actorId; await policy.save();
+  } else {
+    // For revisions, transition the latest non-published version. The live
+    // policy and its live version remain usable until the replacement is published.
+    version = await PolicyVersion.findOne({ policyId: policy._id, status: target === 'IN_REVIEW' ? 'DRAFT' : target === 'APPROVED' ? 'IN_REVIEW' : 'APPROVED' }).sort({ versionNumber: -1 });
+    if (!version) throw err('INVALID_POLICY_STATE', 409, 'No version is available for this workflow transition');
+    if (!transitions[version.status]?.includes(target)) throw err('INVALID_POLICY_STATE', 409, `Cannot transition version ${version.status} to ${target}`);
+    if (target === 'PUBLISHED' && !String(version.content || '').trim() && !(await PolicySection.exists({ policyVersionId: version._id, enabled: true }))) {
+      throw err('VALIDATION_ERROR', 400, 'A policy version needs content or at least one enabled section before publishing');
+    }
+    if (target === 'PUBLISHED' && version.effectiveDate && version.effectiveDate > new Date()) throw err('INVALID_POLICY_STATE', 409, 'Version is not yet effective');
+    if (target === 'PUBLISHED') {
+      await PolicyVersion.updateMany({ policyId: policy._id, status: 'PUBLISHED', _id: { $ne: version._id } }, { $set: { status: 'ARCHIVED' } });
+      version.publishedAt = new Date(); version.publishedBy = actorId; policy.currentVersionId = version._id; policy.status = 'PUBLISHED';
+    } else if (policy.status !== 'PUBLISHED') {
+      policy.status = target;
+    }
+    version.status = target; await version.save(); policy.updatedBy = actorId; await policy.save();
   }
-  policy.status = target; policy.updatedBy = actorId; if (target === 'ARCHIVED') policy.deletedAt = null; await policy.save();
   const action = target === 'IN_REVIEW' ? 'REVIEW_SUBMITTED' : target === 'APPROVED' ? 'POLICY_APPROVED' : target === 'PUBLISHED' ? 'POLICY_PUBLISHED' : 'POLICY_ARCHIVED';
   await audit(actorId, action, policy._id, {}, null, version?.versionNumber || null); return policy;
 }
@@ -107,9 +126,17 @@ async function setAssignments(policyId, projectIds, actorId) {
   if (policy.scope === 'GLOBAL' && ids.length) throw err('VALIDATION_ERROR', 400, 'Global policies cannot have project assignments');
   if (policy.scope === 'SINGLE_PROJECT' && ids.length !== 1) throw err('VALIDATION_ERROR', 400, 'Single-project policy requires exactly one project');
   await Promise.all(ids.map((id) => assertProjectAccess({ role: 'super_admin' }, id)));
-  await PolicyProjectAssignment.deleteMany({ policyId: policy._id });
-  if (ids.length) await PolicyProjectAssignment.insertMany(ids.map((projectId) => ({ policyId: policy._id, projectId, required: true, enabled: true, createdBy: actorId })));
-  await audit(actorId, 'PROJECT_ASSIGNED', policy._id, { assignmentCount: ids.length });
+  const current = await PolicyProjectAssignment.find({ policyId: policy._id }).lean();
+  const currentIds = new Set(current.filter((row) => row.enabled).map((row) => String(row.projectId)));
+  const requested = new Set(ids);
+  await PolicyProjectAssignment.updateMany({ policyId: policy._id, projectId: { $nin: ids }, enabled: true }, { $set: { enabled: false } });
+  if (ids.length) await PolicyProjectAssignment.bulkWrite(ids.map((projectId) => ({
+    updateOne: { filter: { policyId: policy._id, projectId }, update: { $set: { enabled: true, required: true }, $setOnInsert: { createdBy: actorId } }, upsert: true }
+  })));
+  await Promise.all([
+    ...ids.filter((id) => !currentIds.has(id)).map((projectId) => audit(actorId, 'PROJECT_ASSIGNED', policy._id, {}, projectId)),
+    ...[...currentIds].filter((id) => !requested.has(id)).map((projectId) => audit(actorId, 'PROJECT_UNASSIGNED', policy._id, {}, projectId)),
+  ]);
   return PolicyProjectAssignment.find({ policyId: policy._id }).lean();
 }
 async function applicablePolicies(user, projectId) {
@@ -117,15 +144,33 @@ async function applicablePolicies(user, projectId) {
   const assigned = await PolicyProjectAssignment.find({ projectId: id, enabled: true }).distinct('policyId');
   const policies = await Policy.find({ deletedAt: null, status: 'PUBLISHED', $or: [{ scope: 'GLOBAL' }, { _id: { $in: assigned } }], $and: [{ $or: [{ effectiveDate: null }, { effectiveDate: { $lte: now } }] }, { $or: [{ expirationDate: null }, { expirationDate: { $gt: now } }] }] }).lean();
   const versionIds = policies.map((p) => p.currentVersionId).filter(Boolean);
-  const [versions, accepted] = await Promise.all([PolicyVersion.find({ _id: { $in: versionIds }, status: 'PUBLISHED' }).lean(), PolicyAcceptance.find({ userId: user.id, projectId: id, policyVersionId: { $in: versionIds } }).lean()]);
-  const versionMap = new Map(versions.map((version) => [String(version._id), version])); const acceptedSet = new Set(accepted.map((row) => String(row.policyVersionId)));
-  const items = await Promise.all(policies.map(async (policy) => { const version = versionMap.get(String(policy.currentVersionId)); return version ? { ...policy, currentVersion: { ...version, sections: await sectionsFor(version._id) }, accepted: acceptedSet.has(String(version._id)), outstanding: Boolean(policy.requiresAcceptance && !acceptedSet.has(String(version._id))) } : null; }));
+  const [versions, accepted] = await Promise.all([PolicyVersion.find({ _id: { $in: versionIds }, status: 'PUBLISHED' }).lean(), PolicyAcceptance.find({ userId: user.id, projectId: id, policyId: { $in: policies.map((row) => row._id) } }).lean()]);
+  const versionMap = new Map(versions.map((version) => [String(version._id), version]));
+  const exactAcceptance = new Set(accepted.map((row) => String(row.policyVersionId)));
+  const acceptedPolicyIds = new Set(accepted.map((row) => String(row.policyId)));
+  const items = await Promise.all(policies.map(async (policy) => {
+    const version = versionMap.get(String(policy.currentVersionId));
+    if (!version) return null;
+    const acceptedCurrentVersion = exactAcceptance.has(String(version._id));
+    const acceptedEarlierVersion = acceptedPolicyIds.has(String(policy._id));
+    const accepted = acceptedCurrentVersion || (!policy.requiresReAcceptance && acceptedEarlierVersion);
+    return { ...policy, currentVersion: { ...version, sections: await sectionsFor(version._id) }, accepted, outstanding: Boolean(policy.requiresAcceptance && !accepted) };
+  }));
   return { projectId: String(id), items: items.filter(Boolean), outstanding: items.filter((item) => item?.outstanding) };
 }
 async function acceptPolicy(user, policyId, projectId, ipAddress, userAgent) {
   const requirements = await applicablePolicies(user, projectId); const policy = requirements.items.find((item) => String(item._id) === String(policyId));
   if (!policy || !policy.currentVersion || !policy.requiresAcceptance) throw err('POLICY_NOT_PUBLISHED', 409, 'Policy is not available for acceptance');
-  const acceptance = await PolicyAcceptance.findOneAndUpdate({ userId: user.id, projectId: requirements.projectId, policyId: policy._id, policyVersionId: policy.currentVersion._id }, { $setOnInsert: { version: policy.currentVersion.versionNumber, acceptedAt: new Date(), ipAddress: String(ipAddress || '').slice(0, 128), userAgent: String(userAgent || '').slice(0, 512) } }, { upsert: true, new: true, setDefaultsOnInsert: true });
-  await audit(user.id, 'POLICY_ACCEPTED', policy._id, {}, requirements.projectId, policy.currentVersion.versionNumber); return acceptance;
+  const filter = { userId: user.id, projectId: requirements.projectId, policyId: policy._id, policyVersionId: policy.currentVersion._id };
+  const existing = await PolicyAcceptance.findOne(filter).lean();
+  if (existing) return existing; // idempotent retries do not create duplicate audit events.
+  try {
+    const acceptance = await PolicyAcceptance.create({ ...filter, version: policy.currentVersion.versionNumber, acceptedAt: new Date(), ipAddress: String(ipAddress || '').slice(0, 128), userAgent: String(userAgent || '').slice(0, 512) });
+    await audit(user.id, 'POLICY_ACCEPTED', policy._id, {}, requirements.projectId, policy.currentVersion.versionNumber);
+    return acceptance;
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+    return PolicyAcceptance.findOne(filter).lean();
+  }
 }
 module.exports = { listPolicies, getPolicy, createPolicy, updatePolicy, createVersion, transition, setAssignments, applicablePolicies, acceptPolicy, assertProjectAccess, page };

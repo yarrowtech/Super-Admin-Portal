@@ -7,16 +7,29 @@ const Project = require('../models/common/Project');
 const mongoose = require('mongoose');
 
 const send = (res, status, data) => res.status(status).json({ success: true, data });
-const run = (handler) => async (req, res, next) => { try { return await handler(req, res); } catch (error) { if (error.status) return res.status(error.status).json({ success: false, code: error.code || 'VALIDATION_ERROR', error: error.message }); return next(error); } };
+const run = (handler) => async (req, res, next) => {
+  try {
+    return await handler(req, res);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, code: error.code || 'VALIDATION_ERROR', error: error.message });
+    if (error?.name === 'ValidationError' || error?.name === 'CastError') {
+      return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', error: 'Invalid policy request' });
+    }
+    if (error?.code === 11000) {
+      return res.status(409).json({ success: false, code: 'CONFLICT', error: 'A policy with this unique value already exists' });
+    }
+    return next(error);
+  }
+};
 const actor = (req) => req.user.id || req.user._id;
 
 exports.list = run(async (req, res) => send(res, 200, await policy.listPolicies(req.query, req.user)));
 exports.get = run(async (req, res) => send(res, 200, await policy.getPolicy(req.params.policyId)));
 exports.create = run(async (req, res) => send(res, 201, await policy.createPolicy(req.body, actor(req))));
 exports.update = run(async (req, res) => send(res, 200, await policy.updatePolicy(req.params.policyId, req.body, actor(req))));
-exports.remove = run(async (req, res) => { const item = await policy.updatePolicy(req.params.policyId, { }, actor(req)); item.deletedAt = new Date(); await item.save(); return send(res, 200, { id: item._id }); });
-exports.versions = run(async (req, res) => { const { page, limit } = policy.page(req.query); const filter = { policyId: req.params.policyId }; const [items, total] = await Promise.all([PolicyVersion.find(filter).sort({ versionNumber: -1 }).skip((page - 1) * limit).limit(limit).lean(), PolicyVersion.countDocuments(filter)]); send(res, 200, { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } }); });
-exports.version = run(async (req, res) => { const item = await PolicyVersion.findOne({ _id: req.params.versionId, policyId: req.params.policyId }).lean(); if (!item) return res.status(404).json({ success: false, code: 'POLICY_VERSION_NOT_FOUND', error: 'Policy version not found' }); send(res, 200, item); });
+exports.remove = run(async (req, res) => { const item = await policy.updatePolicy(req.params.policyId, { }, actor(req)); item.deletedAt = new Date(); await item.save(); await PolicyAuditLog.create({ actorId: actor(req), action: 'POLICY_DELETED', entityType: 'Policy', entityId: String(item._id), policyId: item._id }); return send(res, 200, { id: item._id }); });
+exports.versions = run(async (req, res) => { await policy.getPolicy(req.params.policyId); const { page, limit } = policy.page(req.query); const filter = { policyId: req.params.policyId }; const [items, total] = await Promise.all([PolicyVersion.find(filter).sort({ versionNumber: -1 }).skip((page - 1) * limit).limit(limit).lean(), PolicyVersion.countDocuments(filter)]); send(res, 200, { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } }); });
+exports.version = run(async (req, res) => { await policy.getPolicy(req.params.policyId); if (!mongoose.Types.ObjectId.isValid(req.params.versionId)) return res.status(404).json({ success: false, code: 'POLICY_VERSION_NOT_FOUND', error: 'Policy version not found' }); const item = await PolicyVersion.findOne({ _id: req.params.versionId, policyId: req.params.policyId }).lean(); if (!item) return res.status(404).json({ success: false, code: 'POLICY_VERSION_NOT_FOUND', error: 'Policy version not found' }); send(res, 200, item); });
 exports.createVersion = run(async (req, res) => send(res, 201, await policy.createVersion(req.params.policyId, req.body, actor(req))));
 exports.transition = (state) => run(async (req, res) => send(res, 200, await policy.transition(req.params.policyId, state, actor(req))));
 exports.assignments = run(async (req, res) => send(res, 200, await PolicyProjectAssignment.find({ policyId: req.params.policyId }).populate('projectId', 'name projectCode').lean()));

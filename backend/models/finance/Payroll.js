@@ -4,6 +4,11 @@ const payrollSchema = new mongoose.Schema(
   {
     employee: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     employeeName: { type: String, trim: true },
+    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', index: true, default: null },
+    budgetId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceBudget', index: true, default: null },
+    financialPeriodId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceFinancialPeriod', index: true, default: null },
+    paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinancePayment', index: true, default: null },
+    journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceJournalEntry', index: true, default: null },
     periodStart: { type: Date, required: true },
     periodEnd: { type: Date, required: true },
     grossPay: { type: Number, required: true },

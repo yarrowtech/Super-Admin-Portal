@@ -37,3 +37,4 @@ exports.logRoutes = require("./log.routes");
 exports.portfolioRoutes = require("./portfolio.routes");
 exports.portfolioHierarchyRoutes = require("../modules/portfolio/portfolioHierarchy.routes");
 exports.policyRoutes = require("./policy.routes");
+exports.policyPublicRoutes = require("./policy.public.routes");

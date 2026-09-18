@@ -197,7 +197,7 @@ const FINANCE_KPI_TONE = {
 export const FinanceOverviewPage = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
-  const [departmentScope, setDepartmentScope] = useState('All Departments');
+  const [departmentScope, setDepartmentScope] = useState('');
   const [dashboardSearch, setDashboardSearch] = useState('');
   const { loading, error, data, refetch } = useAsync(async () => {
     const [dashboardRes, invoicesRes, expensesRes, profitLossRes, balanceSheetRes, catalogRes] = await Promise.allSettled([
@@ -237,10 +237,10 @@ export const FinanceOverviewPage = () => {
   const roleExperience = dashboard.roleExperience || (String(user?.role || '').toLowerCase() === 'finance_employee' ? 'employee' : 'head');
   const isFinanceHead = roleExperience === 'head';
   const departmentCatalog = data.departmentCatalog || [];
-  const departments = ['All Departments', ...departmentCatalog.filter((d) => !d.isSystem).map((d) => d.name)];
+  const departments = departmentCatalog.filter((d) => !d.isSystem);
   const scopedDepartmentRows = useMemo(() => {
     const rows = dashboard.departmentFinancials || [];
-    const scoped = departmentScope === 'All Departments' ? rows : rows.filter((row) => row.department === departmentScope);
+    const scoped = !departmentScope ? rows : rows.filter((row) => row.departmentId === departmentScope || row.code === departmentScope || row.department === departmentScope);
     const query = dashboardSearch.trim().toLowerCase();
     if (!query) return scoped;
     return scoped.filter((row) => row.department.toLowerCase().includes(query) || row.status.toLowerCase().includes(query));
@@ -344,7 +344,8 @@ export const FinanceOverviewPage = () => {
     const trendTone = direction === 'up'
       ? (polarity === 'higherIsBetter' ? 'positive' : 'negative')
       : (polarity === 'higherIsBetter' ? 'negative' : 'positive');
-    const changePercent = Number(item.changePercent || 0);
+    const hasComparison = item.comparisonAvailable !== false && item.changePercent !== null && item.changePercent !== undefined;
+    const changePercent = hasComparison ? Number(item.changePercent || 0) : 0;
     return {
       label: item.label,
       icon:
@@ -357,7 +358,7 @@ export const FinanceOverviewPage = () => {
                     : item.label === 'Outstanding Receivables' ? 'receipt_long'
                       : 'receipt',
       value: typeof item.value === 'number' ? formatCurrency(item.value) : item.value,
-      trend: { direction, value: `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%`, tone: trendTone },
+      trend: { direction, value: hasComparison ? `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%` : 'New baseline', tone: hasComparison ? trendTone : 'neutral' },
       drillDown: item.drillDown,
       priority: PRIMARY_FINANCE_KPI_LABELS.has(item.label) ? 'primary' : 'secondary',
       tone: item.label === 'Outstanding Receivables'
@@ -492,8 +493,9 @@ export const FinanceOverviewPage = () => {
                 onChange={(event) => setDepartmentScope(event.target.value)}
                 className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
               >
+                <option value="">All Departments</option>
                 {departments.map((department) => (
-                  <option key={department} value={department}>{department}</option>
+                  <option key={department._id || department.code} value={department._id || department.code}>{department.name}</option>
                 ))}
               </select>
               <Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard/reports')}>
@@ -597,7 +599,7 @@ export const FinanceOverviewPage = () => {
                     <button
                       key={row.department}
                       type="button"
-                      onClick={() => navigate(`/finance/dashboard/project-overview?department=${encodeURIComponent(row.department)}`)}
+                      onClick={() => navigate(`/finance/dashboard/project-overview?department=${encodeURIComponent(row.departmentId || row.code || row.department)}`)}
                       className="w-full rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-800"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -837,25 +839,25 @@ export const FinanceDepartmentProfilesPage = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  // URL identifier is the department's stable `code` (e.g. "IT"), not its display name,
-  // so links survive a department rename.
-  const selectedDepartment = searchParams.get('department') || 'IT';
+  const requestedDepartment = searchParams.get('department') || '';
   const activeTab = searchParams.get('tab') || 'overview';
 
   const { loading, error, data } = useAsync(async () => {
-    const [departmentsRes, profileRes] = await Promise.all([
-      financeApi.getDepartmentFinancials(token),
-      financeApi.getDepartmentFinancialProfile(token, selectedDepartment),
-    ]);
+    const departmentsRes = await financeApi.getDepartmentFinancials(token);
+    const departments = toList(unwrap(departmentsRes));
+    const selected = requestedDepartment || departments[0]?.departmentId || departments[0]?.code || '';
+    const profileRes = selected ? await financeApi.getDepartmentFinancialProfile(token, selected) : { data: {} };
     return {
-      departments: toList(unwrap(departmentsRes)),
+      departments,
+      selectedDepartment: selected,
       profile: unwrap(profileRes),
     };
-  }, [token, selectedDepartment]);
+  }, [token, requestedDepartment]);
 
   const departments = data.departments || [];
+  const selectedDepartment = data.selectedDepartment || requestedDepartment;
   const profileData = data.profile || {};
-  const profile = profileData.profile || departments.find((item) => item.code === selectedDepartment) || {};
+  const profile = profileData.profile || departments.find((item) => item.departmentId === selectedDepartment || item.code === selectedDepartment) || {};
   const selectedDepartmentName = profile.department || selectedDepartment;
   const tabRows = {
     requests: profileData.requests || [],
@@ -916,7 +918,7 @@ export const FinanceDepartmentProfilesPage = () => {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <select className={input} value={selectedDepartment} onChange={(event) => setDepartment(event.target.value)}>
-                {departments.map((department) => <option key={department.code} value={department.code}>{department.department}</option>)}
+                {departments.map((department) => <option key={department.departmentId || department.code} value={department.departmentId || department.code}>{department.department}</option>)}
               </select>
               <Button size="sm" variant="secondary" onClick={() => navigate('/finance/dashboard')}>Command Center</Button>
             </div>
@@ -944,10 +946,10 @@ export const FinanceDepartmentProfilesPage = () => {
                   <div className="space-y-2">
                     {departments.map((row) => (
                       <button
-                        key={row.code}
+                        key={row.departmentId || row.code}
                         type="button"
-                        onClick={() => setDepartment(row.code)}
-                        className={`w-full rounded-xl border p-3 text-left transition ${row.code === selectedDepartment ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-neutral-200 bg-neutral-50 hover:border-emerald-300 dark:border-neutral-800 dark:bg-neutral-900'}`}
+                        onClick={() => setDepartment(row.departmentId || row.code)}
+                        className={`w-full rounded-xl border p-3 text-left transition ${row.departmentId === selectedDepartment || row.code === selectedDepartment ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-neutral-200 bg-neutral-50 hover:border-emerald-300 dark:border-neutral-800 dark:bg-neutral-900'}`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{row.department}</p>
@@ -1480,7 +1482,7 @@ export const FinanceExpensesPage = () => {
   const expenses = data.expenses || [];
   const departmentCatalog = data.departmentCatalog || [];
 
-  const [form, setForm] = useState({ title: '', category: '', amount: 0, status: 'submitted', department: '' });
+  const [form, setForm] = useState({ title: '', category: '', amount: 0, status: 'submitted', departmentId: '' });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -1489,8 +1491,8 @@ export const FinanceExpensesPage = () => {
     setSubmitting(true);
     setFormError('');
     try {
-      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, status: form.status, department: form.department }, token);
-      setForm({ title: '', category: '', amount: 0, status: 'submitted', department: '' });
+      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, status: form.status, departmentId: form.departmentId }, token);
+      setForm({ title: '', category: '', amount: 0, status: 'submitted', departmentId: '' });
       refetch();
     } catch (err) {
       setFormError(err.message || 'Failed to submit expense');
@@ -1520,9 +1522,9 @@ export const FinanceExpensesPage = () => {
                 <input className={input} placeholder="Expense title" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
                 <input className={input} placeholder="Category" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} />
                 <input className={input} type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} />
-                <select className={input} value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))} required>
+                <select className={input} value={form.departmentId} onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))} required>
                   <option value="" disabled>Select department</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d.code} value={d.name}>{d.name}</option>)}
+                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
                 </select>
                 <select className={input} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
                   <option value="submitted">Submitted</option>
@@ -1584,8 +1586,8 @@ export const FinanceBudgetsPage = () => {
   const costCenters = data.costCenters || [];
   const departmentCatalog = data.departmentCatalog || [];
 
-  const [budgetForm, setBudgetForm] = useState({ department: '', fiscalYear: '', allocated: 0, spent: 0, notes: '' });
-  const [costCenterForm, setCostCenterForm] = useState({ name: '', code: '', department: '', budget: 0, spent: 0 });
+  const [budgetForm, setBudgetForm] = useState({ departmentId: '', fiscalYear: '', allocated: 0, spent: 0, notes: '' });
+  const [costCenterForm, setCostCenterForm] = useState({ name: '', code: '', departmentId: '', budget: 0, spent: 0 });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -1594,8 +1596,8 @@ export const FinanceBudgetsPage = () => {
     setSubmitting(true);
     setFormError('');
     try {
-      await financeApi.createBudget({ department: budgetForm.department, fiscalYear: budgetForm.fiscalYear, allocated: Number(budgetForm.allocated) || 0, spent: Number(budgetForm.spent) || 0, notes: budgetForm.notes }, token);
-      setBudgetForm({ department: '', fiscalYear: '', allocated: 0, spent: 0, notes: '' });
+      await financeApi.createBudget({ departmentId: budgetForm.departmentId, fiscalYear: budgetForm.fiscalYear, allocated: Number(budgetForm.allocated) || 0, spent: Number(budgetForm.spent) || 0, notes: budgetForm.notes }, token);
+      setBudgetForm({ departmentId: '', fiscalYear: '', allocated: 0, spent: 0, notes: '' });
       refetch();
     } catch (err) {
       setFormError(err.message || 'Failed to save budget');
@@ -1609,8 +1611,8 @@ export const FinanceBudgetsPage = () => {
     setSubmitting(true);
     setFormError('');
     try {
-      await financeApi.createCostCenter({ name: costCenterForm.name, code: costCenterForm.code, department: costCenterForm.department, budget: Number(costCenterForm.budget) || 0, spent: Number(costCenterForm.spent) || 0 }, token);
-      setCostCenterForm({ name: '', code: '', department: '', budget: 0, spent: 0 });
+      await financeApi.createCostCenter({ name: costCenterForm.name, code: costCenterForm.code, departmentId: costCenterForm.departmentId, budget: Number(costCenterForm.budget) || 0, spent: Number(costCenterForm.spent) || 0 }, token);
+      setCostCenterForm({ name: '', code: '', departmentId: '', budget: 0, spent: 0 });
       refetch();
     } catch (err) {
       setFormError(err.message || 'Failed to save cost center');
@@ -1630,9 +1632,9 @@ export const FinanceBudgetsPage = () => {
             <div className={inner}>
               <SectionHdr title="Allocate Budget" />
               <form onSubmit={saveBudget} className="space-y-3">
-                <select className={input} value={budgetForm.department} onChange={(e) => setBudgetForm((p) => ({ ...p, department: e.target.value }))} required>
+                <select className={input} value={budgetForm.departmentId} onChange={(e) => setBudgetForm((p) => ({ ...p, departmentId: e.target.value }))} required>
                   <option value="" disabled>Select department</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d.code} value={d.name}>{d.name}</option>)}
+                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
                 </select>
                 <input className={input} placeholder="Fiscal year" value={budgetForm.fiscalYear} onChange={(e) => setBudgetForm((p) => ({ ...p, fiscalYear: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-2">
@@ -1648,9 +1650,9 @@ export const FinanceBudgetsPage = () => {
                 <form onSubmit={saveCostCenter} className="mt-3 space-y-2">
                   <input className={input} placeholder="Cost center name" value={costCenterForm.name} onChange={(e) => setCostCenterForm((p) => ({ ...p, name: e.target.value }))} required />
                   <input className={input} placeholder="Code" value={costCenterForm.code} onChange={(e) => setCostCenterForm((p) => ({ ...p, code: e.target.value }))} />
-                  <select className={input} value={costCenterForm.department} onChange={(e) => setCostCenterForm((p) => ({ ...p, department: e.target.value }))}>
+                  <select className={input} value={costCenterForm.departmentId} onChange={(e) => setCostCenterForm((p) => ({ ...p, departmentId: e.target.value }))}>
                     <option value="">Select department</option>
-                    {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d.code} value={d.name}>{d.name}</option>)}
+                    {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
                   </select>
                   <div className="grid grid-cols-2 gap-2">
                     <input className={input} type="number" placeholder="Budget" value={costCenterForm.budget} onChange={(e) => setCostCenterForm((p) => ({ ...p, budget: e.target.value }))} />
@@ -2441,7 +2443,7 @@ export const FinanceActivityPage = () => {
                 <input className={`${input} md:col-span-2`} placeholder="Search request ID, employee, department..." value={filters.search} onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))} />
                 <select className={input} value={filters.department} onChange={(e) => setFilters((p) => ({ ...p, department: e.target.value }))}>
                   <option value="">All Departments</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((department) => <option key={department.code} value={department.name}>{department.name}</option>)}
+                  {departmentCatalog.filter((d) => !d.isSystem).map((department) => <option key={department._id} value={department._id}>{department.name}</option>)}
                 </select>
                 <select className={input} value={filters.status} onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}>
                   <option value="">All Status</option>
@@ -2562,7 +2564,7 @@ export const FinanceActivityPage = () => {
                 onChange={(event) => setActingRequest((prev) => ({ ...prev, comment: event.target.value }))}
               />
               <div className="mt-4 flex justify-between gap-2">
-                <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/finance/dashboard/project-overview?department=${encodeURIComponent(actingRequest.row.department)}&tab=requests`)}>
+                <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/finance/dashboard/project-overview?department=${encodeURIComponent(actingRequest.row.departmentId || actingRequest.row.department)}&tab=requests`)}>
                   Department Profile
                 </Button>
                 <div className="flex gap-2">

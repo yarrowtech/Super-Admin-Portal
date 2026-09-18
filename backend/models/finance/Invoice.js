@@ -15,7 +15,9 @@ const invoiceItemSchema = new mongoose.Schema(
 const invoiceSchema = new mongoose.Schema(
   {
     invoiceNumber: { type: String, required: true, unique: true, trim: true },
+    invoiceType: { type: String, enum: ['customer', 'vendor'], default: 'customer' },
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceClient' },
+    vendor: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceVendor' },
     clientName: { type: String, required: true, trim: true },
     clientEmail: { type: String, trim: true },
     clientPhone: { type: String, trim: true },
@@ -42,7 +44,13 @@ const invoiceSchema = new mongoose.Schema(
     terms: { type: String, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
-    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', index: true, default: null }
+    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', index: true, default: null },
+    financialPeriodId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceFinancialPeriod', index: true, default: null },
+    budgetId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceBudget', index: true, default: null },
+    requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceExpense', index: true, default: null },
+    approvalId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceApprovalWorkflow', index: true, default: null },
+    paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinancePayment', index: true, default: null },
+    journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceJournalEntry', index: true, default: null }
   },
   { timestamps: true }
 );

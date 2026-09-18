@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import FinanceSidebar from './FinanceSidebar';
 import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
+import { financeApi } from '../../services/finance';
 
 const basePath = '/finance/dashboard';
 
@@ -124,12 +125,6 @@ const FINANCE_SECTIONS = [
     icon: 'domain',
     children: [
       child('project-overview', 'All Departments', 'domain', `${basePath}/project-overview`),
-      child('department-it', 'IT', 'dns', `${basePath}/project-overview?department=IT`),
-      child('department-hr', 'HR', 'groups', `${basePath}/project-overview?department=HR`),
-      child('department-media', 'Media', 'campaign', `${basePath}/project-overview?department=Media`),
-      child('department-law', 'Law', 'gavel', `${basePath}/project-overview?department=Law`),
-      child('department-executive', 'Executive', 'workspace_premium', `${basePath}/project-overview?department=Executive`),
-      child('department-outsourcing', 'Outsourcing', 'handshake', `${basePath}/project-overview?department=Outsourcing`),
     ],
   },
   {
@@ -165,20 +160,61 @@ const FINANCE_SECTIONS = [
 const flattenSections = (sections) => sections.flatMap((item) => (Array.isArray(item.children) ? item.children : [item]));
 
 const FinancePortal = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [departmentCatalog, setDepartmentCatalog] = useState([]);
   const isFinanceHead = ['finance_manager', 'admin', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+  useEffect(() => {
+    let alive = true;
+    const loadDepartments = async () => {
+      try {
+        const response = await financeApi.getDepartmentCatalog(token);
+        const rows = response?.data ?? response ?? [];
+        if (alive) setDepartmentCatalog(Array.isArray(rows) ? rows.filter((department) => !department.isSystem) : []);
+      } catch {
+        if (alive) setDepartmentCatalog([]);
+      }
+    };
+    if (token) loadDepartments();
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+  const sectionsWithDepartments = useMemo(
+    () =>
+      FINANCE_SECTIONS.map((section) => {
+        if (section.id !== 'departments') return section;
+        return {
+          ...section,
+          children: [
+            child('project-overview', 'All Departments', 'domain', `${basePath}/project-overview`),
+            ...departmentCatalog.map((department) =>
+              child(
+                `department-${department._id || department.code}`,
+                department.name,
+                'domain',
+                `${basePath}/project-overview?department=${encodeURIComponent(department._id || department.code)}`
+              )
+            ),
+          ],
+        };
+      }),
+    [departmentCatalog]
+  );
   const visibleSections = useMemo(
-    () => FINANCE_SECTIONS.filter((item) => !item.restrictedToHead || isFinanceHead),
-    [isFinanceHead]
+    () => sectionsWithDepartments.filter((item) => !item.restrictedToHead || isFinanceHead),
+    [isFinanceHead, sectionsWithDepartments]
   );
   const flatSections = useMemo(() => flattenSections(visibleSections), [visibleSections]);
 
   const activeSection = useMemo(() => {
     const pathname = location.pathname;
     const search = location.search || '';
-    if (pathname.startsWith('/finance/dashboard/project-overview')) return 'project-overview';
+    if (pathname.startsWith('/finance/dashboard/project-overview')) {
+      const selectedDepartment = new URLSearchParams(search).get('department');
+      return selectedDepartment ? `department-${selectedDepartment}` : 'project-overview';
+    }
     if (pathname.startsWith('/finance/dashboard/invoices')) return 'invoices';
     if (pathname.startsWith('/finance/dashboard/payments')) return 'payments';
     if (pathname.startsWith('/finance/dashboard/expenses')) return 'expenses';

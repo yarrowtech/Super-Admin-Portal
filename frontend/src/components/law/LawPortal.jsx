@@ -4,6 +4,7 @@ import LawDashboard from './LawDashboard';
 import LawSidebar from './LawSidebar';
 import LawSettingsPage from './LawSettingsPage';
 import LawSupportPage from './LawSupportPage';
+import EfnbmmsPolicyPage from './EfnbmmsPolicyPage';
 import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 
@@ -29,7 +30,10 @@ const LawPortal = () => {
       <div className="pt-16 md:pt-0">
         {location.pathname === '/law/settings' ? <LawSettingsPage /> :
          location.pathname === '/law/support'  ? <LawSupportPage /> :
-         location.pathname.startsWith('/law/project-overview') ? <ProjectOverviewPage portalKey="law" portalName="Law Portal" /> :
+         // New canonical path /law/compliance/policy-api; /law/efnbmms-policy kept
+         // working indefinitely since it's not referenced anywhere outside this file.
+         location.pathname.startsWith('/law/compliance/policy-api') || location.pathname.startsWith('/law/efnbmms-policy') ? <EfnbmmsPolicyPage /> :
+         location.pathname.startsWith('/law/overview/projects') || location.pathname.startsWith('/law/project-overview') ? <ProjectOverviewPage portalKey="law" portalName="Law Portal" /> :
          <LawDashboard />}
       </div>
     </AppLayout>

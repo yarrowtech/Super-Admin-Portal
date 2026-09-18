@@ -5,7 +5,7 @@ import { lawApi } from '../../services/law';
 import { useAuth } from '../../context/AuthContext';
 import { CANONICAL_PROJECT_NAMES } from '../../config/projectNames';
 import { QK } from '../../utils/queryKeys';
-import { LAW_SECTIONS, getLawSection } from './lawModuleConfig';
+import { LAW_SECTIONS } from './lawModuleConfig';
 import LegalDocManagement from './LegalDocManagement';
 import LSWLegalLibrary from './LSWLegalLibrary';
 import LawOpsPage from './pages/LawOpsPage';
@@ -79,7 +79,26 @@ const isDueSoon = (record, days = 7) => {
   return diff > 0 && diff <= days * 24 * 60 * 60 * 1000;
 };
 
+// New, hierarchical canonical URLs (used by the sidebar/tiles going forward)
+// are checked first since some are nested under a prefix an old flat URL
+// also starts with (e.g. /law/contracts/agreements vs legacy /law/contracts).
+// The legacy flat URLs below remain fully supported indefinitely — they're
+// hardcoded in several places outside the Law module (Super Admin sidebar,
+// Employee portal quick-links, post-login redirect logic, a backend module
+// config) that this restructuring intentionally does not touch.
 const moduleToSection = (pathname = '') => {
+  if (pathname.startsWith('/law/documents/legal')) return 'legal-docs';
+  if (pathname.startsWith('/law/documents/library')) return 'legal-library';
+  if (pathname.startsWith('/law/contracts/agreements')) return 'agreements';
+  if (pathname.startsWith('/law/contracts/work-on-hire')) return 'work-hire';
+  if (pathname.startsWith('/law/contracts/third-party')) return 'third-party';
+  if (pathname.startsWith('/law/contracts/outsourcing')) return 'contracts';
+  if (pathname.startsWith('/law/compliance/privacy-policy')) return 'privacy-policy';
+  if (pathname.startsWith('/law/compliance/ip-copyright')) return 'ip-copyright';
+  if (pathname.startsWith('/law/risk/disputes')) return 'disputes-fraud';
+  if (pathname.startsWith('/law/overview/workflow')) return 'dashboard';
+
+  // Legacy flat URLs — kept working exactly as before, unchanged.
   if (pathname.startsWith('/law/legal-docs')) return 'legal-docs';
   if (pathname.startsWith('/law/legal-library')) return 'legal-library';
   if (pathname.startsWith('/law/contracts')) return 'contracts';
@@ -95,28 +114,30 @@ const moduleToSection = (pathname = '') => {
 // Legal Modules nav grid — shared by the grid itself and the dashboard's
 // QuickActions (which shortcuts to whichever modules actually have records).
 const LAW_DASHBOARD_SECTIONS = [
-  { id: 'contracts',      label: 'Contracts',        icon: 'contract',       path: '/law/contracts' },
-  { id: 'legal-docs',     label: 'Legal Documents',  icon: 'description',    path: '/law/legal-docs' },
-  { id: 'agreements',     label: 'Agreements',       icon: 'handshake',      path: '/law/agreements' },
-  { id: 'privacy-policy', label: 'Privacy & Policy', icon: 'policy',         path: '/law/policy' },
-  { id: 'disputes-fraud', label: 'Disputes & Fraud', icon: 'balance',        path: '/law/disputes' },
-  { id: 'ip-copyright',   label: 'IP & Copyright',   icon: 'copyright',      path: '/law/ip' },
-  { id: 'work-hire',      label: 'Work on Hire',     icon: 'assignment_ind', path: '/law/work-hire' },
-  { id: 'third-party',    label: 'Third Party',      icon: 'groups',         path: '/law/third-party' },
+  { id: 'contracts',      label: 'Contracts',        icon: 'contract',       path: '/law/contracts/outsourcing' },
+  { id: 'legal-docs',     label: 'Legal Documents',  icon: 'description',    path: '/law/documents/legal' },
+  { id: 'agreements',     label: 'Agreements',       icon: 'handshake',      path: '/law/contracts/agreements' },
+  { id: 'privacy-policy', label: 'Privacy & Policy', icon: 'policy',         path: '/law/compliance/privacy-policy' },
+  { id: 'disputes-fraud', label: 'Disputes & Fraud', icon: 'balance',        path: '/law/risk/disputes' },
+  { id: 'ip-copyright',   label: 'IP & Copyright',   icon: 'copyright',      path: '/law/compliance/ip-copyright' },
+  { id: 'work-hire',      label: 'Work on Hire',     icon: 'assignment_ind', path: '/law/contracts/work-on-hire' },
+  { id: 'third-party',    label: 'Third Party',      icon: 'groups',         path: '/law/contracts/third-party' },
 ];
 const sectionLabel = (id) => LAW_DASHBOARD_SECTIONS.find((s) => s.id === id)?.label || id || 'Unknown';
 
+// Canonical (new) path per section — used for all internal navigation
+// (tiles, QuickActions, breadcrumbs) going forward.
 const sectionToPath = (section = 'dashboard') => {
-  if (section === 'legal-docs') return '/law/legal-docs';
-  if (section === 'legal-library') return '/law/legal-library';
-  if (section === 'contracts') return '/law/contracts';
-  if (section === 'agreements') return '/law/agreements';
-  if (section === 'privacy-policy') return '/law/policy';
-  if (section === 'disputes-fraud') return '/law/disputes';
-  if (section === 'ip-copyright') return '/law/ip';
-  if (section === 'work-hire') return '/law/work-hire';
-  if (section === 'third-party') return '/law/third-party';
-  return '/law/dashboard';
+  if (section === 'legal-docs') return '/law/documents/legal';
+  if (section === 'legal-library') return '/law/documents/library';
+  if (section === 'contracts') return '/law/contracts/outsourcing';
+  if (section === 'agreements') return '/law/contracts/agreements';
+  if (section === 'privacy-policy') return '/law/compliance/privacy-policy';
+  if (section === 'disputes-fraud') return '/law/risk/disputes';
+  if (section === 'ip-copyright') return '/law/compliance/ip-copyright';
+  if (section === 'work-hire') return '/law/contracts/work-on-hire';
+  if (section === 'third-party') return '/law/contracts/third-party';
+  return '/law/overview/workflow';
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -278,7 +299,6 @@ const LawDashboard = () => {
   }, [token, activeSection, selectedProjectId]);
 
   const ActivePage = pageComponents[activeSection];
-  const sectionInfo = getLawSection(activeSection);
   const sectionRecords = records.filter((record) => record.section === activeSection);
   const projectOptions = useMemo(
     () =>
@@ -752,7 +772,7 @@ const LawDashboard = () => {
           sectionId={activeSection}
           searchTerm={searchTerm}
           error={error}
-          subtitle={`${user?.role?.toUpperCase() || 'LAW'} view • ${sectionInfo.summary}`}
+          subtitle=""
           records={sectionRecords}
           projects={projects}
           selectedProjectId={selectedProjectId}

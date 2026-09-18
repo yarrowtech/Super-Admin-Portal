@@ -12,8 +12,8 @@ const lawNavItems = [
     icon: 'dashboard',
     path: '/law/group/overview',
     children: [
-      { label: 'Workflow',         icon: 'gavel',       path: '/law/dashboard' },
-      { label: 'Project Overview', icon: 'folder_copy', path: '/law/project-overview' },
+      { label: 'Workflow',         icon: 'gavel',       path: '/law/overview/workflow' },
+      { label: 'Project Overview', icon: 'folder_copy', path: '/law/overview/projects' },
     ],
   },
   {
@@ -21,10 +21,10 @@ const lawNavItems = [
     icon: 'contract',
     path: '/law/group/contracts',
     children: [
-      { label: 'Outsourcing Contracts', icon: 'contract',       path: '/law/contracts' },
-      { label: 'Agreements',            icon: 'handshake',      path: '/law/agreements' },
-      { label: 'Work on Hire',          icon: 'assignment_ind', path: '/law/work-hire' },
-      { label: 'Third Party',           icon: 'groups',         path: '/law/third-party' },
+      { label: 'Outsourcing Contracts', icon: 'contract',       path: '/law/contracts/outsourcing' },
+      { label: 'Agreements',            icon: 'handshake',      path: '/law/contracts/agreements' },
+      { label: 'Work on Hire',          icon: 'assignment_ind', path: '/law/contracts/work-on-hire' },
+      { label: 'Third Party',           icon: 'groups',         path: '/law/contracts/third-party' },
     ],
   },
   {
@@ -32,8 +32,8 @@ const lawNavItems = [
     icon: 'description',
     path: '/law/group/documents',
     children: [
-      { label: 'Legal Documents',  icon: 'description',   path: '/law/legal-docs' },
-      { label: 'Approved Library', icon: 'library_books', path: '/law/legal-library' },
+      { label: 'Legal Documents',  icon: 'description',   path: '/law/documents/legal' },
+      { label: 'Approved Library', icon: 'library_books', path: '/law/documents/library' },
     ],
   },
   {
@@ -41,8 +41,9 @@ const lawNavItems = [
     icon: 'policy',
     path: '/law/group/compliance',
     children: [
-      { label: 'Privacy & Policy', icon: 'policy',    path: '/law/policy' },
-      { label: 'IP & Copyright',   icon: 'copyright', path: '/law/ip' },
+      { label: 'Privacy & Policy', icon: 'policy',    path: '/law/compliance/privacy-policy' },
+      { label: 'Policy API', icon: 'vpn_key', path: '/law/compliance/policy-api' },
+      { label: 'IP & Copyright',   icon: 'copyright', path: '/law/compliance/ip-copyright' },
     ],
   },
   {
@@ -50,7 +51,7 @@ const lawNavItems = [
     icon: 'balance',
     path: '/law/group/risk',
     children: [
-      { label: 'Disputes & Fraud', icon: 'balance', path: '/law/disputes' },
+      { label: 'Disputes & Fraud', icon: 'balance', path: '/law/risk/disputes' },
     ],
   },
 ];

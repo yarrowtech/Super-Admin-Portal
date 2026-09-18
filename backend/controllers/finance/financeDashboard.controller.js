@@ -7,6 +7,7 @@ const Budget = require('../../models/finance/Budget');
 const CostCenter = require('../../models/finance/CostCenter');
 const Payroll = require('../../models/finance/Payroll');
 const FinancialReport = require('../../models/finance/FinancialReport');
+const FinancialPeriod = require('../../models/finance/FinancialPeriod');
 const ComplianceRecord = require('../../models/finance/Compliance');
 const Vendor = require('../../models/finance/Vendor');
 const Client = require('../../models/finance/Client');
@@ -219,6 +220,118 @@ const calculateJournalTotals = (lines = []) => {
   );
 };
 
+const assertBalancedJournal = (lines = []) => {
+  const totals = calculateJournalTotals(lines);
+  if (!lines.length) {
+    const err = new Error('Journal entry requires at least one line');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (Math.abs(totals.totalDebit - totals.totalCredit) > 0.005) {
+    const err = new Error('Journal entry is unbalanced: total debit must equal total credit');
+    err.statusCode = 422;
+    throw err;
+  }
+  return totals;
+};
+
+const buildDepartmentQuery = async (department) => {
+  const raw = String(department || '').trim();
+  if (!raw) return {};
+  if (mongoose.Types.ObjectId.isValid(raw)) return { departmentId: raw };
+  const resolved = await Department.findOne({
+    $or: [
+      { name: new RegExp(`^${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      { code: raw.toUpperCase() },
+    ],
+  }).select('_id name').lean();
+  if (!resolved) return { department: raw };
+  return { $or: [{ departmentId: resolved._id }, { department: resolved.name }] };
+};
+
+const assertPositiveMoney = (value, label = 'amount') => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    const err = new Error(`${label} must be greater than zero`);
+    err.statusCode = 422;
+    throw err;
+  }
+  return numeric;
+};
+
+const assertOpenFinancialPeriod = async (financialPeriodId) => {
+  if (!financialPeriodId) return null;
+  if (!mongoose.Types.ObjectId.isValid(financialPeriodId)) {
+    const err = new Error('Invalid financial period');
+    err.statusCode = 400;
+    throw err;
+  }
+  const period = await FinancialPeriod.findById(financialPeriodId).lean();
+  if (!period) {
+    const err = new Error('Financial period not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (period.isClosed) {
+    const err = new Error('Financial period is closed');
+    err.statusCode = 409;
+    throw err;
+  }
+  return period;
+};
+
+const findActiveBudget = async ({ departmentId, fiscalYear }) => {
+  if (!departmentId) return null;
+  const query = { departmentId };
+  if (fiscalYear) query.fiscalYear = fiscalYear;
+  return Budget.findOne(query).sort({ createdAt: -1 });
+};
+
+const getBudgetSnapshot = async ({ departmentId, fiscalYear, excludeExpenseId } = {}) => {
+  const budget = await findActiveBudget({ departmentId, fiscalYear });
+  if (!budget) return null;
+  const expenseQuery = {
+    departmentId: budget.departmentId,
+    ...(excludeExpenseId ? { _id: { $ne: excludeExpenseId } } : {}),
+  };
+  const expenses = await Expense.find(expenseQuery).select('amount status budgetId').lean();
+  const spentStatuses = new Set(['completed', 'paid']);
+  const reservedStatuses = new Set(['submitted', 'pending', 'under_review', 'needs_information', 'verified', 'pending_approval', 'approved', 'processing']);
+  const actualSpent = expenses
+    .filter((expense) => spentStatuses.has(String(expense.status || '').toLowerCase()))
+    .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const reserved = expenses
+    .filter((expense) => reservedStatuses.has(String(expense.status || '').toLowerCase()))
+    .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const allocated = Number(budget.allocated || 0);
+  const spent = Math.max(Number(budget.spent || 0), actualSpent);
+  const available = allocated - spent - reserved;
+  return { budget, allocated, spent, reserved, available };
+};
+
+const assertBudgetAvailable = async ({ departmentId, amount, fiscalYear, excludeExpenseId }) => {
+  if (!departmentId) return null;
+  const snapshot = await getBudgetSnapshot({ departmentId, fiscalYear, excludeExpenseId });
+  if (!snapshot) {
+    const err = new Error('No department budget is available for this financial transaction');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (Number(amount || 0) > snapshot.available) {
+    const err = new Error('Insufficient available budget');
+    err.statusCode = 409;
+    err.details = {
+      allocated: snapshot.allocated,
+      spent: snapshot.spent,
+      reserved: snapshot.reserved,
+      available: snapshot.available,
+      requested: Number(amount || 0),
+    };
+    throw err;
+  }
+  return snapshot;
+};
+
 const getAmountFromInvoice = (invoice) => Number(invoice.total ?? invoice.amount ?? invoice.totalAmount ?? 0) || 0;
 const getBalanceFromInvoice = (invoice) => {
   const explicit = Number(invoice.balanceDue);
@@ -230,18 +343,22 @@ const percentChange = (current, previous) => {
   const now = Number(current) || 0;
   const before = Number(previous) || 0;
   if (!before && !now) return 0;
-  if (!before) return 100;
+  if (!before) return null;
   return ((now - before) / Math.abs(before)) * 100;
 };
 
-const buildKpi = (label, value, previousValue, drillDown) => ({
-  label,
-  value,
-  previousValue,
-  changePercent: Number(percentChange(value, previousValue).toFixed(1)),
-  trend: value >= previousValue ? 'up' : 'down',
-  drillDown,
-});
+const buildKpi = (label, value, previousValue, drillDown) => {
+  const change = percentChange(value, previousValue);
+  return {
+    label,
+    value,
+    previousValue,
+    changePercent: change === null ? null : Number(change.toFixed(1)),
+    comparisonAvailable: change !== null,
+    trend: value >= previousValue ? 'up' : 'down',
+    drillDown,
+  };
+};
 
 const getCurrentAndPreviousRanges = () => {
   const now = new Date();
@@ -451,6 +568,11 @@ const transitionFinanceRequest = async ({ req, requestId, action, comment = '' }
       status: 'pending',
     });
     if (workflow) {
+      if (String(workflow.requestedBy || '') === String(req.user?.id || '')) {
+        const err = new Error('Users cannot approve their own finance requests');
+        err.statusCode = 403;
+        throw err;
+      }
       const pendingStep = workflow.steps.find((step) => step.status === 'pending' && ['finance_manager', 'admin', 'super_admin'].includes(String(step.role || '').toLowerCase()));
       if (pendingStep) {
         pendingStep.status = 'approved';
@@ -476,6 +598,15 @@ const transitionFinanceRequest = async ({ req, requestId, action, comment = '' }
   if (action === 'approve') expense.approvedBy = req.user?.id;
   if (action === 'process' || action === 'complete') expense.processedBy = req.user?.id;
   if (action === 'request_information') expense.requestedInfo = comment;
+  if (['reject', 'cancel'].includes(action)) {
+    expense.budgetReleasedAt = new Date();
+  }
+  if (action === 'complete' && !expense.budgetConsumedAt) {
+    expense.budgetConsumedAt = new Date();
+    if (expense.budgetId) {
+      await Budget.findByIdAndUpdate(expense.budgetId, { $inc: { spent: Number(expense.amount || 0) } });
+    }
+  }
   expense.statusHistory.push({
     from: previousStatus,
     to: rule.to,
@@ -497,7 +628,18 @@ const transitionFinanceRequest = async ({ req, requestId, action, comment = '' }
     action: `finance_request_${action}`,
     resourceType: 'finance_request',
     resourceId: expense._id,
-    meta: { from: previousStatus, to: rule.to, department: expense.department, amount: expense.amount, comment, workflowId: workflow?._id },
+    meta: {
+      from: previousStatus,
+      to: rule.to,
+      department: expense.department,
+      departmentId: expense.departmentId ? String(expense.departmentId) : null,
+      budgetId: expense.budgetId ? String(expense.budgetId) : null,
+      amount: expense.amount,
+      comment,
+      workflowId: workflow?._id,
+      budgetReleasedAt: expense.budgetReleasedAt,
+      budgetConsumedAt: expense.budgetConsumedAt,
+    },
     riskFlag: ['approve', 'reject', 'cancel'].includes(action) ? 'medium' : 'none',
   });
 
@@ -721,7 +863,7 @@ exports.createJournalEntry = async (req, res) => {
   try {
     const payload = req.body || {};
     const lines = normalizeJournalLines(payload.lines);
-    const totals = calculateJournalTotals(lines);
+    const totals = assertBalancedJournal(lines);
     const entryNumber = payload.entryNumber || buildEntryNumber();
     const entry = await JournalEntry.create({
       ...payload,
@@ -733,16 +875,23 @@ exports.createJournalEntry = async (req, res) => {
     });
     res.status(201).json({ success: true, data: entry });
   } catch (err) {
-    sendError(res, err, 'Failed to create journal entry');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create journal entry', details: err.message });
   }
 };
 
 exports.updateJournalEntry = async (req, res) => {
   try {
     const payload = req.body || {};
+    const existing = await JournalEntry.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Journal entry not found' });
+    }
+    if (existing.status === 'posted') {
+      return res.status(409).json({ success: false, error: 'Posted journal entries cannot be edited. Create a reversal or adjustment entry.' });
+    }
     if (payload.lines) {
       const lines = normalizeJournalLines(payload.lines);
-      const totals = calculateJournalTotals(lines);
+      const totals = assertBalancedJournal(lines);
       payload.lines = lines;
       payload.totalDebit = totals.totalDebit;
       payload.totalCredit = totals.totalCredit;
@@ -750,7 +899,7 @@ exports.updateJournalEntry = async (req, res) => {
     const entry = await JournalEntry.findByIdAndUpdate(req.params.id, payload, { new: true });
     res.status(200).json({ success: true, data: entry });
   } catch (err) {
-    sendError(res, err, 'Failed to update journal entry');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update journal entry', details: err.message });
   }
 };
 
@@ -760,6 +909,10 @@ exports.postJournalEntry = async (req, res) => {
     if (!entry) {
       return res.status(404).json({ success: false, error: 'Journal entry not found' });
     }
+    if (entry.status === 'posted') {
+      return res.status(409).json({ success: false, error: 'Journal entry is already posted' });
+    }
+    assertBalancedJournal(entry.lines);
     entry.status = 'posted';
     entry.postedAt = new Date();
     await entry.save();
@@ -903,15 +1056,19 @@ exports.getItrSummary = async (req, res) => {
  */
 exports.getInvoices = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, department } = req.query;
     const query = {};
+    const and = [];
     if (status) query.status = status;
     if (search) {
-      query.$or = [
+      and.push({ $or: [
         { invoiceNumber: new RegExp(search, 'i') },
         { clientName: new RegExp(search, 'i') }
-      ];
+      ] });
     }
+    const departmentQuery = await buildDepartmentQuery(department);
+    if (Object.keys(departmentQuery).length) and.push(departmentQuery);
+    if (and.length) query.$and = and;
     const invoices = await Invoice.find(query).sort({ createdAt: -1 });
     res.status(200).json({ success: true, data: invoices });
   } catch (err) {
@@ -922,13 +1079,21 @@ exports.getInvoices = async (req, res) => {
 exports.createInvoice = async (req, res) => {
   try {
     const payload = req.body || {};
-  const items = normalizeInvoiceItems(payload.items);
+    await assertOpenFinancialPeriod(payload.financialPeriodId);
+    const { departmentId, department } = await resolveDepartmentFields(payload);
+    const items = normalizeInvoiceItems(payload.items);
     const totals = calculateInvoiceTotals(items, payload.discount, payload.gstRate, payload.tdsRate);
+    if (totals.total <= 0) return res.status(422).json({ success: false, error: 'Invoice total must be greater than zero' });
     const invoiceNumber = payload.invoiceNumber || buildInvoiceNumber();
+    const duplicate = await Invoice.findOne({ invoiceNumber }).lean();
+    if (duplicate) return res.status(409).json({ success: false, error: 'Invoice number already exists' });
     const amountPaid = Number(payload.amountPaid) || 0;
+    if (amountPaid < 0 || amountPaid > totals.total) return res.status(422).json({ success: false, error: 'Amount paid must be between zero and invoice total' });
     const balanceDue = totals.total - amountPaid;
     const invoice = await Invoice.create({
       ...payload,
+      department,
+      departmentId,
       invoiceNumber,
       items,
       ...totals,
@@ -936,9 +1101,16 @@ exports.createInvoice = async (req, res) => {
       balanceDue,
       createdBy: req.user?.id
     });
+    await logAudit({
+      req,
+      action: 'invoice_created',
+      resourceType: 'invoice',
+      resourceId: invoice._id,
+      meta: { invoiceNumber: invoice.invoiceNumber, departmentId: invoice.departmentId, total: invoice.total, balanceDue: invoice.balanceDue },
+    });
     res.status(201).json({ success: true, data: invoice });
   } catch (err) {
-    sendError(res, err, 'Failed to create invoice');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create invoice', details: err.details || err.message });
   }
 };
 
@@ -951,6 +1123,14 @@ exports.updateInvoice = async (req, res) => {
     }
     const shouldRecalculate =
       payload.items || payload.gstRate !== undefined || payload.tdsRate !== undefined || payload.discount !== undefined;
+    await assertOpenFinancialPeriod(payload.financialPeriodId || existing.financialPeriodId);
+    if (['paid', 'void'].includes(String(existing.status || '').toLowerCase()) && shouldRecalculate) {
+      return res.status(409).json({ success: false, error: 'Paid or cancelled invoices cannot be re-amounted' });
+    }
+    if (payload.invoiceNumber && payload.invoiceNumber !== existing.invoiceNumber) {
+      const duplicate = await Invoice.findOne({ invoiceNumber: payload.invoiceNumber, _id: { $ne: existing._id } }).lean();
+      if (duplicate) return res.status(409).json({ success: false, error: 'Invoice number already exists' });
+    }
     if (shouldRecalculate) {
       const items = payload.items ? normalizeInvoiceItems(payload.items) : existing.items || [];
       const totals = calculateInvoiceTotals(
@@ -971,11 +1151,20 @@ exports.updateInvoice = async (req, res) => {
       const amountPaid = payload.amountPaid !== undefined ? Number(payload.amountPaid) || 0 : Number(existing.amountPaid) || 0;
       payload.amountPaid = amountPaid;
       payload.balanceDue = totals.total - amountPaid;
+      if (payload.balanceDue < 0) return res.status(422).json({ success: false, error: 'Amount paid cannot exceed invoice total' });
     }
     const invoice = await Invoice.findByIdAndUpdate(req.params.id, payload, { new: true });
+    await logAudit({
+      req,
+      action: 'invoice_updated',
+      resourceType: 'invoice',
+      resourceId: invoice._id,
+      meta: { before: { status: existing.status, total: existing.total, balanceDue: existing.balanceDue }, after: { status: invoice.status, total: invoice.total, balanceDue: invoice.balanceDue } },
+      riskFlag: ['paid', 'void', 'overdue'].includes(String(invoice.status || '').toLowerCase()) ? 'medium' : 'none',
+    });
     res.status(200).json({ success: true, data: invoice });
   } catch (err) {
-    sendError(res, err, 'Failed to update invoice');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update invoice', details: err.details || err.message });
   }
 };
 
@@ -1021,8 +1210,9 @@ exports.getInvoiceNotes = async (req, res) => {
  */
 exports.getPayments = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, department } = req.query;
     const query = { ...(status ? { status } : {}), ...(req.projectId ? { projectId: req.projectId } : {}) };
+    Object.assign(query, await buildDepartmentQuery(department));
     const payments = await Payment.find(query).sort({ paymentDate: -1 });
     res.status(200).json({ success: true, data: payments });
   } catch (err) {
@@ -1033,17 +1223,43 @@ exports.getPayments = async (req, res) => {
 exports.createPayment = async (req, res) => {
   try {
     const payload = req.body || {};
+    const amount = assertPositiveMoney(payload.amount, 'payment amount');
+    await assertOpenFinancialPeriod(payload.financialPeriodId);
+    if (payload.reference) {
+      const duplicateReference = await Payment.findOne({ reference: payload.reference, ...(req.projectId ? { projectId: req.projectId } : {}) }).lean();
+      if (duplicateReference) {
+        return res.status(409).json({ success: false, error: 'Payment reference already exists' });
+      }
+    }
+    let { departmentId } = await resolveDepartmentFields(payload);
+    let invoice = null;
+    if (payload.invoice) {
+      invoice = await Invoice.findById(payload.invoice);
+      if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
+      const invoiceBalance = getBalanceFromInvoice(invoice);
+      if (invoiceBalance <= 0 || invoice.status === 'paid') {
+        return res.status(409).json({ success: false, error: 'Invoice is already fully paid' });
+      }
+      if (amount > invoiceBalance) {
+        return res.status(409).json({ success: false, error: 'Payment cannot exceed invoice balance', details: { invoiceBalance, requested: amount } });
+      }
+      departmentId = departmentId || invoice.departmentId || null;
+    }
     const payment = await Payment.create({
       ...payload,
+      amount,
+      departmentId,
+      budgetId: payload.budgetId || invoice?.budgetId || null,
+      requestId: payload.requestId || invoice?.requestId || null,
+      approvalId: payload.approvalId || invoice?.approvalId || null,
       projectId: req.projectId || null,
       createdBy: req.user?.id
     });
 
-    if (payment.invoice) {
-      const invoice = await Invoice.findById(payment.invoice);
-      if (invoice) {
-        invoice.amountPaid = (Number(invoice.amountPaid) || 0) + (Number(payment.amount) || 0);
-        invoice.balanceDue = (Number(invoice.total) || 0) - (Number(invoice.amountPaid) || 0);
+    if (payment.invoice && invoice) {
+        invoice.amountPaid = (Number(invoice.amountPaid) || 0) + amount;
+        invoice.balanceDue = Math.max((Number(invoice.total) || 0) - (Number(invoice.amountPaid) || 0), 0);
+        invoice.paymentId = payment._id;
         if (invoice.balanceDue <= 0) {
           invoice.status = 'paid';
           invoice.balanceDue = 0;
@@ -1053,25 +1269,45 @@ exports.createPayment = async (req, res) => {
           invoice.status = 'sent';
         }
         await invoice.save();
-      }
     }
-
+    await logAudit({
+      req,
+      action: 'payment_created',
+      resourceType: 'payment',
+      resourceId: payment._id,
+      meta: { amount: payment.amount, invoice: payment.invoice, departmentId: payment.departmentId, status: payment.status },
+    });
     res.status(201).json({ success: true, data: payment });
   } catch (err) {
-    sendError(res, err, 'Failed to record payment');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to record payment', details: err.details || err.message });
   }
 };
 
 exports.updatePayment = async (req, res) => {
   try {
+    await assertOpenFinancialPeriod(req.body?.financialPeriodId);
+    if (req.body?.amount !== undefined) assertPositiveMoney(req.body.amount, 'payment amount');
+    const existing = await Payment.findOne({ _id: req.params.id, ...(req.projectId ? { projectId: req.projectId } : {}) }).lean();
+    if (!existing) return res.status(404).json({ success: false, error: 'Payment not found' });
+    if (['completed', 'reconciled'].includes(String(existing.status || '').toLowerCase()) && req.body?.amount !== undefined) {
+      return res.status(409).json({ success: false, error: 'Completed payments cannot be re-amounted' });
+    }
     const payment = await Payment.findOneAndUpdate(
       { _id: req.params.id, ...(req.projectId ? { projectId: req.projectId } : {}) },
       { ...req.body, ...(req.projectId ? { projectId: req.projectId } : {}) },
       { new: true, runValidators: true }
     );
+    await logAudit({
+      req,
+      action: 'payment_updated',
+      resourceType: 'payment',
+      resourceId: payment._id,
+      meta: { before: { status: existing.status, amount: existing.amount }, after: { status: payment.status, amount: payment.amount }, failureReason: payment.failureReason },
+      riskFlag: payment.status === 'failed' ? 'medium' : 'none',
+    });
     res.status(200).json({ success: true, data: payment });
   } catch (err) {
-    sendError(res, err, 'Failed to update payment');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update payment', details: err.details || err.message });
   }
 };
 
@@ -1083,7 +1319,7 @@ exports.getExpenses = async (req, res) => {
     const { status, department } = req.query;
     const query = {};
     if (status) query.status = status;
-    if (department) query.department = department;
+    Object.assign(query, await buildDepartmentQuery(department));
     const expenses = await Expense.find(query).sort({ createdAt: -1 });
     res.status(200).json({ success: true, data: expenses });
   } catch (err) {
@@ -1094,8 +1330,19 @@ exports.getExpenses = async (req, res) => {
 exports.createExpense = async (req, res) => {
   try {
     const payload = await normalizeExpensePayload(req.body || {});
+    const amount = assertPositiveMoney(payload.amount, 'expense amount');
+    await assertOpenFinancialPeriod(req.body?.financialPeriodId);
+    const budgetSnapshot = await assertBudgetAvailable({
+      departmentId: payload.departmentId,
+      amount,
+      fiscalYear: req.body?.fiscalYear,
+    });
     const expense = await Expense.create({
       ...payload,
+      amount,
+      financialPeriodId: req.body?.financialPeriodId || null,
+      budgetId: req.body?.budgetId || budgetSnapshot?.budget?._id || null,
+      budgetReservedAt: new Date(),
       submittedBy: req.user?.id,
       statusHistory: [{
         from: '',
@@ -1112,11 +1359,24 @@ exports.createExpense = async (req, res) => {
       action: 'finance_request_submitted',
       resourceType: 'finance_request',
       resourceId: expense._id,
-      meta: { department: expense.department, departmentId: expense.departmentId ? String(expense.departmentId) : null, amount: expense.amount, category: expense.category },
+      meta: {
+        department: expense.department,
+        departmentId: expense.departmentId ? String(expense.departmentId) : null,
+        amount: expense.amount,
+        category: expense.category,
+        budgetId: expense.budgetId ? String(expense.budgetId) : null,
+        budgetSnapshot: budgetSnapshot ? {
+          allocated: budgetSnapshot.allocated,
+          spent: budgetSnapshot.spent,
+          reserved: budgetSnapshot.reserved,
+          availableBeforeRequest: budgetSnapshot.available,
+          availableAfterRequest: budgetSnapshot.available - amount,
+        } : null,
+      },
     });
     res.status(201).json({ success: true, data: expense });
   } catch (err) {
-    sendError(res, err, 'Failed to create expense');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create expense', details: err.details || err.message });
   }
 };
 
@@ -1127,12 +1387,28 @@ exports.updateExpense = async (req, res) => {
     if (req.body?.status && String(req.body.status).toLowerCase() !== String(existing.status || '').toLowerCase()) {
       return res.status(409).json({ success: false, error: 'Use finance request lifecycle actions to change status' });
     }
+    await assertOpenFinancialPeriod(req.body?.financialPeriodId || existing.financialPeriodId);
     const normalized = await normalizeExpensePayload(req.body || {});
+    const amount = req.body?.amount !== undefined ? assertPositiveMoney(req.body.amount, 'expense amount') : Number(existing.amount || 0);
+    await assertBudgetAvailable({
+      departmentId: normalized.departmentId || existing.departmentId,
+      amount,
+      fiscalYear: req.body?.fiscalYear,
+      excludeExpenseId: existing._id,
+    });
     const payload = { ...normalized, ...req.body, department: normalized.department, departmentId: normalized.departmentId };
     const expense = await Expense.findByIdAndUpdate(req.params.id, payload, { new: true });
+    await logAudit({
+      req,
+      action: 'expense_updated',
+      resourceType: 'expense',
+      resourceId: expense._id,
+      meta: { before: { amount: existing.amount, departmentId: existing.departmentId, category: existing.category }, after: { amount: expense.amount, departmentId: expense.departmentId, category: expense.category } },
+      riskFlag: 'low',
+    });
     res.status(200).json({ success: true, data: expense });
   } catch (err) {
-    sendError(res, err, 'Failed to update expense');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update expense', details: err.details || err.message });
   }
 };
 
@@ -1143,7 +1419,7 @@ exports.getBudgets = async (req, res) => {
   try {
     const { department, fiscalYear } = req.query;
     const query = {};
-    if (department) query.department = department;
+    Object.assign(query, await buildDepartmentQuery(department));
     if (fiscalYear) query.fiscalYear = fiscalYear;
     const budgets = await Budget.find(query).sort({ createdAt: -1 });
     res.status(200).json({ success: true, data: budgets });
@@ -1155,16 +1431,31 @@ exports.getBudgets = async (req, res) => {
 exports.createBudget = async (req, res) => {
   try {
     const payload = await normalizeBudgetPayload(req.body || {});
+    await assertOpenFinancialPeriod(req.body?.financialPeriodId);
+    const reserved = Number(req.body?.reserved || 0);
+    if (payload.allocated < 0 || payload.spent < 0 || reserved < 0) {
+      return res.status(422).json({ success: false, error: 'Budget amounts cannot be negative' });
+    }
     const { utilization, status } = deriveBudgetStatus(payload.allocated, payload.spent);
     const budget = await Budget.create({
       ...payload,
+      financialPeriodId: req.body?.financialPeriodId || null,
+      reserved,
+      available: Number(payload.allocated || 0) - Number(payload.spent || 0) - reserved,
       utilization,
       status,
       createdBy: req.user?.id
     });
+    await logAudit({
+      req,
+      action: 'budget_created',
+      resourceType: 'budget',
+      resourceId: budget._id,
+      meta: { departmentId: budget.departmentId, allocated: budget.allocated, spent: budget.spent, reserved: budget.reserved, available: budget.available },
+    });
     res.status(201).json({ success: true, data: budget });
   } catch (err) {
-    sendError(res, err, 'Failed to create budget');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create budget', details: err.details || err.message });
   }
 };
 
@@ -1172,21 +1463,36 @@ exports.updateBudget = async (req, res) => {
   try {
     const normalized = await normalizeBudgetPayload(req.body || {});
     const payload = { ...normalized, ...req.body, department: normalized.department, departmentId: normalized.departmentId };
-    if (payload.allocated !== undefined || payload.spent !== undefined) {
-      const existing = await Budget.findById(req.params.id);
-      if (!existing) {
-        return res.status(404).json({ success: false, error: 'Budget not found' });
-      }
-      const allocated = payload.allocated !== undefined ? payload.allocated : existing.allocated;
-      const spent = payload.spent !== undefined ? payload.spent : existing.spent;
+    const existing = await Budget.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Budget not found' });
+    }
+    await assertOpenFinancialPeriod(payload.financialPeriodId || existing.financialPeriodId);
+    if (payload.allocated !== undefined || payload.spent !== undefined || payload.reserved !== undefined) {
+      const allocated = payload.allocated !== undefined ? Number(payload.allocated) : Number(existing.allocated || 0);
+      const spent = payload.spent !== undefined ? Number(payload.spent) : Number(existing.spent || 0);
+      const reserved = payload.reserved !== undefined ? Number(payload.reserved) : Number(existing.reserved || 0);
+      if (allocated < 0 || spent < 0 || reserved < 0) return res.status(422).json({ success: false, error: 'Budget amounts cannot be negative' });
       const { utilization, status } = deriveBudgetStatus(allocated, spent);
+      payload.allocated = allocated;
+      payload.spent = spent;
+      payload.reserved = reserved;
+      payload.available = allocated - spent - reserved;
       payload.utilization = utilization;
-      payload.status = status;
+      payload.status = payload.status || status;
     }
     const budget = await Budget.findByIdAndUpdate(req.params.id, payload, { new: true });
+    await logAudit({
+      req,
+      action: 'budget_updated',
+      resourceType: 'budget',
+      resourceId: budget._id,
+      meta: { before: { allocated: existing.allocated, spent: existing.spent, reserved: existing.reserved }, after: { allocated: budget.allocated, spent: budget.spent, reserved: budget.reserved, available: budget.available } },
+      riskFlag: 'medium',
+    });
     res.status(200).json({ success: true, data: budget });
   } catch (err) {
-    sendError(res, err, 'Failed to update budget');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update budget', details: err.details || err.message });
   }
 };
 
@@ -1242,21 +1548,57 @@ exports.getPayrolls = async (req, res) => {
 exports.createPayroll = async (req, res) => {
   try {
     const payload = normalizePayrollPayload(req.body || {});
+    const { departmentId } = await resolveDepartmentFields(req.body || {});
+    await assertOpenFinancialPeriod(req.body?.financialPeriodId);
+    const payrollAmount = assertPositiveMoney(payload.netPay || payload.grossPay, 'payroll amount');
+    const budgetSnapshot = departmentId ? await assertBudgetAvailable({
+      departmentId,
+      amount: payrollAmount,
+      fiscalYear: req.body?.fiscalYear,
+    }) : null;
     const payroll = await Payroll.create({
-      ...payload
+      ...payload,
+      departmentId,
+      budgetId: req.body?.budgetId || budgetSnapshot?.budget?._id || null,
+      financialPeriodId: req.body?.financialPeriodId || null,
+    });
+    if (budgetSnapshot?.budget?._id && ['processed', 'disbursed'].includes(String(payroll.status || '').toLowerCase())) {
+      await Budget.findByIdAndUpdate(budgetSnapshot.budget._id, { $inc: { spent: payrollAmount } });
+    }
+    await logAudit({
+      req,
+      action: 'payroll_processed',
+      resourceType: 'payroll',
+      resourceId: payroll._id,
+      meta: { employeeName: payroll.employeeName, departmentId: payroll.departmentId, budgetId: payroll.budgetId, netPay: payroll.netPay, status: payroll.status },
+      riskFlag: 'medium',
     });
     res.status(201).json({ success: true, data: payroll });
   } catch (err) {
-    sendError(res, err, 'Failed to create payroll record');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create payroll record', details: err.details || err.message });
   }
 };
 
 exports.updatePayroll = async (req, res) => {
   try {
+    await assertOpenFinancialPeriod(req.body?.financialPeriodId);
+    const existing = await Payroll.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ success: false, error: 'Payroll record not found' });
+    if (['disbursed'].includes(String(existing.status || '').toLowerCase()) && (req.body?.netPay !== undefined || req.body?.grossPay !== undefined)) {
+      return res.status(409).json({ success: false, error: 'Disbursed payroll cannot be re-amounted' });
+    }
     const payroll = await Payroll.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    await logAudit({
+      req,
+      action: 'payroll_updated',
+      resourceType: 'payroll',
+      resourceId: payroll._id,
+      meta: { before: { status: existing.status, netPay: existing.netPay }, after: { status: payroll.status, netPay: payroll.netPay } },
+      riskFlag: 'medium',
+    });
     res.status(200).json({ success: true, data: payroll });
   } catch (err) {
-    sendError(res, err, 'Failed to update payroll record');
+    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update payroll record', details: err.details || err.message });
   }
 };
 
@@ -1405,8 +1747,11 @@ exports.getDepartmentFinancials = async (req, res) => {
 
 exports.getDepartmentFinancialProfile = async (req, res) => {
   try {
-    const code = String(req.params.departmentId || '').trim().toUpperCase();
-    const department = await Department.findOne({ code, isActive: true }).lean();
+    const rawDepartment = String(req.params.departmentId || '').trim();
+    const departmentQuery = mongoose.Types.ObjectId.isValid(rawDepartment)
+      ? { _id: rawDepartment, isActive: true }
+      : { code: rawDepartment.toUpperCase(), isActive: true };
+    const department = await Department.findOne(departmentQuery).lean();
     if (!department) return res.status(404).json({ success: false, error: 'Department not found' });
     const deptId = department._id;
 
@@ -1461,7 +1806,7 @@ exports.getFinanceRequests = async (req, res) => {
     ]);
 
     let rows = buildFinanceRequests({ expenses, approvals });
-    if (department) rows = rows.filter((item) => item.department === department);
+    if (department) rows = rows.filter((item) => item.department === department || item.departmentId === department);
     if (status) rows = rows.filter((item) => String(item.status || '').toLowerCase() === String(status).toLowerCase());
     if (requestType) rows = rows.filter((item) => String(item.type || '').toLowerCase() === String(requestType).toLowerCase());
     if (priority) rows = rows.filter((item) => String(item.priority || '').toLowerCase() === String(priority).toLowerCase());
@@ -1607,7 +1952,9 @@ exports.getTransactions = async (req, res) => {
       paymentQuery.status = status;
     }
     if (department) {
-      expenseQuery.department = department;
+      Object.assign(expenseQuery, await buildDepartmentQuery(department));
+      Object.assign(invoiceQuery, await buildDepartmentQuery(department));
+      Object.assign(paymentQuery, await buildDepartmentQuery(department));
     }
     if (fromDate || toDate) {
       const range = {};
@@ -1769,6 +2116,9 @@ exports.updateApprovalWorkflowDecision = async (req, res) => {
     const { decision, remarks = '' } = req.body || {};
     const workflow = await ApprovalWorkflow.findById(id);
     if (!workflow) return res.status(404).json({ success: false, error: 'Workflow not found' });
+    if (String(workflow.requestedBy || '') === String(req.user?.id || '')) {
+      return res.status(403).json({ success: false, error: 'Users cannot approve their own finance requests' });
+    }
 
     const role = String(req.user?.role || '').toLowerCase();
     const canOverride = FINANCE_HEAD_ROLES.has(role);

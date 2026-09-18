@@ -126,7 +126,7 @@ const ROLE_PERMISSIONS = {
     "contract_review",
     "legal_advice",
     "approve_legal_workflows",
-    "policy.read", "policy.create", "policy.update", "policy.review", "policy.approve", "policy.assignment.read", "policy.audit.read",
+    "policy.read", "policy.create", "policy.update", "policy.delete", "policy.review", "policy.approve", "policy.publish", "policy.archive", "policy.assignment.read", "policy.assignment.manage", "policy.audit.read", "policy.acceptance.read",
   ],
   [ROLES.LAW_EMPLOYEE]: [
     "legal_documents",

@@ -10,10 +10,12 @@ const budgetSchema = new mongoose.Schema(
     financialPeriodId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceFinancialPeriod', index: true, default: null },
     allocated: { type: Number, required: true },
     spent: { type: Number, default: 0 },
+    reserved: { type: Number, default: 0 },
+    available: { type: Number, default: 0 },
     utilization: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ['on-track', 'at-risk', 'over'],
+      enum: ['draft', 'submitted', 'approved', 'active', 'closed', 'on-track', 'at-risk', 'over'],
       default: 'on-track'
     },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },

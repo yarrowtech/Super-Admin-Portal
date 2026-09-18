@@ -109,6 +109,11 @@ const PortalSidebar = ({
   footerItems: footerItemsProp,
   forceExpanded = false,
   onClose,
+  // Optional, opt-in compact context indicator (e.g. "Project: EFNBMMS") shown
+  // below the user card. Pass { label, value } — omit for portals with no such
+  // context. Never renders anything unless a caller explicitly supplies it, so
+  // this has no effect on portals that don't pass it.
+  contextChip,
 }) => {
   const { collapsed: collapsedState, toggle } = useSidebar();
   const collapsed = forceExpanded ? false : collapsedState;
@@ -178,6 +183,24 @@ const PortalSidebar = ({
       )}
 
       <SidebarUserCard user={user} collapsed={collapsed} />
+
+      {contextChip?.value && (
+        collapsed ? (
+          <div className="group relative flex shrink-0 justify-center pb-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
+              <span className="material-symbols-outlined text-[15px]">folder_special</span>
+            </span>
+            <MiniTooltip label={`${contextChip.label || 'Project'}: ${contextChip.value}`} />
+          </div>
+        ) : (
+          <div className="mx-3 mb-2 flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--portal-accent-soft)] px-2.5 py-1.5">
+            <span className="material-symbols-outlined text-[14px] text-[var(--portal-accent)]">folder_special</span>
+            <span className="truncate text-[11px] font-bold uppercase tracking-wide text-[var(--portal-accent)]">
+              {contextChip.label || 'Project'}: <span className="normal-case">{contextChip.value}</span>
+            </span>
+          </div>
+        )
+      )}
 
       {/* Section divider */}
       {!collapsed && (

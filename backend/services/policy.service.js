@@ -157,8 +157,10 @@ async function createPolicy(payload, actorId, user) {
   const scope = payload.scope || 'SINGLE_PROJECT';
   if (!['GLOBAL', 'SINGLE_PROJECT', 'SELECTED_PROJECTS'].includes(scope)) throw err('VALIDATION_ERROR', 400, 'Invalid policy scope');
   const title = cleanText(payload.title);
-  const policyCode = String(payload.policyCode || payload.code || title).trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
-  if (!title || !policyCode) throw err('VALIDATION_ERROR', 400, 'Policy title and code are required');
+  const policyCode = String(payload.policyCode || payload.code || '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+  if (!title || !policyCode) throw err('VALIDATION_ERROR', 400, 'Policy name and policy code are required');
+  if (!payload.type && !payload.policy_type && !payload.policyType) throw err('VALIDATION_ERROR', 400, 'Policy type is required');
+  if (!payload.effectiveDate && !payload.effective_from) throw err('VALIDATION_ERROR', 400, 'Effective date is required');
   const session = await mongoose.startSession();
   try {
     let created;
@@ -178,6 +180,7 @@ async function createPolicy(payload, actorId, user) {
         requiresAcceptance: Boolean(payload.requiresAcceptance),
         requiresReAcceptance: Boolean(payload.requiresReAcceptance),
         effectiveDate: payload.effectiveDate || payload.effective_from || null,
+        reviewFrequency: cleanText(payload.reviewFrequency),
         reviewDate: payload.reviewDate || payload.review_date || null,
         expirationDate: payload.expirationDate || payload.effective_until || null,
         createdBy: actorId,
@@ -220,8 +223,8 @@ async function createPolicy(payload, actorId, user) {
 async function updatePolicy(id, payload, actorId) {
   const policy = await Policy.findOne({ _id: objectId(id), deletedAt: null });
   if (!policy) throw err('POLICY_NOT_FOUND', 404, 'Policy not found');
-  const allowed = ['title', 'description', 'type', 'category', 'priority', 'owner', 'ownerId', 'requiresAcceptance', 'requiresReAcceptance', 'effectiveDate', 'reviewDate', 'expirationDate'];
-  allowed.forEach((key) => { if (payload[key] !== undefined) policy[key] = ['title', 'description', 'category', 'owner'].includes(key) ? cleanText(payload[key]) : payload[key]; });
+  const allowed = ['title', 'description', 'type', 'category', 'priority', 'owner', 'ownerId', 'requiresAcceptance', 'requiresReAcceptance', 'effectiveDate', 'reviewDate', 'reviewFrequency', 'expirationDate'];
+  allowed.forEach((key) => { if (payload[key] !== undefined) policy[key] = ['title', 'description', 'category', 'owner', 'reviewFrequency'].includes(key) ? cleanText(payload[key]) : payload[key]; });
   if (payload.policy_type !== undefined || payload.policyType !== undefined) policy.type = normalizeType(payload.policy_type || payload.policyType);
   if (payload.review_date !== undefined) policy.reviewDate = payload.review_date || null;
   if (payload.effective_from !== undefined) policy.effectiveDate = payload.effective_from || null;

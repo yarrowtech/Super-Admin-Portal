@@ -4,7 +4,7 @@ import { policyService } from '../../services/policy';
 import { lawApi } from '../../services/law';
 import { PortalHeader, StatusBadge, Tabs } from '../common';
 import FilterToolbar from '../common/FilterToolbar';
-import { Button, EmptyState, Input, Modal, SectionCard, Skeleton } from '../ui';
+import { Button, EmptyState, Input, Modal, Select, SectionCard, Skeleton } from '../ui';
 import EfnbmmsConsumerPreview from './EfnbmmsConsumerPreview';
 import EfnbmmsApiClients from './EfnbmmsApiClients';
 
@@ -31,7 +31,27 @@ const NEXT_ACTION = {
   PUBLISHED: { label: 'Archive', call: 'archive', icon: 'inventory_2' },
 };
 
-const emptyForm = { title: '', policyCode: '', policyType: 'PRIVACY_POLICY', category: '', description: '', owner: '', content: '' };
+const POLICY_TYPES = ['PRIVACY_POLICY', 'DATA_PRIVACY_POLICY', 'TERMS_AND_CONDITIONS', 'COOKIE_POLICY', 'DATA_PROCESSING_POLICY', 'ACCEPTABLE_USE_POLICY', 'SECURITY_POLICY', 'COMPLIANCE_POLICY', 'LEGAL_NOTICE', 'OTHER'];
+const REVIEW_FREQUENCIES = ['', 'Monthly', 'Quarterly', 'Semi-Annual', 'Annual', 'Biennial'];
+
+const emptyForm = {
+  title: '', policyCode: '', policyType: 'PRIVACY_POLICY', effectiveDate: '', description: '',
+  owner: '', reviewFrequency: '', reviewDate: '', content: '',
+};
+
+const toDateInput = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+};
+
+const addYears = (dateStr, years) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString().slice(0, 10);
+};
 
 const STAT_CARDS = [
   { key: 'DRAFT', label: 'Draft', icon: 'edit_note', tone: 'neutral' },
@@ -74,7 +94,7 @@ export default function EfnbmmsPolicyPage() {
   const closeCreateModal = useCallback(() => setCreateOpen(false), []);
   const openCreate = useCallback(() => {
     if (!projectId) { setError('Select a project before creating a policy.'); return; }
-    setForm(emptyForm); setCreateOpen(true);
+    setError(''); setForm(emptyForm); setCreateOpen(true);
   }, [projectId]);
   const closeEditModal = useCallback(() => setEditOpen(false), []);
   const [actionBusy, setActionBusy] = useState(false);
@@ -123,6 +143,7 @@ export default function EfnbmmsPolicyPage() {
     setDetail(null);
     setDetailTab('content');
     setDetailLoading(true);
+    setError('');
     try {
       const [versionRes, detailRes] = await Promise.all([
         policyService.versions(token, item._id),
@@ -160,13 +181,17 @@ export default function EfnbmmsPolicyPage() {
 
   const openEdit = () => {
     if (!selected) return;
+    setError('');
     setForm({
       title: selected.title || '',
       policyCode: selected.policyCode || '',
       policyType: selected.type || 'PRIVACY_POLICY',
+      effectiveDate: toDateInput(selected.effectiveDate),
       category: selected.category || '',
       description: selected.description || '',
       owner: selected.owner || '',
+      reviewFrequency: selected.reviewFrequency || '',
+      reviewDate: toDateInput(selected.reviewDate),
       content: detail?.currentVersion?.content || '',
     });
     setEditOpen(true);
@@ -179,7 +204,12 @@ export default function EfnbmmsPolicyPage() {
     try {
       await policyService.update(token, selected._id, {
         title: form.title,
+        policy_type: form.policyType,
+        effectiveDate: form.effectiveDate || null,
         description: form.description,
+        owner: form.owner,
+        reviewFrequency: form.reviewFrequency,
+        reviewDate: form.reviewDate || null,
       });
       setEditOpen(false);
       await loadPolicies();
@@ -259,7 +289,10 @@ export default function EfnbmmsPolicyPage() {
       {error && (
         <div role="alert" className="mx-4 mt-4 flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:bg-rose-900/20 dark:text-rose-300 lg:mx-6">
           <span className="material-symbols-outlined text-base">error</span>
-          {error}
+          <span className="flex-1">{error}</span>
+          <button type="button" onClick={() => setError('')} aria-label="Dismiss" className="shrink-0 rounded-md p-1 hover:bg-rose-100 dark:hover:bg-rose-900/40">
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
         </div>
       )}
 
@@ -354,6 +387,12 @@ export default function EfnbmmsPolicyPage() {
                     <StatusBadge tone={STATUS_TONE[selected.status] || 'neutral'} label={selected.status?.replace('_', ' ')} />
                   </div>
                   <p className="mt-1 text-xs text-neutral-500">{selected.policyCode} · owner: {selected.owner || 'Unassigned'}</p>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+                    <span><span className="font-semibold text-neutral-700 dark:text-neutral-300">Type:</span> {(selected.type || '').replace(/_/g, ' ') || '—'}</span>
+                    <span><span className="font-semibold text-neutral-700 dark:text-neutral-300">Effective:</span> {selected.effectiveDate ? new Date(selected.effectiveDate).toLocaleDateString() : '—'}</span>
+                    {selected.reviewFrequency && <span><span className="font-semibold text-neutral-700 dark:text-neutral-300">Review:</span> {selected.reviewFrequency}</span>}
+                    {selected.reviewDate && <span><span className="font-semibold text-neutral-700 dark:text-neutral-300">Next review:</span> {new Date(selected.reviewDate).toLocaleDateString()}</span>}
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(true)}>
@@ -429,11 +468,60 @@ export default function EfnbmmsPolicyPage() {
         footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={closeCreateModal}>Cancel</Button><Button type="submit" form="efnbmms-policy-form" disabled={saving}>{saving ? 'Saving…' : 'Create policy'}</Button></div>}
       >
         <form id="efnbmms-policy-form" onSubmit={submitCreate} className="space-y-4">
+          {error && (
+            <div role="alert" className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2.5 text-sm font-medium text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+              <span className="material-symbols-outlined text-base">error</span>
+              {error}
+            </div>
+          )}
           <div className="flex items-end gap-3">
-            <div className="flex-1"><Input label="Title" required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></div>
+            <div className="flex-1"><Input label="Policy Name" required placeholder="Privacy Policy" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></div>
             <span className="mb-2.5 shrink-0 rounded-lg bg-neutral-100 px-3 py-2.5 text-sm font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">v1</span>
           </div>
-          <Input label="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input label="Policy Code" required placeholder="EFNB-PRIV-001" value={form.policyCode} onChange={(event) => setForm({ ...form, policyCode: event.target.value })} />
+            <Select
+              label="Policy Type"
+              required
+              options={POLICY_TYPES.map((value) => ({ value, label: value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) }))}
+              value={form.policyType}
+              onChange={(event) => setForm({ ...form, policyType: event.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Effective Date"
+              type="date"
+              required
+              value={form.effectiveDate}
+              onChange={(event) => {
+                const effectiveDate = event.target.value;
+                setForm((current) => ({
+                  ...current,
+                  effectiveDate,
+                  reviewDate: current.reviewDate || (current.reviewFrequency === 'Annual' ? addYears(effectiveDate, 1) : current.reviewDate),
+                }));
+              }}
+            />
+            <Input label="Policy Owner" placeholder="Legal Team" value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} />
+          </div>
+          <Input label="Short Description" placeholder="Explains how user data is collected and used" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select
+              label="Review Frequency"
+              options={REVIEW_FREQUENCIES.map((value) => ({ value, label: value || 'Not set' }))}
+              value={form.reviewFrequency}
+              onChange={(event) => {
+                const reviewFrequency = event.target.value;
+                setForm((current) => ({
+                  ...current,
+                  reviewFrequency,
+                  reviewDate: reviewFrequency === 'Annual' && current.effectiveDate ? addYears(current.effectiveDate, 1) : current.reviewDate,
+                }));
+              }}
+            />
+            <Input label="Next Review Date" type="date" value={form.reviewDate} onChange={(event) => setForm({ ...form, reviewDate: event.target.value })} />
+          </div>
           <label className="block">
             <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Policy content (shown to end users)</span>
             <textarea
@@ -449,18 +537,47 @@ export default function EfnbmmsPolicyPage() {
       <Modal
         open={editOpen}
         title="Edit Policy"
-        description="Updates title and description only. To change published content, publish this version and create a new draft version."
+        description="To change published content, publish this version and create a new draft version."
         onClose={closeEditModal}
         footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={closeEditModal}>Cancel</Button><Button type="submit" form="efnbmms-policy-edit-form" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></div>}
       >
         <form id="efnbmms-policy-edit-form" onSubmit={submitEdit} className="space-y-4">
+          {error && (
+            <div role="alert" className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2.5 text-sm font-medium text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+              <span className="material-symbols-outlined text-base">error</span>
+              {error}
+            </div>
+          )}
           <div className="flex items-end gap-3">
-            <div className="flex-1"><Input label="Title" required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></div>
+            <div className="flex-1"><Input label="Policy Name" required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></div>
             <span className="mb-2.5 shrink-0 rounded-lg bg-neutral-100 px-3 py-2.5 text-sm font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
               v{(typeof selected?.currentVersion === 'object' ? selected.currentVersion?.versionNumber : selected?.currentVersion) || 1}
             </span>
           </div>
-          <Input label="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input label="Policy Code" value={form.policyCode} disabled helperText="Policy code cannot be changed after creation." />
+            <Select
+              label="Policy Type"
+              required
+              options={POLICY_TYPES.map((value) => ({ value, label: value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) }))}
+              value={form.policyType}
+              onChange={(event) => setForm({ ...form, policyType: event.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input label="Effective Date" type="date" required value={form.effectiveDate} onChange={(event) => setForm({ ...form, effectiveDate: event.target.value })} />
+            <Input label="Policy Owner" value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} />
+          </div>
+          <Input label="Short Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select
+              label="Review Frequency"
+              options={REVIEW_FREQUENCIES.map((value) => ({ value, label: value || 'Not set' }))}
+              value={form.reviewFrequency}
+              onChange={(event) => setForm({ ...form, reviewFrequency: event.target.value })}
+            />
+            <Input label="Next Review Date" type="date" value={form.reviewDate} onChange={(event) => setForm({ ...form, reviewDate: event.target.value })} />
+          </div>
         </form>
       </Modal>
 

@@ -24,6 +24,7 @@ const schema = new mongoose.Schema({
   requiresAcceptance: { type: Boolean, default: false },
   requiresReAcceptance: { type: Boolean, default: false },
   effectiveDate: { type: Date, default: null, index: true },
+  reviewFrequency: { type: String, trim: true, default: '' },
   reviewDate: { type: Date, default: null },
   expirationDate: { type: Date, default: null },
   publishedAt: { type: Date, default: null },
@@ -32,8 +33,11 @@ const schema = new mongoose.Schema({
   deletedAt: { type: Date, default: null, index: true },
 }, { timestamps: true });
 
-schema.index({ projectId: 1, policyCode: 1 }, { unique: true });
-schema.index({ projectId: 1, slug: 1 }, { unique: true });
+// Partial indexes: uniqueness only applies to active (non-deleted) policies,
+// so a deleted policy's code/slug frees up for reuse instead of permanently
+// blocking it.
+schema.index({ projectId: 1, policyCode: 1 }, { unique: true, partialFilterExpression: { deletedAt: null } });
+schema.index({ projectId: 1, slug: 1 }, { unique: true, partialFilterExpression: { deletedAt: null } });
 schema.index({ status: 1, scope: 1, effectiveDate: 1 });
 schema.index({ projectId: 1, status: 1, effectiveDate: 1 });
 schema.index({ updatedAt: -1 });

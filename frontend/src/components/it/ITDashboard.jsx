@@ -174,7 +174,7 @@ const ITDashboard = () => {
           }
         />
 
-        <WarmGreeting user={user} message="Hope your work, tasks, and priorities stay on track today." />
+        <WarmGreeting user={user} roleHint="systems and tasks" />
 
         {/* ── Quick Actions ─────────────────────────────────────────── */}
         <QuickActions

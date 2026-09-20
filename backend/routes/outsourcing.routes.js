@@ -15,6 +15,9 @@ const {
 } = require('../middlewares/validate.middleware');
 const { ROLES } = require('../config/roles');
 const User = require('../models/auth/User');
+const hrController = require('../controllers/hr/hrDashboard.controller');
+const { departmentScope, mountDepartmentModules } = require('../middlewares/departmentScope.middleware');
+const { denyLawEmployee } = require('../middlewares/lawTaskLinks');
 
 const normalizeOutsourcingType = (value) => {
   const raw = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -65,6 +68,24 @@ router.use(async (req, res, next) => {
   }
 });
 
+// Staff modules (Tasks / Attendance / Recruitment postings) over the shared HR models.
+// Mounted under /modules because /jobs here is the freelancer job board.
+// Freelancers only ever see their own tasks/attendance; jobs and attendance
+// writes are Admin/HR only.
+const staffRoles = [ROLES.FREELANCER, 'employee'];
+// Freelancers see tasks assigned to them from ANY associated portal here (self-only); only Admin/HR
+// create/edit/delete tasks in this portal, freelancers just move status/progress.
+const staffScope = departmentScope({ roles: [ROLES.FREELANCER], label: 'Outsourcing', selfOnlyRoles: staffRoles, sourcePortal: 'outsourcing' });
+const staffModules = express.Router();
+staffModules.use(authorize(ROLES.FREELANCER, 'employee', ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.HR));
+const canManageStaffTasks = authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.HR);
+mountDepartmentModules(staffModules, staffScope, hrController, {
+  manage: canManageStaffTasks,
+  taskManage: canManageStaffTasks,
+  taskManageRoles: [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.HR],
+});
+router.use('/modules', staffModules);
+
 router.get('/notifications', outsourcingController.getMyNotifications);
 router.get('/payments', outsourcingController.getMyPayments);
 router.get('/profile', outsourcingController.getMyProfile);
@@ -86,6 +107,8 @@ router.put('/jobs/:id/accept', outsourcingController.acceptJob);
 router.put('/jobs/:id/reject', outsourcingController.rejectJob);
 router.put('/jobs/:id/status', outsourcingController.updateJobStatus);
 
+// Law employees have no direct access to contracts (only via task-linked items).
+router.use('/contracts', denyLawEmployee);
 router.get('/contracts', outsourcingController.listContracts);
 router.get('/contracts/:contractId/history', outsourcingController.getContractHistory);
 router.put('/contracts/:contractId/terms', outsourcingController.updateContractTerms);
@@ -107,6 +130,7 @@ router.get('/efnbmms/admin-management', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN
 router.get('/efnbmms/admin-management/summary', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER), requireWorkspaceAccess('EFNBMMS'), efnbmmsAdminManagementController.getAdminManagementSummary);
 router.get('/efnbmms/admin-management/:adminId', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER), requireWorkspaceAccess('EFNBMMS'), efnbmmsAdminManagementController.getAdminManagementDetail);
 router.get('/users', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.listFreelancers);
+router.put('/users/:id/portals', authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.HR), outsourcingController.updateFreelancerPortals);
 router.post('/jobs', authorize(ROLES.ADMIN, ROLES.HR), outsourcingCreateJobValidation, validate, outsourcingController.createJob);
 router.put('/jobs/:id/assign', authorize(ROLES.ADMIN, ROLES.HR), outsourcingController.assignJobToFreelancer);
 router.post('/milestones', authorize(ROLES.ADMIN, ROLES.HR), outsourcingCreateMilestoneValidation, validate, outsourcingController.createMilestone);

@@ -39,7 +39,7 @@ export const getDefaultRoute = (user) => {
     it_employee: '/employee/dashboard',
     it_hr: '/hr/dashboard',
     law: '/law/dashboard',
-    law_employee: '/employee/dashboard',
+    law_employee: '/law/dashboard',
     finance: '/finance/dashboard',
     finance_employee: '/employee/dashboard',
     media: '/media/dashboard',

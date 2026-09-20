@@ -541,6 +541,7 @@ exports.getAttendance = async (req, res) => {
       if (startDate) query.date.$gte = new Date(startDate);
       if (endDate) query.date.$lte = new Date(endDate);
     }
+    if (req.scopeFilters?.attendance) query.$and = [req.scopeFilters.attendance];
 
     const attendance = await Attendance.find(query)
       .populate('employee', 'firstName lastName email department')
@@ -562,6 +563,7 @@ exports.getAttendance = async (req, res) => {
       ...(employee ? { employee } : {}),
       date: { $gte: monthStart, $lte: monthEnd }
     };
+    if (req.scopeFilters?.attendance) monthQuery.$and = [req.scopeFilters.attendance];
     const monthRecords = await Attendance.find(monthQuery).populate('employee', 'firstName lastName email');
     const monthNormalizedRecords = monthRecords.map(enhanceAttendanceRecord);
     const monthTotal = monthNormalizedRecords.length;
@@ -1319,9 +1321,11 @@ exports.getTasks = async (req, res) => {
       ];
     }
 
+    if (req.scopeFilters?.task) filters.$and = [req.scopeFilters.task];
+
     const tasks = await Task.find(filters)
-      .populate('assignedTo', 'firstName lastName email department')
-      .populate('assignedBy', 'firstName lastName email')
+      .populate('assignedTo', 'firstName lastName email department role')
+      .populate('assignedBy', 'firstName lastName email role')
       .populate('project', 'name projectCode')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
@@ -1368,11 +1372,13 @@ exports.createTask = async (req, res) => {
       priority,
       estimatedHours,
       status,
-      progress
+      progress,
+      // Only set by the Law-portal middleware after validation (middlewares/lawTaskLinks.js).
+      ...(req.validatedLinkedItems ? { linkedItems: req.validatedLinkedItems } : {})
     });
 
-    await task.populate('assignedTo', 'firstName lastName email department');
-    await task.populate('assignedBy', 'firstName lastName email');
+    await task.populate('assignedTo', 'firstName lastName email department role');
+    await task.populate('assignedBy', 'firstName lastName email role');
 
     res.status(201).json({
       success: true,
@@ -1416,14 +1422,15 @@ exports.updateTask = async (req, res) => {
     if (progress !== undefined) task.progress = progress;
     if (estimatedHours !== undefined) task.estimatedHours = estimatedHours;
     if (actualHours !== undefined) task.actualHours = actualHours;
+    if (req.validatedLinkedItems) task.linkedItems = req.validatedLinkedItems;
 
     if (status === 'completed' && !task.completedDate) {
       task.completedDate = Date.now();
     }
 
     await task.save();
-    await task.populate('assignedTo', 'firstName lastName email department');
-    await task.populate('assignedBy', 'firstName lastName email');
+    await task.populate('assignedTo', 'firstName lastName email department role');
+    await task.populate('assignedBy', 'firstName lastName email role');
 
     res.status(200).json({
       success: true,
@@ -1454,8 +1461,8 @@ exports.closeTask = async (req, res) => {
     task.completedDate = Date.now();
     await task.save();
 
-    await task.populate('assignedTo', 'firstName lastName email department');
-    await task.populate('assignedBy', 'firstName lastName email');
+    await task.populate('assignedTo', 'firstName lastName email department role');
+    await task.populate('assignedBy', 'firstName lastName email role');
 
     res.status(200).json({
       success: true,
@@ -2865,6 +2872,7 @@ exports.getJobPosts = async (req, res) => {
     const query = {};
     if (status) query.status = status;
     if (department) query.department = new RegExp(department, 'i');
+    if (req.scopeFilters?.job) query.$and = [req.scopeFilters.job];
 
     const jobs = await JobPost.find(query)
       .populate('createdBy', 'firstName lastName email')

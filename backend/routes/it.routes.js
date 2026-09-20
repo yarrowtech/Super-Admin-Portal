@@ -2,6 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const itController = require('../controllers/department/it.controller');
+const hrController = require('../controllers/hr/hrDashboard.controller');
+const { departmentScope, mountDepartmentModules } = require('../middlewares/departmentScope.middleware');
+const mountDepartmentCollab = require('../utils/mountDepartmentCollab');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
@@ -55,5 +58,26 @@ router.put('/support-tickets/:id/assign', itController.assignSupportTicket);
 router.put('/support-tickets/:id/resolve', itController.resolveSupportTicket);
 router.put('/support-tickets/:id/close', itController.closeSupportTicket);
 router.post('/support-tickets/:id/comment', itController.addTicketComment);
+
+// Tasks / Attendance / Jobs — department-scoped views over the same shared
+// Task/Attendance/JobPost models HR's controller already operates on
+// (backend/controllers/hr/hrDashboard.controller.js). No new data model is
+// introduced; these endpoints just mirror HR's route surface for IT.
+const scope = departmentScope({
+  roles: [ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR],
+  headRoles: [ROLES.IT_MANAGER, ROLES.IT_ADMIN],
+  // IT staff (employees, IT HR) see only their own tasks; heads/admins allocate within IT.
+  selfOnlyRoles: [ROLES.IT_EMPLOYEE, ROLES.IT_HR],
+  portalKey: 'it',
+  label: 'IT',
+});
+const canManageItTasks = authorize(ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.ADMIN, ROLES.SUPER_ADMIN);
+mountDepartmentModules(router, scope, hrController, {
+  taskManage: canManageItTasks,
+  taskManageRoles: [ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.ADMIN, ROLES.SUPER_ADMIN],
+});
+
+// IT-only Team directory + Messages (chat services also enforce this by role: utils/departmentChatScope.js).
+mountDepartmentCollab(router, 'it', authorize(ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.IT_EMPLOYEE, ROLES.IT_HR));
 
 module.exports = router;

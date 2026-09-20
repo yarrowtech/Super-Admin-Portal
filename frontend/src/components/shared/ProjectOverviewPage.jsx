@@ -9,6 +9,7 @@ import StatusBadge from '../common/StatusBadge';
 import Button from '../common/Button';
 import { EmptyState, ErrorState, Skeleton } from '../ui';
 import { statusToTone } from '../../utils/statusTone';
+import { getFirstName, getGreetingParts } from '../../utils/greeting';
 
 const PORTAL_DEFAULTS = {
   law: { name: 'Law Portal', icon: 'gavel' },
@@ -263,9 +264,9 @@ const MetricCardSkeleton = () => (
 );
 
 const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride }) => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
-  const fallback = PORTAL_DEFAULTS[portalKey] || PORTAL_DEFAULTS.manager;
+  const fallback =PORTAL_DEFAULTS[portalKey] || PORTAL_DEFAULTS.manager;
   const [projects, setProjects] = useState([]);
 
   // Project selection lives in the URL (?projectId=…) rather than purely
@@ -286,7 +287,12 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
   const [error, setError] = useState('');
   const [detailError, setDetailError] = useState('');
   const [detailRetryToken, setDetailRetryToken] = useState(0);
-  const [lastSync, setLastSync] = useState(null);
+  // Re-evaluate the greeting once a minute so it flips at hour boundaries.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -302,7 +308,6 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
         const rows = res?.data?.items || res?.data?.data?.items || [];
         const visibleRows = rows.length ? rows : canonicalProjectRows();
         setProjects(visibleRows);
-        setLastSync(new Date());
       })
       .catch(() => {
         projectAccessApi.getMyProjects(token)
@@ -313,7 +318,6 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
             const visibleRows = rows.filter((project) => String(project.status || '').toLowerCase() !== 'blocked');
             const resolvedRows = visibleRows.length ? visibleRows : canonicalProjectRows();
             setProjects(resolvedRows);
-            setLastSync(new Date());
           })
           .catch((err) => {
             if (alive) setError(err.message || 'Failed to load project overview.');
@@ -383,25 +387,31 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
   const metrics = selectedProject ? (safeRows(detail?.metrics).length ? safeRows(detail?.metrics) : defaultMetrics(portalKey, project)) : [];
   const sections = selectedProject ? (safeRows(detail?.sections).length ? safeRows(detail?.sections) : EMPTY_SECTIONS) : [];
   const [primarySection, ...restSections] = sections;
-  const lastSyncLabel = lastSync ? lastSync.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'pending';
-  const sectionLinks = portalKey === 'law' ? LAW_SECTION_LINKS : {};
-  const metricLinks = portalKey === 'law' ? LAW_METRIC_LINKS : {};
+  const greeting = getGreetingParts(now);
+  const firstName = getFirstName(user);
+  const greetingText = firstName ? `${greeting.greeting}, ${firstName}` : greeting.greeting;
+  // Law employees have no direct access to the document/contract/compliance modules.
+  const lawLinksAllowed = portalKey === 'law' && String(user?.role || '').toLowerCase() !== 'law_employee';
+  const sectionLinks = lawLinksAllowed ? LAW_SECTION_LINKS : {};
+  const metricLinks = lawLinksAllowed ? LAW_METRIC_LINKS : {};
 
   return (
     <main className={`min-h-screen w-full ${PORTAL_BG[portalKey] || PORTAL_BG.manager} text-neutral-900 dark:bg-background-dark dark:text-neutral-100`}>
       <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 md:p-5 lg:p-6">
         {/* ── Page header ─────────────────────────────────────────────── */}
-        <header className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-          <div className="h-[3px] w-full rounded-t-2xl bg-[var(--portal-accent)]" />
-          <div className="p-4 sm:p-5">
+        <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="h-[3px] w-full bg-[var(--portal-accent)]" />
+          <div className="bg-gradient-to-br from-[var(--portal-accent-soft)] via-transparent to-transparent p-4 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--portal-accent)]">{portalLabel}</p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 dark:text-neutral-100 sm:text-[26px]">
-                  {titleOverride || 'Project Overview'}
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--portal-accent)]">
+                  {portalLabel} · {titleOverride || 'Project Overview'}
+                </p>
+                <h1 className="mt-2 text-2xl font-bold leading-tight tracking-tight text-slate-950 dark:text-neutral-100 sm:text-3xl">
+                  {greetingText}
                 </h1>
-                <p className="mt-2 text-xs text-slate-400 dark:text-neutral-500">
-                  Last synced {lastSyncLabel} · {projects.length || CANONICAL_PROJECTS.length} projects · Read-only
+                <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-600 dark:text-neutral-400">
+                  {greeting.message}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -413,20 +423,6 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
                 <ThemeToggleButton />
               </div>
             </div>
-
-            {selectedProject && (
-              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4 dark:border-neutral-800">
-                <ProjectAvatar name={projectName} logo={project?.logo} size={44} />
-                <div className="min-w-0">
-                  <p className="truncate text-base font-bold text-slate-950 dark:text-neutral-100">{projectName}</p>
-                  <p className="text-xs text-slate-500 dark:text-neutral-400">{portalLabel} Workspace</p>
-                </div>
-                <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <StatusBadge tone={statusToTone(project.status)} label={project.status || 'Not set'} />
-                  {project.priority && <StatusBadge tone={priorityToTone(project.priority)} label={project.priority} dot={false} />}
-                </div>
-              </div>
-            )}
           </div>
         </header>
 
@@ -448,15 +444,25 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search projects…"
                     aria-label="Search projects"
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[var(--portal-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-[var(--portal-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:placeholder:text-neutral-500"
                   />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch('')}
+                      aria-label="Clear search"
+                      className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:hover:bg-neutral-800"
+                    >
+                      <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+                    </button>
+                  )}
                 </div>
                 {statusOptions.length > 1 && (
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     aria-label="Filter by status"
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[var(--portal-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm text-slate-900 focus:border-[var(--portal-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
                   >
                     <option value="">All statuses</option>
                     {statusOptions.map((status) => (
@@ -469,8 +475,8 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {[1, 2, 3, 4, 5, 6].map((item) => <Skeleton key={item} className="h-[110px] rounded-xl" />)}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+              {[1, 2, 3, 4, 5, 6].map((item) => <Skeleton key={item} className="h-[132px] rounded-xl" />)}
             </div>
           ) : visibleProjects.length ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -486,24 +492,27 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
                     type="button"
                     onClick={() => selectProject(id)}
                     aria-pressed={active}
-                    className={`group flex min-h-[110px] flex-col rounded-xl border bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm dark:bg-neutral-950/40 ${
-                      active ? 'border-[var(--portal-accent)] ring-1 ring-[var(--portal-accent)]' : 'border-slate-200 hover:border-[var(--portal-accent)]'
+                    aria-label={`${name} project overview`}
+                    className={`group flex h-full min-h-[132px] flex-col rounded-xl border p-4 text-left transition duration-150 hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 ${
+                      active
+                        ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] ring-1 ring-[var(--portal-accent)] dark:bg-neutral-900'
+                        : 'border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/40'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-slate-950 dark:text-neutral-100">{name}</p>
+                        <p className="truncate text-sm font-bold text-slate-950 dark:text-neutral-100" title={name}>{name}</p>
                         <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-neutral-400">{item?.description || itemCanonical?.description || 'Project workspace.'}</p>
                       </div>
-                      <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400">
+                      <span className="max-w-[40%] shrink-0 truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400" title={code}>
                         {code}
                       </span>
                     </div>
-                    <div className="mt-3 flex items-center justify-between">
+                    <div className="mt-auto flex items-center justify-between gap-2 pt-3">
                       <StatusBadge tone={statusToTone(item.status)} label={item.status || 'in-progress'} />
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--portal-accent)] opacity-0 transition group-hover:opacity-100">
-                        View overview
-                        <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--portal-accent)] transition ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}>
+                        {active ? 'Selected' : 'View overview'}
+                        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{active ? 'check_circle' : 'arrow_forward'}</span>
                       </span>
                     </div>
                   </button>
@@ -541,29 +550,39 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
           <>
             {/* Metrics */}
             {detailLoading ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {[1, 2, 3, 4, 5].map((item) => <MetricCardSkeleton key={item} />)}
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[1, 2, 3, 4].map((item) => <MetricCardSkeleton key={item} />)}
               </div>
             ) : (
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]" aria-label="Project metrics">
                 {metrics.map((metric) => (
-                  <div key={metric.label} className={cardClass}>
-                    <div className="flex items-center gap-2.5">
+                  <div key={metric.label} className={`${cardClass} flex min-w-0 flex-col transition-shadow hover:shadow-sm`}>
+                    <div className="flex items-start gap-2.5">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
-                        <span className="material-symbols-outlined text-[18px]">{metric.icon || 'analytics'}</span>
+                        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{metric.icon || 'analytics'}</span>
                       </span>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">{metric.label}</p>
-                    </div>
-                    <p className="mt-2 text-xl font-bold text-slate-950 dark:text-neutral-100">{displayValue(metric.value)}</p>
-                    {metricLinks[metric.label] && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(metricLinks[metric.label])}
-                        className="mt-1 text-xs font-semibold text-[var(--portal-accent)] hover:underline"
+                      <p
+                        title={metric.label}
+                        className="min-w-0 flex-1 break-words text-[11px] font-semibold uppercase leading-4 tracking-wide text-slate-500 dark:text-neutral-400"
                       >
-                        View all →
-                      </button>
-                    )}
+                        {metric.label}
+                      </p>
+                    </div>
+                    <p className="mt-3 truncate text-2xl font-bold tabular-nums text-slate-950 dark:text-neutral-100" title={String(displayValue(metric.value))}>
+                      {displayValue(metric.value)}
+                    </p>
+                    <div className="mt-auto min-h-[24px] pt-1">
+                      {metricLinks[metric.label] && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(metricLinks[metric.label])}
+                          aria-label={`View all ${metric.label}`}
+                          className="rounded text-xs font-semibold text-[var(--portal-accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]"
+                        >
+                          View all →
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -578,7 +597,14 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
             ) : (
               <div className="grid gap-4 xl:grid-cols-12">
                 <div className={`${cardClass} xl:col-span-5`}>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-neutral-100">Project Context</h3>
+                  <div className="flex items-center gap-3">
+                    <ProjectAvatar name={projectName} logo={project?.logo} size={40} />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-neutral-500">Project Context</p>
+                      <h3 className="truncate text-base font-bold text-slate-950 dark:text-neutral-100" title={projectName}>{projectName}</h3>
+                    </div>
+                  </div>
+                  <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-500 dark:text-neutral-400">{projectDescription}</p>
                   <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
                     <ContextField label="Status"><StatusBadge tone={statusToTone(project.status)} label={project.status || 'Not set'} /></ContextField>
                     <ContextField label="Priority">{project.priority ? <StatusBadge tone={priorityToTone(project.priority)} label={project.priority} dot={false} /> : 'Not set'}</ContextField>

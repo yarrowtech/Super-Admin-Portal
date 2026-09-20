@@ -17,6 +17,13 @@ export const RecruitmentPage  = lazy(() => import('../components/hr/pages/Recrui
 export const PerformancePage  = lazy(() => import('../components/hr/pages/PerformancePage'));
 export const CommunicationPage = lazy(() => import('../components/hr/pages/CommunicationPage'));
 
+// ── Shared department modules (Tasks / Attendance / Jobs) ──────────────────
+// One shared workspace/page reused across IT, Finance, Law (and HR for Jobs)
+// — only the `portal`/`api`/`portalLabel` props differ per caller.
+export const TaskWorkspacePage        = lazy(() => import('../features/tasks/TaskWorkspace'));
+export const DepartmentAttendancePage = lazy(() => import('../components/shared/DepartmentAttendance'));
+export const DepartmentJobsPage       = lazy(() => import('../components/shared/DepartmentJobs'));
+
 // ── Admin portal ─────────────────────────────────────────────────────────────
 export const AdminDashboardPage          = lazy(() => import('../components/admin/AdminDashboardEnterprise'));
 export const SuperAdminControlCenterPage = lazy(() => import('../components/admin/SuperAdminDashboard'));
@@ -49,7 +56,7 @@ export const OutsourcingInvoicesPage     = lazy(() => import('../components/outs
 export const OutsourcingPaymentsPage     = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingPaymentsPage })));
 export const OutsourcingNotificationsPage = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingNotificationsPage })));
 export const OutsourcingSettingsPage     = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingSettingsPage })));
-export const OutsourcingSupportPage      = lazy(() => import('../components/outsourcing/OutsourcingPages').then(m => ({ default: m.OutsourcingSupportPage })));
+export const OutsourcingSupportPage      = lazy(() => import('../components/outsourcing/OutsourcingSupportPage'));
 
 export const OutsourcingProjectsPage = lazy(() => import('../components/outsourcing/OutsourcingProjectsPage'));
 export const OutsourcingEfnbmmsAdminManagementPage = lazy(() => import('../components/outsourcing/OutsourcingEfnbmmsAdminManagementPage'));
@@ -95,6 +102,16 @@ export const LSWLegalLibraryPage     = lazy(() => import('../components/law/LSWL
 export const AdminLegalRegistryPage  = lazy(() => import('../components/admin/AdminLegalRegistry'));
 export const AdminLegalLibraryPage   = lazy(() => import('../components/law/LSWLegalLibrary'));
 export const LawContractsPage        = lazy(() => import('../components/law/LawContractsPage'));
+
+// ── Law portal — dashboard/settings/support/policy-api ─────────────────────
+export const LawDashboardPage  = lazy(() => import('../components/law/LawDashboard'));
+export const LawTeamPage       = lazy(() => import('../components/shared/DepartmentCollabPages').then(m => ({ default: m.LawTeamPage })));
+export const LawMessagesPage   = lazy(() => import('../components/shared/DepartmentCollabPages').then(m => ({ default: m.LawMessagesPage })));
+export const DepartmentTeamPage = lazy(() => import('../components/shared/DepartmentCollabPages').then(m => ({ default: m.DepartmentTeamPage })));
+export const DepartmentMessagesPage = lazy(() => import('../components/shared/DepartmentCollabPages').then(m => ({ default: m.DepartmentMessagesPage })));
+export const LawSettingsPage   = lazy(() => import('../components/law/LawSettingsPage'));
+export const LawSupportPage    = lazy(() => import('../components/law/LawSupportPage'));
+export const EfnbmmsPolicyPage = lazy(() => import('../components/law/EfnbmmsPolicyPage'));
 export const AdminSalesSubmissionsPage = lazy(() => import('../components/admin/AdminSalesSubmissions'));
 
 // ── IT portal ────────────────────────────────────────────────────────────────
@@ -136,8 +153,16 @@ export const FinanceSettingsPage        = lazy(() => import('../components/finan
 export const FinanceSupportPage         = lazy(() => import('../components/finance/FinanceSupportPage'));
 
 // ── Shared Settings & Support pages ──────────────────────────────────────────
+export const EmployeeSettingsPage = lazy(() => import('../components/employee/EmployeeSettingsPage'));
+export const ManagerSettingsPage  = lazy(() => import('../components/manager/ManagerSettingsPage'));
+export const SalesSettingsPage    = lazy(() => import('../components/media/SalesSettingsPage'));
 export const HRSettingsPage        = lazy(() => import('../components/hr/HRSettingsPage'));
 export const HRSupportPage         = lazy(() => import('../components/hr/HRSupportPage'));
+export const EmployeeSupportPage   = lazy(() => import('../components/employee/EmployeeSupportPage'));
+export const ManagerSupportPage    = lazy(() => import('../components/manager/ManagerSupportPage'));
+export const SalesSupportPage      = lazy(() => import('../components/media/SalesSupportPage'));
+export const ITSupportPage         = lazy(() => import('../components/it/ITSupportPage'));
+export const AdminSupportPage      = lazy(() => import('../components/admin/AdminSupportPage'));
 
 // ── Admin Support Center & Settings ──────────────────────────────────────────
 export const AdminSupportCenterPage = lazy(() => import('../components/admin/AdminSupportCenter'));
@@ -149,3 +174,9 @@ export const PortfolioViewerPage    = lazy(() => import('../components/shared/Po
 // ── Digital Portfolios — hierarchy workspace (Foundation phase) ──────────────
 export const PortfolioCategoryWorkspacePage = lazy(() => import('../components/admin/portfolio/CategoryWorkspacePage'));
 export const PortfolioAssetDetailPage       = lazy(() => import('../components/admin/portfolio/AssetDetailPage'));
+
+// ── Media sales — shared Tasks / Attendance modules ─────────────────────────
+export const SalesTasksPage      = lazy(() => import('../components/media/SalesModulePages').then((m) => ({ default: m.SalesTasksPage })));
+export const SalesTeamPage = lazy(() => import('../components/media/SalesModulePages').then((m) => ({ default: m.SalesTeamPage })));
+export const SalesMessagesPage = lazy(() => import('../components/media/SalesModulePages').then((m) => ({ default: m.SalesMessagesPage })));
+export const SalesAttendancePage = lazy(() => import('../components/media/SalesModulePages').then((m) => ({ default: m.SalesAttendancePage })));

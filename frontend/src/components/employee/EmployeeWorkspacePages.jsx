@@ -25,7 +25,6 @@ const departmentWorkspace = (user) => {
   const role = String(user?.role || '').toLowerCase();
   if (role === 'it_employee') return null;
   if (role.startsWith('it_')) return { label: 'Open IT workspace', path: '/it/dashboard', icon: 'memory' };
-  if (role.startsWith('law_')) return { label: 'Open Law workspace', path: '/law/dashboard', icon: 'gavel' };
   if (role.startsWith('finance_')) return { label: 'Open Finance workspace', path: '/finance/dashboard', icon: 'account_balance' };
   if (role.startsWith('media_')) return { label: 'Open Media workspace', path: '/media/dashboard', icon: 'campaign' };
   return null;
@@ -119,7 +118,7 @@ export const EmployeeDashboardPage = () => {
           onRefresh={reload}
           secondaryAction={workspace ? { label: workspace.label, icon: workspace.icon, onClick: () => navigate(workspace.path) } : undefined}
         />
-        <WarmGreeting user={user} message="Here's your work, tasks, attendance, and upcoming priorities." />
+        <WarmGreeting user={user} roleHint="work and priorities" />
 
         {error ? (
           <DataState loading={false} error={error} />

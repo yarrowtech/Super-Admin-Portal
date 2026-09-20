@@ -6,6 +6,8 @@ const managerExportController = require('../controllers/manager/exportSystem.con
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
+const hrController = require('../controllers/hr/hrDashboard.controller');
+const { departmentScope, mountDepartmentModules } = require('../middlewares/departmentScope.middleware');
 
 // All routes require authentication and manager-capable role
 router.use(authenticate);
@@ -64,5 +66,13 @@ router.get('/work-reports', managerController.getWorkReports);
 router.get('/notifications', managerController.getNotifications);
 router.put('/notifications/:id/read', managerController.markNotificationRead);
 router.put('/notifications/mark-all-read', managerController.markAllNotificationsRead);
+
+// Attendance / Jobs (recruitment postings) for the manager's managed team, over the
+// shared HR models. Tasks stay on the manager's own /tasks endpoints above.
+const teamScope = departmentScope({
+  label: 'Operations',
+  resolveUserIds: async (req) => req.managerScope?.employeeIds || [],
+});
+mountDepartmentModules(router, teamScope, hrController, { tasks: false });
 
 module.exports = router;

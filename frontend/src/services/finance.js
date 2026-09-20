@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { createDepartmentModulesApi, createDepartmentCollabApi } from './departmentModules';
 
 export const financeApi = {
   getDashboard: (token) => apiClient.get('/api/dept/finance/dashboard', token),
@@ -99,5 +100,8 @@ export const financeApi = {
   decideApproval: (id, data, token) => apiClient.patch(`/api/dept/finance/approvals/${id}/decision`, data, token),
   getIntegrationSnapshot: (token) => apiClient.get('/api/dept/finance/integrations/snapshot', token, { cache: false }),
   syncPayrollFromHr: (data, token) => apiClient.post('/api/dept/finance/integrations/hr/payroll-sync', data, token),
-  linkComplianceWithLaw: (data, token) => apiClient.post('/api/dept/finance/integrations/law/compliance-link', data, token)
+  linkComplianceWithLaw: (data, token) => apiClient.post('/api/dept/finance/integrations/law/compliance-link', data, token),
+
+  ...createDepartmentModulesApi('/api/dept/finance'),
+  ...createDepartmentCollabApi('/api/dept/finance'),
 };

@@ -7,10 +7,20 @@ export const portalSupportApi = {
   createTicket: (token, body) => apiClient.post(`${BASE}/tickets`, body, token),
 
   // User — view own tickets
-  getMyTickets: (token) => apiClient.get(`${BASE}/tickets/my`, token),
+  getMyTickets: (token, status = '') =>
+    apiClient.get(`${BASE}/tickets/my${status ? `?status=${encodeURIComponent(status)}` : ''}`, token, { forceRefresh: true }),
+
+  // User — count of tickets with staff activity not yet seen
+  getUnreadCount: (token) => apiClient.get(`${BASE}/tickets/unread-count`, token, { forceRefresh: true }),
+
+  // Owner / staff — add a message to the ticket thread
+  addComment: (token, id, message) => apiClient.post(`${BASE}/tickets/${id}/comments`, { message }, token),
+
+  // Owner — close or reopen own ticket ('close' | 'reopen')
+  changeOwnStatus: (token, id, action) => apiClient.patch(`${BASE}/tickets/${id}/status`, { action }, token),
 
   // User / Admin — single ticket
-  getTicket: (token, id) => apiClient.get(`${BASE}/tickets/${id}`, token),
+  getTicket: (token, id) => apiClient.get(`${BASE}/tickets/${id}`, token, { forceRefresh: true }),
 
   // Admin / IT — all tickets with optional filters
   getAllTickets: (token, params = {}) => {

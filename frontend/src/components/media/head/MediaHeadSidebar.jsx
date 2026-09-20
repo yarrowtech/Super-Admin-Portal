@@ -34,6 +34,16 @@ const menuGroups = [
       { key: 'activity', label: 'Activity', icon: 'history' },
     ],
   },
+  {
+    label: 'Workforce',
+    items: [
+      { key: 'tasks', label: 'Tasks', icon: 'task' },
+      { key: 'attendance', label: 'Attendance', icon: 'calendar_month' },
+      { key: 'jobs', label: 'Jobs', icon: 'work_outline' },
+      { key: 'team', label: 'Team', icon: 'group' },
+      { key: 'messages', label: 'Messages', icon: 'forum' },
+    ],
+  },
 ];
 
 const MediaHeadSidebar = ({ currentView = 'dashboard', onViewChange }) => {

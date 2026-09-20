@@ -518,7 +518,7 @@ const LawDashboard = () => {
           </select>
         </PortalHeader>
 
-        <WarmGreeting user={user} message="Wishing you a focused and productive day ahead." />
+        <WarmGreeting user={user} roleHint="legal operations" />
 
         {error && (
           <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">

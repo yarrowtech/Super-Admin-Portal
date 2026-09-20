@@ -4,8 +4,9 @@ import Button from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { taskAdapters } from '../../features/tasks/taskAdapters';
 import { TASK_PRIORITIES } from '../../features/tasks/taskConstants';
+import LinkedItemsPicker from './LinkedItemsPicker';
 
-const emptyForm = { title: '', description: '', dueDate: '', priority: 'medium', assignedTo: '', department: '', project: '' };
+const emptyForm = { title: '', description: '', dueDate: '', priority: 'medium', assignedTo: '', department: '', project: '', linkedItems: [] };
 
 /** Minimal, real create-task form — only fields the backend genuinely accepts per portal. */
 const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
@@ -69,6 +70,7 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
         priority: form.priority,
         ...(adapter?.needsProject ? { project: form.project } : {}),
         ...(adapter?.needsAssignee ? { assignedTo: form.assignedTo } : {}),
+        ...(adapter?.supportsLinkedItems && form.linkedItems.length ? { linkedItems: form.linkedItems } : {}),
       };
       await onSubmit(body);
       handleClose();
@@ -134,8 +136,11 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
             className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           >
             <option value="">Assign to…</option>
-            {assignees.filter((a) => portal !== 'hr' || (a.department || 'Unassigned department') === form.department).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {assignees.filter((a) => portal !== 'hr' || (a.department || 'Unassigned department') === form.department).map((a) => <option key={a.id} value={a.id}>{a.name}{a.isFreelancer ? ' (Freelancer)' : ''}</option>)}
           </select>
+        )}
+        {adapter?.supportsLinkedItems && (
+          <LinkedItemsPicker portal={portal} value={form.linkedItems} onChange={(linkedItems) => setForm((f) => ({ ...f, linkedItems }))} />
         )}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>

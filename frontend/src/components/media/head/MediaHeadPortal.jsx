@@ -3,6 +3,8 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import MediaHeadSidebar from './MediaHeadSidebar';
 import { useSidebar } from '../../../context/SidebarContext';
 import MobilePortalNav from '../../common/MobilePortalNav';
+import { mediaModulesApi } from '../../../services/departmentModules';
+import { DepartmentTeamPage, DepartmentMessagesPage } from '../../shared/DepartmentCollabPages';
 
 const MediaHeadDashboard = lazy(() => import('./MediaHeadDashboard'));
 const MediaHeadProjectList = lazy(() => import('./MediaHeadProjectList'));
@@ -11,6 +13,9 @@ const MediaHeadTeamAnalytics = lazy(() => import('./MediaHeadTeamAnalytics'));
 const MediaHeadDeadlineCenter = lazy(() => import('./MediaHeadDeadlineCenter'));
 const MediaHeadApprovalCenter = lazy(() => import('./MediaHeadApprovalCenter'));
 const MediaHeadActivityFeed = lazy(() => import('./MediaHeadActivityFeed'));
+const MediaHeadTasksPage = lazy(() => import('../../../features/tasks/TaskWorkspace').then((m) => ({ default: () => <m.default portal="media" icon="task" title="Media Tasks" description="Assign, track, and close media work items." manageRoles={['media_head', 'admin', 'super_admin', 'superadmin']} /> })));
+const MediaHeadAttendancePage = lazy(() => import('../../shared/DepartmentAttendance').then((m) => ({ default: () => <m.default api={mediaModulesApi} portalLabel="Media" /> })));
+const MediaHeadJobsPage = lazy(() => import('../../shared/DepartmentJobs').then((m) => ({ default: () => <m.default api={mediaModulesApi} portalLabel="Media" /> })));
 const MediaHeadSettingsPage = lazy(() => import('../../shared/PortalSettingsPage').then((m) => ({ default: () => <m.default portalLabel="Media Head" accentColor="#0f766e" /> })));
 const MediaHeadSupportPage = lazy(() => import('../../shared/PortalSupportPage').then((m) => ({ default: () => <m.default portal="media" portalLabel="Media Head" accentColor="#0f766e" /> })));
 
@@ -31,6 +36,11 @@ const mediaHeadMobileItems = [
   { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
   { key: 'approvals', label: 'Approvals', icon: 'fact_check' },
   { key: 'activity', label: 'Activity', icon: 'history' },
+  { key: 'tasks', label: 'Tasks', icon: 'task' },
+  { key: 'attendance', label: 'Attendance', icon: 'calendar_month' },
+  { key: 'jobs', label: 'Jobs', icon: 'work_outline' },
+  { key: 'team', label: 'Team', icon: 'group' },
+  { key: 'messages', label: 'Messages', icon: 'forum' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
   { key: 'support', label: 'Support', icon: 'support_agent' },
 ];
@@ -63,6 +73,16 @@ const MediaHeadPortal = () => {
         return <MediaHeadApprovalCenter />;
       case 'activity':
         return <MediaHeadActivityFeed />;
+      case 'tasks':
+        return <MediaHeadTasksPage />;
+      case 'attendance':
+        return <MediaHeadAttendancePage />;
+      case 'jobs':
+        return <MediaHeadJobsPage />;
+      case 'team':
+        return <DepartmentTeamPage dept="media" />;
+      case 'messages':
+        return <DepartmentMessagesPage dept="media" homePath="/media/head/dashboard" />;
       case 'settings':
         return <MediaHeadSettingsPage />;
       case 'support':

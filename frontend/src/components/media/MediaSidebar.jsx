@@ -9,7 +9,7 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 const GROUPS = [
   { id: 'creative', label: 'Creative', icon: 'perm_media', sectionIds: ['assets', 'brand', 'content', 'design', 'video', 'social'] },
 ];
-const STANDALONE_IDS = new Set(['dashboard', 'projects', 'profile']);
+const STANDALONE_IDS = new Set(['dashboard', 'projects', 'tasks', 'attendance', 'team', 'messages', 'profile']);
 const FOOTER_IDS = new Set(['settings', 'support']);
 
 const buildGroupedItems = (sections = []) => {

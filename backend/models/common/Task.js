@@ -87,6 +87,17 @@ const taskSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Task'
     }],
+    // Law portal only: read-only references to Law records / contracts / legal documents the
+    // law head attaches to a task. Optional and additive; validated in middlewares/lawTaskLinks.js.
+    linkedItems: {
+      type: [{
+        _id: false,
+        module: { type: String, enum: ['record', 'contract', 'document', 'outsourcing_contract'], required: true },
+        recordId: { type: mongoose.Schema.Types.ObjectId, required: true },
+        title: { type: String, trim: true, default: '' }
+      }],
+      default: undefined
+    },
     progress: {
       type: Number,
       min: 0,

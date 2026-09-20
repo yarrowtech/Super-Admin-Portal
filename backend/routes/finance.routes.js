@@ -2,6 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const financeController = require('../controllers/finance/financeDashboard.controller');
+const hrController = require('../controllers/hr/hrDashboard.controller');
+const { departmentScope, mountDepartmentModules } = require('../middlewares/departmentScope.middleware');
+const mountDepartmentCollab = require('../utils/mountDepartmentCollab');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
@@ -114,5 +117,25 @@ router.patch('/approvals/:id/decision', canControlFinance, financeController.upd
 router.post('/integrations/hr/payroll-sync', canWriteFinance, financeController.syncPayrollFromHr);
 router.post('/integrations/law/compliance-link', canWriteFinance, financeController.linkComplianceWithLaw);
 router.get('/integrations/snapshot', financeController.getIntegrationSnapshot);
+
+// Tasks / Attendance / Jobs — department-scoped views over the same shared
+// Task/Attendance/JobPost models HR's controller already operates on
+// (backend/controllers/hr/hrDashboard.controller.js). No new data model is
+// introduced; these endpoints just mirror HR's route surface for Finance.
+const scope = departmentScope({
+  roles: [ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE],
+  label: 'Finance',
+  selfOnlyRoles: [ROLES.FINANCE_EMPLOYEE],
+  headRoles: [ROLES.FINANCE_MANAGER],
+  portalKey: 'finance',
+});
+const canManageFinanceTasks = authorize(ROLES.FINANCE_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN);
+mountDepartmentModules(router, scope, hrController, {
+  taskManage: canManageFinanceTasks,
+  taskManageRoles: [ROLES.FINANCE_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN],
+});
+
+// Finance-only Team directory + Messages (chat services also enforce this by role).
+mountDepartmentCollab(router, 'finance', authorize(ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE));
 
 module.exports = router;

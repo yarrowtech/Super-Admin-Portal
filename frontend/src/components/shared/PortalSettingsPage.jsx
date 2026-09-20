@@ -82,13 +82,13 @@ const PortalSettingsPage = ({ portalLabel = 'Portal', accentColor = '#6366f1' })
           credentials: 'include',
         });
         const json = await res.json();
-        const p = json?.data || {};
+        const p = json?.data?.user || json?.data || {};
         const m = p?.metadata || {};
         setForm({
           firstName: p.firstName || user?.firstName || '',
           lastName: p.lastName || user?.lastName || '',
           email: p.email || user?.email || '',
-          phone: m.phone || p.phone || '',
+          phone: p.phone || m.phone || '',
           timezone: m.timezone || 'Asia/Kolkata',
           language: m.language || 'English',
         });
@@ -109,16 +109,21 @@ const PortalSettingsPage = ({ portalLabel = 'Portal', accentColor = '#6366f1' })
   const saveAccount = async () => {
     try {
       setSaving(true); setMsg({ type: '', text: '' });
-      await fetch(`${API_BASE}/api/profile/update`, {
+      const payload = { firstName: form.firstName.trim(), lastName: form.lastName.trim() };
+      if (form.phone.trim()) payload.phone = form.phone.trim();
+      const res = await fetch(`${API_BASE}/api/profile/update`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         credentials: 'include',
-        body: JSON.stringify({ firstName: form.firstName, lastName: form.lastName, phone: form.phone }),
+        body: JSON.stringify(payload),
       });
-      // store timezone/language in metadata via preferences endpoint
-      await portalSupportApi.updatePreferences(token, {
-        notifPrefs: { ...notifPrefs, timezone: form.timezone, language: form.language },
-      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const first = Array.isArray(json?.errors) ? json.errors[0]?.message : '';
+        throw new Error(first || json?.error || json?.message || 'Failed to save account settings');
+      }
+      // timezone/language are stored on the user's metadata via the preferences endpoint
+      await portalSupportApi.updatePreferences(token, { timezone: form.timezone, language: form.language });
       setMsg({ type: 'ok', text: 'Account settings saved!' });
     } catch (e) {
       setMsg({ type: 'err', text: e.message || 'Failed to save' });

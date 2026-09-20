@@ -101,7 +101,7 @@ export const ManagerDashboardPage = () => {
     <main className="portal-page">
       <div className="portal-page-inner space-y-5">
         <PortalHeader title="IT Manager" subtitle="Team delivery, task execution, and approvals" icon="supervisor_account" user={user} onRefresh={reload} />
-        <WarmGreeting user={user} message="Here's what needs your attention across projects and your team." />
+        <WarmGreeting user={user} roleHint="projects and team" />
 
         {loading || error ? (
           error ? <ErrorState title="Unable to load dashboard" description={error} onRetry={reload} /> : (

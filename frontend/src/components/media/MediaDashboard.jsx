@@ -353,7 +353,7 @@ const MediaDashboard = ({ selectedProjectId, onSectionChange }) => {
           </span>
         </PortalHeader>
 
-        <WarmGreeting user={user} message="Hope you have a creative and productive day." />
+        <WarmGreeting user={user} roleHint="creative work" />
 
         {loading ? (
           <div className="h-56 animate-pulse rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900" />

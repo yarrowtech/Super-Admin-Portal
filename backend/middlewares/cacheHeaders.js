@@ -36,6 +36,12 @@ const cacheHeaders = (req, res, next) => {
     return next();
   }
 
+  // Support tickets change on every staff reply; never serve them from the HTTP cache.
+  if (/\/portal-support/.test(path)) {
+    res.setHeader('Cache-Control', 'no-store');
+    return next();
+  }
+
   for (const pattern of PATTERNS) {
     if (pattern.test.test(path)) {
       res.setHeader(

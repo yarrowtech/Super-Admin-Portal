@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { createDepartmentModulesApi } from './departmentModules';
 
 const toQueryString = (params = {}) => {
   const query = new URLSearchParams();
@@ -63,4 +64,31 @@ export const lawApi = {
     }
     return res.blob();
   },
+
+  // Law-only Team directory + Messages (backend restricts both to law_head / law_employee).
+  getTeam: (token) => apiClient.get('/api/dept/law/team', token, { cache: false }),
+  getChatThreads: (token) => apiClient.get('/api/dept/law/chat/threads', token, { cache: false }),
+  getChatMessages: (token, threadId) => apiClient.get(`/api/dept/law/chat/threads/${threadId}/messages`, token, { cache: false }),
+  postChatMessage: (token, threadId, text) => apiClient.post(`/api/dept/law/chat/threads/${threadId}/messages`, { text }, token),
+  createChatThread: (token, targetUserId) => apiClient.post('/api/dept/law/chat/threads', { targetUserId }, token),
+  createGroupThread: (token, body) => apiClient.post('/api/dept/law/chat/groups', body, token),
+
+  // Records linked to a task (read-only; server authorises by task assignment + link).
+  getLinkableItems: (token, params = {}) => apiClient.get(`/api/dept/law/task-items/options${toQueryString(params)}`, token, { cache: false }),
+  getMyTaskItems: (token) => apiClient.get('/api/dept/law/task-items/mine', token, { cache: false }),
+  getTaskItems: (token, taskId) => apiClient.get(`/api/dept/law/task-items/${taskId}`, token, { cache: false }),
+  getTaskItem: (token, taskId, recordId) => apiClient.get(`/api/dept/law/task-items/${taskId}/${recordId}`, token, { cache: false }),
+  getTaskItemFile: async (token, taskId, recordId, index, { download = false } = {}) => {
+    const res = await fetch(`${apiClient.getBaseUrl()}/api/dept/law/task-items/${taskId}/${recordId}/files/${index}${download ? '?download=1' : ''}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || 'Unable to load file');
+    }
+    return res.blob();
+  },
+
+  ...createDepartmentModulesApi('/api/dept/law'),
 };

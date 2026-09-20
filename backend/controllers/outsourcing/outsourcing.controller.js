@@ -15,6 +15,7 @@ const ActivityLog = require('../../models/auth/ActivityLog');
 const Project = require('../../models/common/Project');
 const { buildProjectAccessSummary } = require('../../utils/projectAccess');
 const { ROLES, isValidRole } = require('../../config/roles');
+const { parseAssociatedPortals, getAssociatedPortals } = require('../../utils/freelancerPortals');
 
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
   cloudinary.config({
@@ -153,7 +154,7 @@ const calculateSessionMetrics = (session, now = new Date()) => {
 
 const createOutsourcingUser = async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone, outsourcingType, role, department, skills, domain } = req.body || {};
+    const { email, password, firstName, lastName, phone, outsourcingType, role, department, skills, domain, associatedPortals } = req.body || {};
     const normalizedType = normalizeOutsourcingType(outsourcingType);
     const requestedRole = String(role || ROLES.FREELANCER).trim();
     const requestedDepartment = String(department || 'External Workforce').trim();
@@ -168,6 +169,11 @@ const createOutsourcingUser = async (req, res) => {
 
     if (!isValidRole(requestedRole) || ![ROLES.FREELANCER].includes(requestedRole)) {
       return res.status(400).json({ success: false, error: 'Invalid role for freelancer user' });
+    }
+
+    const parsedPortals = parseAssociatedPortals(associatedPortals);
+    if (parsedPortals.error) {
+      return res.status(400).json({ success: false, error: parsedPortals.error });
     }
 
     const exists = await User.findOne({ email: email.toLowerCase().trim() });
@@ -185,6 +191,8 @@ const createOutsourcingUser = async (req, res) => {
       department: requestedDepartment || 'External Workforce',
       metadata: {
         outsourcingType: normalizedType,
+        // Portals this freelancer can be assigned tasks by. Omitted => legacy default (see utils/freelancerPortals.js).
+        ...(parsedPortals.portals ? { associatedPortals: parsedPortals.portals } : {}),
         workerClass: 'external_contractor',
         isInHouse: false,
         accessScope: 'project_only',
@@ -241,13 +249,36 @@ const listFreelancers = async (req, res) => {
         assignedProjects: profile?.assignedProjects || [],
         contract: profile?.contract || null,
         status: profile?.status || (user.isActive ? 'active' : 'blocked'),
-        lawValidated: Boolean(profile?.lawValidated)
+        lawValidated: Boolean(profile?.lawValidated),
+        associatedPortals: getAssociatedPortals(userData),
+        associatedPortalsExplicit: Array.isArray(userData?.metadata?.associatedPortals)
       };
     });
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {
     logger.error({ err: error }, 'List freelancers error');
     return res.status(500).json({ success: false, error: 'Failed to fetch freelancers', details: error.message });
+  }
+};
+
+// Admin/HR: set which portals a freelancer is associated with (controls which department heads can assign them tasks).
+const updateFreelancerPortals = async (req, res) => {
+  try {
+    const parsed = parseAssociatedPortals(req.body?.associatedPortals);
+    if (parsed.error || !parsed.portals) {
+      return res.status(400).json({ success: false, error: parsed.error || 'associatedPortals is required' });
+    }
+    const user = await User.findById(req.params.id);
+    if (!user || user.role !== ROLES.FREELANCER) {
+      return res.status(404).json({ success: false, error: 'Freelancer not found' });
+    }
+    user.metadata = { ...(user.metadata || {}), associatedPortals: parsed.portals };
+    user.markModified('metadata');
+    await user.save();
+    return res.status(200).json({ success: true, data: { _id: user._id, associatedPortals: getAssociatedPortals(user), associatedPortalsExplicit: true } });
+  } catch (error) {
+    logger.error({ err: error }, 'Update freelancer portals error');
+    return res.status(500).json({ success: false, error: 'Failed to update freelancer portals' });
   }
 };
 
@@ -2222,6 +2253,7 @@ const updateMyPreferences = async (req, res) => {
 
 module.exports = {
   createOutsourcingUser,
+  updateFreelancerPortals,
   listFreelancers,
   validateContractByLaw,
   createMilestone,

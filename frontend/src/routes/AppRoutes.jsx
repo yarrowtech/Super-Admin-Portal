@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Loader from '../components/common/Loader';
 import {
@@ -56,6 +56,21 @@ import {
   AdminLegalLibraryPage,
   AdminSalesSubmissionsPage,
   LawContractsPage,
+  LawDashboardPage,
+  LawTeamPage,
+  LawMessagesPage,
+  DepartmentTeamPage,
+  DepartmentMessagesPage,
+  LawSettingsPage,
+  LawSupportPage,
+  EfnbmmsPolicyPage,
+  TaskWorkspacePage,
+  DepartmentAttendancePage,
+  DepartmentJobsPage,
+  SalesTasksPage,
+  SalesAttendancePage,
+  SalesTeamPage,
+  SalesMessagesPage,
   ITDashboard,
   ITOverviewPage,
   ITProductsPage,
@@ -89,7 +104,15 @@ import {
   FinanceSettingsPage,
   FinanceSupportPage,
   HRSettingsPage,
+  EmployeeSettingsPage,
+  ManagerSettingsPage,
+  SalesSettingsPage,
   HRSupportPage,
+  EmployeeSupportPage,
+  ManagerSupportPage,
+  SalesSupportPage,
+  ITSupportPage,
+  AdminSupportPage,
   AdminSupportCenterPage,
   AdminSettingsPage,
   AdminPortfolioPage,
@@ -127,16 +150,34 @@ import {
   OutsourcingLayout,
   EmployeeLayout,
   ManagerLayout,
+  prefetchPortalShell,
 } from '../layouts/portals';
 import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
 import { dashboardWorkflowApi } from '../services/dashboardWorkflow';
+import { itApi } from '../services/it';
+import { financeApi } from '../services/finance';
+import { lawApi } from '../services/law';
+import { LawHome, LawHeadOnly } from '../components/law/LawRoleGates';
+const LawAssignedWorkPage = lazy(() => import('../components/law/LawAssignedWorkPage'));
+import { hrApi } from '../services/hr';
+import { managerModulesApi, outsourcingModulesApi } from '../services/departmentModules';
 import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, PrivateRoute } from './routeGuards';
 import activityTracker from '../services/activityTracker';
 
+// hrApi's createJobPost takes (data, token) — the reverse of the (token, data)
+// order every other department's job-post API and DepartmentJobsPage use —
+// so it's wrapped here rather than changing hrApi's long-established signature.
+const hrJobsApi = {
+  getJobPosts: hrApi.getJobPosts,
+  createJobPost: (token, data) => hrApi.createJobPost(data, token),
+  updateJobPost: (token, id, data) => hrApi.updateJobPost(id, data, token),
+  deleteJobPost: (token, id) => hrApi.deleteJobPost(id, token),
+};
+
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
 const managerRoles = ['manager', 'it_manager', ...adminRoles];
-const employeeRoles = ['employee', 'it_employee', 'finance_employee', 'law_employee', ...adminRoles];
+const employeeRoles = ['employee', 'it_employee', 'finance_employee', ...adminRoles];
 let lastPortalEntryKey = '';
 
 const titleCase = (value = '') =>
@@ -281,6 +322,12 @@ const NavigationLogger = () => {
 export default function AppRoutes() {
   const { user } = useAuth();
 
+  // Idle-prefetch the signed-in user's portal shell chunk so first navigation is instant.
+  const homePath = user ? defaultRolePath(user) : '';
+  useEffect(() => {
+    if (homePath) prefetchPortalShell(homePath);
+  }, [homePath]);
+
   return (
     <Router>
       <NavigationLogger />
@@ -326,6 +373,7 @@ export default function AppRoutes() {
           <Route path="profiles" element={<HRProfilesPage />} />
           <Route path="work-updates" element={<Navigate to="/hr/tasks?view=updates" replace />} />
           <Route path="tasks" element={<HRTasksPage />} />
+          <Route path="jobs" element={<DepartmentJobsPage api={hrJobsApi} portalLabel="HR" />} />
           <Route path="outsourcing" element={<HROutsourcingPage />} />
           <Route path="settings" element={<HRSettingsPage />} />
           <Route path="support" element={<HRSupportPage />} />
@@ -354,8 +402,14 @@ export default function AppRoutes() {
           <Route path="changes"     element={<ITChangesPage />} />
           <Route path="reports"     element={<ITReportsPage />} />
           <Route path="operations"  element={<ITOperationsPage />} />
+          <Route path="tasks" element={<TaskWorkspacePage portal="it" icon="task" title="IT Tasks" description="IT heads assign and manage IT work items; team members update their own progress." manageRoles={['it_manager', 'it_admin', 'admin', 'super_admin', 'superadmin']} />} />
+          <Route path="attendance" element={<DepartmentAttendancePage api={itApi} portalLabel="IT" />} />
+          <Route path="jobs" element={<DepartmentJobsPage api={itApi} portalLabel="IT" />} />
+          <Route path="team" element={<DepartmentTeamPage dept="it" />} />
+          <Route path="messages" element={<DepartmentMessagesPage dept="it" />} />
           <Route path="activity"    element={<ITActivityPage />} />
           <Route path="settings"    element={<ITSettingsPage />} />
+          <Route path="support" element={<ITSupportPage />} />
           <Route path="support-center" element={<ITSupportCenterPage />} />
         </Route>
 
@@ -375,7 +429,11 @@ export default function AppRoutes() {
           <Route path="team" element={<ManagerTeamPage />} />
           <Route path="tasks" element={<ManagerTasksPage />} />
           <Route path="work-reviews" element={<ManagerWorkReviewsPage />} />
+          <Route path="attendance" element={<DepartmentAttendancePage api={managerModulesApi} portalLabel="Team" />} />
+          <Route path="jobs" element={<DepartmentJobsPage api={managerModulesApi} portalLabel="Operations" />} />
           <Route path="leave" element={<ManagerLeavePage />} />
+          <Route path="settings" element={<ManagerSettingsPage />} />
+          <Route path="support" element={<ManagerSupportPage />} />
           <Route path="project-overview" element={<ProjectOverviewPage portalKey="manager" portalName="Manager Portal" titleOverride="Project Overview" />} />
         </Route>
         <Route
@@ -400,18 +458,12 @@ export default function AppRoutes() {
           <Route path="profile" element={<EmployeeProfileRoute />} />
           <Route path="chat" element={<EmployeeChatPage />} />
           <Route path="jobs" element={<EmployeeJobsPage />} />
+          <Route path="settings" element={<EmployeeSettingsPage />} />
+          <Route path="support" element={<EmployeeSupportPage />} />
         </Route>
 
         <Route
           path="/law"
-          element={
-            <PrivateRoute roles={allow('law')}>
-              <Navigate to="/law/dashboard" replace />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/law/*"
           element={
             <PortalRoute portal={PORTALS.LAW}>
               <PrivateRoute roles={allow('law')}>
@@ -419,7 +471,30 @@ export default function AppRoutes() {
               </PrivateRoute>
             </PortalRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<LawHome />} />
+          <Route path="settings" element={<LawSettingsPage />} />
+          <Route path="support" element={<LawSupportPage />} />
+          <Route path="team" element={<LawTeamPage />} />
+          <Route path="messages" element={<LawMessagesPage />} />
+          <Route path="compliance/policy-api" element={<LawHeadOnly><EfnbmmsPolicyPage /></LawHeadOnly>} />
+          <Route path="efnbmms-policy" element={<LawHeadOnly><EfnbmmsPolicyPage /></LawHeadOnly>} />
+          <Route path="project-overview" element={<ProjectOverviewPage portalKey="law" portalName="Law Portal" />} />
+          <Route path="overview/projects" element={<ProjectOverviewPage portalKey="law" portalName="Law Portal" />} />
+          <Route path="assigned-work" element={<LawAssignedWorkPage />} />
+          <Route path="tasks" element={<TaskWorkspacePage portal="law" icon="task" title="Law Tasks" description="The law head assigns and manages legal work items; team members update their own progress." manageRoles={['law_head', 'admin', 'super_admin', 'superadmin']} />} />
+          <Route path="attendance" element={<DepartmentAttendancePage api={lawApi} portalLabel="Law" writeRoles={['law_head', 'admin', 'super_admin', 'superadmin']} />} />
+          <Route path="jobs" element={<LawHeadOnly><DepartmentJobsPage api={lawApi} portalLabel="Law" /></LawHeadOnly>} />
+          <Route path="leave" element={<EmployeeLeavePage />} />
+          {/* contracts/*, documents/*, compliance/privacy-policy, compliance/ip-copyright,
+              risk/disputes, overview/workflow, and the legacy flat aliases (legal-docs,
+              agreements, policy, disputes, ip, work-hire, third-party, contracts) all
+              resolve here intentionally: LawDashboard reads location.pathname itself
+              (see moduleToSection() in components/law/LawDashboard.jsx) and renders the
+              matching legal module — this catch-all is a documented decision, not a gap. */}
+          <Route path="*" element={<LawHeadOnly><LawDashboardPage /></LawHeadOnly>} />
+        </Route>
 
         <Route
           path="/finance"
@@ -448,6 +523,11 @@ export default function AppRoutes() {
           <Route path="budgets" element={<FinanceBudgetsPage />} />
           <Route path="payroll" element={<FinancePayrollPage />} />
           <Route path="accounting" element={<FinanceAccountingPage />} />
+          <Route path="tasks" element={<TaskWorkspacePage portal="finance" icon="task" title="Finance Tasks" description="The finance head assigns and manages finance work items; team members update their own progress." manageRoles={['finance_manager', 'admin', 'super_admin', 'superadmin']} />} />
+          <Route path="attendance" element={<DepartmentAttendancePage api={financeApi} portalLabel="Finance" />} />
+          <Route path="jobs" element={<DepartmentJobsPage api={financeApi} portalLabel="Finance" />} />
+          <Route path="team" element={<DepartmentTeamPage dept="finance" />} />
+          <Route path="messages" element={<DepartmentMessagesPage dept="finance" />} />
           <Route path="reports" element={<FinanceReportsPage />} />
           <Route path="compliance" element={<FinanceCompliancePage />} />
           <Route path="directory" element={<FinanceDirectoryPage />} />
@@ -557,11 +637,71 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/media/sales/tasks"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_sales')}>
+                <SalesTasksPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/team"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_sales')}>
+                <SalesTeamPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/messages"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_sales')}>
+                <SalesMessagesPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/attendance"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_sales')}>
+                <SalesAttendancePage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/media/sales/profile"
           element={
             <PortalRoute portal={PORTALS.MEDIA}>
               <PrivateRoute roles={allow('media_sales')}>
                 <SalesProfilePage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/settings"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_sales')}>
+                <SalesSettingsPage />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
+          path="/media/sales/support"
+          element={
+            <PortalRoute portal={PORTALS.MEDIA}>
+              <PrivateRoute roles={allow('media_sales')}>
+                <SalesSupportPage />
               </PrivateRoute>
             </PortalRoute>
           }
@@ -784,6 +924,16 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/admin/support"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminSupportPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        <Route
           path="/admin/support-center"
           element={
             <PortalRoute portal={PORTALS.ADMIN}>
@@ -853,6 +1003,10 @@ export default function AppRoutes() {
           <Route path="jobs" element={<OutsourcingJobsPage />} />
           <Route path="contracts" element={<OutsourcingContractsPage />} />
           <Route path="time-logs" element={<OutsourcingTimeLogsPage />} />
+          <Route path="tasks" element={<TaskWorkspacePage portal="outsourcing" icon="task" title="Outsourcing Tasks" description="Work assigned to you by any portal you are associated with. Update status and progress as you go." manageRoles={['admin', 'super_admin', 'superadmin', 'hr']} />} />
+          <Route path="assigned-work" element={<LawAssignedWorkPage />} />
+          <Route path="attendance" element={<DepartmentAttendancePage api={outsourcingModulesApi} portalLabel="Outsourcing" />} />
+          <Route path="recruitment" element={<DepartmentJobsPage api={outsourcingModulesApi} portalLabel="Outsourcing Recruitment" />} />
           <Route path="profile" element={<OutsourcingProfilePage />} />
           <Route path="activity" element={<OutsourcingActivityPage />} />
           <Route path="payments" element={<OutsourcingPaymentsPage />} />

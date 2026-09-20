@@ -13,6 +13,7 @@ router.use(authenticate);
 // User routes — any authenticated internal employee
 router.post('/tickets', ctrl.createTicket);
 router.get('/tickets/my', ctrl.getMyTickets);
+router.get('/tickets/unread-count', ctrl.getUnreadCount);
 
 // Preferences — any authenticated user
 router.patch('/preferences', ctrl.updatePreferences);
@@ -21,7 +22,9 @@ router.patch('/preferences', ctrl.updatePreferences);
 router.get('/tickets/all', authorize(...ADMIN_ROLES), ctrl.getAllTickets);
 router.put('/tickets/:id', authorize(...ADMIN_ROLES), ctrl.updateTicket);
 
-// Single ticket view (owner or admin)
+// Single ticket view / thread / requester close-reopen (ownership enforced in controller)
 router.get('/tickets/:id', ctrl.getTicket);
+router.post('/tickets/:id/comments', ctrl.addComment);
+router.patch('/tickets/:id/status', ctrl.changeOwnTicketStatus);
 
 module.exports = router;

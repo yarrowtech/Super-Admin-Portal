@@ -1,8 +1,9 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useSidebar } from '../../context/SidebarContext';
 import SidebarPortalIdentity from './SidebarPortalIdentity';
 import SidebarUserCard from './SidebarUserCard';
+import useSupportUnread from '../../hooks/useSupportUnread';
 
 /* ─── Tooltip for mini mode ─────────────────────────────────────── */
 const MiniTooltip = memo(({ label }) => (
@@ -121,11 +122,33 @@ const PortalSidebar = ({
   const resolvedNavItems = useMemo(() => navItems, [navItems]);
 
   const footerItems = footerItemsProp ?? [];
+  // Unread staff replies on the user's own support tickets -> badge on the footer Support link.
+  const supportUnread = useSupportUnread(footerItems.some((item) => item.label === 'Support'));
 
   const isPathActive  = (path) => {
     if (!path) return false;
     const pathname = String(path).split('?')[0];
     return currentPath === pathname || currentPath.startsWith(pathname + '/');
+  };
+  const { search: currentSearch } = useLocation();
+
+  // Sub-items may share one pathname and differ only by query string (e.g. Finance
+  // "Pending Verification" vs "Paid"). Only then is the query used to pick the active
+  // one; otherwise matching stays pathname-only so unrelated query params (like
+  // ?projectId=) never break highlighting.
+  const isChildActive = (child, siblings) => {
+    const [pathname, query] = String(child.path || '').split('?');
+    if (!isPathActive(pathname)) return false;
+    const samePath = siblings.filter((s) => s !== child && String(s.path || '').split('?')[0] === pathname);
+    if (samePath.length === 0) return true;
+    const params = new URLSearchParams(currentSearch);
+    const matchesQuery = (q) => {
+      if (!q) return false;
+      const wanted = new URLSearchParams(q);
+      return [...wanted.entries()].every(([k, v]) => params.get(k) === v);
+    };
+    if (query) return matchesQuery(query);
+    return !samePath.some((s) => matchesQuery(String(s.path).split('?')[1]));
   };
   const isGroupActive = (item) => Boolean(item?.children?.some((c) => isPathActive(c.path) || isGroupActive(c)));
 
@@ -246,7 +269,7 @@ const PortalSidebar = ({
                   <div className="mb-0.5 ml-3 mt-0.5 space-y-0.5 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
                     {item.children.map((child) => {
                       const childHasChildren = Array.isArray(child.children) && child.children.length > 0;
-                      const childActive = isPathActive(child.path) || isGroupActive(child);
+                      const childActive = isChildActive(child, item.children) || isGroupActive(child);
                       const childOpen = openGroups[child.path] ?? false;
 
                       return childHasChildren ? (
@@ -292,13 +315,11 @@ const PortalSidebar = ({
                           key={child.path}
                           to={child.path}
                           onClick={onNavigate}
-                          className={({ isActive: a }) =>
-                            `block rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all ${
-                              a
-                                ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
-                                : 'text-neutral-500 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
-                            }`
-                          }
+                          className={`block rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all ${
+                            childActive
+                              ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
+                              : 'text-neutral-500 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+                          }`}
                         >
                           {child.label}
                         </NavLink>
@@ -317,6 +338,7 @@ const PortalSidebar = ({
         <div className="space-y-0.5">
           {footerItems.map((item) => {
             const isActive = currentPath === item.path;
+            const footerBadge = item.label === 'Support' ? supportUnread : Number(item.badge) || 0;
             return (
               <NavLink
                 key={item.path}
@@ -341,7 +363,12 @@ const PortalSidebar = ({
                   </span>
                 </span>
                 {!collapsed && <span className="flex-1 truncate leading-none">{item.label}</span>}
-                {collapsed && <MiniTooltip label={item.label} />}
+                {!collapsed && footerBadge > 0 && (
+                  <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                    {footerBadge > 99 ? '99+' : footerBadge}
+                  </span>
+                )}
+                {collapsed && <MiniTooltip label={footerBadge > 0 ? `${item.label} (${footerBadge})` : item.label} />}
               </NavLink>
             );
           })}

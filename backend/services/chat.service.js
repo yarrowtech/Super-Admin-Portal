@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const ChatThread = require('../models/common/Chat');
 const ChatMessage = require('../models/common/Message');
 const User = require('../models/auth/User');
+const { isDepartmentChatUser, departmentOnlyThreadFilter, assertDepartmentRecipients, assertDepartmentThreadMembers } = require('../utils/departmentChatScope');
 
 const formatRoleMeta = (userDoc = {}) => {
   const role = userDoc.role;
@@ -49,7 +50,11 @@ const enrichThread = (thread) => {
 };
 
 const getThreads = async (user) => {
-  const threads = await ChatThread.find(threadFilter(user._id))
+  // Department users only ever see conversations made up entirely of their own department.
+  const listFilter = isDepartmentChatUser(user)
+    ? { $and: [{ members: user._id }, await departmentOnlyThreadFilter(user)] }
+    : threadFilter(user._id);
+  const threads = await ChatThread.find(listFilter)
     .sort({ updatedAt: -1 })
     .populate('members', 'firstName lastName email department role')
     .lean();
@@ -97,13 +102,14 @@ const getThreadOrThrow = async (user, threadId) => {
     _id: threadId,
     ...threadFilter(user._id),
   })
-    .select('_id')
+    .select('_id members')
     .lean();
   if (!thread) {
     const error = new Error('Thread not found or access denied');
     error.statusCode = 404;
     throw error;
   }
+  if (isDepartmentChatUser(user)) await assertDepartmentThreadMembers(user, thread.members);
   return thread;
 };
 
@@ -161,6 +167,7 @@ const createDirectThread = async (user, targetUserId) => {
     err.statusCode = 404;
     throw err;
   }
+  if (isDepartmentChatUser(user)) await assertDepartmentRecipients(user, [targetUserId]);
 
   const existing = await ChatThread.findOne({
     isDirect: true,
@@ -209,6 +216,8 @@ const createGroupThread = async (user, payload = {}) => {
     err.statusCode = 400;
     throw err;
   }
+
+  if (isDepartmentChatUser(user)) await assertDepartmentRecipients(user, uniqueIds);
 
   const objectIds = uniqueIds.map((id) => new mongoose.Types.ObjectId(id));
   const members = await User.find({ _id: { $in: objectIds } })

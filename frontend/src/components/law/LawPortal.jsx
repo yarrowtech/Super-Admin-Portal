@@ -1,18 +1,11 @@
-import React, { lazy } from 'react';
-import { useLocation } from 'react-router-dom';
-import LawDashboard from './LawDashboard';
+import React from 'react';
+import { Outlet } from 'react-router-dom';
 import LawSidebar from './LawSidebar';
-import LawSettingsPage from './LawSettingsPage';
-import LawSupportPage from './LawSupportPage';
-import EfnbmmsPolicyPage from './EfnbmmsPolicyPage';
 import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 
-const ProjectOverviewPage = lazy(() => import('../shared/ProjectOverviewPage'));
-
 const LawPortal = () => {
   const { user } = useAuth();
-  const location = useLocation();
 
   return (
     <AppLayout
@@ -24,18 +17,7 @@ const LawPortal = () => {
       showHeader={false}
       showMobileNav={false}
     >
-      {/* LawSidebar renders its own fixed mobile top bar (h-16) since AppLayout's
-          shared MobilePortalNav is disabled above to avoid a duplicate header —
-          this reserves the same height so content clears it on mobile only. */}
-      <div className="pt-16 md:pt-0">
-        {location.pathname === '/law/settings' ? <LawSettingsPage /> :
-         location.pathname === '/law/support'  ? <LawSupportPage /> :
-         // New canonical path /law/compliance/policy-api; /law/efnbmms-policy kept
-         // working indefinitely since it's not referenced anywhere outside this file.
-         location.pathname.startsWith('/law/compliance/policy-api') || location.pathname.startsWith('/law/efnbmms-policy') ? <EfnbmmsPolicyPage /> :
-         location.pathname.startsWith('/law/overview/projects') || location.pathname.startsWith('/law/project-overview') ? <ProjectOverviewPage portalKey="law" portalName="Law Portal" /> :
-         <LawDashboard />}
-      </div>
+      <Outlet />
     </AppLayout>
   );
 };

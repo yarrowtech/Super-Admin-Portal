@@ -524,6 +524,11 @@ router.get('/projects/:projectId/overview', async (req, res) => {
     const resolvedProject = project;
     if (!resolvedProject) return res.status(404).json({ success: false, error: 'Project not found' });
     const overview = await getPortalOverview(portal, project, req);
+    // Law employees only get the aggregate counts; record/contract/document titles stay closed to them
+    // (they reach specific items solely through tasks the law head assigns - middlewares/lawTaskLinks.js).
+    if (portal === 'law' && String(req.user?.role || '').toLowerCase() === ROLES.LAW_EMPLOYEE) {
+      overview.sections = [];
+    }
     res.json({
       success: true,
       data: {

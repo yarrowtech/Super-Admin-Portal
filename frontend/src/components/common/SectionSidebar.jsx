@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
 import SidebarPortalIdentity from './SidebarPortalIdentity';
 import SidebarUserCard from './SidebarUserCard';
+import useSupportUnread from '../../hooks/useSupportUnread';
 
 const MiniTooltip = memo(({ label }) => (
   <span
@@ -28,6 +29,7 @@ const SectionSidebar = ({
   onSelect,
   footerItems = [],
 }) => {
+  const supportUnread = useSupportUnread(footerItems.some((item) => item.id === 'support'));
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const { collapsed, toggle } = useSidebar();
@@ -205,6 +207,7 @@ const SectionSidebar = ({
           <div className="mb-0.5 space-y-0.5">
             {footerItems.map((item) => {
               const isActive = activeId === item.id;
+              const footerBadge = item.id === 'support' ? supportUnread : 0;
               return (
                 <button
                   key={item.id}
@@ -225,6 +228,11 @@ const SectionSidebar = ({
                     {item.icon}
                   </span>
                   {!collapsed && <span className="flex-1 truncate text-left leading-none">{item.label}</span>}
+                  {!collapsed && footerBadge > 0 && (
+                  <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                    {footerBadge > 99 ? '99+' : footerBadge}
+                  </span>
+                )}
                   {collapsed && <MiniTooltip label={item.label} />}
                 </button>
               );

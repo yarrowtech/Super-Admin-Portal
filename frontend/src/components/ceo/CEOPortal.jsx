@@ -33,6 +33,8 @@ const ceoMobileItems = [
   { key: 'legalApproval', label: 'Legal Approval', icon: 'gavel' },
   { key: 'chat', label: 'Chat', icon: 'forum' },
   { key: 'notifications', label: 'Notifications', icon: 'notifications' },
+  { key: 'settings', label: 'Settings', icon: 'settings' },
+  { key: 'support', label: 'Support', icon: 'support_agent' },
 ];
 
 const CEOPortal = () => {

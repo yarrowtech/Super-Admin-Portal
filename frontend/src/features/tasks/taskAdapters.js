@@ -1,6 +1,10 @@
 import { managerApi } from '../../services/manager';
 import { hrApi } from '../../services/hr';
 import { employeeApi } from '../../services/employee';
+import { itApi } from '../../services/it';
+import { financeApi } from '../../services/finance';
+import { lawApi } from '../../services/law';
+import { mediaModulesApi, outsourcingModulesApi } from '../../services/departmentModules';
 
 const fetchHrPages = async (fetchPage, token, key, params = {}) => {
   const rows = [];
@@ -24,8 +28,30 @@ const personName = (person) => {
 
 const normalizePerson = (person) => {
   if (!person) return null;
-  return { id: person._id || person.id, name: personName(person), email: person.email || '', department: person.department || '' };
+  return {
+    id: person._id || person.id,
+    name: personName(person),
+    email: person.email || '',
+    department: person.department || '',
+    role: person.role || '',
+    isFreelancer: Boolean(person.isFreelancer) || person.role === 'freelancer',
+  };
 };
+
+// Portal that created a task, for the label freelancers see. Falls back to the assigner's role for
+// tasks created before Task.sourcePortal existed.
+const PORTAL_LABELS = { it: 'IT', finance: 'Finance', law: 'Law', media: 'Media', hr: 'HR', outsourcing: 'Outsourcing', manager: 'Manager' };
+const portalFromRole = (role) => {
+  const r = String(role || '').toLowerCase();
+  if (r.startsWith('it_')) return 'it';
+  if (r.startsWith('finance_')) return 'finance';
+  if (r.startsWith('law_')) return 'law';
+  if (r.startsWith('media_')) return 'media';
+  if (r === 'hr') return 'hr';
+  if (r === 'manager') return 'manager';
+  return '';
+};
+export const portalLabel = (key) => PORTAL_LABELS[key] || '';
 
 const normalizeProject = (project) => {
   if (!project) return null;
@@ -58,10 +84,12 @@ export const normalizeTask = (raw, { currentUser } = {}) => {
     project: normalizeProject(raw.project),
     assignee,
     department: assignee?.department || '',
+    sourcePortal: raw.sourcePortal || portalFromRole(raw.assignedBy?.role) || '',
     reporter: raw.assignedBy ? normalizePerson(raw.assignedBy) : null,
     progress: raw.progress ?? 0,
     isOverdue: Boolean(raw.isOverdue),
     tags: Array.isArray(raw.tags) ? raw.tags : [],
+    linkedItems: Array.isArray(raw.linkedItems) ? raw.linkedItems.map((l) => ({ module: l.module, recordId: String(l.recordId), title: l.title || '' })) : [],
     estimatedHours: raw.estimatedHours ?? null,
     actualHours: raw.actualHours ?? null,
     attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
@@ -84,6 +112,29 @@ export const normalizeTask = (raw, { currentUser } = {}) => {
  * rendering. Capability flags reflect what each portal's backend genuinely
  * supports today — the UI must check these rather than assume parity.
  */
+// Department-scoped tasks over the shared Task model. `api` comes from
+// createDepartmentModulesApi(); assignees are the department's own members
+// (GET <dept>/members), so the picker never offers people outside the scope.
+const departmentTaskAdapter = (api) => ({
+  canCreate: true,
+  canComment: false,
+  canFetchDetail: false,
+  fetchTasks: async (token) => {
+    const tasks = await fetchHrPages(api.getTasks, token, 'tasks');
+    return { tasks: tasks.map((t) => normalizeTask(t)), total: tasks.length };
+  },
+  updateStatus: (token, taskId, status) => api.updateTask(token, taskId, { status }),
+  createTask: (token, body) => api.createTask(token, body),
+  updateTask: (token, taskId, body) => api.updateTask(token, taskId, body),
+  deleteTask: api.deleteTask ? (token, taskId) => api.deleteTask(token, taskId) : undefined,
+  needsAssignee: true,
+  fetchAssignableUsers: async (token) => {
+    const res = await api.getMembers(token, { for: 'task' });
+    const list = Array.isArray(res?.data) ? res.data : [];
+    return list.map(normalizePerson);
+  },
+});
+
 export const taskAdapters = {
   manager: {
     canCreate: true,
@@ -129,6 +180,20 @@ export const taskAdapters = {
       return list.map(normalizePerson);
     },
   },
+
+  it: departmentTaskAdapter(itApi),
+  finance: departmentTaskAdapter(financeApi),
+  law: {
+    ...departmentTaskAdapter(lawApi),
+    // Law tasks can carry read-only linked records (head-only picker, employee sees them in the drawer).
+    supportsLinkedItems: true,
+    fetchLinkableItems: async (token) => {
+      const res = await lawApi.getLinkableItems(token);
+      return Array.isArray(res?.data) ? res.data : [];
+    },
+  },
+  media: departmentTaskAdapter(mediaModulesApi),
+  outsourcing: departmentTaskAdapter(outsourcingModulesApi),
 
   employee: {
     canCreate: true,

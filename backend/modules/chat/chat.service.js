@@ -2,18 +2,20 @@ const Chat = require('../../models/common/Chat');
 const Message = require('../../models/common/Message');
 const User = require('../../models/auth/User');
 const { ROLES } = require('../../config/roles');
+const { isDepartmentChatUser, departmentOnlyThreadFilter, assertDepartmentRecipients, assertDepartmentThreadMembers } = require('../../utils/departmentChatScope');
 
 const CEO_ALLOWED_TARGETS = new Set([ROLES.ADMIN, ROLES.HR, ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE, ROLES.IT_MANAGER, ROLES.LAW_HEAD, ROLES.MEDIA_HEAD]);
 
 const toId = (v) => v?.toString?.() || String(v || '');
 
-const ensureMember = async (conversationId, userId) => {
+const ensureMember = async (conversationId, userId, user = null) => {
   const row = await Chat.findOne({ _id: conversationId, members: userId });
   if (!row) {
     const err = new Error('Conversation not found or access denied');
     err.statusCode = 404;
     throw err;
   }
+  if (user && isDepartmentChatUser(user)) await assertDepartmentThreadMembers(user, row.members);
   return row;
 };
 
@@ -22,6 +24,8 @@ const getConversations = async (user, query = {}) => {
   const limit = Math.min(50, Math.max(1, Number(query.limit || 20)));
   const q = String(query.q || '').trim();
   const baseFilter = { members: user._id };
+  // Department users only ever see conversations made up entirely of their own department.
+  if (isDepartmentChatUser(user)) baseFilter.$and = [await departmentOnlyThreadFilter(user)];
   if (q) {
     baseFilter.$or = [
       { name: { $regex: q, $options: 'i' } },
@@ -57,7 +61,7 @@ const getConversations = async (user, query = {}) => {
 };
 
 const getMessages = async (user, conversationId, query = {}) => {
-  await ensureMember(conversationId, user._id);
+  await ensureMember(conversationId, user._id, user);
   const page = Math.max(1, Number(query.page || 1));
   const limit = Math.min(100, Math.max(1, Number(query.limit || 40)));
   const search = String(query.search || '').trim();
@@ -101,7 +105,7 @@ const sendMessage = async (sender, payload = {}) => {
 
   let thread = null;
   if (conversationId) {
-    thread = await ensureMember(conversationId, sender._id);
+    thread = await ensureMember(conversationId, sender._id, sender);
   } else if (targetUserId) {
     const recipient = await User.findById(targetUserId).select('_id role isActive');
     if (!recipient || !recipient.isActive) {
@@ -117,6 +121,7 @@ const sendMessage = async (sender, payload = {}) => {
         throw err;
       }
     }
+    if (isDepartmentChatUser(sender)) await assertDepartmentRecipients(sender, [targetUserId]);
     thread = await createOrFindDirect(sender._id, targetUserId);
   } else {
     const err = new Error('conversationId or targetUserId is required');
@@ -147,7 +152,7 @@ const sendMessage = async (sender, payload = {}) => {
 };
 
 const markRead = async (user, conversationId, messageIds = []) => {
-  await ensureMember(conversationId, user._id);
+  await ensureMember(conversationId, user._id, user);
   if (!Array.isArray(messageIds) || messageIds.length === 0) return { updated: 0 };
   const result = await Message.updateMany(
     {

@@ -8,10 +8,16 @@ import MediaSidebar from './MediaSidebar';
 import MediaDashboard from './MediaDashboard';
 import MediaWorkspace, { MEDIA_SECTIONS } from './MediaWorkspace';
 import EmployeeProfilePage from '../shared/EmployeeProfilePage';
+import { DepartmentTeamPage, DepartmentMessagesPage } from '../shared/DepartmentCollabPages';
+import { mediaModulesApi } from '../../services/departmentModules';
+
+const MediaTasksPage = lazy(() => import('../../features/tasks/TaskWorkspace').then((m) => ({ default: () => <m.default portal="media" icon="task" title="Media Tasks" description="The media head assigns and manages work items; team members update their own progress." manageRoles={['media_head', 'admin', 'super_admin', 'superadmin']} /> })));
+const MediaAttendancePage = lazy(() => import('../shared/DepartmentAttendance').then((m) => ({ default: () => <m.default api={mediaModulesApi} portalLabel="Media" /> })));
 
 const MediaSettingsPage = lazy(() => import('../shared/PortalSettingsPage').then((m) => ({ default: () => <m.default portalLabel="Media Marketing" accentColor="#0f766e" /> })));
 const MediaSupportPage = lazy(() => import('../shared/PortalSupportPage').then((m) => ({ default: () => <m.default portal="media" portalLabel="Media Marketing" accentColor="#0f766e" /> })));
 
+const DEPT_ONLY_SECTIONS = new Set(['team', 'messages']);
 const PROJECT_STORAGE_KEY = 'activeProjectId';
 const SECTION_IDS = MEDIA_SECTIONS.map((section) => section.id);
 const isValidSection = (value) => SECTION_IDS.includes(String(value || '').trim());
@@ -37,7 +43,7 @@ const MediaPortal = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { collapsed } = useSidebar();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [selectedProjectId, setSelectedProjectId] = useState(readStoredProjectId);
 
@@ -47,7 +53,7 @@ const MediaPortal = () => {
   // accurate even while the user is deep in Assets, Campaigns, etc.
   useEffect(() => {
     let alive = true;
-    if (!token || activeSection === 'projects' || activeSection === 'profile' || activeSection === 'settings' || activeSection === 'support') {
+    if (!token || activeSection === 'projects' || activeSection === 'profile' || activeSection === 'settings' || activeSection === 'support' || activeSection === 'tasks' || activeSection === 'attendance') {
       setPendingApprovals(0);
       return undefined;
     }
@@ -64,8 +70,11 @@ const MediaPortal = () => {
   }, [token, activeSection]);
 
   const sectionsWithBadges = useMemo(
-    () => MEDIA_SECTIONS.map((section) => (section.id === 'approvals' ? { ...section, badge: pendingApprovals } : section)),
-    [pendingApprovals]
+    () => MEDIA_SECTIONS
+      // Team + Messages are department-only: hidden from admins/other roles (the backend also rejects them).
+      .filter((section) => !DEPT_ONLY_SECTIONS.has(section.id) || String(user?.role || '').startsWith('media_'))
+      .map((section) => (section.id === 'approvals' ? { ...section, badge: pendingApprovals } : section)),
+    [pendingApprovals, user?.role]
   );
 
   useEffect(() => {
@@ -162,6 +171,18 @@ const MediaPortal = () => {
           />
         ) : activeSection === 'profile' ? (
           <EmployeeProfilePage portalLabel="Media Marketing" />
+        ) : activeSection === 'tasks' ? (
+          <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
+            <MediaTasksPage />
+          </Suspense>
+        ) : activeSection === 'attendance' ? (
+          <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
+            <MediaAttendancePage />
+          </Suspense>
+        ) : activeSection === 'team' ? (
+          <DepartmentTeamPage dept="media" />
+        ) : activeSection === 'messages' ? (
+          <DepartmentMessagesPage dept="media" homePath="/media/dashboard" />
         ) : activeSection === 'settings' ? (
           <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
             <MediaSettingsPage />

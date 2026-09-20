@@ -3,10 +3,13 @@ const ctrl = require('../controllers/legalDocument.v2.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { uploadFields } = require('../middlewares/upload.middleware');
 const { ROLES } = require('../config/roles');
+const { denyLawEmployee } = require('../middlewares/lawTaskLinks');
 
 const router = express.Router();
 
 router.use(authenticate);
+// Law employees have no direct access to the document module (only via task-linked items).
+router.use(denyLawEmployee);
 
 router.post(
   '/create',

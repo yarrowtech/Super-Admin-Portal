@@ -5,6 +5,7 @@ import StatusBadge from '../common/StatusBadge';
 import Avatar from '../common/Avatar';
 import { statusToTone } from '../../utils/statusTone';
 import { priorityToTone, statusLabel } from '../../features/tasks/taskConstants';
+import { portalLabel } from '../../features/tasks/taskAdapters';
 
 const formatDueDate = (value) => {
   if (!value) return null;
@@ -41,6 +42,12 @@ const KanbanCard = ({ task, onOpen }) => {
       )}
 
       {task.department && <p className="mt-1 text-xs font-medium text-primary">{task.department}</p>}
+      {(portalLabel(task.sourcePortal) || task.assignee?.isFreelancer) && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {portalLabel(task.sourcePortal) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{portalLabel(task.sourcePortal)}</span>}
+          {task.assignee?.isFreelancer && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">Freelancer</span>}
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StatusBadge tone={priorityToTone(task.priority)} label={task.priority} dot={false} />
         {task.isOverdue && task.status !== 'completed' && task.status !== 'cancelled' ? (

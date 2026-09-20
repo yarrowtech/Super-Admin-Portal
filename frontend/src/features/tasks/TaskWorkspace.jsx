@@ -21,8 +21,10 @@ import { useCreateTaskMutation } from './useTaskMutations';
  * header (e.g. HR's HrPageShell, which also hosts a Tasks/Work-Updates tab
  * switcher) embed the task workspace without a duplicate header.
  */
-const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, headerExtra }) => {
+const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, headerExtra, manageRoles }) => {
   const { user } = useAuth();
+  // manageRoles limits create/edit/delete to those roles; others can only move status.
+  const canManage = !manageRoles || manageRoles.includes(String(user?.role || '').toLowerCase());
   const [view, setView] = useState('board');
   const [filters, setFilters] = useState({});
   const [openTask, setOpenTask] = useState(null);
@@ -41,7 +43,7 @@ const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, 
           user={user}
           onRefresh={board.refetch}
           refreshing={board.isFetching}
-          primaryAction={{ label: 'Create Task', icon: 'add_task', onClick: () => setCreateOpen(true) }}
+          primaryAction={canManage ? { label: 'Create Task', icon: 'add_task', onClick: () => setCreateOpen(true) } : undefined}
         />
       )}
 
@@ -49,7 +51,7 @@ const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, 
         {headerExtra}
         <QuickActions
           actions={[
-            ...(renderHeader ? [] : [{ label: 'Create Task', icon: 'add_task', onClick: () => setCreateOpen(true) }]),
+            ...(renderHeader || !canManage ? [] : [{ label: 'Create Task', icon: 'add_task', onClick: () => setCreateOpen(true) }]),
             { label: view === 'board' ? 'Switch to List' : 'Switch to Board', icon: view === 'board' ? 'view_list' : 'view_kanban', onClick: () => setView(view === 'board' ? 'list' : 'board') },
           ]}
         />
@@ -77,7 +79,7 @@ const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, 
         </div>
       </SectionCard>
 
-      <TaskDetailDrawer portal={portal} task={openTask} filters={filters} onClose={() => setOpenTask(null)} />
+      <TaskDetailDrawer portal={portal} task={openTask} filters={filters} canManage={canManage} onClose={() => setOpenTask(null)} />
       <CreateTaskModal portal={portal} open={createOpen} onClose={() => setCreateOpen(false)} onSubmit={(body) => createTask.mutateAsync(body)} />
     </div>
   );

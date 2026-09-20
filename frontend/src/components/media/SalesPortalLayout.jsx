@@ -15,7 +15,16 @@ export const SALES_NAV = [
   { id: 'project-overview', label: 'Project Overview', icon: 'folder_copy', description: 'Read-only project visibility' },
   { id: 'query', label: 'Query', icon: 'quiz', description: 'Field buyer questionnaire' },
   { id: 'submission', label: 'Submission', icon: 'fact_check', description: 'Your submitted queries' },
+  { id: 'tasks', label: 'Tasks', icon: 'task', description: 'Your assigned tasks' },
+  { id: 'attendance', label: 'Attendance', icon: 'calendar_month', description: 'Your attendance history' },
+  { id: 'team', label: 'Team', icon: 'group', description: 'Media department directory' },
+  { id: 'messages', label: 'Messages', icon: 'forum', description: 'Media team messages' },
   { id: 'profile', label: 'Profile', icon: 'person', description: 'Your profile' },
+];
+
+const SALES_FOOTER = [
+  { id: 'settings', label: 'Settings', icon: 'settings' },
+  { id: 'support', label: 'Support', icon: 'support_agent' },
 ];
 
 const SalesPortalLayout = ({ activeId, children, bare = false }) => {
@@ -24,7 +33,7 @@ const SalesPortalLayout = ({ activeId, children, bare = false }) => {
 
   const handleSelect = (id) => navigate(`/media/sales/${id}`);
 
-  const mobileItems = SALES_NAV.map((item) => ({
+  const mobileItems = [...SALES_NAV, ...SALES_FOOTER].map((item) => ({
     key: item.id,
     label: item.label,
     icon: item.icon,
@@ -49,6 +58,7 @@ const SalesPortalLayout = ({ activeId, children, bare = false }) => {
         items={SALES_NAV}
         activeId={activeId}
         onSelect={handleSelect}
+        footerItems={SALES_FOOTER}
       />
 
       <main

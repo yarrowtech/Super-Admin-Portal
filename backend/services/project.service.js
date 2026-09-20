@@ -1,6 +1,7 @@
 const Task = require('../models/common/Task');
 const Project = require('../models/common/Project');
 const User = require('../models/auth/User');
+const { chatDepartmentOf, rolesForDepartment } = require('../utils/departmentChatScope');
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const isObjectId = (value) => /^[0-9a-fA-F]{24}$/.test(String(value || '').trim());
@@ -237,12 +238,18 @@ const deriveStatus = (lastLogin) => {
 };
 
 const getTeamDirectory = async (user) => {
+  // Grouped departments (law/it/finance/media) are resolved by ROLE so the directory never lists
+  // outsiders, whatever the free-text `department` field says. Other users keep the department match.
+  const chatDept = chatDepartmentOf(user);
   const department = user?.department;
-  if (!department) {
+  if (!chatDept && !department) {
     throw new Error('User department is required to fetch the team');
   }
 
-  const members = await User.find({ department, isActive: true })
+  const memberFilter = chatDept
+    ? { role: { $in: rolesForDepartment(chatDept) }, isActive: true }
+    : { department, isActive: true };
+  const members = await User.find(memberFilter)
     .sort({ firstName: 1 })
     .select('firstName lastName role email phone department lastLogin profileImage metadata');
 

@@ -696,13 +696,65 @@ exports.restoreFromArchive = async (req, res) => {
   }
 };
 
+// ── PDF page settings ────────────────────────────────────────────────────────
+// The editor stores page size / margins / header / footer as an invisible comment at the
+// start of latestContent: <!--legal-meta:BASE64(JSON)-->. Older documents have none and get
+// the previous defaults (A4 portrait, 20mm/25mm margins). Keep in sync with
+// frontend/src/components/law/editor/docMeta.js.
+const PDF_PAGE_FORMATS = { A4: 'A4', Letter: 'Letter', Legal: 'Legal' };
+const PDF_MARGINS = {
+  normal: { top: 20, right: 25, bottom: 20, left: 25 },
+  narrow: { top: 12.7, right: 12.7, bottom: 12.7, left: 12.7 },
+  wide: { top: 25.4, right: 38, bottom: 25.4, left: 38 },
+};
+const PDF_CONTENT_CSS = `.content h1{font-size:20pt;font-weight:700;margin:8mm 0 4mm}.content h2{font-size:16pt;font-weight:700;margin:6mm 0 3mm}.content h3{font-size:13pt;font-weight:700;margin:4mm 0 2mm}.content h4{font-size:12pt;font-weight:700;font-style:italic;margin:3mm 0 2mm}.content p{margin:0 0 4mm;text-align:justify}.content blockquote{margin:3mm 0 4mm 8mm;padding-left:4mm;border-left:3px solid #bbb;color:#444;font-style:italic}.content ul{margin:2mm 0 4mm;padding-left:6mm;list-style:disc}.content ol{margin:2mm 0 4mm;padding-left:6mm;list-style:decimal}.content ol[data-legal-style="lower-alpha"]{list-style:lower-alpha}.content ol[data-legal-style="lower-roman"]{list-style:lower-roman}.content li{margin:1mm 0}.content li>p{margin:0}.content ul[data-type="taskList"]{list-style:none;padding-left:1mm}.content ul[data-type="taskList"] li{display:flex;gap:2mm;align-items:flex-start}.content ul[data-type="taskList"] li>div{flex:1}.content table{width:100%;border-collapse:collapse;margin:4mm 0;table-layout:fixed}.content td,.content th{border:1px solid #aaa;padding:2mm 3mm;vertical-align:top}.content th{background:#f1f1f1;font-weight:700;text-align:left}.content td>p,.content th>p{margin:0}.content a{color:#1a56db;text-decoration:underline}.content mark{border-radius:2px;padding:0 1px}.content img{max-width:100%;height:auto}.content hr{border:0;border-top:1px solid #888;margin:6mm 0}.content [data-page-break]{page-break-after:always;break-after:page;border:0!important;height:0!important;margin:0!important}`;
+
+const escapePdfText = (value) => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function parsePageMeta(content) {
+  const defaults = { size: 'A4', orientation: 'portrait', margin: 'normal', header: '', footer: '', pageNumbers: false };
+  const match = /^\s*<!--legal-meta:([A-Za-z0-9+/=]+)-->/.exec(String(content || ''));
+  if (!match) return defaults;
+  try {
+    const parsed = JSON.parse(Buffer.from(match[1], 'base64').toString('utf8'));
+    return {
+      size: PDF_PAGE_FORMATS[parsed.size] ? parsed.size : defaults.size,
+      orientation: parsed.orientation === 'landscape' ? 'landscape' : 'portrait',
+      margin: PDF_MARGINS[parsed.margin] ? parsed.margin : defaults.margin,
+      header: String(parsed.header || '').slice(0, 200),
+      footer: String(parsed.footer || '').slice(0, 200),
+      pageNumbers: Boolean(parsed.pageNumbers),
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function buildPdfOptions(meta) {
+  const m = PDF_MARGINS[meta.margin];
+  const options = {
+    format: PDF_PAGE_FORMATS[meta.size],
+    landscape: meta.orientation === 'landscape',
+    printBackground: true,
+    margin: { top: `${m.top}mm`, right: `${m.right}mm`, bottom: `${m.bottom}mm`, left: `${m.left}mm` },
+  };
+  if (meta.header || meta.footer || meta.pageNumbers) {
+    const base = 'font-family:Arial,sans-serif;font-size:8px;color:#666;width:100%;box-sizing:border-box;';
+    options.displayHeaderFooter = true;
+    options.headerTemplate = `<div style="${base}text-align:center;padding:0 ${m.left}mm">${escapePdfText(meta.header)}</div>`;
+    options.footerTemplate = `<div style="${base}display:flex;padding:0 ${m.left}mm"><span style="flex:1"></span><span style="flex:2;text-align:center">${escapePdfText(meta.footer)}</span><span style="flex:1;text-align:right">${meta.pageNumbers ? 'Page <span class="pageNumber"></span> of <span class="totalPages"></span>' : ''}</span></div>`;
+  }
+  return options;
+}
+
 exports.generatePdf = async (req, res) => {
   try {
     ensureObjectId(req.params.id, 'document id');
     const doc = await LegalDocument.findById(req.params.id).lean();
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
     ensureProjectAccess(req, doc.projectId);
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${doc.title || 'Legal Document'}</title><style>body{font-family:"Times New Roman",serif;margin:0;padding:0;color:#1a1a1a}.header{border-bottom:2px solid #333;padding-bottom:4mm;margin-bottom:8mm}h1{font-size:18pt;font-weight:700;margin:0}.meta{font-size:9pt;color:#666;margin-top:2mm}.content{font-size:12pt;line-height:1.8}.content p{margin:0 0 4mm;text-align:justify}</style></head><body><div class="header"><h1>${doc.title || 'Legal Document'}</h1><div class="meta">Type: ${doc.type || 'Other'} | Version: ${doc.currentVersion || 'v1.0'} | Status: ${doc.status || 'Draft'}</div></div><main class="content">${doc.latestContent || '<p>No content available.</p>'}</main></body></html>`;
+    const pageMeta = parsePageMeta(doc.latestContent);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${doc.title || 'Legal Document'}</title><style>body{font-family:"Times New Roman",serif;margin:0;padding:0;color:#1a1a1a}.header{border-bottom:2px solid #333;padding-bottom:4mm;margin-bottom:8mm}.header h1{font-size:18pt;font-weight:700;margin:0}.meta{font-size:9pt;color:#666;margin-top:2mm}.content{font-size:12pt;line-height:1.8}${PDF_CONTENT_CSS}</style></head><body><div class="header"><h1>${doc.title || 'Legal Document'}</h1><div class="meta">Type: ${doc.type || 'Other'} | Version: ${doc.currentVersion || 'v1.0'} | Status: ${doc.status || 'Draft'}</div></div><main class="content">${doc.latestContent || '<p>No content available.</p>'}</main></body></html>`;
     let puppeteer;
     try {
       puppeteer = require('puppeteer');
@@ -713,7 +765,7 @@ exports.generatePdf = async (req, res) => {
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'load' });
-      const pdfBytes = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', right: '25mm', bottom: '20mm', left: '25mm' } });
+      const pdfBytes = await page.pdf(buildPdfOptions(pageMeta));
       await audit(req, doc._id, 'PDF_GENERATE', 'PDF generated', { version: doc.currentVersion });
       const safeTitle = String(doc.title || 'legal-document').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'legal-document';
       res.setHeader('Content-Type', 'application/pdf');

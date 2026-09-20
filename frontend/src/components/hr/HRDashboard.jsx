@@ -205,7 +205,7 @@ const HRDashboard = () => {
           }
         />
 
-        <WarmGreeting user={user} message="Here's today's workforce activity and pending actions." />
+        <WarmGreeting user={user} roleHint="people overview" />
 
         {(attendanceAction.error || attendanceAction.message) && (
           <div

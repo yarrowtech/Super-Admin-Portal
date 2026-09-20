@@ -3,6 +3,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import StatsCard from '../common/StatsCard';
 import { superAdminApi } from '../../services/superAdmin';
 import { QK } from '../../utils/queryKeys';
@@ -368,6 +369,8 @@ export default function SuperAdminDashboard() {
             Refresh
           </Button>
         </PortalHeader>
+
+        <WarmGreeting user={user} roleHint="platform oversight" />
 
         {error ? <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 shadow-sm dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-200">{error}</div> : null}
         {notice ? <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-200">{notice}</div> : null}

@@ -1,9 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { SUPPORT_UNREAD_REFRESH_EVENT } from '../../hooks/useSupportUnread';
 import { portalSupportApi } from '../../services/portalSupportApi';
 import ThemeToggleButton from '../common/ThemeToggleButton';
 
+const TICKET_LIVE_EVENT = 'support:ticket-live';
 const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -119,6 +123,21 @@ const PORTAL_FAQS = {
     { q: 'How do I track campaign performance?', a: 'Campaign metrics are available in the Analytics section of your dashboard.' },
     { q: 'How do I collaborate with the team?', a: 'Use the Chat section to coordinate with team members in real time.' },
   ],
+  sales: [
+    { q: 'How do I submit a buyer query?', a: 'Open Query, fill in the buyer questionnaire and submit. Your submissions are listed under Submission.' },
+    { q: 'How do I see my assigned tasks?', a: 'The Tasks page lists everything assigned to you; update the status as you progress.' },
+    { q: 'How do I check my attendance?', a: 'Attendance shows your history and lets you check in and out.' },
+  ],
+  outsourcing: [
+    { q: 'How do I accept a job?', a: 'Go to Jobs, find the job assigned to you and click "Accept Job". A contract must be created by admin before you can begin work.' },
+    { q: 'When can I log time?', a: 'Once you have an active contract, go to Time Logs and submit your hours, work summary and deliverable link.' },
+    { q: 'How is my payment calculated?', a: 'Payment is calculated from approved time logs multiplied by your contract rate. See Payments for a breakdown.' },
+    { q: 'How do I update my payment details?', a: 'Go to Profile, edit your profile and fill in the Bank Details section.' },
+  ],
+  admin: [
+    { q: "Where do I manage everyone's tickets?", a: 'Use "Manage all tickets" above to open the Support Center, where you can reply, assign and change status.' },
+    { q: 'How do I contact the platform team?', a: 'Submit a ticket from this page; it will appear in the Support Center.' },
+  ],
   default: [
     { q: 'How do I contact the admin team?', a: 'Submit a support ticket from this page. Our team responds within 24 hours.' },
     { q: 'How do I update my account information?', a: 'Go to Settings → Account to update your name, phone, and other details.' },
@@ -128,101 +147,201 @@ const PORTAL_FAQS = {
 
 const getFaq = (portal) => PORTAL_FAQS[portal] || PORTAL_FAQS.default;
 
-// ─── Ticket detail slide-over ─────────────────────────────────────────────────
-const TicketSlideOver = ({ ticket, onClose }) => {
-  if (!ticket) return null;
+// ─── Ticket detail slide-over (thread, reply, close / reopen) ─────────────────
+const TicketSlideOver = ({ ticketId, token, onClose, onChanged }) => {
+  const toast = useToast();
+  const [ticket, setTicket] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [reply, setReply] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await portalSupportApi.getTicket(token, ticketId);
+      setTicket(r.data);
+      onChanged?.({ read: true });
+    } catch (e) {
+      toast.error(e.message || 'Failed to load ticket');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, ticketId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { setLoading(true); load(); }, [load]);
+
+  // Live refresh when staff reply / change status on this ticket.
+  useEffect(() => {
+    const handler = (e) => { if (String(e.detail?._id) === String(ticketId)) load(); };
+    window.addEventListener(TICKET_LIVE_EVENT, handler);
+    return () => window.removeEventListener(TICKET_LIVE_EVENT, handler);
+  }, [ticketId, load]);
+
+  const send = async (e) => {
+    e.preventDefault();
+    if (!reply.trim()) return;
+    setBusy(true);
+    try {
+      const r = await portalSupportApi.addComment(token, ticketId, reply.trim());
+      setTicket(r.data);
+      setReply('');
+      onChanged?.();
+    } catch (ex) {
+      toast.error(ex.message || 'Failed to send message');
+    } finally { setBusy(false); }
+  };
+
+  const changeStatus = async (action) => {
+    setBusy(true);
+    try {
+      const r = await portalSupportApi.changeOwnStatus(token, ticketId, action);
+      setTicket(r.data);
+      toast.success(action === 'close' ? 'Ticket closed.' : 'Ticket reopened.');
+      onChanged?.();
+    } catch (ex) {
+      toast.error(ex.message || 'Failed to update ticket');
+    } finally { setBusy(false); }
+  };
+
+  const isClosed = ticket?.status === 'closed';
+  const canReopen = ticket && ['resolved', 'closed'].includes(ticket.status);
+  const assignee = ticket?.assignedTo ? `${ticket.assignedTo.firstName || ''} ${ticket.assignedTo.lastName || ''}`.trim() : '';
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-[1100] flex justify-end">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <aside className="relative z-10 flex h-full w-full max-w-xl flex-col bg-white shadow-2xl dark:bg-neutral-950">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b border-neutral-200 p-5 dark:border-neutral-800">
-          <div>
-            <p className="text-xs font-semibold text-neutral-400">#{ticket._id.slice(-8).toUpperCase()}</p>
-            <h3 className="mt-0.5 text-base font-bold text-neutral-900 dark:text-white">{ticket.subject}</h3>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <Pill value={ticket.status} />
-              <Pill value={ticket.priority} />
-              <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                {ticket.category}
-              </span>
+        {loading || !ticket ? (
+          <div className="p-5"><Skeleton rows={4} /></div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between border-b border-neutral-200 p-5 dark:border-neutral-800">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-neutral-400">#{String(ticket._id).slice(-8).toUpperCase()}</p>
+                <h3 className="mt-0.5 break-words text-base font-bold text-neutral-900 dark:text-white">{ticket.subject}</h3>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Pill value={ticket.status} />
+                  <Pill value={ticket.priority} />
+                  <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-semibold capitalize text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    {ticket.category}
+                  </span>
+                </div>
+                {assignee && <p className="mt-2 text-xs text-neutral-500">Assigned to {assignee}</p>}
+              </div>
+              <button onClick={onClose} aria-label="Close" className="rounded-xl p-1.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
             </div>
-          </div>
-          <button onClick={onClose} className="rounded-xl p-1.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <span className="material-symbols-outlined text-xl">close</span>
-          </button>
-        </div>
 
-        {/* Thread */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Original message */}
-          <div className="rounded-xl bg-neutral-50 p-4 dark:bg-neutral-900">
-            <p className="mb-1 text-xs text-neutral-400">Original request · {fmtTime(ticket.createdAt)}</p>
-            <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">{ticket.description}</p>
-          </div>
+            <div className="flex-1 space-y-4 overflow-y-auto p-5">
+              <div className="rounded-xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                <p className="mb-1 text-xs text-neutral-400">Original request · {fmtTime(ticket.createdAt)}</p>
+                <p className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-300">{ticket.description}</p>
+              </div>
 
-          {/* Replies */}
-          {ticket.replies?.length > 0 ? ticket.replies.map((r, i) => (
-            <div key={i} className={`rounded-xl p-4 ${r.isAdminReply ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-white border border-neutral-100 dark:bg-neutral-900 dark:border-neutral-800'}`}>
-              <p className="mb-1 text-xs text-neutral-400">
-                {r.isAdminReply ? '👤 Support Team' : 'You'} · {fmtTime(r.createdAt)}
-              </p>
-              <p className={`text-sm whitespace-pre-wrap ${r.isAdminReply ? 'text-indigo-800 dark:text-indigo-300' : 'text-neutral-700 dark:text-neutral-300'}`}>
-                {r.message}
-              </p>
+              {ticket.replies?.length > 0 ? ticket.replies.map((r, i) => (
+                <div key={r._id || i} className={`rounded-xl p-4 ${r.isAdminReply ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'border border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900'}`}>
+                  <p className="mb-1 text-xs text-neutral-400">
+                    {r.isAdminReply ? `${r.authorName || 'Support Team'} (Support)` : 'You'} · {fmtTime(r.createdAt)}
+                  </p>
+                  <p className={`whitespace-pre-wrap text-sm ${r.isAdminReply ? 'text-indigo-800 dark:text-indigo-300' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                    {r.message}
+                  </p>
+                </div>
+              )) : (
+                <p className="py-6 text-center text-xs text-neutral-400">No replies yet. Our team will respond soon.</p>
+              )}
             </div>
-          )) : (
-            <p className="text-center text-xs text-neutral-400 py-8">No replies yet. Our team will respond soon.</p>
-          )}
-        </div>
 
-        <div className="border-t border-neutral-200 p-5 dark:border-neutral-800">
-          <p className="text-xs text-neutral-400">Submitted on {fmt(ticket.createdAt)}</p>
-        </div>
+            <div className="space-y-3 border-t border-neutral-200 p-5 dark:border-neutral-800">
+              {isClosed ? (
+                <p className="text-sm text-neutral-500">This ticket is closed. Reopen it if you still need help.</p>
+              ) : (
+                <form onSubmit={send} className="space-y-2">
+                  <Txa rows={3} placeholder="Write a message…" value={reply} maxLength={5000} onChange={(e) => setReply(e.target.value)} />
+                  <div className="flex justify-end">
+                    <BtnPrimary type="submit" disabled={busy || !reply.trim()}>{busy ? 'Sending…' : 'Send message'}</BtnPrimary>
+                  </div>
+                </form>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-neutral-400">Submitted on {fmt(ticket.createdAt)}</p>
+                <div className="flex gap-2">
+                  {canReopen && <BtnSecondary disabled={busy} onClick={() => changeStatus('reopen')}>Reopen</BtnSecondary>}
+                  {!isClosed && <BtnSecondary disabled={busy} onClick={() => changeStatus('close')}>Close ticket</BtnSecondary>}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </aside>
     </div>
   );
 };
 
+const STATUS_FILTERS = [
+  { key: '', label: 'All' },
+  { key: 'open', label: 'Open' },
+  { key: 'in_progress', label: 'In progress' },
+  { key: 'resolved', label: 'Resolved' },
+  { key: 'closed', label: 'Closed' },
+];
+
+const EMPTY_FORM = { subject: '', category: 'general', priority: 'normal', description: '' };
+
+// Where staff who manage tickets should go to see everyone's tickets.
+const manageLinkFor = (role) => {
+  if (['admin', 'super_admin', 'superadmin'].includes(role)) return '/admin/support-center';
+  if (role === 'it_admin') return '/it/dashboard/support-center';
+  return null;
+};
+
 // ─── Main component ────────────────────────────────────────────────────────────
-// portal      — string key: 'hr', 'manager', 'employee', etc.
+// portal      — string key: 'hr', 'manager', 'employee', etc. (stamped on the ticket)
 // portalLabel — display name e.g. "HR", "Manager", "Employee"
 // accentColor — hex color for header accent bar
 const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentColor = '#6366f1' }) => {
   const { token, user } = useAuth();
+  const toast = useToast();
   const [tab, setTab] = useState('ticket');
   const [tickets, setTickets] = useState([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
-  const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ subject: '', category: 'general', priority: 'normal', description: '' });
+  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedId, setSelectedId] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [err, setErr] = useState('');
 
   const faqItems = getFaq(portal);
+  const manageLink = manageLinkFor(user?.role);
+  const unreadCount = tickets.filter((t) => t.requesterUnread).length;
 
   const loadTickets = useCallback(async () => {
     setTicketsLoading(true);
     try {
-      const r = await portalSupportApi.getMyTickets(token);
+      const r = await portalSupportApi.getMyTickets(token, statusFilter);
       setTickets(r.data || []);
-    } catch {}
-    finally { setTicketsLoading(false); }
-  }, [token]);
+    } catch (e) {
+      toast.error(e.message || 'Failed to load tickets');
+    } finally { setTicketsLoading(false); }
+  }, [token, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (tab === 'my') loadTickets(); }, [tab, loadTickets]);
 
-  // Real-time: receive admin replies and status changes
+  const loadTicketsRef = useRef(loadTickets);
+  useEffect(() => { loadTicketsRef.current = loadTickets; }, [loadTickets]);
+
+  // Real-time: receive staff replies and status changes for this user's tickets.
   useEffect(() => {
     const userId = user?.id || user?._id;
     if (!token || !userId) return undefined;
     const socket = io(SOCKET_URL, { auth: { token }, withCredentials: true, transports: ['websocket'] });
     socket.emit('join_room', `support:user:${userId}`);
-    socket.on('support:ticket_updated', ({ _id, status } = {}) => {
-      // refresh ticket list silently; update selected if open
-      loadTickets();
-      setSelected((prev) => (prev && String(prev._id) === String(_id) ? { ...prev, status: status || prev.status } : prev));
+    socket.on('support:ticket_updated', (payload = {}) => {
+      loadTicketsRef.current();
+      window.dispatchEvent(new CustomEvent(TICKET_LIVE_EVENT, { detail: payload }));
+      window.dispatchEvent(new Event(SUPPORT_UNREAD_REFRESH_EVENT));
     });
     return () => socket.disconnect();
   }, [token, user?.id, user?._id]);
@@ -231,9 +350,9 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
     e.preventDefault();
     setSubmitting(true); setErr('');
     try {
-      await portalSupportApi.createTicket(token, form);
+      await portalSupportApi.createTicket(token, { ...form, portal });
       setSubmitted(true);
-      setForm({ subject: '', category: 'general', priority: 'normal', description: '' });
+      setForm(EMPTY_FORM);
     } catch (ex) {
       setErr(ex.message || 'Failed to submit ticket');
     } finally {
@@ -241,9 +360,13 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
     }
   };
 
+  const handleDetailChanged = ({ read } = {}) => {
+    if (tab === 'my') loadTickets();
+    if (read) window.dispatchEvent(new Event(SUPPORT_UNREAD_REFRESH_EVENT));
+  };
+
   return (
     <div className="space-y-5 p-4 md:p-6">
-      {/* Page header */}
       <header className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
         <div className="h-1 w-full" style={{ background: accentColor }} />
         <div className="flex items-center justify-between gap-3 px-5 py-4">
@@ -256,21 +379,30 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
               <p className="text-xs text-neutral-500 dark:text-neutral-400">Get help, report issues, and find answers</p>
             </div>
           </div>
-          <ThemeToggleButton />
+          <div className="flex items-center gap-2">
+            {manageLink && (
+              <Link to={manageLink} className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                <span className="material-symbols-outlined text-[16px]">manage_accounts</span>
+                Manage all tickets
+              </Link>
+            )}
+            <ThemeToggleButton />
+          </div>
         </div>
       </header>
 
-      {/* Tab switcher */}
       <div className="flex flex-wrap gap-2">
         {[{ key: 'ticket', label: 'Open a Ticket' }, { key: 'my', label: 'My Tickets' }, { key: 'faq', label: 'FAQ' }].map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === t.key ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'}`}>
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === t.key ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'}`}>
             {t.label}
+            {t.key === 'my' && unreadCount > 0 && (
+              <span className="rounded-full bg-rose-500 px-1.5 text-[10px] font-bold leading-4 text-white">{unreadCount}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* Open a ticket */}
       {tab === 'ticket' && (
         <Card>
           <Inner>
@@ -279,17 +411,20 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
               <div className="flex flex-col items-center gap-3 py-10 text-center">
                 <span className="material-symbols-outlined text-5xl text-emerald-500">check_circle</span>
                 <p className="text-lg font-semibold text-neutral-900 dark:text-white">Ticket Submitted!</p>
-                <p className="text-sm text-neutral-400">Our support team will respond within 24 hours.</p>
-                <BtnSecondary onClick={() => setSubmitted(false)}>Submit Another</BtnSecondary>
+                <p className="text-sm text-neutral-400">Our support team will respond within 24 hours. You will be notified of replies.</p>
+                <div className="flex gap-2">
+                  <BtnSecondary onClick={() => setSubmitted(false)}>Submit Another</BtnSecondary>
+                  <BtnPrimary onClick={() => { setSubmitted(false); setTab('my'); }}>View My Tickets</BtnPrimary>
+                </div>
               </div>
             ) : (
-              <form className="space-y-4 max-w-lg" onSubmit={submitTicket}>
+              <form className="max-w-lg space-y-4" onSubmit={submitTicket}>
                 {err && <p className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-400">{err}</p>}
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-neutral-500">Subject</label>
-                  <Inp placeholder="Brief description of your issue" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} required />
+                  <Inp placeholder="Brief description of your issue" maxLength={200} value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} required />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-neutral-500">Category</label>
                     <Sel value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
@@ -315,9 +450,9 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-neutral-500">Description</label>
-                  <Txa rows={5} placeholder="Describe your issue in detail…" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
+                  <Txa rows={5} placeholder="Describe your issue in detail…" maxLength={5000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
                 </div>
-                <BtnPrimary type="submit" disabled={submitting} className="w-full">
+                <BtnPrimary type="submit" disabled={submitting} className="w-full justify-center">
                   {submitting ? 'Submitting…' : 'Submit Ticket'}
                 </BtnPrimary>
               </form>
@@ -326,27 +461,37 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
         </Card>
       )}
 
-      {/* My tickets */}
       {tab === 'my' && (
         <Card>
           <Inner>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <SectionHdr title="My Support Tickets" />
               <button onClick={loadTickets} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
                 <span className="material-symbols-outlined text-[14px]">refresh</span> Refresh
               </button>
             </div>
-            {ticketsLoading ? <Skeleton /> : tickets.length === 0 ? (
-              <EmptyState icon="support_agent" title="No tickets yet" subtitle="Submit a ticket from the 'Open a Ticket' tab." />
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {STATUS_FILTERS.map((f) => (
+                <button key={f.key || 'all'} onClick={() => setStatusFilter(f.key)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === f.key ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'border border-neutral-200 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900'}`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {ticketsLoading && tickets.length === 0 ? <Skeleton /> : tickets.length === 0 ? (
+              <EmptyState icon="support_agent" title="No tickets found" subtitle={statusFilter ? 'No tickets with this status.' : "Submit a ticket from the 'Open a Ticket' tab."} />
             ) : (
               <div className="space-y-3">
                 {tickets.map((t) => (
-                  <button key={t._id} onClick={() => setSelected(t)}
+                  <button key={t._id} onClick={() => setSelectedId(t._id)}
                     className="w-full rounded-xl border border-neutral-100 bg-neutral-50 p-4 text-left transition hover:border-indigo-200 hover:bg-indigo-50/30 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-800">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-semibold text-neutral-900 dark:text-white truncate">{t.subject}</p>
-                        <p className="mt-0.5 text-xs text-neutral-400 capitalize">
+                        <p className="flex items-center gap-2 truncate font-semibold text-neutral-900 dark:text-white">
+                          {t.requesterUnread && <span className="h-2 w-2 shrink-0 rounded-full bg-rose-500" title="New activity" />}
+                          <span className="truncate">{t.subject}</span>
+                        </p>
+                        <p className="mt-0.5 text-xs capitalize text-neutral-400">
                           {t.category} · {fmt(t.createdAt)}
                           {t.replies?.length > 0 && ` · ${t.replies.length} ${t.replies.length === 1 ? 'reply' : 'replies'}`}
                         </p>
@@ -364,12 +509,11 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
         </Card>
       )}
 
-      {/* FAQ */}
       {tab === 'faq' && (
         <Card>
           <Inner>
             <SectionHdr title="Frequently Asked Questions" />
-            <div className="space-y-2 max-w-2xl">
+            <div className="max-w-2xl space-y-2">
               {faqItems.map((item, i) => (
                 <div key={i} className="rounded-xl border border-neutral-100 dark:border-neutral-800">
                   <button
@@ -393,8 +537,9 @@ const PortalSupportPage = ({ portal = 'other', portalLabel = 'Portal', accentCol
         </Card>
       )}
 
-      {/* Ticket detail slide-over */}
-      {selected && <TicketSlideOver ticket={selected} onClose={() => setSelected(null)} />}
+      {selectedId && (
+        <TicketSlideOver ticketId={selectedId} token={token} onClose={() => setSelectedId(null)} onChanged={handleDetailChanged} />
+      )}
     </div>
   );
 };

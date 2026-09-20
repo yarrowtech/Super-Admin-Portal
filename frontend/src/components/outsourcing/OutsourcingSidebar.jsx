@@ -11,6 +11,11 @@ const outsourcingNavItems = [
   { label: 'Jobs',          icon: 'work',          path: '/outsourcing/jobs' },
   { label: 'Contracts',     icon: 'contract',      path: '/outsourcing/contracts' },
   { label: 'Time Logs',     icon: 'schedule',      path: '/outsourcing/time-logs' },
+  { label: 'Tasks',         icon: 'task',          path: '/outsourcing/tasks' },
+  { label: 'Assigned Work', icon: 'assignment',    path: '/outsourcing/assigned-work', freelancerOnly: true },
+  // Attendance and Recruitment postings are staff-only (backend: Admin/HR).
+  { label: 'Attendance',    icon: 'calendar_month', path: '/outsourcing/attendance', staffOnly: true },
+  { label: 'Recruitment',   icon: 'person_search', path: '/outsourcing/recruitment', staffOnly: true },
   { label: 'Activity',      icon: 'timeline',      path: '/outsourcing/activity' },
   { label: 'Payments',      icon: 'payments',      path: '/outsourcing/payments' },
   { label: 'Profile',       icon: 'person',        path: '/outsourcing/profile' },
@@ -21,18 +26,20 @@ const outsourcingFooterItems = [
   { path: '/outsourcing/support',  label: 'Support',  icon: 'support_agent' },
 ];
 
-const sidebarProps = {
-  brandingTitle: 'Outsourcing Portal',
-  brandingIcon: 'work',
-  navItems: outsourcingNavItems,
-  footerItems: outsourcingFooterItems,
-};
+const STAFF_ROLES = ['admin', 'super_admin', 'superadmin', 'hr'];
 
 const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { collapsed } = useSidebar();
+  const isStaff = STAFF_ROLES.includes(String(user?.role || '').toLowerCase());
+  const sidebarProps = {
+    brandingTitle: 'Outsourcing Portal',
+    brandingIcon: 'work',
+    navItems: outsourcingNavItems.filter((item) => (!item.staffOnly || isStaff) && (!item.freelancerOnly || !isStaff)),
+    footerItems: outsourcingFooterItems,
+  };
 
   const handleLogout = useCallback(async () => {
     await logout();

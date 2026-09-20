@@ -27,7 +27,8 @@ const EmployeePortal = () => {
         currentPath={location.pathname}
         onLogout={handleLogout}
         footerItems={[
-          { path: '/employee/profile', label: 'Settings', icon: 'settings' },
+          { path: '/employee/settings', label: 'Settings', icon: 'settings' },
+          { path: '/employee/support',  label: 'Support',  icon: 'support_agent' },
         ]}
       />
     </aside>
@@ -39,7 +40,7 @@ const EmployeePortal = () => {
       title="Employee Portal"
       subtitle="Employee workspace"
       mobileIcon="badge"
-      mobileItems={navItems}
+      mobileItems={[...navItems, { label: 'Settings', icon: 'settings', path: '/employee/settings' }, { label: 'Support', icon: 'support_agent', path: '/employee/support' }]}
       user={user}
       showHeader={false}
     >

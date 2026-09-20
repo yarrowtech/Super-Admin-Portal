@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -22,7 +23,7 @@ const Skeleton = ({ rows = 5 }) => (
   </div>
 );
 
-const PORTALS = ['', 'hr', 'manager', 'employee', 'it', 'ceo', 'law', 'finance', 'media', 'sales', 'research', 'outsourcing'];
+const PORTALS = ['', 'hr', 'manager', 'employee', 'it', 'ceo', 'law', 'finance', 'media', 'sales', 'research', 'outsourcing', 'admin'];
 const fmt = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtTime = (d) => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const initials = (u) => `${u?.firstName?.[0] || ''}${u?.lastName?.[0] || ''}`.toUpperCase() || '?';
@@ -45,6 +46,7 @@ const PortalBadge = ({ portal }) => {
 // ─── Main component ────────────────────────────────────────────────────────────
 const AdminSupportCenter = () => {
   const { token } = useAuth();
+  const location = useLocation();
   const toast = useToast();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +61,7 @@ const AdminSupportCenter = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
+      const params = { limit: 100, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '')) };
       const r = await portalSupportApi.getAllTickets(token, params);
       setTickets(r.data || []);
     } catch {}
@@ -144,6 +146,10 @@ const AdminSupportCenter = () => {
           showNotifications={false}
           showThemeToggle
         >
+          <Link to={location.pathname.startsWith('/it/') ? '/it/dashboard/support' : '/admin/support'} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+            <span className="material-symbols-outlined text-lg">add_circle</span>
+            My tickets
+          </Link>
           <Button variant="secondary" size="md" className="min-h-11" onClick={load} icon={<span className="material-symbols-outlined text-lg">refresh</span>}>
             Refresh
           </Button>
@@ -244,7 +250,7 @@ const AdminSupportCenter = () => {
                       <p className="text-xs text-neutral-400">#{selected._id.slice(-8).toUpperCase()}</p>
                       <h3 className="mt-0.5 text-base font-bold text-neutral-900 dark:text-white">{selected.subject}</h3>
                       <p className="mt-1 text-xs text-neutral-500">
-                        {selected.user?.firstName} {selected.user?.lastName} · {selected.user?.email}
+                        {selected.user?.firstName} {selected.user?.lastName} · {selected.user?.email}{selected.requesterRole ? ` · ${selected.requesterRole}` : ''}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <StatusBadge tone={STATUS_TONE[selected.status]} label={String(selected.status || '').replace(/_/g, ' ')} />
@@ -266,7 +272,7 @@ const AdminSupportCenter = () => {
                   {selected.replies?.map((r, i) => (
                     <div key={i} className={`rounded-xl p-3 ${r.isAdminReply ? 'bg-primary/5 dark:bg-primary/10' : 'border border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900'}`}>
                       <p className="mb-1 text-xs text-neutral-400">
-                        {r.isAdminReply ? `${r.authorName || 'Admin'}` : 'User'} · {fmtTime(r.createdAt)}
+                        {r.isAdminReply ? `${r.authorName || 'Admin'}` : (selected.user?.firstName || 'Requester')} · {fmtTime(r.createdAt)}
                       </p>
                       <p className={`whitespace-pre-wrap text-sm ${r.isAdminReply ? 'text-primary' : 'text-neutral-700 dark:text-neutral-300'}`}>
                         {r.message}

@@ -5,6 +5,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { departmentApi } from '../../../services/departments';
 import { QK } from '../../../utils/queryKeys';
 import PortalHeader from '../../common/PortalHeader';
+import WarmGreeting from '../../common/WarmGreeting';
 import KPICard from '../../common/KPICard';
 import StatusBadge from '../../common/StatusBadge';
 import Button from '../../common/Button';
@@ -110,6 +111,8 @@ const MediaHeadDashboard = ({ onNavigate }) => {
           icon="workspace_premium"
           showThemeToggle
         />
+
+        <WarmGreeting user={user} roleHint="media department" />
 
         {/* KPI Row */}
         <div className="mb-5 grid grid-cols-1 gap-3 xs:grid-cols-2 sm:gap-4 lg:grid-cols-4">

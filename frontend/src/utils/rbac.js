@@ -21,7 +21,6 @@ export const EMPLOYEE_PORTAL_ROLES = [
   'employee',
   'it_employee',
   'finance_employee',
-  'law_employee',
 ];
 
 const baseRoleAccess = {
@@ -37,7 +36,7 @@ const baseRoleAccess = {
   finance_manager: [PORTALS.FINANCE],
   finance_employee: [PORTALS.FINANCE, PORTALS.EMPLOYEE],
   law_head: [PORTALS.LAW],
-  law_employee: [PORTALS.LAW, PORTALS.EMPLOYEE],
+  law_employee: [PORTALS.LAW],
   media_head: [PORTALS.MEDIA],
   media_sales: [PORTALS.MEDIA],
   media_marketing: [PORTALS.MEDIA],

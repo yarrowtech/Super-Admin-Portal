@@ -5,6 +5,7 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import { useSidebar } from '../../context/SidebarContext';
 import SidebarPortalIdentity from '../common/SidebarPortalIdentity';
 import SidebarUserCard from '../common/SidebarUserCard';
+import useSupportUnread from '../../hooks/useSupportUnread';
 
 const MiniTooltip = memo(({ label }) => (
   <span
@@ -36,6 +37,7 @@ const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { collapsed, toggle } = useSidebar();
+  const supportUnread = useSupportUnread();
 
   if (!canAccessPortal(user, PORTALS.CEO)) return null;
 
@@ -130,6 +132,9 @@ const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
                   {item.icon}
                 </span>
                 {!collapsed && <span className="flex-1 truncate text-left leading-none">{item.label}</span>}
+                {!collapsed && item.key === 'support' && supportUnread > 0 && (
+                  <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{supportUnread > 99 ? '99+' : supportUnread}</span>
+                )}
                 {collapsed && <MiniTooltip label={item.label} />}
               </button>
             );

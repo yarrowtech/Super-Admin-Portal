@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { outsourcingApi } from '../../services/outsourcing';
 import { useOutsourcingSocket } from '../../hooks/useOutsourcingSocket';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
 import { computeProfileCompletion } from '../../utils/outsourcingProfile';
 
@@ -602,7 +603,7 @@ export default function FreelancerDashboard({ token, user }) {
       <div className="portal-page-inner">
         <PortalHeader
           title="Freelancer Dashboard"
-          subtitle=""
+          subtitle="Your jobs, contracts, and time logs"
           user={user}
           icon="work"
           showSearch={false}
@@ -611,6 +612,8 @@ export default function FreelancerDashboard({ token, user }) {
           <SessionBadge session={session} />
           <NotificationPanel notifications={notifications} />
         </PortalHeader>
+
+        <WarmGreeting user={user} roleHint="jobs and contracts" />
 
         {/* Profile completion nudge */}
         {!loading && profileCompletion > 0 && profileCompletion < 60 && !nudgeDismissed && (

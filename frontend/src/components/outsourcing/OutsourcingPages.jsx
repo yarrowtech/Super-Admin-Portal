@@ -366,7 +366,7 @@ export const OutsourcingDashboardPage = () => {
         refreshing={loading}
       />
 
-      <WarmGreeting user={user} message="Hope your projects and partnerships move forward smoothly today." />
+      <WarmGreeting user={user} roleHint="projects and partnerships" />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {kpis.map((k) => (

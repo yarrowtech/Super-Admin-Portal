@@ -147,6 +147,9 @@ export const outsourcingApi = {
     apiClient.clearCache();
     return json;
   },
+  // Portals (it, finance, law, media, hr) whose heads may assign this freelancer tasks.
+  updateFreelancerPortals: async (token, userId, associatedPortals) =>
+    apiClient.put(`/api/outsourcing/users/${userId}/portals`, { associatedPortals }, token),
   createUser: async (token, payload) => apiClient.post('/api/outsourcing/users', payload, token),
   createJob: async (token, payload) => apiClient.post('/api/outsourcing/jobs', payload, token),
   assignJob: async (token, id, freelancerId) => apiClient.put(`/api/outsourcing/jobs/${id}/assign`, { freelancerId }, token),

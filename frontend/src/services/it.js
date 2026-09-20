@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { createDepartmentModulesApi, createDepartmentCollabApi } from './departmentModules';
 
 const buildUrl = (path, params = {}) => {
   const query = new URLSearchParams();
@@ -52,6 +53,9 @@ export const itApi = {
 
   createProject: async (token, projectData) =>
     apiClient.post('/api/dept/it/projects', projectData, token),
+
+  ...createDepartmentModulesApi('/api/dept/it'),
+  ...createDepartmentCollabApi('/api/dept/it'),
 
   updateProject: async (token, projectId, projectData) =>
     apiClient.put(`/api/dept/it/projects/${projectId}`, projectData, token),

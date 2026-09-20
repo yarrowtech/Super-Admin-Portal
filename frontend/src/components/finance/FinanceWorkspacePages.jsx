@@ -508,7 +508,7 @@ export const FinanceOverviewPage = () => {
           }
         />
 
-        <WarmGreeting user={user} message="Wishing you a smooth and successful day." />
+        <WarmGreeting user={user} roleHint="financial overview" />
 
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
 

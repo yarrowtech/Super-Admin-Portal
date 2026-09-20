@@ -6,6 +6,7 @@ import { ceoApi } from '../../services/ceo';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../services/client';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
 import Button from '../common/Button';
 const CEOAnalyticsCharts = lazy(() => import('./CEOAnalyticsCharts'));
@@ -305,6 +306,7 @@ const CEODashboard = () => {
             ))}
           </div>
         </PortalHeader>
+        <WarmGreeting user={user} roleHint="executive overview" className="mb-2 px-1" />
 
         {error && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">

@@ -31,12 +31,6 @@ const DOC_TYPES = LAW_DOCUMENT_TYPES.map((type) => type.value);
 const PRIORITIES = LAW_PRIORITIES;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
-const STATUS_STYLES = {
-  Draft:    { bg: 'bg-neutral-100 dark:bg-neutral-800',    text: 'text-neutral-600 dark:text-neutral-400',  dot: 'bg-neutral-400', pill: 'bg-neutral-100 text-neutral-600 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700' },
-  Pending:  { bg: 'bg-amber-100 dark:bg-amber-900/30',     text: 'text-amber-700 dark:text-amber-400',      dot: 'bg-amber-500',   pill: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-700' },
-  Approved: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400',  dot: 'bg-emerald-500', pill: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-700' },
-  Rejected: { bg: 'bg-red-100 dark:bg-red-900/30',         text: 'text-red-700 dark:text-red-400',          dot: 'bg-red-500',     pill: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-700' },
-};
 
 const PRIORITY_COLORS = {
   Low: 'text-emerald-600', Medium: 'text-amber-600', High: 'text-orange-600', Critical: 'text-red-600',
@@ -69,7 +63,16 @@ const LEGAL_TEMPLATES = {
   },
 };
 
-const FieldError = ({ error }) => error ? <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p> : null;
+// "Start from" choices shown in the New document dialog (template keys match LEGAL_TEMPLATES).
+const START_OPTIONS = [
+  { key: 'blank', sourceType: 'blank', templateKey: '', label: 'Blank document', desc: 'An empty page. Write it yourself.', icon: 'draft', type: null },
+  { key: 'nda', sourceType: 'template', templateKey: 'nda', label: 'NDA', desc: 'Keeps shared business information confidential.', icon: 'lock', type: 'NDA' },
+  { key: 'agreement', sourceType: 'template', templateKey: 'agreement', label: 'Service Agreement', desc: 'Scope, fees, deliverables and ownership for services.', icon: 'handshake', type: 'Agreement' },
+  { key: 'policy', sourceType: 'template', templateKey: 'policy', label: 'Company Policy', desc: 'Rules and responsibilities for staff or vendors.', icon: 'policy', type: 'Policy' },
+  { key: 'upload', sourceType: 'upload', templateKey: '', label: 'Upload a file', desc: 'Start from an existing Word or PDF file.', icon: 'upload_file', type: null },
+];
+
+const FieldError =({ error }) => error ? <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p> : null;
 
 const fieldBaseClass = `${lawControlClass} w-full`;
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
@@ -91,9 +94,65 @@ const downloadBlob = (blob, filename) => {
 const STATUS_TONE = { Draft: 'neutral', Pending: 'warning', Approved: 'success', Rejected: 'danger' };
 const PRIORITY_TONE = { Low: 'neutral', Medium: 'info', High: 'warning', Critical: 'danger' };
 
-const StatusBadge = ({ status }) => (
-  <CommonStatusBadge tone={STATUS_TONE[status] || 'neutral'} label={status} />
-);
+// Plain-language wording for each workflow state (values stay as the API sends them).
+const STATUS_INFO = {
+  Draft: { label: 'Draft', hint: 'Still being written. You can keep editing.' },
+  Pending: { label: 'Awaiting approval', hint: 'Sent for approval. Editing is paused until a decision is made.' },
+  Approved: { label: 'Approved', hint: 'Finalized and locked. It is read-only, but you can download the PDF.' },
+  Rejected: { label: 'Changes requested', hint: 'Sent back with remarks. Edit it, then finalize again.' },
+};
+
+const GUIDE_STORAGE_KEY = 'legalDocsQuickGuideDismissed';
+
+// Width of the documents list (drag the splitter, or use the arrow keys on it).
+const LIST_WIDTH_KEY = 'legalDocsListWidth';
+const LIST_WIDTH_MIN = 220;
+const LIST_WIDTH_MAX = 520;
+const LIST_WIDTH_DEFAULT = 320;
+const clampListWidth = (value) => Math.max(LIST_WIDTH_MIN, Math.min(LIST_WIDTH_MAX, Math.round(value)));
+const readListWidth = () => {
+  try {
+    const saved = Number(localStorage.getItem(LIST_WIDTH_KEY));
+    if (saved) return clampListWidth(saved);
+  } catch { /* storage unavailable */ }
+  return LIST_WIDTH_DEFAULT;
+};
+
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia(query);
+    const onChange = (event) => setMatches(event.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+};
+
+const timeAgo = (value) => {
+  if (!value) return '';
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return '';
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (secs < 60) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return formatDate(value);
+};
+
+const StatusBadge = ({ status }) => {
+  const info = STATUS_INFO[status];
+  return (
+    <span title={info?.hint || ''} className="shrink-0">
+      <CommonStatusBadge tone={STATUS_TONE[status] || 'neutral'} label={info?.label || status} />
+    </span>
+  );
+};
 
 const PriorityBadge = ({ priority }) => (
   <CommonStatusBadge tone={PRIORITY_TONE[priority] || 'neutral'} label={priority} dot={false} />
@@ -138,12 +197,18 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   const handleClose = async () => {
     if (!touched) return onClose();
-    const discard = await confirm({ title: 'Discard unsaved changes?', message: 'Your changes have not been saved.', confirmLabel: 'Discard Changes', cancelLabel: 'Keep Editing', tone: 'warning' });
+    const discard = await confirm({ title: 'Discard this new document?', message: 'Nothing has been created yet. If you close now, what you entered will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', tone: 'warning' });
     if (discard) onClose();
   };
+  // Modal re-runs its focus logic whenever onClose changes identity, which would
+  // pull focus off the title field on every keystroke — keep a stable reference.
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => { handleCloseRef.current = handleClose; });
+  const stableClose = useCallback(() => handleCloseRef.current(), []);
 
   const selectSourceFile = (file) => {
     if (!file) return;
@@ -166,7 +231,10 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) next.title = 'Document title is required.';
     else if (trimmedTitle.length < 3) next.title = 'Title must be at least 3 characters.';
-    if (documentScope === 'project' && !isRealProjectId(projectId)) next.projectId = 'Select a project.';
+    if (documentScope === 'project' && !isRealProjectId(projectId)) {
+      next.projectId = 'Select a project, or choose In-house under "Change details".';
+      setShowDetails(true);
+    }
     if (sourceType === 'template' && !templateKey) next.templateKey = 'Select a template.';
     if (sourceType === 'upload' && !sourceFile) next.sourceFile = 'Upload a document file.';
     setErrors(next);
@@ -202,151 +270,83 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
     }
   };
 
+  const selectedStart = sourceType === 'template' ? templateKey : sourceType;
+  const chosenProjectName = (() => {
+    const p = projects.find((item) => String(item._id || item.id) === String(projectId));
+    return p ? (p.name || p.projectName || p.projectCode || 'Selected project') : (scope.projectName || '');
+  })();
+  const filedUnder = documentScope === 'project' && isRealProjectId(projectId) ? chosenProjectName || 'Selected project' : documentScope === 'project' ? 'a project (not chosen yet)' : 'In-house company legal';
+
+  const pickStart = (option) => {
+    setTouched(true);
+    setSourceType(option.sourceType);
+    setTemplateKey(option.templateKey);
+    if (option.type) setType(option.type);
+    setErrors((prev) => ({ ...prev, templateKey: '', sourceFile: '' }));
+  };
+
   return (
     <Modal
       open
-      onClose={handleClose}
-      title="New Legal Document"
-      description="Create a legal document. Additional details can be managed after creation."
+      onClose={stableClose}
+      title="New document"
+      description="Choose what to start from, give it a title, and click Create. You can change everything later."
       className="w-[calc(100%-24px)] sm:max-w-[700px]"
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <CommonButton variant="secondary" onClick={handleClose} disabled={loading}>Cancel</CommonButton>
+          <CommonButton variant="secondary" onClick={stableClose} disabled={loading}>Cancel</CommonButton>
           <CommonButton
             variant="accent"
             onClick={handleCreate}
             disabled={loading}
             icon={<span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>{loading ? 'progress_activity' : 'add'}</span>}
           >
-            {loading ? 'Creating…' : 'Create Document'}
+            {loading ? 'Creating…' : 'Create document'}
           </CommonButton>
         </div>
       }
     >
-      <div className="space-y-4">
-        {apiError && <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{apiError}</div>}
+      <div className="space-y-5">
+        {apiError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{apiError}</div>}
 
         <div>
-          <label htmlFor="legal-title" className={labelClass}>Document Title *</label>
-          <input
-            id="legal-title"
-            autoFocus
-            value={title}
-            onChange={(e) => { setTouched(true); setTitle(e.target.value); setErrors((prev) => ({ ...prev, title: '' })); }}
-            placeholder="e.g. Vendor Service Agreement"
-            maxLength={180}
-            className={fieldBaseClass}
-          />
-          <FieldError error={errors.title} />
+          <span className={labelClass}>Step 1 · What do you want to start from?</span>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Start from">
+            {START_OPTIONS.map((option) => {
+              const selected = selectedStart === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => pickStart(option)}
+                  className={`flex min-h-[64px] items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] ${selected ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)]' : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-700 dark:hover:border-neutral-600'}`}
+                >
+                  <span className={`material-symbols-outlined mt-0.5 text-[22px] ${selected ? 'text-[var(--portal-accent)]' : 'text-neutral-400'}`}>{option.icon}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-neutral-900 dark:text-neutral-100">{option.label}</span>
+                    <span className="block text-xs text-neutral-500 dark:text-neutral-400">{option.desc}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <FieldError error={errors.templateKey} />
         </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="legal-type" className={labelClass}>Document Type *</label>
-            <select id="legal-type" value={type} onChange={(e) => { setTouched(true); setType(e.target.value); }} className={fieldBaseClass}>
-              {LAW_DOCUMENT_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="legal-priority" className={labelClass}>Priority</label>
-            <select id="legal-priority" value={priority} onChange={(e) => { setTouched(true); setPriority(e.target.value); }} className={fieldBaseClass}>
-              {PRIORITIES.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <span className={labelClass}>Scope</span>
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Document scope">
-            {[
-              { value: 'project', label: 'Project', icon: 'folder' },
-              { value: 'company', label: 'In-house', icon: 'business' },
-            ].map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                role="radio"
-                aria-checked={documentScope === item.value}
-                onClick={() => { setTouched(true); setDocumentScope(item.value); if (item.value === 'company') setProjectId(''); }}
-                className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition ${documentScope === item.value ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]' : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:text-neutral-300'}`}
-              >
-                <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {documentScope === 'project' && (
-          <div>
-            <label htmlFor="legal-project" className={labelClass}>Project *</label>
-            <select
-              id="legal-project"
-              value={projectId}
-              onChange={(e) => { setTouched(true); setProjectId(e.target.value); setErrors((prev) => ({ ...prev, projectId: '' })); }}
-              disabled={scope.isProjectScope}
-              className={`${fieldBaseClass} disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 dark:disabled:bg-neutral-800/60`}
-            >
-              <option value="">Select project</option>
-              {projects.map((project) => {
-                const id = project._id || project.id;
-                const name = project.name || project.projectName || project.projectCode || id;
-                return <option key={id} value={id}>{name}</option>;
-              })}
-            </select>
-            {scope.isProjectScope && (
-              <p className="mt-1 text-xs text-neutral-400">Matches the project you're currently viewing ({scope.projectName}). Switch to "In-house" to file this elsewhere.</p>
-            )}
-            <FieldError error={errors.projectId} />
-          </div>
-        )}
-
-        <div>
-          <span className={labelClass}>Document Source</span>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { value: 'blank', label: 'Blank', icon: 'draft' },
-              { value: 'template', label: 'Use Template', icon: 'description' },
-              { value: 'upload', label: 'Upload', icon: 'upload_file' },
-            ].map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                onClick={() => { setTouched(true); setSourceType(item.value); setErrors((prev) => ({ ...prev, templateKey: '', sourceFile: '' })); }}
-                className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-xs font-semibold transition ${sourceType === item.value ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]' : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:text-neutral-300'}`}
-              >
-                <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {sourceType === 'template' && (
-          <div>
-            <label htmlFor="legal-template" className={labelClass}>Template *</label>
-            <select id="legal-template" value={templateKey} onChange={(e) => { setTouched(true); setTemplateKey(e.target.value); setErrors((prev) => ({ ...prev, templateKey: '' })); }} className={fieldBaseClass}>
-              <option value="">Select template</option>
-              {Object.entries(LEGAL_TEMPLATES).filter(([key]) => key !== 'blank').map(([key, tpl]) => (
-                <option key={key} value={key}>{tpl.label}</option>
-              ))}
-            </select>
-            <FieldError error={errors.templateKey} />
-          </div>
-        )}
 
         {sourceType === 'upload' && (
           <div>
-            <label htmlFor="legal-source-file" className={labelClass}>Upload Document *</label>
+            <label htmlFor="legal-source-file" className={labelClass}>Choose a file *</label>
             <label
               htmlFor="legal-source-file"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); selectSourceFile(e.dataTransfer.files?.[0]); }}
-              className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-5 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900/60"
+              className="flex min-h-[44px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-5 text-center transition hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900/60"
             >
               <span className="material-symbols-outlined text-2xl text-[var(--portal-accent)]">upload_file</span>
-              <span className="mt-1.5 text-xs font-bold text-neutral-800 dark:text-neutral-100">Drop DOCX/PDF here or browse</span>
-              <span className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">Uploaded PDFs are imported as reference documents.</span>
+              <span className="mt-1.5 text-xs font-bold text-neutral-800 dark:text-neutral-100">Drop a Word or PDF file here, or click to browse</span>
+              <span className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">Uploaded PDFs are imported as reference documents. Max 10 MB.</span>
               <input id="legal-source-file" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={(e) => selectSourceFile(e.target.files?.[0])} />
             </label>
             {sourceFile && !errors.sourceFile && (
@@ -354,9 +354,9 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
                 <span className="material-symbols-outlined text-[18px] text-[var(--portal-accent)]">description</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{sourceFile.name}</p>
-                  <p className="text-xs text-neutral-400">{(sourceFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{(sourceFile.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
-                <button type="button" onClick={() => setSourceFile(null)} className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600 dark:hover:bg-neutral-800" aria-label="Remove uploaded document">
+                <button type="button" onClick={() => setSourceFile(null)} className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-rose-600 dark:hover:bg-neutral-800" aria-label="Remove uploaded document" title="Remove uploaded document">
                   <span className="material-symbols-outlined text-[18px]">delete</span>
                 </button>
               </div>
@@ -364,6 +364,104 @@ const NewLegalDocumentModal = ({ scope, projects, onClose, onCreated }) => {
             <FieldError error={errors.sourceFile} />
           </div>
         )}
+
+        <div>
+          <label htmlFor="legal-title" className={labelClass}>Step 2 · Document title *</label>
+          <input
+            id="legal-title"
+            autoFocus
+            value={title}
+            onChange={(e) => { setTouched(true); setTitle(e.target.value); setErrors((prev) => ({ ...prev, title: '' })); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreate(); } }}
+            placeholder="e.g. Vendor Service Agreement"
+            maxLength={180}
+            className={`${fieldBaseClass} min-h-10`}
+          />
+          <FieldError error={errors.title} />
+        </div>
+
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-800/50">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-neutral-600 dark:text-neutral-300">
+              Will be saved as a <strong>{type}</strong> ({priority} priority) under <strong>{filedUnder}</strong>.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDetails((v) => !v)}
+              aria-expanded={showDetails}
+              className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]"
+            >
+              <span className="material-symbols-outlined text-[16px]">{showDetails ? 'expand_less' : 'tune'}</span>
+              {showDetails ? 'Hide details' : 'Change details'}
+            </button>
+          </div>
+
+          {showDetails && (
+            <div className="mt-3 space-y-3 border-t border-neutral-200 pt-3 dark:border-neutral-700">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="legal-type" className={labelClass}>Document type</label>
+                  <select id="legal-type" value={type} onChange={(e) => { setTouched(true); setType(e.target.value); }} className={fieldBaseClass}>
+                    {LAW_DOCUMENT_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="legal-priority" className={labelClass}>Priority</label>
+                  <select id="legal-priority" value={priority} onChange={(e) => { setTouched(true); setPriority(e.target.value); }} className={fieldBaseClass}>
+                    {PRIORITIES.map((item) => <option key={item}>{item}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <span className={labelClass}>Where does it belong?</span>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Document scope">
+                  {[
+                    { value: 'company', label: 'In-house', icon: 'business', hint: 'Company-wide, not tied to a project' },
+                    { value: 'project', label: 'Project', icon: 'folder', hint: 'Belongs to one client project' },
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={documentScope === item.value}
+                      title={item.hint}
+                      onClick={() => { setTouched(true); setDocumentScope(item.value); if (item.value === 'company') setProjectId(''); }}
+                      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] ${documentScope === item.value ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]' : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:text-neutral-300'}`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {documentScope === 'project' && (showDetails || errors.projectId) && (
+            <div className="mt-3">
+              <label htmlFor="legal-project" className={labelClass}>Project *</label>
+              <select
+                id="legal-project"
+                value={projectId}
+                onChange={(e) => { setTouched(true); setProjectId(e.target.value); setErrors((prev) => ({ ...prev, projectId: '' })); }}
+                disabled={scope.isProjectScope}
+                className={`${fieldBaseClass} disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 dark:disabled:bg-neutral-800/60`}
+              >
+                <option value="">Select project</option>
+                {projects.map((project) => {
+                  const id = project._id || project.id;
+                  const name = project.name || project.projectName || project.projectCode || id;
+                  return <option key={id} value={id}>{name}</option>;
+                })}
+              </select>
+              {scope.isProjectScope && (
+                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Matches the project you're currently viewing ({scope.projectName}). Switch to "In-house" to file this elsewhere.</p>
+              )}
+              <FieldError error={errors.projectId} />
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );
@@ -435,6 +533,20 @@ const LegalDocManagement = () => {
   const [filterPriority, setFilterPriority] = useState('');
   const [sortBy, setSortBy] = useState('updated-desc');
   const [searchTerm, setSearchTerm] = useState('');
+  // Status counts must not collapse to zero when a status filter is active, so we
+  // keep the last list fetched without a status filter for the summary chips.
+  const [statusSource, setStatusSource] = useState({ key: '', items: [] });
+  const [showGuide, setShowGuide] = useState(() => {
+    try { return localStorage.getItem(GUIDE_STORAGE_KEY) !== '1'; } catch { return true; }
+  });
+  const dismissGuide = () => {
+    setShowGuide(false);
+    try { localStorage.setItem(GUIDE_STORAGE_KEY, '1'); } catch { /* storage unavailable */ }
+  };
+  const openGuide = () => {
+    setShowGuide(true);
+    try { localStorage.removeItem(GUIDE_STORAGE_KEY); } catch { /* storage unavailable */ }
+  };
 
   // Editor state
   const [activeDoc, setActiveDoc] = useState(null); // currently open doc
@@ -443,7 +555,48 @@ const LegalDocManagement = () => {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [listWidth, setListWidth] = useState(readListWidth);
+  const [isDragging, setIsDragging] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const bodyRef = useRef(null);
+  const draggingRef = useRef(false);
+
+  // Remember the list width once a drag is finished (not on every pixel).
+  useEffect(() => {
+    if (isDragging) return;
+    try { localStorage.setItem(LIST_WIDTH_KEY, String(listWidth)); } catch { /* storage unavailable */ }
+  }, [listWidth, isDragging]);
+
+  const onSplitterPointerDown = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    draggingRef.current = true;
+    setIsDragging(true);
+  };
+  const onSplitterPointerMove = (event) => {
+    if (!draggingRef.current || !bodyRef.current) return;
+    setListWidth(clampListWidth(event.clientX - bodyRef.current.getBoundingClientRect().left));
+  };
+  const endSplitterDrag = (event) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setIsDragging(false);
+  };
+  const onSplitterKeyDown = (event) => {
+    const step = event.shiftKey ? 48 : 16;
+    if (event.key === 'ArrowLeft') setListWidth((w) => clampListWidth(w - step));
+    else if (event.key === 'ArrowRight') setListWidth((w) => clampListWidth(w + step));
+    else if (event.key === 'Home') setListWidth(LIST_WIDTH_MIN);
+    else if (event.key === 'End') setListWidth(LIST_WIDTH_MAX);
+    else if (event.key === 'Enter') setListWidth(LIST_WIDTH_DEFAULT);
+    else return;
+    event.preventDefault();
+  };
   const [showMoreActions, setShowMoreActions] = useState(false);
+  const hideChrome = isEditorFullscreen;
 
   useEffect(() => {
     if (!showMoreActions) return undefined;
@@ -518,11 +671,13 @@ const LegalDocManagement = () => {
       }
       if (requestSeq !== fetchSeqRef.current) return;
       const items = getLegalListItems(res);
-      setDocs(items.filter((doc) => {
+      const visibleItems = items.filter((doc) => {
         const docProjectId = String(doc.projectId || '');
         if (targetProjectId) return docProjectId === targetProjectId;
         return !docProjectId;
-      }));
+      });
+      setDocs(visibleItems);
+      if (!nextFilterStatus) setStatusSource({ key: targetProjectId || 'company', items: visibleItems });
     } catch (err) {
       if (requestSeq !== fetchSeqRef.current) return;
       setError(err.message || 'Failed to load documents');
@@ -550,6 +705,8 @@ const LegalDocManagement = () => {
     try {
       const res = await getLegalDocumentById(token, id);
       const doc = getLegalResponseData(res);
+      setLastSavedAt(null);
+      setSaveStatus('idle');
       setActiveDoc(doc);
       setEditorContent(doc.latestContent || '');
       if (editorRef.current) {
@@ -600,6 +757,7 @@ const LegalDocManagement = () => {
       setSaveStatus('saved');
       setLastSavedAt(Date.now());
       setTimeout(() => setSaveStatus('idle'), 3000);
+      toast.success('Your draft has been saved.');
     } catch (err) {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 5000);
@@ -610,10 +768,10 @@ const LegalDocManagement = () => {
   // ── Submit to CEO ───────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     const confirmed = await confirm({
-      title: 'Finalize document?',
-      message: `"${activeDoc?.title}" will be marked Approved and locked from further edits.${activeDoc?.status === 'Rejected' ? ' (A new major version will be created.)' : ''}`,
-      confirmLabel: 'Yes, Finalize',
-      cancelLabel: 'Cancel',
+      title: 'Finalize this document?',
+      message: `"${activeDoc?.title}" will be marked Approved and locked. You will not be able to edit it after this, but you can still view it and download the PDF.${activeDoc?.status === 'Rejected' ? ' Because changes were requested earlier, a new major version will be created.' : ''} Not ready yet? Choose "Not yet" and use Save draft instead.`,
+      confirmLabel: 'Yes, finalize',
+      cancelLabel: 'Not yet',
       tone: 'warning',
     });
     if (!confirmed) return;
@@ -722,166 +880,253 @@ const LegalDocManagement = () => {
     return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
   });
 
-  const stats = useMemo(() => ({
-    total: docs.length,
-    draft: docs.filter((d) => d.status === 'Draft').length,
-    pending: docs.filter((d) => d.status === 'Pending').length,
-    approved: docs.filter((d) => d.status === 'Approved').length,
-    rejected: docs.filter((d) => d.status === 'Rejected').length,
-    projectLinked: docs.filter((d) => d.projectId).length,
-    company: docs.filter((d) => !d.projectId).length,
-  }), [docs]);
+  const scopeKey = selectedProjectId || (isRealProjectId(projectFilter) ? projectFilter : 'company');
+  const hasFilters = Boolean(filterStatus || filterType || filterPriority || searchTerm || sortBy !== 'updated-desc');
+  const clearFilters = () => { setFilterStatus(''); setFilterType(''); setFilterPriority(''); setSearchTerm(''); setSortBy('updated-desc'); };
+
+  // Chips keep showing real counts even while a status filter is applied.
+  const stats = useMemo(() => {
+    const source = filterStatus && statusSource.key === scopeKey ? statusSource.items : docs;
+    return {
+      total: source.length,
+      draft: source.filter((d) => d.status === 'Draft').length,
+      pending: source.filter((d) => d.status === 'Pending').length,
+      approved: source.filter((d) => d.status === 'Approved').length,
+      rejected: source.filter((d) => d.status === 'Rejected').length,
+      projectLinked: source.filter((d) => d.projectId).length,
+      company: source.filter((d) => !d.projectId).length,
+    };
+  }, [docs, statusSource, filterStatus, scopeKey]);
 
   // ── Determine if editor is editable ────────────────────────────────────────
   const isEditable = activeDoc && !activeDoc.isLocked && ['Draft', 'Rejected'].includes(activeDoc?.status);
 
+  const STATUS_CHIPS = [
+    { status: '', label: 'All', value: stats.total, icon: 'description', hint: 'Show every document', pill: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300' },
+    { status: 'Draft', label: 'Draft', value: stats.draft, icon: 'edit_note', hint: STATUS_INFO.Draft.hint, pill: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300' },
+    { status: 'Pending', label: STATUS_INFO.Pending.label, value: stats.pending, icon: 'hourglass_top', hint: STATUS_INFO.Pending.hint, pill: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300' },
+    { status: 'Approved', label: STATUS_INFO.Approved.label, value: stats.approved, icon: 'verified', hint: STATUS_INFO.Approved.hint, pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' },
+    { status: 'Rejected', label: STATUS_INFO.Rejected.label, value: stats.rejected, icon: 'cancel', hint: STATUS_INFO.Rejected.hint, pill: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300' },
+  ];
+
+  const menuItemClass = 'flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-neutral-800 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:text-neutral-100 dark:hover:bg-neutral-800';
+  const filterSelectClass = 'h-9 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 text-xs text-neutral-700 focus:border-[var(--portal-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300';
+  const filterLabelClass = 'mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
+
   // ─────────────────────────────────────────────────────────────────────────────
+  const showListInFlow = !hideChrome && (isDesktop ? !isNavCollapsed : !activeDoc);
+  const showDrawer = !hideChrome && !isDesktop && Boolean(activeDoc) && drawerOpen;
+
+  // Layout chain (see report): root has a fixed viewport-derived height; every flex level below
+  // has min-h-0 + overflow-hidden, and only the document canvas / list scroll internally.
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-slate-50 dark:bg-neutral-950">
+    <div className="flex h-[calc(100dvh-2rem)] min-h-[520px] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-slate-50 dark:border-neutral-800 dark:bg-neutral-950 md:h-[calc(100dvh-3rem)] 2xl:h-[calc(100dvh-4rem)]">
 
       {/* ── TOP BAR ── */}
-      {!isEditorFullscreen && (
-      <div className="overflow-hidden border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      {!hideChrome && (
+      <div className="shrink-0 border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <div className="h-1 w-full bg-[var(--portal-accent)]" />
-        <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-4 lg:px-6">
-          {/* Title + Scope */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--portal-accent)] shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 lg:px-4">
+          {/* Title */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--portal-accent)] shadow-sm">
               <span className="material-symbols-outlined text-[20px] text-white">gavel</span>
             </div>
-            <div>
-              <h1 className="text-xl font-black leading-tight text-neutral-900 dark:text-neutral-100">Legal Documents</h1>
-              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Manage, review and approve legal documents for {scope.projectName || 'the company'}.</p>
-            </div>
+            <h1 className="text-lg font-black leading-tight text-neutral-900 dark:text-neutral-100">Legal Documents</h1>
           </div>
 
-          {/* KPI chips */}
-          <div className="flex flex-wrap items-center gap-2" aria-label="Document status summary">
-            {[
-              { label: 'Total',    value: stats.total,    icon: 'description',   pill: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300' },
-              { label: 'Pending',  value: stats.pending,  icon: 'hourglass_top', pill: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300' },
-              { label: 'Approved', value: stats.approved, icon: 'verified',      pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' },
-              { label: 'Rejected', value: stats.rejected, icon: 'cancel',        pill: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300' },
-            ].map(({ label, value, icon, pill }) => (
-              <div key={label} className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 ${pill}`}>
-                <span className="material-symbols-outlined text-[15px]">{icon}</span>
-                <span className="text-xs font-semibold">{label}</span>
-                <span className="text-sm font-bold">{value}</span>
-              </div>
-            ))}
+          {/* Project switcher — always visible so you can switch projects or jump back
+              to the aggregate view even when the URL is locked to one. */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="legal-project-filter" className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Project</label>
+            <select
+              id="legal-project-filter"
+              value={selectedProjectId || projectFilter}
+              onChange={(e) => handleProjectFilterChange(e.target.value)}
+              title="Choose In-house for company-wide documents, or pick a project to see only its documents."
+              className={`${lawControlClass} min-h-9 max-w-[16rem] bg-neutral-50`}
+            >
+              <option value="company">In-house (company-wide)</option>
+              {projects.map((project) => {
+                const id = project._id || project.id;
+                const name = project.name || project.projectName || project.projectCode || id;
+                return <option key={id} value={id}>{name}</option>;
+              })}
+            </select>
           </div>
-        </div>
 
-        {/* Scope / Sort bar — always visible so you can switch projects or
-            jump back to the aggregate view even when the URL is locked to one. */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 px-4 py-3 dark:border-neutral-800 lg:px-5">
-          <select
-            value={selectedProjectId || projectFilter}
-            onChange={(e) => handleProjectFilterChange(e.target.value)}
-            className={`${lawControlClass} bg-neutral-50`}
-          >
-            <option value="company">In-house company legal</option>
-            {projects.map((project) => {
-              const id = project._id || project.id;
-              const name = project.name || project.projectName || project.projectCode || id;
-              return <option key={id} value={id}>{name}</option>;
+          {/* Status chips — click one to filter the list */}
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter documents by status">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Show:</span>
+            {STATUS_CHIPS.map(({ status, label, value, icon, hint, pill }) => {
+              const active = filterStatus === status;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  title={active && status ? `${hint} Click again to show all.` : hint}
+                  aria-pressed={active}
+                  onClick={() => setFilterStatus(active ? '' : status)}
+                  className={`flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] ${pill} ${active ? 'ring-2 ring-[var(--portal-accent)]' : 'hover:brightness-95'}`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">{icon}</span>
+                  <span className="text-xs font-semibold">{label}</span>
+                  <span className="text-sm font-bold">{value}</span>
+                </button>
+              );
             })}
-          </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className={`${lawControlClass} bg-neutral-50`}
-          >
-            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <CommonButton className="ml-auto" variant="accent" onClick={() => setShowNewDocModal(true)} icon={<span className="material-symbols-outlined text-[17px]">add</span>}>New Document</CommonButton>
-          <div className="hidden items-center gap-2 text-xs text-neutral-400 lg:flex">
-            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
-              <span className="material-symbols-outlined text-[13px]">business</span>
-              In-house: {stats.company}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
-              <span className="material-symbols-outlined text-[13px]">folder</span>
-              Project: {stats.projectLinked}
-            </span>
+          </div>
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="hidden items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 2xl:flex">
+              <span title="In-house documents are company-wide and not tied to a project" className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
+                <span className="material-symbols-outlined text-[13px]">business</span>
+                In-house: {stats.company}
+              </span>
+              <span title="Project documents belong to one client project" className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800">
+                <span className="material-symbols-outlined text-[13px]">folder</span>
+                Project: {stats.projectLinked}
+              </span>
+            </div>
+            <CommonButton variant="secondary" onClick={showGuide ? dismissGuide : openGuide} title="Show or hide the quick guide" icon={<span className="material-symbols-outlined text-[17px]">help</span>}>Help</CommonButton>
+            <CommonButton variant="accent" onClick={() => setShowNewDocModal(true)} title="Start a new legal document" icon={<span className="material-symbols-outlined text-[17px]">add</span>}>New document</CommonButton>
           </div>
         </div>
       </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      {/* ── QUICK GUIDE ── */}
+      {!hideChrome && showGuide && (
+        <section aria-label="Quick guide" className="max-h-[30vh] shrink-0 overflow-y-auto border-b border-sky-200 bg-sky-50 px-4 py-3 dark:border-sky-900/50 dark:bg-sky-900/10 lg:px-6">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined mt-0.5 text-[20px] text-sky-600 dark:text-sky-400">lightbulb</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-sky-900 dark:text-sky-200">Quick guide</p>
+              <ul className="mt-1 grid gap-x-6 gap-y-1 text-xs text-sky-900/90 dark:text-sky-200/90 md:grid-cols-2">
+                <li><strong>Create:</strong> click <em>New document</em>, pick a template, type a title and click <em>Create document</em>.</li>
+                <li><strong>Save:</strong> your work saves by itself while you type. Click <em>Save draft</em> to save right now.</li>
+                <li><strong>Finalize:</strong> when it is ready, click <em>Finalize document</em>. It becomes Approved and locked, so it can no longer be edited.</li>
+                <li><strong>Find your drafts:</strong> they stay in the list on the left with a Draft label. Click <em>Draft</em> at the top to see only those.</li>
+              </ul>
+            </div>
+            <button type="button" onClick={dismissGuide} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-3 text-xs font-semibold text-sky-800 hover:bg-sky-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-sky-200 dark:hover:bg-sky-900/30" aria-label="Dismiss quick guide">
+              Got it
+              <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        </section>
+      )}
 
-        {/* ── LEFT PANEL: Document List ── */}
-        {!isEditorFullscreen && !isNavCollapsed && (
-        <div className={`${activeDoc ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:w-80 xl:w-88`}>
+      <div ref={bodyRef} className={`relative flex min-h-0 flex-1 overflow-hidden ${isDragging ? 'select-none' : ''}`}>
+
+        {/* ── LEFT PANEL: Document List (in-flow on desktop, slide-over drawer on narrow screens) ── */}
+        {showDrawer && (
+          <div className="absolute inset-0 z-20 bg-black/40" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+        )}
+        {(showListInFlow || showDrawer) && (
+        <div
+          id="legal-doc-list"
+          style={showListInFlow && isDesktop ? { width: listWidth, maxWidth: '55%' } : undefined}
+          className={showDrawer
+            ? 'absolute inset-y-0 left-0 z-30 flex w-[min(88vw,360px)] flex-col border-r border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900'
+            : `flex min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 ${isDesktop ? '' : 'w-full'}`}
+        >
 
           {/* Panel header */}
-          <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="shrink-0 border-b border-neutral-200 p-3 dark:border-neutral-800">
+            <div className="mb-2 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Documents</p>
-                <p className="mt-0.5 text-xs text-neutral-400">{docs.length} total</p>
+                <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">Your documents</p>
+                <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400" aria-live="polite">
+                  {loading ? 'Loading…' : hasFilters ? `${filteredDocs.length} found` : `${filteredDocs.length} document${filteredDocs.length === 1 ? '' : 's'}`}
+                </p>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
                   onClick={() => setShowNewDocModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
+                  title="Start a new legal document"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] focus-visible:ring-offset-2"
                 >
-                  <span className="material-symbols-outlined text-[14px]">add</span>
+                  <span className="material-symbols-outlined text-[16px]">add</span>
                   New
                 </button>
+                {(isDesktop || activeDoc) && (
                 <button
-                  onClick={() => setIsNavCollapsed(true)}
-                  title="Collapse document navigator"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  type="button"
+                  onClick={() => (isDesktop ? setIsNavCollapsed(true) : setDrawerOpen(false))}
+                  title={isDesktop ? 'Hide the document list to get more room' : 'Close the document list'}
+                  aria-label={isDesktop ? 'Hide the document list' : 'Close the document list'}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:hover:bg-neutral-800"
                 >
-                  <span className="material-symbols-outlined text-[16px]">left_panel_close</span>
+                  <span className="material-symbols-outlined text-[18px]">{isDesktop ? 'left_panel_close' : 'close'}</span>
                 </button>
+                )}
               </div>
             </div>
 
             {/* Search */}
             <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">search</span>
+              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-neutral-400">search</span>
               <input
-                type="text"
-                placeholder="Search documents…"
+                type="search"
+                aria-label="Search documents by title"
+                placeholder="Search by title…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-10 w-full rounded-lg border border-neutral-200 bg-neutral-50 pl-9 pr-3 text-xs text-neutral-700 placeholder-neutral-400 focus:border-[var(--portal-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+                className="h-10 w-full rounded-lg border border-neutral-200 bg-neutral-50 pl-10 pr-3 text-sm text-neutral-700 placeholder-neutral-400 focus:border-[var(--portal-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
               />
             </div>
 
-            {/* Filter grid */}
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {[
-                { value: filterStatus,   onChange: (v) => setFilterStatus(v),   options: ['', ...['Draft','Pending','Approved','Rejected']], placeholder: 'All Status' },
-                { value: filterType,     onChange: (v) => setFilterType(v),     options: ['', ...DOC_TYPES],  placeholder: 'All Types' },
-                { value: filterPriority, onChange: (v) => setFilterPriority(v), options: ['', ...PRIORITIES], placeholder: 'All Priority' },
-                { value: sortBy,         onChange: (v) => setSortBy(v),         options: null, sortOptions: SORT_OPTIONS },
-              ].map((f, i) => (
-                <select key={i} value={f.value} onChange={(e) => f.onChange(e.target.value)}
-                  className="h-9 rounded-lg border border-neutral-200 bg-neutral-50 px-2 text-xs text-neutral-700 focus:border-[var(--portal-accent)] focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-                  {f.sortOptions
-                    ? f.sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
-                    : f.options.map((o) => <option key={o} value={o}>{o || f.placeholder}</option>)
-                  }
-                </select>
-              ))}
+            {/* Filters */}
+            <div className="mt-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-xs font-bold text-neutral-600 dark:text-neutral-300">Filters</p>
+                {hasFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">close</span>
+                    Clear filters
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label htmlFor="legal-filter-status" className={filterLabelClass}>Status</label>
+                  <select id="legal-filter-status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={filterSelectClass}>
+                    <option value="">Any status</option>
+                    {['Draft', 'Pending', 'Approved', 'Rejected'].map((s) => <option key={s} value={s}>{STATUS_INFO[s].label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="legal-filter-type" className={filterLabelClass}>Type</label>
+                  <select id="legal-filter-type" value={filterType} onChange={(e) => setFilterType(e.target.value)} className={filterSelectClass}>
+                    <option value="">Any type</option>
+                    {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="legal-filter-priority" className={filterLabelClass}>Priority</label>
+                  <select id="legal-filter-priority" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className={filterSelectClass}>
+                    <option value="">Any priority</option>
+                    {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="legal-filter-sort" className={filterLabelClass}>Sort by</label>
+                  <select id="legal-filter-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={filterSelectClass}>
+                    {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
-            {(filterStatus || filterType || filterPriority || searchTerm || sortBy !== 'updated-desc') && (
-              <button
-                onClick={() => { setFilterStatus(''); setFilterType(''); setFilterPriority(''); setSearchTerm(''); setSortBy('updated-desc'); }}
-                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-500 hover:text-[var(--portal-accent)] dark:text-neutral-400"
-              >
-                <span className="material-symbols-outlined text-[13px]">restart_alt</span>
-                Reset Filters
-              </button>
-            )}
           </div>
 
           {/* Document list */}
-          <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
+          <div className="min-h-0 flex-1 overflow-y-auto p-2 scrollbar-thin">
             {loading && (
               <div className="space-y-2 p-2">
                 {[1,2,3,4].map((i) => (
@@ -891,19 +1136,33 @@ const LegalDocManagement = () => {
             )}
 
             {!loading && error && (
-              <div className="m-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/10">
+              <div role="alert" className="m-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/10">
                 <span className="material-symbols-outlined text-[15px] text-amber-500">warning</span>
                 <p className="text-xs text-amber-700 dark:text-amber-400">{error}</p>
               </div>
             )}
 
             {!loading && filteredDocs.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 dark:bg-rose-900/20">
-                  <span className="material-symbols-outlined text-2xl text-rose-400">description</span>
+              <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--portal-accent-soft)]">
+                  <span className="material-symbols-outlined text-2xl text-[var(--portal-accent)]">{hasFilters ? 'search_off' : 'note_add'}</span>
                 </div>
-                <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">No documents found</p>
-                <p className="mt-1 text-center text-[11px] text-neutral-400">Create one to get started.</p>
+                {hasFilters ? (
+                  <>
+                    <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">No documents match</p>
+                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Try a different search, or clear the filters.</p>
+                    <button type="button" onClick={clearFilters} className="mt-3 inline-flex min-h-9 items-center gap-1 rounded-lg border border-neutral-200 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Clear filters</button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">No documents yet</p>
+                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Click <strong>New document</strong> to start.</p>
+                    <button type="button" onClick={() => setShowNewDocModal(true)} className="mt-3 inline-flex min-h-9 items-center gap-1 rounded-lg bg-[var(--portal-accent)] px-3 text-xs font-semibold text-white hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] focus-visible:ring-offset-2">
+                      <span className="material-symbols-outlined text-[16px]">add</span>
+                      New document
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -912,76 +1171,89 @@ const LegalDocManagement = () => {
                 key={doc._id}
                 role="button"
                 tabIndex={0}
-                onClick={() => openDoc(doc._id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDoc(doc._id); }}
-                className={`group relative mb-1.5 w-full cursor-pointer rounded-xl border p-3 text-left transition-all hover:shadow-sm ${
+                aria-current={activeDoc?._id === doc._id ? 'true' : undefined}
+                onClick={() => { openDoc(doc._id); setDrawerOpen(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDoc(doc._id); setDrawerOpen(false); } }}
+                className={`group relative mb-1.5 w-full cursor-pointer rounded-xl border p-3 text-left transition-all hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] ${
                   activeDoc?._id === doc._id
-                    ? 'border-y-neutral-200 border-r-neutral-200 border-l-[3px] border-l-[var(--portal-accent)] bg-[var(--portal-accent-soft)]'
+                    ? 'border-y-neutral-200 border-r-neutral-200 border-l-[3px] border-l-[var(--portal-accent)] bg-[var(--portal-accent-soft)] dark:border-y-neutral-700 dark:border-r-neutral-700'
                     : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-800/60'
                 }`}
               >
-                <div className="mb-1.5 flex items-start justify-between gap-1">
-                  <p className="flex-1 text-xs font-semibold leading-snug text-neutral-900 line-clamp-2 dark:text-neutral-100">{doc.title}</p>
+                <div className="mb-1.5 flex items-start justify-between gap-2">
+                  <p className="flex-1 text-sm font-semibold leading-snug text-neutral-900 line-clamp-2 dark:text-neutral-100">{doc.title}</p>
                   <StatusBadge status={doc.status} />
                 </div>
                 {doc.documentNumber && (
-                  <p className="mb-1 text-[10px] font-mono text-neutral-400 dark:text-neutral-500">{doc.documentNumber}</p>
+                  <p className="mb-1 text-[11px] font-mono text-neutral-500 dark:text-neutral-400">{doc.documentNumber}</p>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{doc.type} · {doc.currentVersion}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400">{doc.type} · {doc.currentVersion}</span>
                   <PriorityBadge priority={doc.priority} />
                 </div>
-                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
-                  <span className="material-symbols-outlined text-[11px]">{doc.projectId ? 'folder' : 'business'}</span>
-                  <span>{doc.projectId ? (doc.projectName || 'Project legal') : 'In-house legal'}</span>
-                  <span className="ml-auto">{formatDate(doc.updatedAt)}</span>
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                  <span className="material-symbols-outlined text-[13px]">{doc.projectId ? 'folder' : 'business'}</span>
+                  <span className="truncate">{doc.projectId ? (doc.projectName || 'Project legal') : 'In-house legal'}</span>
+                  <span className="ml-auto shrink-0" title={doc.updatedAt ? `Last updated ${formatDate(doc.updatedAt)}` : ''}>{timeAgo(doc.updatedAt) ? `Updated ${timeAgo(doc.updatedAt)}` : ''}</span>
                 </div>
                 {doc.status === 'Rejected' && doc.ceoRemarks && (
-                  <p className="mt-1.5 line-clamp-1 text-[10px] italic text-rose-500 dark:text-rose-400">
+                  <p className="mt-1.5 line-clamp-1 text-xs italic text-rose-600 dark:text-rose-400">
                     Remark: {doc.ceoRemarks}
                   </p>
                 )}
               </div>
             ))}
           </div>
-
-          {/* Bottom status summary */}
-          <div className="grid grid-cols-4 gap-1 border-t border-neutral-200 p-3 dark:border-neutral-800">
-            {['Draft','Pending','Approved','Rejected'].map((s) => {
-              const ss = STATUS_STYLES[s];
-              const count = docs.filter((d) => d.status === s).length;
-              return (
-                <div key={s} className={`rounded-lg px-2 py-1.5 ${ss.bg}`}>
-                  <p className={`text-[9px] font-semibold uppercase ${ss.text}`}>{s}</p>
-                  <p className={`text-base font-bold ${ss.text}`}>{count}</p>
-                </div>
-              );
-            })}
-          </div>
         </div>
         )}
 
-        {isNavCollapsed && !isEditorFullscreen && (
-          <button
-            onClick={() => setIsNavCollapsed(false)}
-            title="Expand document navigator"
-            className="flex w-8 shrink-0 flex-col items-center justify-center gap-2 border-r border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 hover:text-[var(--portal-accent)] dark:border-neutral-800 dark:bg-neutral-900"
+        {showListInFlow && isDesktop && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the document list"
+            aria-controls="legal-doc-list"
+            aria-valuemin={LIST_WIDTH_MIN}
+            aria-valuemax={LIST_WIDTH_MAX}
+            aria-valuenow={listWidth}
+            tabIndex={0}
+            title="Drag to resize the list. Double-click to reset."
+            onPointerDown={onSplitterPointerDown}
+            onPointerMove={onSplitterPointerMove}
+            onPointerUp={endSplitterDrag}
+            onPointerCancel={endSplitterDrag}
+            onDoubleClick={() => setListWidth(LIST_WIDTH_DEFAULT)}
+            onKeyDown={onSplitterKeyDown}
+            className="group relative z-10 -mx-1 w-2 shrink-0 cursor-col-resize touch-none focus:outline-none pointer-coarse:-mx-1.5 pointer-coarse:w-3"
           >
-            <span className="material-symbols-outlined text-[16px]">left_panel_open</span>
+            <span className={`absolute inset-y-0 left-1/2 -translate-x-1/2 transition-all group-hover:w-[3px] group-hover:bg-[var(--portal-accent)] group-focus-visible:w-[3px] group-focus-visible:bg-[var(--portal-accent)] ${isDragging ? 'w-[3px] bg-[var(--portal-accent)]' : 'w-px bg-transparent'}`} />
+            <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-300 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:bg-neutral-600" />
+          </div>
+        )}
+
+        {isDesktop && isNavCollapsed && !hideChrome && (
+          <button
+            type="button"
+            onClick={() => setIsNavCollapsed(false)}
+            title="Show the document list"
+            aria-label="Show the document list"
+            className="flex w-10 shrink-0 flex-col items-center justify-center gap-2 border-r border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 hover:text-[var(--portal-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--portal-accent)] dark:border-neutral-800 dark:bg-neutral-900"
+          >
+            <span className="material-symbols-outlined text-[18px]">left_panel_open</span>
           </button>
         )}
 
         {/* ── RIGHT PANEL: Editor or Empty State ── */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {!activeDoc ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-neutral-400 dark:text-neutral-600">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 shadow-inner dark:bg-rose-900/10">
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-neutral-500 dark:text-neutral-400">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-[var(--portal-accent-soft)] shadow-inner">
                 <span className="material-symbols-outlined text-4xl text-[var(--portal-accent)]">description</span>
               </div>
               <div className="text-center">
-                <h3 className="text-base font-bold text-neutral-700 dark:text-neutral-300">Select or Create a Document</h3>
-                <p className="mt-1 max-w-xs text-sm text-neutral-400 dark:text-neutral-500">
-                  Pick a document from the {scope.isProjectScope ? 'project' : 'company'} legal list to start editing, or create a new one.
+                <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-200">No document open</h3>
+                <p className="mt-1 max-w-xs text-sm text-neutral-500 dark:text-neutral-400">
+                  Select a document on the left or create a new one.
                 </p>
               </div>
               <CommonButton
@@ -989,93 +1261,91 @@ const LegalDocManagement = () => {
                 onClick={() => setShowNewDocModal(true)}
                 icon={<span className="material-symbols-outlined text-[17px]">add</span>}
               >
-                New Legal Document
+                New document
               </CommonButton>
             </div>
           ) : (
             <>
               {/* Doc toolbar */}
-              {!isEditorFullscreen && (
-              <div className="flex items-center gap-3 border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900">
+              {!hideChrome && (
+              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-neutral-200 bg-white px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900">
+                {!isDesktop && (
+                  <button
+                    type="button"
+                    onClick={() => setDrawerOpen(true)}
+                    title="Show the document list"
+                    aria-label="Show the document list"
+                    aria-expanded={drawerOpen}
+                    aria-controls="legal-doc-list"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:border-neutral-700 dark:hover:bg-neutral-800"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-neutral-500">left_panel_open</span>
+                  </button>
+                )}
                 <button
+                  type="button"
                   onClick={() => setActiveDoc(null)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  title="Back to the document list"
+                  aria-label="Back to the document list"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:hover:bg-neutral-800"
                 >
                   <span className="material-symbols-outlined text-[18px] text-neutral-500">arrow_back</span>
                 </button>
-                <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{activeDoc.title}</h2>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    {activeDoc.documentNumber && <span className="font-mono text-xs text-neutral-400">{activeDoc.documentNumber}</span>}
+                <div className="min-w-0 flex-1 basis-48">
+                  <h2 className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100" title={activeDoc.title}>{activeDoc.title}</h2>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                    {activeDoc.documentNumber && <span className="font-mono text-xs text-neutral-500 dark:text-neutral-400">{activeDoc.documentNumber}</span>}
                     <StatusBadge status={activeDoc.status} />
-                    <span className="text-xs text-neutral-400">{activeDoc.type} · {activeDoc.currentVersion}</span>
-                    {activeDoc.projectName && <span className="text-xs text-neutral-400">· {activeDoc.projectName}</span>}
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">{activeDoc.type} · {activeDoc.currentVersion}</span>
+                    {activeDoc.projectName && <span className="text-xs text-neutral-500 dark:text-neutral-400">· {activeDoc.projectName}</span>}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditorFullscreen(true)}
+                    title="Full screen: edit the document using the whole screen (Esc to exit)"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  >
+                    <span className="material-symbols-outlined text-[17px]">fullscreen</span>Full screen
+                  </button>
                   <div ref={moreActionsRef} className="relative">
-                    <button type="button" onClick={() => setShowMoreActions((value) => !value)} aria-haspopup="menu" aria-expanded={showMoreActions} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
-                      <span className="material-symbols-outlined text-[17px]">more_horiz</span><span className="hidden lg:inline">More</span>
+                    <button type="button" onClick={() => setShowMoreActions((value) => !value)} aria-haspopup="menu" aria-expanded={showMoreActions} title="More actions: version history, download PDF, full screen" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                      <span className="material-symbols-outlined text-[17px]">more_horiz</span>More actions
                     </button>
-                    {showMoreActions && <div role="menu" className="absolute right-0 top-11 z-30 w-56 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
-                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); setShowVersionHistory(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">history</span>Version History</button>
-                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleDownloadPdf(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">picture_as_pdf</span>Download PDF</button>
-                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); setIsEditorFullscreen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">fullscreen</span>Open Fullscreen</button>
-                      {activeDoc.projectId && <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleSetCustomerAgreement(!activeDoc.customerAgreement?.agreed); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="material-symbols-outlined text-[17px]">verified_user</span>{activeDoc.customerAgreement?.agreed ? 'Clear Customer Agreement' : 'Mark Customer Agreed'}</button>}
-                      {canDelete && !activeDoc.isLocked && <><div className="my-1 border-t border-neutral-100 dark:border-neutral-800"/><button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleDeleteDoc(activeDoc); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"><span className="material-symbols-outlined text-[17px]">delete</span>Move to Trash</button></>}
+                    {showMoreActions && <div role="menu" className="absolute right-0 top-11 z-30 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); setShowVersionHistory(true); }} className={menuItemClass}><span className="material-symbols-outlined text-[17px]">history</span>Version history</button>
+                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleDownloadPdf(); }} className={menuItemClass}><span className="material-symbols-outlined text-[17px]">picture_as_pdf</span>Download PDF</button>
+                      <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); setIsEditorFullscreen(true); }} className={menuItemClass}><span className="material-symbols-outlined text-[17px]">fullscreen</span>Full-screen editing</button>
+                      {activeDoc.projectId && <button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleSetCustomerAgreement(!activeDoc.customerAgreement?.agreed); }} className={menuItemClass}><span className="material-symbols-outlined text-[17px]">verified_user</span>{activeDoc.customerAgreement?.agreed ? 'Clear customer agreement' : 'Mark customer as agreed'}</button>}
+                      {canDelete && !activeDoc.isLocked && <><div className="my-1 border-t border-neutral-100 dark:border-neutral-800"/><button role="menuitem" type="button" onClick={() => { setShowMoreActions(false); handleDeleteDoc(activeDoc); }} className="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:text-rose-400 dark:hover:bg-rose-950/30"><span className="material-symbols-outlined text-[17px]">delete</span>Move to Trash</button></>}
                     </div>}
                   </div>
-                  {isEditable && <button type="button" onClick={() => handleSaveDraft(editorRef.current?.getContent() || editorContent)} className="hidden h-9 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 sm:inline-flex"><span className="material-symbols-outlined text-[16px]">save</span>Save Draft</button>}
-                  {activeDoc.projectId && (
-                    activeDoc.customerAgreement?.agreed ? (
-                      <button
-                        onClick={() => handleSetCustomerAgreement(false)}
-                        title={`Agreed ${formatDate(activeDoc.customerAgreement.agreedAt)} — click to clear`}
-                        className="hidden items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
-                      >
-                        <span className="material-symbols-outlined text-[15px]">verified_user</span>
-                        Customer Agreed
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleSetCustomerAgreement(true)}
-                        title="Record that the project client has agreed to this document"
-                        className="hidden items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700"
-                      >
-                        <span className="material-symbols-outlined text-[15px]">verified_user</span>
-                        Mark Customer Agreed
-                      </button>
-                    )
-                  )}
-                  <button
-                    onClick={() => setShowVersionHistory(true)}
-                    className="hidden items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">history</span>
-                    History
-                  </button>
-                  {canDelete && !activeDoc.isLocked && (
+                  {isEditable && (
                     <button
-                      onClick={() => handleDeleteDoc(activeDoc)}
-                      title="Move to trash"
-                      className="hidden h-8 w-8 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500"
+                      type="button"
+                      onClick={() => handleSaveDraft(editorRef.current?.getContent() || editorContent)}
+                      title="Save your changes now. Your work also saves automatically while you type."
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
                     >
-                      <span className="material-symbols-outlined text-[15px]">delete</span>
+                      <span className="material-symbols-outlined text-[16px]">save</span>Save draft
                     </button>
                   )}
                   {isEditable && (
                     <button
+                      type="button"
                       onClick={handleSubmit}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-110"
+                      title="Mark this document as Approved and lock it. You will be asked to confirm first."
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--portal-accent)] px-3 text-xs font-semibold text-white shadow-sm hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] focus-visible:ring-offset-2"
                     >
-                      <span className="material-symbols-outlined text-[15px]">verified</span>
-                      <span className="hidden sm:inline">Finalize Document</span><span className="sm:hidden">Finalize</span>
+                      <span className="material-symbols-outlined text-[16px]">verified</span>
+                      Finalize document
                     </button>
                   )}
                   {activeDoc.status === 'Pending' && (
-                    <div className="inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-1.5 dark:bg-amber-900/30">
-                      <span className="material-symbols-outlined text-[15px] text-amber-600">hourglass_top</span>
-                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Awaiting Approval</span>
+                    <div className="inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-1.5 dark:bg-amber-900/30" title={STATUS_INFO.Pending.hint}>
+                      <span className="material-symbols-outlined text-[15px] text-amber-600 dark:text-amber-400">hourglass_top</span>
+                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Awaiting approval</span>
                     </div>
                   )}
                 </div>
@@ -1083,26 +1353,27 @@ const LegalDocManagement = () => {
               )}
 
               {/* Status banners */}
-              {!isEditorFullscreen && activeDoc.status === 'Rejected' && activeDoc.ceoRemarks && (
-                <div className="flex items-start gap-3 border-b border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/20">
+              {!hideChrome && activeDoc.status === 'Rejected' && activeDoc.ceoRemarks && (
+                <div className="flex shrink-0 items-start gap-3 border-b border-rose-200 bg-rose-50 px-4 py-2 dark:border-rose-800 dark:bg-rose-900/20">
                   <span className="material-symbols-outlined mt-0.5 text-[17px] text-rose-500">cancel</span>
                   <div>
                     <p className="text-xs font-bold text-rose-700 dark:text-rose-400">Changes requested</p>
                     <p className="text-xs text-rose-600 dark:text-rose-400">{activeDoc.ceoRemarks}</p>
+                    <p className="mt-1 text-xs text-rose-600/80 dark:text-rose-400/80">Make the changes below, then click Finalize document again.</p>
                   </div>
                 </div>
               )}
-              {!isEditorFullscreen && activeDoc.status === 'Approved' && (
-                <div className="flex items-center gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 dark:border-emerald-800 dark:bg-emerald-900/20">
+              {!hideChrome && activeDoc.status === 'Approved' && (
+                <div className="flex shrink-0 items-center gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-1.5 dark:border-emerald-800 dark:bg-emerald-900/20">
                   <span className="material-symbols-outlined text-[17px] text-emerald-600">verified</span>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                    <span className="font-bold">Approved</span> by {activeDoc.approvedByName || 'Approver'} on {formatDate(activeDoc.approvedAt)} — read-only.
+                    <span className="font-bold">Approved</span> by {activeDoc.approvedByName || 'Approver'} on {formatDate(activeDoc.approvedAt)}. This document is read-only.
                   </p>
                 </div>
               )}
 
               {/* Editor */}
-              <div className={isEditorFullscreen ? 'flex-1 overflow-hidden' : 'flex-1 overflow-hidden p-4'}>
+              <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${hideChrome ? '' : 'p-2 sm:p-3'}`}>
                 <LegalDocEditor
                   ref={editorRef}
                   key={activeDoc._id}
@@ -1115,6 +1386,7 @@ const LegalDocManagement = () => {
                   onToggleFullscreen={setIsEditorFullscreen}
                   onContentChange={setEditorContent}
                   onAutoSave={isEditable ? handleAutoSave : undefined}
+                  onSaveDraft={isEditable ? handleSaveDraft : undefined}
                   onDownloadPdf={handleDownloadPdf}
                   onOpenHistory={() => setShowVersionHistory(true)}
                 />

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Chat = require('../models/common/Chat');
 const Message = require('../models/common/Message');
 const PortalAccess = require('../models/superAdmin/PortalAccess');
+const { isDepartmentChatUser, departmentOnlyThreadFilter } = require('../utils/departmentChatScope');
 const HR_ROLES = ['hr', 'it_hr', 'admin', 'super_admin'];
 const SUPPORT_ROLES = ['admin', 'super_admin', 'it_manager', 'it_admin'];
 const canAccessRoom = async (user, room) => {
@@ -16,6 +17,10 @@ const canAccessRoom = async (user, room) => {
   }
   if (room === 'outsourcing:admins') return ['admin', 'super_admin', 'hr', 'finance_manager', 'finance_employee', 'law_head', 'law_employee'].includes(user.role);
   if (!mongoose.isObjectIdOrHexString(room)) return false;
+  // Department users (law, it, finance, media) may only join rooms made up entirely of their department.
+  if (isDepartmentChatUser({ role: user.role })) {
+    return Boolean(await Chat.exists({ _id: room, members: user.userId, $and: [await departmentOnlyThreadFilter({ role: user.role })] }));
+  }
   // Match the existing API's open-thread convention as well as explicit membership.
   return Boolean(await Chat.exists({ _id: room, $or: [
     { members: user.userId }, { members: { $size: 0 } }, { members: { $exists: false } },

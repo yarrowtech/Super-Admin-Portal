@@ -32,7 +32,58 @@ const initUser = {
   phone: '',
   role: 'freelancer',
   department: 'Outsourcing',
-  outsourcingType: 'freelancer'
+  outsourcingType: 'freelancer',
+  associatedPortals: []
+};
+const PORTAL_OPTIONS = [
+  { key: 'it', label: 'IT' },
+  { key: 'finance', label: 'Finance' },
+  { key: 'law', label: 'Law' },
+  { key: 'media', label: 'Media' },
+  { key: 'hr', label: 'HR' },
+];
+
+// Checkbox group for the portals a freelancer works with (their heads can then assign them tasks).
+const PortalCheckboxes = ({ value, onChange, disabled }) => (
+  <div className="flex flex-wrap gap-3">
+    {PORTAL_OPTIONS.map((o) => (
+      <label key={o.key} className="flex items-center gap-1.5 text-sm">
+        <input
+          type="checkbox"
+          disabled={disabled}
+          checked={value.includes(o.key)}
+          onChange={(e) => onChange(e.target.checked ? [...value, o.key] : value.filter((k) => k !== o.key))}
+        />
+        {o.label}
+      </label>
+    ))}
+  </div>
+);
+
+const FreelancerPortalsEditor = ({ freelancer, token, onSaved, onError }) => {
+  const [value, setValue] = useState(freelancer.associatedPortals || []);
+  const [saving, setSaving] = useState(false);
+  const dirty = value.slice().sort().join(',') !== (freelancer.associatedPortals || []).slice().sort().join(',');
+  const save = async () => {
+    try {
+      setSaving(true);
+      await outsourcingApi.updateFreelancerPortals(token, freelancer._id, value);
+      await onSaved();
+    } catch (err) {
+      onError(err.message || 'Failed to update portals');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="mt-2">
+      <p className="mb-1 text-xs text-neutral-500">
+        Works with portals{freelancer.associatedPortalsExplicit ? '' : ' (default until saved)'}
+      </p>
+      <PortalCheckboxes value={value} onChange={setValue} disabled={saving} />
+      {dirty ? <Button type="button" className="mt-2" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save portals'}</Button> : null}
+    </div>
+  );
 };
 const initJob = { title: '', description: '', assignedFreelancerId: '' };
 const initContract = { jobId: '', paymentType: 'hourly', rate: '', escrowAmount: '' };
@@ -358,6 +409,10 @@ export const AdminOutsourcingFreelancersPage = () => {
               <input className="w-full rounded border p-2" placeholder="Department" value={newUser.department} onChange={(e) => setNewUser({ ...newUser, department: e.target.value })} />
             </div>
             <div className="md:col-span-2">
+              <label className="mb-1 block text-xs text-neutral-500">Works with portals (their heads can assign this freelancer tasks)</label>
+              <PortalCheckboxes value={newUser.associatedPortals} onChange={(associatedPortals) => setNewUser({ ...newUser, associatedPortals })} />
+            </div>
+            <div className="md:col-span-2">
               <label className="mb-1 block text-xs text-neutral-500">Password</label>
               <input type="password" className="w-full rounded border p-2" placeholder="Minimum 6 characters" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
             </div>
@@ -375,6 +430,7 @@ export const AdminOutsourcingFreelancersPage = () => {
               <div key={f._id} className="rounded border p-2 text-sm">
                 <p className="font-medium">{f.firstName} {f.lastName}</p>
                 <p className="text-xs text-neutral-500">{f.email}</p>
+                {f.role === 'freelancer' ? <FreelancerPortalsEditor key={`${f._id}-${(f.associatedPortals || []).join(',')}`} freelancer={f} token={token} onSaved={loadData} onError={setError} /> : null}
               </div>
             ))}
           </div>

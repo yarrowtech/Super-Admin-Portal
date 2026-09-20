@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Drawer from '../ui/Drawer';
 import StatusBadge from '../common/StatusBadge';
 import Avatar from '../common/Avatar';
-import { TASK_STATUSES, priorityToTone } from '../../features/tasks/taskConstants';
+import { TASK_STATUSES, TASK_PRIORITIES, priorityToTone } from '../../features/tasks/taskConstants';
 import { useAuth } from '../../context/AuthContext';
 import { QK, cachePolicyFor } from '../../utils/queryKeys';
-import { taskAdapters } from '../../features/tasks/taskAdapters';
+import { taskAdapters, portalLabel } from '../../features/tasks/taskAdapters';
 import { useTaskStatusMutation, useAddTaskCommentMutation } from '../../features/tasks/useTaskMutations';
+import { useToast } from '../../context/ToastContext';
+import LinkedItemsPicker from './LinkedItemsPicker';
+import LinkedItemsSection from './LinkedItemsSection';
 
 const formatDate = (v) => (v ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(v)) : '—');
 
@@ -18,8 +21,13 @@ const formatDate = (v) => (v ? new Intl.DateTimeFormat('en-IN', { day: '2-digit'
  * Attachments/comments render only where the backend actually returns them
  * for that portal (see taskAdapters' canFetchDetail/canComment flags).
  */
-const TaskDetailDrawer = ({ portal, task, filters, onClose }) => {
+const TaskDetailDrawer = ({ portal, task, filters, onClose, canManage = false }) => {
   const { token, user } = useAuth();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
   const adapter = taskAdapters[portal];
   const statusMutation = useTaskStatusMutation(portal, filters);
   const [commentText, setCommentText] = useState('');
@@ -34,7 +42,67 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose }) => {
 
   const addComment = useAddTaskCommentMutation(portal, task?.id);
 
+  const manageEnabled = canManage && Boolean(adapter?.updateTask || adapter?.deleteTask);
+  const assigneesQuery = useQuery({
+    queryKey: ['task-assignees', portal],
+    queryFn: () => adapter.fetchAssignableUsers(token),
+    enabled: Boolean(task) && manageEnabled && editing && Boolean(adapter?.fetchAssignableUsers),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => { setEditing(false); }, [task?.id]);
+
   if (!task) return null;
+
+  const refreshBoard = () => queryClient.invalidateQueries({ queryKey: QK.tasks.board(portal, filters) });
+
+  const startEdit = () => {
+    setForm({
+      title: task.title || '',
+      description: task.description || '',
+      priority: task.priority || 'medium',
+      dueDate: task.dueDate ? String(task.dueDate).slice(0, 10) : '',
+      assignedTo: task.assignee?.id || '',
+      linkedItems: (task.linkedItems || []).map((l) => ({ module: l.module, recordId: l.recordId, title: l.title })),
+    });
+    setEditing(true);
+  };
+
+  const saveEdit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await adapter.updateTask(token, task.id, {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        priority: form.priority,
+        dueDate: form.dueDate,
+        ...(form.assignedTo ? { assignedTo: form.assignedTo } : {}),
+        ...(adapter.supportsLinkedItems ? { linkedItems: form.linkedItems } : {}),
+      });
+      toast?.success?.('Task updated');
+      setEditing(false);
+      refreshBoard();
+      onClose();
+    } catch (err) {
+      toast?.error?.(err?.message || 'Unable to update task.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeTask = async () => {
+    if (!window.confirm('Delete this task permanently?')) return;
+    try {
+      await adapter.deleteTask(token, task.id);
+      toast?.success?.('Task deleted');
+      refreshBoard();
+      onClose();
+    } catch (err) {
+      toast?.error?.(err?.message || 'Unable to delete task.');
+    }
+  };
+
   const full = adapter?.canFetchDetail && detailQuery.data ? detailQuery.data : task;
 
   const submitComment = async (e) => {
@@ -48,6 +116,41 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose }) => {
   return (
     <Drawer open={Boolean(task)} title={full.title} onClose={onClose}>
       <div className="space-y-5">
+        {manageEnabled && (
+          <div className="flex flex-wrap gap-2">
+            {adapter.updateTask && !editing && (
+              <button type="button" onClick={startEdit} className="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm font-semibold dark:border-neutral-700">Edit task</button>
+            )}
+            {adapter.deleteTask && (
+              <button type="button" onClick={removeTask} className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-semibold text-rose-600 dark:border-rose-900">Delete</button>
+            )}
+          </div>
+        )}
+        {editing && form && (
+          <form onSubmit={saveEdit} className="space-y-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Task title" className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+            <textarea required rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+            <div className="grid grid-cols-2 gap-3">
+              <input required type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+              <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                {TASK_PRIORITIES.map((p) => <option key={p.key || p} value={p.key || p}>{p.label || p}</option>)}
+              </select>
+            </div>
+            {adapter.needsAssignee && (
+              <select value={form.assignedTo} onChange={(e) => setForm({ ...form, assignedTo: e.target.value })} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                <option value="">Keep current assignee</option>
+                {(assigneesQuery.data || []).map((u) => <option key={u.id} value={u.id}>{u.name}{u.isFreelancer ? ' (Freelancer)' : ''}</option>)}
+              </select>
+            )}
+            {adapter.supportsLinkedItems && (
+              <LinkedItemsPicker portal={portal} value={form.linkedItems} onChange={(linkedItems) => setForm((f) => ({ ...f, linkedItems }))} />
+            )}
+            <div className="flex gap-2">
+              <button type="submit" disabled={saving} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save changes'}</button>
+              <button type="button" onClick={() => setEditing(false)} className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold dark:border-neutral-700">Cancel</button>
+            </div>
+          </form>
+        )}
         <div>
           <p className="mb-1 text-xs font-bold uppercase tracking-wide text-neutral-400">Status</p>
           <select
@@ -80,7 +183,13 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose }) => {
           {full.assignee && (
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Assignee</p>
-              <div className="mt-1 flex items-center gap-2"><Avatar name={full.assignee.name} size="xs" />{full.assignee.name}</div>
+              <div className="mt-1 flex items-center gap-2"><Avatar name={full.assignee.name} size="xs" />{full.assignee.name}{full.assignee.isFreelancer && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">Freelancer</span>}</div>
+            </div>
+          )}
+          {portalLabel(full.sourcePortal) && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Assigned by portal</p>
+              <p className="mt-1">{portalLabel(full.sourcePortal)}</p>
             </div>
           )}
           {full.reporter && (
@@ -100,6 +209,10 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose }) => {
             </div>
           )}
         </div>
+
+        {(adapter?.supportsLinkedItems || full.linkedItems?.length > 0) && (
+          <LinkedItemsSection taskId={full.id} hasLinks={Boolean(full.linkedItems?.length)} />
+        )}
 
         {full.tags?.length > 0 && (
           <div className="flex flex-wrap gap-1.5">

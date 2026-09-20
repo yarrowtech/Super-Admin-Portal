@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { departmentApi } from '../../services/departments';
 import PortalHeader from '../common/PortalHeader';
+import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
 import SalesPortalLayout from './SalesPortalLayout';
 
@@ -133,6 +134,8 @@ const MediaSalesPortal = () => {
         icon="point_of_sale"
         user={user}
       />
+
+      <WarmGreeting user={user} roleHint="sales pipeline" />
 
       {error && (
         <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">

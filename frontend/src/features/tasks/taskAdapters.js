@@ -138,8 +138,8 @@ const departmentTaskAdapter = (api) => ({
 export const taskAdapters = {
   manager: {
     canCreate: true,
-    canComment: false, // no comment endpoint exists for manager-scoped tasks
-    canFetchDetail: false, // no single-task GET; list already returns full docs
+    canComment: true,
+    canFetchDetail: true,
     fetchTasks: async (token, filters = {}) => {
       const data = { tasks: await fetchHrPages(managerApi.getTasks, token, 'tasks', filters) };
       data.total = data.tasks.length;
@@ -148,8 +148,13 @@ export const taskAdapters = {
         total: data.total ?? (data.tasks || []).length,
       };
     },
+    fetchDetail: async (token, taskId) => {
+      const res = await managerApi.getTask(token, taskId);
+      return normalizeTask(res?.data);
+    },
     updateStatus: (token, taskId, status) => managerApi.updateTask(token, taskId, { status }),
     createTask: (token, body) => managerApi.createTask(token, body),
+    addComment: (token, taskId, text) => managerApi.addTaskComment(token, taskId, text),
     needsProject: true,
     fetchProjects: async (token) => (await fetchHrPages(managerApi.getProjects, token, 'projects')).filter(p => ['planning', 'in-progress'].includes(p.status)),
     needsAssignee: true,
@@ -162,8 +167,8 @@ export const taskAdapters = {
 
   hr: {
     canCreate: true,
-    canComment: false,
-    canFetchDetail: false,
+    canComment: true,
+    canFetchDetail: true,
     fetchTasks: async (token) => {
       const data = { tasks: await fetchHrPages(hrApi.getTasks, token, 'tasks') };
       data.total = data.tasks.length;
@@ -172,8 +177,13 @@ export const taskAdapters = {
         total: data.total ?? (data.tasks || []).length,
       };
     },
+    fetchDetail: async (token, taskId) => {
+      const res = await hrApi.getTask(taskId, token);
+      return normalizeTask(res?.data);
+    },
     updateStatus: (token, taskId, status) => hrApi.updateTask(taskId, { status }, token),
     createTask: (token, body) => hrApi.createTask(body, token),
+    addComment: (token, taskId, text) => hrApi.addTaskComment(taskId, text, token),
     needsAssignee: true,
     fetchAssignableUsers: async (token) => {
       const list = await fetchHrPages(hrApi.getEmployees, token, 'employees', { isActive: 'true' });

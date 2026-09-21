@@ -171,11 +171,17 @@ export const hrApi = {
   createTask: async (data, token) => {
     return apiClient.post('/api/dept/hr/tasks', data, token);
   },
+  getTask: async (id, token) => {
+    return apiClient.get(`/api/dept/hr/tasks/${id}`, token, { cache: false });
+  },
   updateTask: async (id, data, token) => {
     return apiClient.put(`/api/dept/hr/tasks/${id}`, data, token);
   },
   closeTask: async (id, token) => {
     return apiClient.put(`/api/dept/hr/tasks/${id}/close`, {}, token);
+  },
+  addTaskComment: async (id, comment, token) => {
+    return apiClient.post(`/api/dept/hr/tasks/${id}/comment`, { comment }, token);
   },
 
   // Leave Management

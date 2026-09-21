@@ -1067,6 +1067,26 @@ exports.closeTask = async (req, res) => {
     res.status(status).json({ success: false, error: status === 500 ? 'Unable to save task' : error.message });
   }
 };
+
+exports.getTaskById = async (req, res) => {
+  try {
+    const data = await require('../../services/managerTask.service').getTaskById(req.user, req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    res.status(status).json({ success: false, error: status === 500 ? 'Failed to fetch task' : error.message });
+  }
+};
+
+exports.addTaskComment = async (req, res) => {
+  try {
+    const data = await require('../../services/managerTask.service').addComment({ actor: req.user, id: req.params.id, comment: req.body?.comment });
+    res.status(200).json({ success: true, data, message: 'Comment added' });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    res.status(status).json({ success: false, error: status === 500 ? 'Failed to add comment' : error.message });
+  }
+};
 /**
  * LEAVE MANAGEMENT
  */

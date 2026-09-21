@@ -130,9 +130,11 @@ const scope = departmentScope({
   portalKey: 'finance',
 });
 const canManageFinanceTasks = authorize(ROLES.FINANCE_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN);
+// Recruitment/job-posting is HR-only, so the shared jobs module is not mounted here.
 mountDepartmentModules(router, scope, hrController, {
   taskManage: canManageFinanceTasks,
   taskManageRoles: [ROLES.FINANCE_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN],
+  jobs: false,
 });
 
 // Finance-only Team directory + Messages (chat services also enforce this by role).

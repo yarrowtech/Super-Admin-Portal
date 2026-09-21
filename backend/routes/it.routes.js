@@ -72,9 +72,11 @@ const scope = departmentScope({
   label: 'IT',
 });
 const canManageItTasks = authorize(ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.ADMIN, ROLES.SUPER_ADMIN);
+// Recruitment/job-posting is HR-only, so the shared jobs module is not mounted here.
 mountDepartmentModules(router, scope, hrController, {
   taskManage: canManageItTasks,
   taskManageRoles: [ROLES.IT_MANAGER, ROLES.IT_ADMIN, ROLES.ADMIN, ROLES.SUPER_ADMIN],
+  jobs: false,
 });
 
 // IT-only Team directory + Messages (chat services also enforce this by role: utils/departmentChatScope.js).

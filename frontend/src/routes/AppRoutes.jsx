@@ -175,7 +175,9 @@ const hrJobsApi = {
 };
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
-const managerRoles = ['manager', 'it_manager', ...adminRoles];
+// No backend role is literally 'manager' (User.role enum has no such value —
+// see backend/config/roles.js) — the Manager portal is IT-manager-only today.
+const managerRoles = ['it_manager', ...adminRoles];
 const employeeRoles = ['employee', 'it_employee', 'finance_employee', ...adminRoles];
 let lastPortalEntryKey = '';
 
@@ -401,7 +403,6 @@ export default function AppRoutes() {
           <Route path="operations"  element={<ITOperationsPage />} />
           <Route path="tasks" element={<TaskWorkspacePage portal="it" icon="task" title="IT Tasks" description="IT heads assign and manage IT work items; team members update their own progress." manageRoles={['it_manager', 'it_admin', 'admin', 'super_admin', 'superadmin']} />} />
           <Route path="attendance" element={<DepartmentAttendancePage api={itApi} portalLabel="IT" />} />
-          <Route path="jobs" element={<DepartmentJobsPage api={itApi} portalLabel="IT" />} />
           <Route path="team" element={<DepartmentTeamPage dept="it" />} />
           <Route path="messages" element={<DepartmentMessagesPage dept="it" />} />
           <Route path="activity"    element={<ITActivityPage />} />
@@ -427,7 +428,6 @@ export default function AppRoutes() {
           <Route path="tasks" element={<ManagerTasksPage />} />
           <Route path="work-reviews" element={<ManagerWorkReviewsPage />} />
           <Route path="attendance" element={<DepartmentAttendancePage api={managerModulesApi} portalLabel="Team" />} />
-          <Route path="jobs" element={<DepartmentJobsPage api={managerModulesApi} portalLabel="Operations" />} />
           <Route path="leave" element={<ManagerLeavePage />} />
           <Route path="settings" element={<ManagerSettingsPage />} />
           <Route path="support" element={<ManagerSupportPage />} />
@@ -522,7 +522,6 @@ export default function AppRoutes() {
           <Route path="accounting" element={<FinanceAccountingPage />} />
           <Route path="tasks" element={<TaskWorkspacePage portal="finance" icon="task" title="Finance Tasks" description="The finance head assigns and manages finance work items; team members update their own progress." manageRoles={['finance_manager', 'admin', 'super_admin', 'superadmin']} />} />
           <Route path="attendance" element={<DepartmentAttendancePage api={financeApi} portalLabel="Finance" />} />
-          <Route path="jobs" element={<DepartmentJobsPage api={financeApi} portalLabel="Finance" />} />
           <Route path="team" element={<DepartmentTeamPage dept="finance" />} />
           <Route path="messages" element={<DepartmentMessagesPage dept="finance" />} />
           <Route path="reports" element={<FinanceReportsPage />} />

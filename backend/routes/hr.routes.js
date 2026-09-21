@@ -53,8 +53,10 @@ router.get('/attendance/employee/:employeeId', hrController.getEmployeeAttendanc
 // Task Management
 router.get('/tasks', hrController.getTasks);
 router.post('/tasks', hrController.createTask);
+router.get('/tasks/:id', hrController.getTaskById);
 router.put('/tasks/:id', hrController.updateTask);
 router.put('/tasks/:id/close', hrController.closeTask);
+router.post('/tasks/:id/comment', hrController.addTaskComment);
 
 // Employee directory read used by Tasks/Communication/Attendance employee pickers
 router.get('/employees', adminUsersController.getAllUsers);

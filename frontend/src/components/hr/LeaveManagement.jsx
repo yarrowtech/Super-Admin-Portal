@@ -472,7 +472,7 @@ const LeaveManagement = () => {
                         <StatusBadge tone={managerStatusTone[request.managerStatus] || 'neutral'} label={request.managerStatus} />
                       </td>
                       <td className="px-4 py-3">
-                        {request.status === 'pending' ? (
+                        {(request.status === 'pending' || request.status === 'manager-approved') ? (
                           <div className="flex items-center gap-2">
                             <Button
                               variant="secondary"

@@ -41,7 +41,6 @@ export const portalMenuConfig = {
     { label: 'Project Overview', icon: 'folder_copy', path: '/manager/project-overview', description: 'Read-only project plan visibility' },
     { label: 'Work Board',   icon: 'work_history', path: '/manager/work-board',   description: 'Execution board' },
     { label: 'Tasks',        icon: 'task_alt',     path: '/manager/tasks',        description: 'Task operations' },
-    { label: 'Recruitment',  icon: 'person_search', path: '/manager/recruitment', description: 'Hiring pipeline' },
     { label: 'Outsourcing',  icon: 'handshake',    path: '/manager/outsourcing',  description: 'Freelancer work tracking' },
     { label: 'Products',     icon: 'inventory_2',  path: '/manager/products',     description: 'Product operations' },
     { label: 'Team',         icon: 'group',        path: '/manager/team',         description: 'Team management' },
@@ -117,7 +116,6 @@ export const portalMenuConfig = {
     { label: 'Operations',       icon: 'dns',                    path: '/it/dashboard/operations',      description: 'Infrastructure, network, security' },
     { label: 'Tasks',            icon: 'task',                   path: '/it/dashboard/tasks',           description: 'Workflow tasks and reminders' },
     { label: 'Attendance',       icon: 'calendar_month',         path: '/it/dashboard/attendance',      description: 'Attendance operations' },
-    { label: 'Jobs',             icon: 'work_outline',           path: '/it/dashboard/jobs',            description: 'Recruitment postings' },
     { label: 'Team',             icon: 'group',                  path: '/it/dashboard/team',            description: 'IT department directory', roles: IT_DEPT_ROLES },
     { label: 'Messages',         icon: 'forum',                  path: '/it/dashboard/messages',        description: 'IT team messages', roles: IT_DEPT_ROLES },
     { label: 'Reports',          icon: 'analytics',              path: '/it/dashboard/reports',         description: 'SLA reports, uptime and ticket trends' },
@@ -209,7 +207,6 @@ export const portalMenuConfig = {
     },
     { label: 'Tasks',      icon: 'task',           path: '/finance/dashboard/tasks',      description: 'Workflow tasks and reminders' },
     { label: 'Attendance', icon: 'calendar_month', path: '/finance/dashboard/attendance', description: 'Attendance operations' },
-    { label: 'Jobs',       icon: 'work_outline',   path: '/finance/dashboard/jobs',       description: 'Recruitment postings' },
     { label: 'Team',       icon: 'group',          path: '/finance/dashboard/team',       description: 'Finance department directory', roles: FINANCE_DEPT_ROLES },
     { label: 'Messages',   icon: 'forum',          path: '/finance/dashboard/messages',   description: 'Finance team messages', roles: FINANCE_DEPT_ROLES },
     // Finance Head only (previously the Administration section).

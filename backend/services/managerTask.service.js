@@ -34,4 +34,33 @@ const saveTask = async ({ actor, id, body }) => mongoose.connection.transaction(
   await Log.create([{ actor: scope.managerId, action: id ? 'manager_task_updated' : 'manager_task_created', module: 'tasks', portal: 'manager', entityType: 'Task', entityId: String(task._id), metadata: { before: id ? before : null, after: task.status, assignedTo: task.assignedTo } }], { session });
   return task;
 });
-module.exports = { saveTask, transitions };
+const getTaskById = async (actor, id) => {
+  const scope = await resolveManagerScope(actor);
+  if (!mongoose.isObjectIdOrHexString(id)) fail('Invalid task ID');
+  const task = await Task.findOne({ $and: [{ _id: id }, scope.tasks] })
+    .populate('assignedTo', 'firstName lastName email department')
+    .populate('assignedBy', 'firstName lastName email')
+    .populate('project', 'name projectCode')
+    .populate('comments.commentedBy', 'firstName lastName');
+  if (!task) fail('Task not found', 404);
+  return task;
+};
+
+const addComment = async ({ actor, id, comment }) => {
+  if (typeof comment !== 'string' || !comment.trim()) fail('Comment text is required');
+  const scope = await resolveManagerScope(actor);
+  if (!mongoose.isObjectIdOrHexString(id)) fail('Invalid task ID');
+  const task = await Task.findOneAndUpdate(
+    { $and: [{ _id: id }, scope.tasks] },
+    { $push: { comments: { commentedBy: scope.managerId, comment: comment.trim(), commentedAt: Date.now() } } },
+    { new: true }
+  )
+    .populate('assignedTo', 'firstName lastName email department')
+    .populate('assignedBy', 'firstName lastName email')
+    .populate('project', 'name projectCode')
+    .populate('comments.commentedBy', 'firstName lastName');
+  if (!task) fail('Task is outside your managed scope', 403);
+  return task;
+};
+
+module.exports = { saveTask, transitions, getTaskById, addComment };

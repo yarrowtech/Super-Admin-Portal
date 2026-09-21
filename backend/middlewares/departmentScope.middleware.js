@@ -158,6 +158,8 @@ const departmentScope = ({ roles = [], label, resolveUserIds = null, selfOnlyRol
 // opts.tasks=false skips tasks (portal already has its own); opts.manage is an
 // optional middleware gating attendance writes and jobs (staff-only portals).
 // opts.taskManage (+ opts.taskManageRoles) restricts task create/close/delete and full edits.
+// opts.jobs=false skips the job-post module entirely — recruitment/job-posting
+// is an HR-only feature; only Law's department-head-gated portal keeps it.
 const mountDepartmentModules = (router, scope, hrController, opts = {}) => {
   const manage = opts.manage ? [opts.manage] : [];
   router.get('/members', scope.loadScope, scope.listMembers);
@@ -195,10 +197,12 @@ const mountDepartmentModules = (router, scope, hrController, opts = {}) => {
   router.post('/attendance', scope.loadScope, ...manage, scope.scopeAttendanceCreate, hrController.createAttendance);
   router.put('/attendance/:id', scope.loadScope, ...manage, scope.guardAttendance, hrController.updateAttendance);
   router.get('/attendance/employee/:employeeId', scope.loadScope, scope.guardEmployeeParam, hrController.getEmployeeAttendance);
-  router.get('/jobs', ...manage, scope.loadScope, hrController.getJobPosts);
-  router.post('/jobs', ...manage, scope.scopeJobCreate, hrController.createJobPost);
-  router.put('/jobs/:id', ...manage, scope.guardJob, scope.lockJobDepartment, hrController.updateJobPost);
-  router.delete('/jobs/:id', ...manage, scope.guardJob, hrController.deleteJobPost);
+  if (opts.jobs !== false) {
+    router.get('/jobs', ...manage, scope.loadScope, hrController.getJobPosts);
+    router.post('/jobs', ...manage, scope.scopeJobCreate, hrController.createJobPost);
+    router.put('/jobs/:id', ...manage, scope.guardJob, scope.lockJobDepartment, hrController.updateJobPost);
+    router.delete('/jobs/:id', ...manage, scope.guardJob, hrController.deleteJobPost);
+  }
 };
 
 module.exports = { departmentScope, mountDepartmentModules };

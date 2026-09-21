@@ -43,9 +43,11 @@ router.get('/tasks', managerController.getTasks);
 router.post('/tasks/export', managerExportController.exportTasksCsv);
 router.get('/tasks/export-history', managerExportController.getTaskExportHistory);
 router.post('/tasks', managerController.createTask);
+router.get('/tasks/:id', managerController.getTaskById);
 router.put('/tasks/:id', managerController.updateTask);
 router.put('/tasks/:id/reassign', managerController.reassignTask);
 router.put('/tasks/:id/close', managerController.closeTask);
+router.post('/tasks/:id/comment', managerController.addTaskComment);
 
 // Employee work management routes
 router.get('/completed-tasks', managerController.getCompletedTasks);
@@ -67,12 +69,13 @@ router.get('/notifications', managerController.getNotifications);
 router.put('/notifications/:id/read', managerController.markNotificationRead);
 router.put('/notifications/mark-all-read', managerController.markAllNotificationsRead);
 
-// Attendance / Jobs (recruitment postings) for the manager's managed team, over the
-// shared HR models. Tasks stay on the manager's own /tasks endpoints above.
+// Attendance for the manager's managed team, over the shared HR models. Tasks
+// stay on the manager's own /tasks endpoints above. Recruitment/job-posting is
+// HR-only, so the shared jobs module is not mounted here.
 const teamScope = departmentScope({
   label: 'Operations',
   resolveUserIds: async (req) => req.managerScope?.employeeIds || [],
 });
-mountDepartmentModules(router, teamScope, hrController, { tasks: false });
+mountDepartmentModules(router, teamScope, hrController, { tasks: false, jobs: false });
 
 module.exports = router;

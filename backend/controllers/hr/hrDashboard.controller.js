@@ -1478,6 +1478,54 @@ exports.closeTask = async (req, res) => {
   }
 };
 
+exports.getTaskById = async (req, res) => {
+  try {
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ success: false, error: 'Invalid task ID format' });
+    }
+    const task = await Task.findById(req.params.id)
+      .populate('assignedTo', 'firstName lastName email department role')
+      .populate('assignedBy', 'firstName lastName email role')
+      .populate('project', 'name projectCode')
+      .populate('comments.commentedBy', 'firstName lastName');
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    res.status(200).json({ success: true, data: task });
+  } catch (error) {
+    logger.error({ err: error }, 'HR get task error');
+    res.status(500).json({ success: false, error: 'Failed to fetch task' });
+  }
+};
+
+exports.addTaskComment = async (req, res) => {
+  try {
+    const { comment } = req.body;
+    if (typeof comment !== 'string' || !comment.trim()) {
+      return res.status(400).json({ success: false, error: 'Comment text is required' });
+    }
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ success: false, error: 'Invalid task ID format' });
+    }
+    const task = await Task.findByIdAndUpdate(
+      req.params.id,
+      { $push: { comments: { commentedBy: req.user._id, comment: comment.trim(), commentedAt: Date.now() } } },
+      { new: true }
+    )
+      .populate('assignedTo', 'firstName lastName email department role')
+      .populate('assignedBy', 'firstName lastName email role')
+      .populate('project', 'name projectCode')
+      .populate('comments.commentedBy', 'firstName lastName');
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    res.status(200).json({ success: true, message: 'Comment added', data: task });
+  } catch (error) {
+    logger.error({ err: error }, 'HR add task comment error');
+    res.status(500).json({ success: false, error: 'Failed to add comment' });
+  }
+};
+
 /**
  * WORK REPORTS MANAGEMENT
  */

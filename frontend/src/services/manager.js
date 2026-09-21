@@ -94,12 +94,16 @@ export const managerApi = {
   },
   createTask: (token, data) =>
     apiClient.post('/api/dept/manager/tasks', data, token),
+  getTask: (token, taskId) =>
+    apiClient.get(`/api/dept/manager/tasks/${taskId}`, token, { cache: false }),
   updateTask: (token, taskId, data) =>
     apiClient.put(`/api/dept/manager/tasks/${taskId}`, data, token),
   reassignTask: (token, taskId, data) =>
     apiClient.put(`/api/dept/manager/tasks/${taskId}/reassign`, data, token),
   closeTask: (token, taskId) =>
     apiClient.put(`/api/dept/manager/tasks/${taskId}/close`, {}, token),
+  addTaskComment: (token, taskId, comment) =>
+    apiClient.post(`/api/dept/manager/tasks/${taskId}/comment`, { comment }, token),
   
   // Attendance Management - Try multiple endpoint strategies
   getAttendance: async (token, params = '') => {

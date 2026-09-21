@@ -3,9 +3,7 @@ const express = require('express');
 const router = express.Router();
 const hrController = require('../controllers/hr/hrDashboard.controller');
 const adminUsersController = require('../controllers/admin/userManagement.controller');
-const roleManagementController = require('../controllers/admin/roleManagement.controller');
 const performanceSystemController = require('../controllers/hr/performanceSystem.controller');
-const exportSystemController = require('../controllers/hr/exportSystem.controller');
 const attendanceExportController = require('../controllers/hr/attendanceExport.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
@@ -58,9 +56,10 @@ router.post('/tasks', hrController.createTask);
 router.put('/tasks/:id', hrController.updateTask);
 router.put('/tasks/:id/close', hrController.closeTask);
 
-// Employees Management
-router.get('/roles/access-catalog', roleManagementController.getAccessCatalog);
+// Employee directory read used by Tasks/Communication/Attendance employee pickers
 router.get('/employees', adminUsersController.getAllUsers);
+
+// User Profile Intelligence (read-only profile views, not the Users management feature)
 router.get('/users/profiles', hrController.getUserProfiles);
 router.get('/users/profiles/:id', hrController.getUserProfileById);
 router.post('/users/profiles/:id/internal-notes', hrController.addUserInternalNote);
@@ -68,13 +67,6 @@ router.post('/users/profiles/:id/internal-notes', hrController.addUserInternalNo
 router.get('/users', hrController.getUserProfiles);
 router.get('/user/:id', hrController.getUserProfileById);
 router.post('/note/:id', hrController.addUserInternalNote);
-router.post('/employees/export', exportSystemController.exportEmployeesCsv);
-router.get('/employees/export-history', exportSystemController.getExportHistory);
-router.post('/employees', adminUsersController.createUser);
-router.put('/employees/:id', adminUsersController.updateUser);
-router.patch('/employees/:id/status', adminUsersController.setUserStatus);
-router.post('/employees/:id/toggle-status', adminUsersController.toggleUserStatus);
-router.delete('/employees/:id', adminUsersController.deleteUser);
 
 // Department Management
 router.get('/departments', hrController.getDepartments);

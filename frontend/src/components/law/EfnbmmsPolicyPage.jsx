@@ -8,28 +8,13 @@ import { Button, EmptyState, Input, Modal, Select, SectionCard, Skeleton } from 
 import EfnbmmsConsumerPreview from './EfnbmmsConsumerPreview';
 import EfnbmmsApiClients from './EfnbmmsApiClients';
 
-const STATUS_TONE = {
-  DRAFT: 'neutral',
-  IN_REVIEW: 'info',
-  APPROVED: 'warning',
-  PUBLISHED: 'success',
-  ARCHIVED: 'danger',
-};
-
-const STATUS_ICON = {
-  DRAFT: 'edit_note',
-  IN_REVIEW: 'rate_review',
-  APPROVED: 'task_alt',
-  PUBLISHED: 'public',
-  ARCHIVED: 'inventory_2',
-};
-
-const NEXT_ACTION = {
-  DRAFT: { label: 'Publish', call: 'publish', icon: 'public' },
-  IN_REVIEW: { label: 'Approve', call: 'approve', icon: 'task_alt' },
-  APPROVED: { label: 'Publish', call: 'publish', icon: 'public' },
-  PUBLISHED: { label: 'Archive', call: 'archive', icon: 'inventory_2' },
-};
+// The underlying data model still tracks DRAFT/IN_REVIEW/APPROVED/ARCHIVED
+// for existing records, but the workflow this UI exposes is just two states:
+// a policy is either published or it isn't.
+const isPublished = (status) => status === 'PUBLISHED';
+const STATUS_LABEL = (status) => (isPublished(status) ? 'Published' : 'Unpublished');
+const STATUS_TONE = (status) => (isPublished(status) ? 'success' : 'neutral');
+const STATUS_ICON = (status) => (isPublished(status) ? 'public' : 'edit_note');
 
 const POLICY_TYPES = ['PRIVACY_POLICY', 'DATA_PRIVACY_POLICY', 'TERMS_AND_CONDITIONS', 'COOKIE_POLICY', 'DATA_PROCESSING_POLICY', 'ACCEPTABLE_USE_POLICY', 'SECURITY_POLICY', 'COMPLIANCE_POLICY', 'LEGAL_NOTICE', 'OTHER'];
 const REVIEW_FREQUENCIES = ['', 'Monthly', 'Quarterly', 'Semi-Annual', 'Annual', 'Biennial'];
@@ -54,19 +39,13 @@ const addYears = (dateStr, years) => {
 };
 
 const STAT_CARDS = [
-  { key: 'DRAFT', label: 'Draft', icon: 'edit_note', tone: 'neutral' },
-  { key: 'IN_REVIEW', label: 'In Review', icon: 'rate_review', tone: 'info' },
-  { key: 'APPROVED', label: 'Approved', icon: 'task_alt', tone: 'warning' },
+  { key: 'UNPUBLISHED', label: 'Unpublished', icon: 'edit_note', tone: 'neutral' },
   { key: 'PUBLISHED', label: 'Published', icon: 'public', tone: 'success' },
-  { key: 'ARCHIVED', label: 'Archived', icon: 'inventory_2', tone: 'danger' },
 ];
 
 const STAT_ACCENT = {
   neutral: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
-  info: 'bg-sky-50 text-sky-600 dark:bg-sky-900/20 dark:text-sky-400',
-  warning: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
   success: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400',
-  danger: 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400',
 };
 
 export default function EfnbmmsPolicyPage() {
@@ -134,7 +113,7 @@ export default function EfnbmmsPolicyPage() {
   }, [token, projectId, search]);
 
   const visiblePolicies = useMemo(
-    () => (statusFilter ? policies.filter((item) => item.status === statusFilter) : policies),
+    () => (statusFilter ? policies.filter((item) => (statusFilter === 'PUBLISHED' ? isPublished(item.status) : !isPublished(item.status))) : policies),
     [policies, statusFilter]
   );
 
@@ -167,8 +146,7 @@ export default function EfnbmmsPolicyPage() {
     finally { setSaving(false); }
   };
 
-  const runTransition = async (item, call) => {
-    const action = call || NEXT_ACTION[item.status]?.call;
+  const runTransition = async (item, action) => {
     if (!action) return;
     setActionBusy(true); setError('');
     try {
@@ -177,6 +155,21 @@ export default function EfnbmmsPolicyPage() {
       if (selected?._id === item._id) await openPolicy(item);
     } catch (requestError) { setError(requestError?.message || 'Action failed.'); }
     finally { setActionBusy(false); }
+  };
+
+  const publishAllPolicies = async () => {
+    const unpublished = policies.filter((item) => !isPublished(item.status));
+    if (!unpublished.length) return;
+    setActionBusy(true); setError('');
+    const failures = [];
+    for (const item of unpublished) {
+      try { await policyService.publish(token, item._id); }
+      catch (requestError) { failures.push(item.title || item.policyCode); }
+    }
+    await loadPolicies();
+    if (selected) await openPolicy(selected);
+    if (failures.length) setError(`Could not publish: ${failures.join(', ')}`);
+    setActionBusy(false);
   };
 
   const openEdit = () => {
@@ -211,6 +204,10 @@ export default function EfnbmmsPolicyPage() {
         reviewFrequency: form.reviewFrequency,
         reviewDate: form.reviewDate || null,
       });
+      const versionId = detail?.currentVersion?._id;
+      if (versionId && form.content !== (detail?.currentVersion?.content || '')) {
+        await policyService.updateVersion(token, selected._id, versionId, { title: form.title, content: form.content });
+      }
       setEditOpen(false);
       await loadPolicies();
       await openPolicy({ ...selected });
@@ -234,12 +231,11 @@ export default function EfnbmmsPolicyPage() {
   const toggleStatus = (key) => setStatusFilter((current) => (current === key ? '' : key));
 
   const counts = useMemo(() => {
-    const byStatus = { DRAFT: 0, IN_REVIEW: 0, APPROVED: 0, PUBLISHED: 0, ARCHIVED: 0 };
-    policies.forEach((item) => { byStatus[item.status] = (byStatus[item.status] || 0) + 1; });
+    const byStatus = { UNPUBLISHED: 0, PUBLISHED: 0 };
+    policies.forEach((item) => { byStatus[isPublished(item.status) ? 'PUBLISHED' : 'UNPUBLISHED'] += 1; });
     return byStatus;
   }, [policies]);
 
-  const nextAction = selected ? NEXT_ACTION[selected.status] : null;
   const projectLabel = selectedProject?.name || selectedProject?.projectCode || '';
 
   return (
@@ -249,6 +245,7 @@ export default function EfnbmmsPolicyPage() {
         icon="policy"
         user={user}
         primaryAction={{ label: 'New Policy', icon: 'add', onClick: openCreate }}
+        secondaryAction={projectId && policies.some((item) => !isPublished(item.status)) ? { label: actionBusy ? 'Publishing…' : 'Publish All', icon: 'public', onClick: publishAllPolicies } : undefined}
       />
 
       <div className="mx-4 mt-5 lg:mx-6">
@@ -267,7 +264,7 @@ export default function EfnbmmsPolicyPage() {
           }]}
           activeChips={[
             ...(projectId ? [{ key: 'project', label: `Project: ${projectLabel}`, onRemove: () => setProjectId('') }] : []),
-            ...(statusFilter ? [{ key: 'status', label: `Status: ${statusFilter.replace('_', ' ')}`, onRemove: () => setStatusFilter('') }] : []),
+            ...(statusFilter ? [{ key: 'status', label: `Status: ${statusFilter === 'PUBLISHED' ? 'Published' : 'Unpublished'}`, onRemove: () => setStatusFilter('') }] : []),
           ]}
           onClearAll={(projectId || search || statusFilter) ? clearAll : undefined}
         />
@@ -358,14 +355,14 @@ export default function EfnbmmsPolicyPage() {
                     className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60 ${isActive ? 'bg-neutral-50 dark:bg-neutral-800/60' : ''}`}
                     style={isActive ? { boxShadow: 'inset 3px 0 0 var(--portal-accent)' } : undefined}
                   >
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${STAT_ACCENT[STATUS_TONE[item.status]] || STAT_ACCENT.neutral}`}>
-                      <span className="material-symbols-outlined text-[18px]">{STATUS_ICON[item.status] || 'policy'}</span>
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${STAT_ACCENT[STATUS_TONE(item.status)]}`}>
+                      <span className="material-symbols-outlined text-[18px]">{STATUS_ICON(item.status)}</span>
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">{item.title}</p>
                       <p className="truncate text-xs text-neutral-500">{item.policyCode} · v{versionNumber}</p>
                     </div>
-                    <StatusBadge tone={STATUS_TONE[item.status] || 'neutral'} label={item.status?.replace('_', ' ')} />
+                    <StatusBadge tone={STATUS_TONE(item.status)} label={STATUS_LABEL(item.status)} />
                   </button>
                 </li>
               );
@@ -384,7 +381,7 @@ export default function EfnbmmsPolicyPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="truncate text-lg font-black text-neutral-900 dark:text-neutral-100">{selected.title}</h2>
-                    <StatusBadge tone={STATUS_TONE[selected.status] || 'neutral'} label={selected.status?.replace('_', ' ')} />
+                    <StatusBadge tone={STATUS_TONE(selected.status)} label={STATUS_LABEL(selected.status)} />
                   </div>
                   <p className="mt-1 text-xs text-neutral-500">{selected.policyCode} · owner: {selected.owner || 'Unassigned'}</p>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
@@ -407,10 +404,10 @@ export default function EfnbmmsPolicyPage() {
                     <span className="material-symbols-outlined text-base">delete</span>
                     {deleteBusy ? 'Deleting…' : 'Delete'}
                   </Button>
-                  {nextAction && (
-                    <Button size="sm" disabled={actionBusy} onClick={() => runTransition(selected)}>
-                      <span className="material-symbols-outlined text-base">{nextAction.icon}</span>
-                      {actionBusy ? 'Working…' : nextAction.label}
+                  {!isPublished(selected.status) && (
+                    <Button size="sm" disabled={actionBusy} onClick={() => runTransition(selected, 'publish')}>
+                      <span className="material-symbols-outlined text-base">public</span>
+                      {actionBusy ? 'Working…' : 'Publish'}
                     </Button>
                   )}
                 </div>
@@ -441,7 +438,7 @@ export default function EfnbmmsPolicyPage() {
                     <ul className="space-y-1.5">
                       {versions.map((version) => (
                         <li key={version._id} className="flex items-center justify-between rounded-xl border border-neutral-200 px-3.5 py-2.5 text-sm dark:border-neutral-800">
-                          <span className="font-semibold text-neutral-800 dark:text-neutral-200">v{version.versionNumber} <span className="font-normal text-neutral-400">— {version.status}</span></span>
+                          <span className="font-semibold text-neutral-800 dark:text-neutral-200">v{version.versionNumber} <span className="font-normal text-neutral-400">— {STATUS_LABEL(version.status)}</span></span>
                           <span className="text-xs text-neutral-500">{version.publishedAt ? new Date(version.publishedAt).toLocaleDateString() : 'not published'}</span>
                         </li>
                       ))}
@@ -463,7 +460,7 @@ export default function EfnbmmsPolicyPage() {
       <Modal
         open={createOpen}
         title="New Policy"
-        description={`Draft a policy for ${projectLabel}. It starts in Draft status.`}
+        description={`Create a policy for ${projectLabel}. It starts unpublished until you publish it.`}
         onClose={closeCreateModal}
         footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={closeCreateModal}>Cancel</Button><Button type="submit" form="efnbmms-policy-form" disabled={saving}>{saving ? 'Saving…' : 'Create policy'}</Button></div>}
       >
@@ -537,7 +534,7 @@ export default function EfnbmmsPolicyPage() {
       <Modal
         open={editOpen}
         title="Edit Policy"
-        description="To change published content, publish this version and create a new draft version."
+        description="Update the policy content shown to end users."
         onClose={closeEditModal}
         footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={closeEditModal}>Cancel</Button><Button type="submit" form="efnbmms-policy-edit-form" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></div>}
       >
@@ -548,36 +545,21 @@ export default function EfnbmmsPolicyPage() {
               {error}
             </div>
           )}
-          <div className="flex items-end gap-3">
-            <div className="flex-1"><Input label="Policy Name" required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></div>
-            <span className="mb-2.5 shrink-0 rounded-lg bg-neutral-100 px-3 py-2.5 text-sm font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-neutral-700 dark:text-neutral-200">{form.title}</span>
+            <span className="shrink-0 rounded-lg bg-neutral-100 px-3 py-1.5 text-sm font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
               v{(typeof selected?.currentVersion === 'object' ? selected.currentVersion?.versionNumber : selected?.currentVersion) || 1}
             </span>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input label="Policy Code" value={form.policyCode} disabled helperText="Policy code cannot be changed after creation." />
-            <Select
-              label="Policy Type"
-              required
-              options={POLICY_TYPES.map((value) => ({ value, label: value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) }))}
-              value={form.policyType}
-              onChange={(event) => setForm({ ...form, policyType: event.target.value })}
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Policy content (shown to end users)</span>
+            <textarea
+              className="min-h-32 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+              value={form.content}
+              onChange={(event) => setForm({ ...form, content: event.target.value })}
+              placeholder="Full policy text the end user will read and agree to…"
             />
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input label="Effective Date" type="date" required value={form.effectiveDate} onChange={(event) => setForm({ ...form, effectiveDate: event.target.value })} />
-            <Input label="Policy Owner" value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} />
-          </div>
-          <Input label="Short Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Select
-              label="Review Frequency"
-              options={REVIEW_FREQUENCIES.map((value) => ({ value, label: value || 'Not set' }))}
-              value={form.reviewFrequency}
-              onChange={(event) => setForm({ ...form, reviewFrequency: event.target.value })}
-            />
-            <Input label="Next Review Date" type="date" value={form.reviewDate} onChange={(event) => setForm({ ...form, reviewDate: event.target.value })} />
-          </div>
+          </label>
         </form>
       </Modal>
 

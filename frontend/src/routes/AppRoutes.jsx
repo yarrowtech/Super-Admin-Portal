@@ -23,7 +23,6 @@ import {
   HRDashboardPage,
   HRTasksPage,
   HROutsourcingPage,
-  EmployeesPage,
   AttendancePage,
   LeavePage,
   RecruitmentPage,
@@ -363,8 +362,6 @@ export default function AppRoutes() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<HRDashboardPage />} />
           <Route path="project-overview" element={<ProjectOverviewPage portalKey="hr" portalName="HR Portal" />} />
-          <Route path="employees" element={<EmployeesPage />} />
-          <Route path="users" element={<EmployeesPage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="leave" element={<LeavePage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />

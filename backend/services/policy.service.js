@@ -258,9 +258,25 @@ async function createVersion(policyId, payload, actorId) {
   if (!policy.currentVersionId) { policy.currentVersionId = version._id; await policy.save(); }
   await audit(actorId, 'VERSION_CREATED', policy._id, {}, null, versionNumber); return version;
 }
-// DRAFT can go straight to PUBLISHED (skip review/approval for policies that
-// don't need a formal review cycle) as well as through IN_REVIEW as usual.
-const transitions = { DRAFT: ['IN_REVIEW', 'PUBLISHED'], IN_REVIEW: ['APPROVED'], APPROVED: ['PUBLISHED'], PUBLISHED: ['ARCHIVED'], ARCHIVED: [] };
+// Content can be edited directly on the current version regardless of its
+// status (including an already-published version) — this updates the live
+// version's content in place rather than authoring a new version.
+async function updateVersion(policyId, versionId, payload, actorId) {
+  const policy = await Policy.findOne({ _id: objectId(policyId), deletedAt: null });
+  if (!policy) throw err('POLICY_NOT_FOUND', 404, 'Policy not found');
+  const version = await PolicyVersion.findOne({ _id: objectId(versionId), policyId: policy._id });
+  if (!version) throw err('VERSION_NOT_FOUND', 404, 'Policy version not found');
+  if (payload.title !== undefined) version.title = cleanText(payload.title) || policy.title;
+  if (payload.content !== undefined) version.content = cleanText(payload.content);
+  if (payload.summary !== undefined) version.summary = cleanText(payload.summary);
+  await version.save();
+  await audit(actorId, 'VERSION_UPDATED', policy._id, {}, policy.projectId, version.versionNumber);
+  return version;
+}
+// Any status, including an old archived version, can jump straight to
+// PUBLISHED — the formal review/approval steps remain available but are
+// never required to publish.
+const transitions = { DRAFT: ['IN_REVIEW', 'PUBLISHED'], IN_REVIEW: ['APPROVED', 'PUBLISHED'], APPROVED: ['PUBLISHED'], PUBLISHED: ['ARCHIVED'], ARCHIVED: ['PUBLISHED'] };
 async function transition(policyId, target, actorId) {
   const policy = await Policy.findOne({ _id: objectId(policyId), deletedAt: null });
   if (!policy) throw err('POLICY_NOT_FOUND', 404, 'Policy not found');
@@ -274,7 +290,7 @@ async function transition(policyId, target, actorId) {
     // For revisions, transition the latest non-published version. The live
     // policy and its live version remain usable until the replacement is published.
     // PUBLISHED may come from either APPROVED (normal path) or DRAFT (skip-review path).
-    const fromStatus = target === 'IN_REVIEW' ? ['DRAFT'] : target === 'APPROVED' ? ['IN_REVIEW'] : ['APPROVED', 'DRAFT'];
+    const fromStatus = target === 'IN_REVIEW' ? ['DRAFT'] : target === 'APPROVED' ? ['IN_REVIEW'] : ['APPROVED', 'DRAFT', 'IN_REVIEW', 'ARCHIVED'];
     version = await PolicyVersion.findOne({ policyId: policy._id, status: { $in: fromStatus } }).sort({ versionNumber: -1 });
     if (!version) throw err('INVALID_POLICY_STATE', 409, 'No version is available for this workflow transition');
     if (!transitions[version.status]?.includes(target)) throw err('INVALID_POLICY_STATE', 409, `Cannot transition version ${version.status} to ${target}`);
@@ -560,6 +576,7 @@ module.exports = {
   updatePolicy,
   deletePolicy,
   createVersion,
+  updateVersion,
   replaceSections,
   uploadDocuments,
   transition,

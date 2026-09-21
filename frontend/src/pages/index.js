@@ -10,7 +10,6 @@ export const HRTasksPage         = lazy(() => import('../components/hr/HRTaskMan
 export const HRProfilesPage      = lazy(() => import('../components/hr/HRProfiles'));
 export const HROutsourcingPage   = lazy(() => import('../components/hr/HROutsourcingPage'));
 
-export const EmployeesPage    = lazy(() => import('../components/hr/pages/EmployeesPage'));
 export const AttendancePage   = lazy(() => import('../components/hr/pages/AttendancePage'));
 export const LeavePage        = lazy(() => import('../components/hr/pages/LeavePage'));
 export const RecruitmentPage  = lazy(() => import('../components/hr/pages/RecruitmentPage'));

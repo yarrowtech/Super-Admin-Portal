@@ -15,7 +15,6 @@ export const portalMenuConfig = {
   hr: [
     { label: 'Dashboard',   icon: 'dashboard',       path: '/hr/dashboard',    description: 'HR command center' },
     { label: 'Project Overview', icon: 'folder_copy', path: '/hr/project-overview', description: 'Read-only project plan visibility' },
-    { label: 'Users',       icon: 'manage_accounts', path: '/hr/users',        description: 'Employee records' },
     { label: 'Recruitment', icon: 'person_search',   path: '/hr/recruitment',  description: 'Hiring pipeline' },
     { label: 'Attendance',  icon: 'calendar_month',  path: '/hr/attendance',   description: 'Attendance operations' },
     { label: 'Jobs',        icon: 'work_outline',    path: '/hr/jobs',         description: 'Recruitment postings' },

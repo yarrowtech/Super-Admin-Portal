@@ -546,7 +546,6 @@ const HRDashboard = () => {
             </SectionCard>
 
             <SectionCard icon="bolt" title="Quick Actions" subtitle="Common HR tasks" bodyClassName="space-y-2">
-              <QuickActionRow icon="person_add" label="Add Employee" onClick={() => navigate('/hr/users?new=1')} />
               <QuickActionRow icon="work" label="Post a Job" onClick={() => navigate('/hr/recruitment')} />
               <QuickActionRow icon="forum" label="Broadcast Notice" onClick={() => navigate('/hr/communication')} />
             </SectionCard>

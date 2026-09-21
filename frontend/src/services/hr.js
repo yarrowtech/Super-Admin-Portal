@@ -30,63 +30,10 @@ export const hrApi = {
     return apiClient.get('/api/reports/hr/overview', token);
   },
 
-  // Employees Management
-  getAccessCatalog: async (token, department) => {
-    const query = buildQueryString({ department });
-    return apiClient.get(`/api/dept/hr/roles/access-catalog${query ? `?${query}` : ''}`, token);
-  },
+  // Employees directory (read-only; used by Tasks/Communication/Attendance employee pickers)
   getEmployees: async (token, params = {}) => {
     const query = buildQueryString(params);
     return apiClient.get(`/api/dept/hr/employees${query ? `?${query}` : ''}`, token, { cache: false });
-  },
-  createEmployee: async (data, token) => {
-    return apiClient.post('/api/dept/hr/employees', data, token);
-  },
-  deleteEmployee: async (id, token) => {
-    return apiClient.delete(`/api/dept/hr/employees/${id}`, token);
-  },
-  exportEmployeesCsv: async ({ token, search, selectedIds = [] }) => {
-    const params = new URLSearchParams();
-    if (search?.trim()) params.set('search', search.trim());
-    const query = params.toString();
-    const response = await fetch(`${API_BASE_URL}/api/dept/hr/employees/export${query ? `?${query}` : ''}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ selectedIds }),
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      let payload = null;
-      try {
-        payload = await response.json();
-      } catch {
-        payload = null;
-      }
-      throw new Error(payload?.error || payload?.message || 'Failed to export employees');
-    }
-
-    const disposition = response.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="([^"]+)"/i);
-    const fileName = match?.[1] || `hr-employees-export-${Date.now()}.csv`;
-    const blob = await response.blob();
-    return { blob, fileName };
-  },
-  getEmployeeExportHistory: async (token, params = {}) => {
-    const query = buildQueryString(params);
-    return apiClient.get(`/api/dept/hr/employees/export-history${query ? `?${query}` : ''}`, token);
-  },
-  updateEmployee: async (id, data, token) => {
-    return apiClient.put(`/api/dept/hr/employees/${id}`, data, token);
-  },
-  setEmployeeStatus: async (id, accountStatus, token) => {
-    return apiClient.patch(`/api/dept/hr/employees/${id}/status`, { accountStatus }, token);
-  },
-  toggleEmployeeStatus: async (id, token) => {
-    return apiClient.post(`/api/dept/hr/employees/${id}/toggle-status`, {}, token);
   },
 
   // Applicants Management

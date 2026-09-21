@@ -22,12 +22,12 @@ router.delete('/policies/:policyId', permit('policy.delete'), controller.remove)
 router.get('/policies/:policyId/versions', permit('policy.read'), controller.versions);
 router.get('/policies/:policyId/versions/:versionId', permit('policy.read'), controller.version);
 router.post('/policies/:policyId/versions', permit('policy.update'), controller.createVersion);
+router.patch('/policies/:policyId/versions/:versionId', permit('policy.update'), controller.updateVersion);
 router.put('/policies/:policyId/sections', permit('policy.update'), controller.replaceSections);
 router.post('/policies/:policyId/documents', permit('policy.update'), uploadMany('files', 10), controller.uploadDocuments);
 router.post('/policies/:policyId/submit-review', permit('policy.review'), controller.transition('IN_REVIEW'));
 router.post('/policies/:policyId/approve', permit('policy.approve'), controller.transition('APPROVED'));
 router.post('/policies/:policyId/publish', permit('policy.publish'), controller.transition('PUBLISHED'));
-router.post('/policies/:policyId/archive', permit('policy.archive'), controller.transition('ARCHIVED'));
 router.get('/policies/:policyId/projects', permit('policy.assignment.read'), controller.assignments);
 router.put('/policies/:policyId/projects', permit('policy.assignment.manage'), controller.setAssignments);
 router.post('/policies/:policyId/accept', controller.accept);

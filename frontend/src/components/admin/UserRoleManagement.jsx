@@ -1,5 +1,5 @@
 import './users/userManagement.css';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { adminApi } from '../../services/admin';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -32,13 +32,12 @@ const initialForm = {
   projectAssignments: '',
 };
 
-const isProjectContextError = (error) => /project\s*id required/i.test(error?.message || '');
-
 const UserRoleManagement = ({ api = adminApi } = {}) => {
   const userApi = api || adminApi;
   const { token } = useAuth();
   const toast = useToast();
   const { confirm } = useConfirmDialog();
+  const requestSequence = useRef(0);
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, inactiveUsers: 0 });
@@ -60,6 +59,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
   const fetchUsers = useCallback(async () => {
     if (!token) return;
+    const requestId = ++requestSequence.current;
     try {
       setLoading(true);
       setError('');
@@ -79,12 +79,8 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
         userApi.getDashboard(token, { forceRefresh: true }),
       ]);
 
-      if (usersResult.status === 'rejected') {
-        const error = usersResult.reason;
-        if (!isProjectContextError(error)) {
-          throw error;
-        }
-      }
+      if (requestId !== requestSequence.current) return;
+      if (usersResult.status === 'rejected') throw usersResult.reason;
 
       const payload = usersResult.status === 'fulfilled' ? usersResult.value?.data || {} : {};
       const dashboard = dashboardResult.status === 'fulfilled' ? dashboardResult.value?.data || {} : {};
@@ -98,27 +94,22 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       setUsersByRole(Array.isArray(dashboard.usersByRole) ? dashboard.usersByRole : []);
       setTotalPages(payload.totalPages || 1);
 
-      if (fetchedUsers.length > 0) {
-        const existingId = selectedUser?._id || selectedUser?.id;
-        const match = fetchedUsers.find((u) => (u._id || u.id) === existingId);
-
-        if (!existingId && fetchedUsers[0]) {
-          setSelectedUser(fetchedUsers[0]);
-        } else if (existingId && !match && fetchedUsers[0]) {
-          setSelectedUser(fetchedUsers[0]);
-        }
-      } else {
-        setSelectedUser(null);
+      setSelectedUser((current) => fetchedUsers.find((user) =>
+        (user._id || user.id) === (current?._id || current?.id)
+      ) || fetchedUsers[0] || null);
+      if (page > Math.max(payload.totalPages || 1, 1)) {
+        setPage(Math.max(payload.totalPages || 1, 1));
       }
     } catch (err) {
-      setError(err.message || 'Failed to load users');
+      if (requestId === requestSequence.current) setError(err.message || 'Failed to load users');
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
   }, [token, page, filters, userApi]);
 
   useEffect(() => {
     fetchUsers();
+    return () => { requestSequence.current += 1; };
   }, [fetchUsers]);
 
   useEffect(() => {
@@ -262,18 +253,11 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
         department: form.department?.trim() || '',
         phone: form.phone?.trim() || '',
         accountStatus: form.accountStatus || 'active',
-        permissions: form.permissions
-          ? form.permissions.split(',').map((permission) => permission.trim()).filter(Boolean)
-          : [],
-        metadata: {
-          projectAssignments: form.projectAssignments
-            ? form.projectAssignments.split(',').map((assignment) => assignment.trim()).filter(Boolean)
-            : [],
-        },
+
       };
 
       if (!editingUser || form.password.trim()) {
-        payload.password = form.password.trim();
+        payload.password = form.password;
       }
 
       if (!payload.firstName || !payload.lastName || !payload.email || !payload.department || !payload.role) {
@@ -297,14 +281,10 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
       closeModal();
       toast.success(editingUser ? 'User updated successfully.' : 'User created successfully.');
-      // Clear filters so the just-saved user (whatever its role/status) is
-      // guaranteed to be visible instead of silently hidden by whatever
-      // filter happened to be active before the save. This also triggers a
-      // fresh fetchUsers() via the filters-driven effect below — no need to
-      // call it explicitly, since doing so here would still use the stale
-      // (pre-update) filters closure.
+      // Reload with filters that cannot hide the saved user.
+      requestSequence.current += 1;
       setPage(1);
-      await fetchUsers();
+      setFilters({ ...emptyFilters });
     } catch (err) {
       setFormError(err.message || 'Unable to save user');
     } finally {
@@ -331,7 +311,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     try {
       await userApi.toggleUserStatus(token, userId);
       toast.success(targetUser.isActive ? `${fullName} deactivated.` : `${fullName} activated.`);
-      fetchUsers();
+      await fetchUsers();
     } catch (err) {
       const message = err.message || 'Failed to update status';
       setError(message);
@@ -361,7 +341,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     try {
       await userApi.setUserStatus(token, userId, accountStatus);
       toast.success(blocking ? `${fullName} blocked.` : `${fullName} unblocked.`);
-      fetchUsers();
+      await fetchUsers();
     } catch (err) {
       const message = err.message || 'Failed to update account status';
       setError(message);
@@ -395,9 +375,9 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     if (!targetUser || !token) return;
     const fullName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
     const shouldProceed = await confirm({
-      title: 'Delete user?',
-      message: `This will permanently delete ${fullName}. This action cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: 'Deactivate user?',
+      message: `${fullName} will lose access. Their account and employment history will be preserved.`,
+      confirmLabel: 'Deactivate',
       tone: 'danger',
     });
     if (!shouldProceed) return;
@@ -407,8 +387,8 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
 
     try {
       await userApi.deleteUser(token, userId);
-      toast.success(`${fullName} deleted.`);
-      fetchUsers();
+      toast.success(`${fullName} deactivated; employment history preserved.`);
+      await fetchUsers();
     } catch (err) {
       const message = err.message || 'Failed to delete user';
       setError(message);

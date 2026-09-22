@@ -517,10 +517,17 @@ exports.updateUser = async (req, res) => {
       });
     }
 
+    const actorId = req.user?.id || req.user?._id;
+    if (String(actorId) === String(user._id) &&
+        ((accountStatus !== undefined && accountStatus !== 'active') ||
+         (accountStatus === undefined && isActive !== undefined && !isActive))) {
+      return res.status(400).json({ success: false, error: 'You cannot restrict your own account' });
+    }
+
     // Update fields with validation
     if (firstName) user.firstName = firstName.trim();
     if (lastName) user.lastName = lastName.trim();
-    if (phone) user.phone = phone.trim();
+    if (phone !== undefined) user.phone = String(phone ?? '').trim();
     if (role) user.department = getDepartmentForRole(role, department || user.department);
     else if (department) user.department = department.trim();
     if (accountStatus !== undefined) {

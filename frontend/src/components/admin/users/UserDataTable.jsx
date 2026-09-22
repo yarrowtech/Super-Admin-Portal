@@ -307,7 +307,7 @@ const UserDataTable = ({
                           icon="delete"
                           tone="danger"
                           className="user-action user-action--danger"
-                          tooltip="Delete user"
+                          tooltip="Deactivate user (preserve history)"
                           disabled={legacyEmployee || actionState.deletingId === userId}
                           loading={actionState.deletingId === userId}
                           onClick={(e) => {
@@ -414,7 +414,7 @@ const UserDataTable = ({
                       icon="delete"
                       tone="danger"
                           className="user-action user-action--danger"
-                      tooltip={`Delete ${fullName}`}
+                      tooltip={`Deactivate ${fullName} (preserve history)`}
                       disabled={legacyEmployee || actionState.deletingId === userId}
                       loading={actionState.deletingId === userId}
                       onClick={(e) => {

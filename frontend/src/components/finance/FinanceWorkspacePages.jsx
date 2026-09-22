@@ -5,6 +5,10 @@ import WarmGreeting from '../common/WarmGreeting';
 import Button from '../common/Button';
 import DataTable from '../ui/DataTable';
 import EmptyState from '../ui/EmptyState';
+import ErrorState from '../ui/ErrorState';
+import Input from '../ui/Input';
+import Select from '../ui/Select';
+import Modal from '../ui/Modal';
 import KPICard from '../common/KPICard';
 import StatusBadge from '../common/StatusBadge';
 import AttentionPanel from '../common/AttentionPanel';
@@ -1070,11 +1074,20 @@ export const FinanceInvoicesPage = () => {
     }
   };
 
+  const [markingPaidId, setMarkingPaidId] = useState(null);
+  const [actionError, setActionError] = useState('');
+
   const markPaid = async (invoiceId) => {
+    setMarkingPaidId(invoiceId);
+    setActionError('');
     try {
       await financeApi.updateInvoice(invoiceId, { status: 'paid' }, token);
       refetch();
-    } catch { /* surfaced via list error state on next load */ }
+    } catch (err) {
+      setActionError(err.message || 'Failed to mark invoice as paid');
+    } finally {
+      setMarkingPaidId(null);
+    }
   };
 
   return (
@@ -1082,36 +1095,44 @@ export const FinanceInvoicesPage = () => {
       <div className="portal-page-inner space-y-4">
         <Header title="Invoices & Billing" subtitle="Create, edit and track client invoices" icon="receipt_long" user={user} crumbs={['Finance', 'Invoices']} />
 
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
+        {error && <ErrorState description={error} onRetry={refetch} />}
+        {actionError && <ErrorState title="Action failed" description={actionError} />}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
           <section className={card}>
             <div className={inner}>
               <SectionHdr title={editingId ? 'Update Invoice' : 'Create Invoice'} />
               <form onSubmit={handleSubmit} className="space-y-3">
-                <input className={input} placeholder="Client name" value={form.clientName} onChange={(e) => setForm((p) => ({ ...p, clientName: e.target.value }))} required />
-                <input className={input} placeholder="Client email" value={form.clientEmail} onChange={(e) => setForm((p) => ({ ...p, clientEmail: e.target.value }))} />
-                <input className={input} placeholder="Item description" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+                <Input label="Client name" placeholder="e.g. Acme Corp" value={form.clientName} onChange={(e) => setForm((p) => ({ ...p, clientName: e.target.value }))} required />
+                <Input label="Client email" type="email" placeholder="billing@client.com" value={form.clientEmail} onChange={(e) => setForm((p) => ({ ...p, clientEmail: e.target.value }))} />
+                <Input label="Item description" placeholder="e.g. Consulting services" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
                 <div className="grid grid-cols-3 gap-2">
-                  <input className={input} placeholder="Qty" type="number" value={form.quantity} onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))} />
-                  <input className={input} placeholder="Rate" type="number" value={form.rate} onChange={(e) => setForm((p) => ({ ...p, rate: e.target.value }))} />
-                  <input className={input} placeholder="GST %" type="number" value={form.gstRate} onChange={(e) => setForm((p) => ({ ...p, gstRate: e.target.value }))} />
+                  <Input label="Qty" type="number" value={form.quantity} onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))} />
+                  <Input label="Rate" type="number" value={form.rate} onChange={(e) => setForm((p) => ({ ...p, rate: e.target.value }))} />
+                  <Input label="GST %" type="number" value={form.gstRate} onChange={(e) => setForm((p) => ({ ...p, gstRate: e.target.value }))} />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <input className={input} type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
-                  <input className={input} placeholder="TDS %" type="number" value={form.tdsRate} onChange={(e) => setForm((p) => ({ ...p, tdsRate: e.target.value }))} />
-                  <input className={input} placeholder="Discount" type="number" value={form.discount} onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))} />
+                  <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
+                  <Input label="TDS %" type="number" value={form.tdsRate} onChange={(e) => setForm((p) => ({ ...p, tdsRate: e.target.value }))} />
+                  <Input label="Discount" type="number" value={form.discount} onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))} />
                 </div>
-                <select className={input} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
-                  <option value="draft">Draft</option>
-                  <option value="sent">Sent</option>
-                  <option value="paid">Paid</option>
-                  <option value="overdue">Overdue</option>
-                </select>
-                <select className={input} value={form.departmentId} onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}>
-                  <option value="">No department</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-                </select>
+                <Select
+                  label="Status"
+                  value={form.status}
+                  onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
+                  options={[
+                    { value: 'draft', label: 'Draft' },
+                    { value: 'sent', label: 'Sent' },
+                    { value: 'paid', label: 'Paid' },
+                    { value: 'overdue', label: 'Overdue' },
+                  ]}
+                />
+                <Select
+                  label="Department"
+                  value={form.departmentId}
+                  onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
+                  options={[{ value: '', label: 'No department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+                />
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <div className="flex gap-2">
                   <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>
@@ -1159,8 +1180,8 @@ export const FinanceInvoicesPage = () => {
                     render: (r) => (
                       <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
                         {r.status !== 'paid' && (
-                          <button type="button" onClick={() => markPaid(r._id)} className="text-xs font-semibold text-primary hover:underline">
-                            Mark paid
+                          <button type="button" onClick={() => markPaid(r._id)} disabled={markingPaidId === r._id} className="text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                            {markingPaidId === r._id ? 'Saving…' : 'Mark paid'}
                           </button>
                         )}
                         {r.status === 'draft' && (
@@ -1221,13 +1242,18 @@ export const FinanceInvoiceDetailPage = () => {
     }
   };
 
+  const [markingPaid, setMarkingPaid] = useState(false);
+
   const markPaid = async () => {
     setActionError('');
+    setMarkingPaid(true);
     try {
       await financeApi.updateInvoice(invoiceId, { status: 'paid' }, token);
       refetch();
     } catch (err) {
       setActionError(err.message || 'Failed to update invoice');
+    } finally {
+      setMarkingPaid(false);
     }
   };
 
@@ -1250,7 +1276,7 @@ export const FinanceInvoiceDetailPage = () => {
             <div className="space-y-4">
               <section className={card}>
                 <div className={inner}>
-                  <SectionHdr title="Invoice Details" action={invoice.status !== 'paid' && <Button variant="primary" size="sm" onClick={markPaid}>Mark Paid</Button>} />
+                  <SectionHdr title="Invoice Details" action={invoice.status !== 'paid' && <Button variant="primary" size="sm" onClick={markPaid} disabled={markingPaid}>{markingPaid ? 'Saving…' : 'Mark Paid'}</Button>} />
                   <StatGrid
                     items={[
                       { label: 'Status', value: invoiceStatusLabel(invoice) },
@@ -1280,13 +1306,15 @@ export const FinanceInvoiceDetailPage = () => {
                   </div>
                   <form onSubmit={handleAddNote} className="mt-4 space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-700">
                     <div className="grid grid-cols-2 gap-2">
-                      <select className={input} value={noteForm.type} onChange={(e) => setNoteForm((p) => ({ ...p, type: e.target.value }))}>
-                        <option value="credit">Credit Note</option>
-                        <option value="debit">Debit Note</option>
-                      </select>
-                      <input className={input} type="number" placeholder="Amount" value={noteForm.amount} onChange={(e) => setNoteForm((p) => ({ ...p, amount: e.target.value }))} />
+                      <Select
+                        label="Note type"
+                        value={noteForm.type}
+                        onChange={(e) => setNoteForm((p) => ({ ...p, type: e.target.value }))}
+                        options={[{ value: 'credit', label: 'Credit Note' }, { value: 'debit', label: 'Debit Note' }]}
+                      />
+                      <Input label="Amount" type="number" value={noteForm.amount} onChange={(e) => setNoteForm((p) => ({ ...p, amount: e.target.value }))} />
                     </div>
-                    <input className={input} placeholder="Reason" value={noteForm.reason} onChange={(e) => setNoteForm((p) => ({ ...p, reason: e.target.value }))} />
+                    <Input label="Reason" placeholder="Why this note was raised" value={noteForm.reason} onChange={(e) => setNoteForm((p) => ({ ...p, reason: e.target.value }))} />
                     <Button type="submit" variant="outline" size="sm" disabled={submitting} fullWidth>
                       {submitting ? 'Saving…' : 'Save Note'}
                     </Button>
@@ -1370,37 +1398,54 @@ export const FinancePaymentsPage = () => {
     }
   };
 
+  const [reconcilingId, setReconcilingId] = useState(null);
+  const [actionError, setActionError] = useState('');
+
   const reconcile = async (paymentId) => {
+    setReconcilingId(paymentId);
+    setActionError('');
     try {
       await financeApi.updatePayment(paymentId, { status: 'reconciled' }, token);
       refetch();
-    } catch { /* surfaced via list error state on next load */ }
+    } catch (err) {
+      setActionError(err.message || 'Failed to reconcile payment');
+    } finally {
+      setReconcilingId(null);
+    }
   };
 
   return (
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Payments" subtitle="Payment ledger and reconciliation" icon="payments" user={user} crumbs={['Finance', 'Payments']} />
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
+        {error && <ErrorState description={error} onRetry={refetch} />}
+        {actionError && <ErrorState title="Action failed" description={actionError} />}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Record Payment" />
               <form onSubmit={handleSubmit} className="space-y-3">
-                <input className={input} placeholder="Invoice id (optional)" value={form.invoice} onChange={(e) => setForm((p) => ({ ...p, invoice: e.target.value }))} />
-                <input className={input} placeholder="Customer name" value={form.customerName} onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))} required />
-                <input className={input} type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} />
-                <select className={input} value={form.method} onChange={(e) => setForm((p) => ({ ...p, method: e.target.value }))}>
-                  <option value="bank">Bank</option>
-                  <option value="cash">Cash</option>
-                  <option value="online">Online</option>
-                </select>
-                <input className={input} placeholder="Reference" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
-                <select className={input} value={form.departmentId} onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}>
-                  <option value="">No department</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-                </select>
+                <Input label="Invoice ID" placeholder="Optional" value={form.invoice} onChange={(e) => setForm((p) => ({ ...p, invoice: e.target.value }))} />
+                <Input label="Customer name" placeholder="e.g. Acme Corp" value={form.customerName} onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))} required />
+                <Input label="Amount" type="number" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} />
+                <Select
+                  label="Method"
+                  value={form.method}
+                  onChange={(e) => setForm((p) => ({ ...p, method: e.target.value }))}
+                  options={[
+                    { value: 'bank', label: 'Bank' },
+                    { value: 'cash', label: 'Cash' },
+                    { value: 'online', label: 'Online' },
+                  ]}
+                />
+                <Input label="Reference" placeholder="Transaction reference" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
+                <Select
+                  label="Department"
+                  value={form.departmentId}
+                  onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
+                  options={[{ value: '', label: 'No department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+                />
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Payment'}</Button>
               </form>
@@ -1420,8 +1465,8 @@ export const FinancePaymentsPage = () => {
                     key: 'actions',
                     header: 'Action',
                     render: (r) => r.status !== 'reconciled' && (
-                      <button type="button" onClick={() => reconcile(r._id)} className="text-xs font-semibold text-primary hover:underline">
-                        Reconcile
+                      <button type="button" onClick={(e) => { e.stopPropagation(); reconcile(r._id); }} disabled={reconcilingId === r._id} className="text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                        {reconcilingId === r._id ? 'Reconciling…' : 'Reconcile'}
                       </button>
                     ),
                   },
@@ -1485,6 +1530,8 @@ export const FinanceExpensesPage = () => {
   const [form, setForm] = useState({ title: '', category: '', amount: 0, status: 'submitted', departmentId: '' });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [verifyingId, setVerifyingId] = useState(null);
+  const [verifyError, setVerifyError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1502,36 +1549,51 @@ export const FinanceExpensesPage = () => {
   };
 
   const verify = async (expenseId) => {
+    setVerifyingId(expenseId);
+    setVerifyError('');
     try {
       await financeApi.updateRequestAction(expenseId, 'verify', { comment: 'Documents verified from Expense Management' }, token);
       refetch();
-    } catch { /* surfaced via list error state on next load */ }
+    } catch (err) {
+      setVerifyError(err.message || 'Failed to verify expense');
+    } finally {
+      setVerifyingId(null);
+    }
   };
 
   return (
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Expenses" subtitle="Expense submissions and verification" icon="request_quote" user={user} crumbs={['Finance', 'Expenses']} />
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
+        {error && <ErrorState description={error} onRetry={refetch} />}
+        {verifyError && <ErrorState title="Verification failed" description={verifyError} />}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Submit Expense" />
               <form onSubmit={handleSubmit} className="space-y-3">
-                <input className={input} placeholder="Expense title" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
-                <input className={input} placeholder="Category" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} />
-                <input className={input} type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} />
-                <select className={input} value={form.departmentId} onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))} required>
-                  <option value="" disabled>Select department</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-                </select>
-                <select className={input} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
-                  <option value="submitted">Submitted</option>
-                  <option value="verified">Verified</option>
-                  <option value="rejected">Rejected</option>
-                  <option value="paid">Paid</option>
-                </select>
+                <Input label="Expense title" placeholder="e.g. Client dinner" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
+                <Input label="Category" placeholder="e.g. Travel" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} />
+                <Input label="Amount" type="number" placeholder="0" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} />
+                <Select
+                  label="Department"
+                  value={form.departmentId}
+                  onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
+                  required
+                  options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+                />
+                <Select
+                  label="Status"
+                  value={form.status}
+                  onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
+                  options={[
+                    { value: 'submitted', label: 'Submitted' },
+                    { value: 'verified', label: 'Verified' },
+                    { value: 'rejected', label: 'Rejected' },
+                    { value: 'paid', label: 'Paid' },
+                  ]}
+                />
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Expense'}</Button>
               </form>
@@ -1541,29 +1603,32 @@ export const FinanceExpensesPage = () => {
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Expense Overview" subtitle={`${expenses.length} records`} />
-              {loading ? <SkeletonBlock /> : expenses.length === 0 ? <EmptyState icon="request_quote" title="No expenses yet" /> : (
-                <div className="space-y-3">
-                  {expenses.map((expense) => (
-                    <div key={expense._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-neutral-800 dark:text-neutral-100">{expense.title}</p>
-                          <p className="text-xs text-neutral-500">{expense.category} · {expense.department}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{formatCurrency(expense.amount)}</p>
-                          <Pill value={expense.status} />
-                        </div>
-                      </div>
-                      {['submitted', 'under_review', 'needs_information'].includes(String(expense.status || '').toLowerCase()) && (
-                        <button type="button" onClick={() => verify(expense._id)} className="mt-2 text-xs font-semibold text-primary hover:underline">
-                          Verify documents
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <DataTable
+                columns={[
+                  { key: 'title', header: 'Expense', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{r.title}</span> },
+                  { key: 'category', header: 'Category', render: (r) => `${r.category || '—'} · ${r.department || 'Unassigned'}` },
+                  { key: 'amount', header: 'Amount', render: (r) => formatCurrency(r.amount) },
+                  { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} /> },
+                  {
+                    key: 'actions',
+                    header: 'Action',
+                    render: (r) => ['submitted', 'under_review', 'needs_information'].includes(String(r.status || '').toLowerCase()) && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); verify(r._id); }}
+                        disabled={verifyingId === r._id}
+                        className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                      >
+                        {verifyingId === r._id ? 'Verifying…' : 'Verify documents'}
+                      </button>
+                    ),
+                  },
+                ]}
+                rows={expenses}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle="No expenses yet"
+              />
             </div>
           </section>
         </div>
@@ -1625,38 +1690,46 @@ export const FinanceBudgetsPage = () => {
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Budgets" subtitle="Budget allocation and cost centers" icon="account_balance_wallet" user={user} crumbs={['Finance', 'Budgets']} />
-        {(error || formError) && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error || formError}</div>}
+        {(error || formError) && <ErrorState description={error || formError} onRetry={error ? refetch : undefined} />}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Allocate Budget" />
               <form onSubmit={saveBudget} className="space-y-3">
-                <select className={input} value={budgetForm.departmentId} onChange={(e) => setBudgetForm((p) => ({ ...p, departmentId: e.target.value }))} required>
-                  <option value="" disabled>Select department</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-                </select>
-                <input className={input} placeholder="Fiscal year" value={budgetForm.fiscalYear} onChange={(e) => setBudgetForm((p) => ({ ...p, fiscalYear: e.target.value }))} />
+                <Select
+                  label="Department"
+                  value={budgetForm.departmentId}
+                  onChange={(e) => setBudgetForm((p) => ({ ...p, departmentId: e.target.value }))}
+                  required
+                  options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+                />
+                <Input label="Fiscal year" placeholder="e.g. FY2026-27" value={budgetForm.fiscalYear} onChange={(e) => setBudgetForm((p) => ({ ...p, fiscalYear: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-2">
-                  <input className={input} type="number" placeholder="Allocated" value={budgetForm.allocated} onChange={(e) => setBudgetForm((p) => ({ ...p, allocated: e.target.value }))} />
-                  <input className={input} type="number" placeholder="Spent" value={budgetForm.spent} onChange={(e) => setBudgetForm((p) => ({ ...p, spent: e.target.value }))} />
+                  <Input label="Allocated" type="number" value={budgetForm.allocated} onChange={(e) => setBudgetForm((p) => ({ ...p, allocated: e.target.value }))} />
+                  <Input label="Spent" type="number" value={budgetForm.spent} onChange={(e) => setBudgetForm((p) => ({ ...p, spent: e.target.value }))} />
                 </div>
-                <textarea className={input} placeholder="Notes" rows={3} value={budgetForm.notes} onChange={(e) => setBudgetForm((p) => ({ ...p, notes: e.target.value }))} />
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</span>
+                  <textarea className={input} placeholder="Optional notes" rows={3} value={budgetForm.notes} onChange={(e) => setBudgetForm((p) => ({ ...p, notes: e.target.value }))} />
+                </label>
                 <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Budget'}</Button>
               </form>
 
               <div className="mt-6 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-                <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Cost Centers</h3>
-                <form onSubmit={saveCostCenter} className="mt-3 space-y-2">
-                  <input className={input} placeholder="Cost center name" value={costCenterForm.name} onChange={(e) => setCostCenterForm((p) => ({ ...p, name: e.target.value }))} required />
-                  <input className={input} placeholder="Code" value={costCenterForm.code} onChange={(e) => setCostCenterForm((p) => ({ ...p, code: e.target.value }))} />
-                  <select className={input} value={costCenterForm.departmentId} onChange={(e) => setCostCenterForm((p) => ({ ...p, departmentId: e.target.value }))}>
-                    <option value="">Select department</option>
-                    {departmentCatalog.filter((d) => !d.isSystem).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-                  </select>
+                <SectionHdr title="Cost Centers" />
+                <form onSubmit={saveCostCenter} className="space-y-2">
+                  <Input label="Cost center name" placeholder="e.g. Regional Ops" value={costCenterForm.name} onChange={(e) => setCostCenterForm((p) => ({ ...p, name: e.target.value }))} required />
+                  <Input label="Code" placeholder="e.g. RO-01" value={costCenterForm.code} onChange={(e) => setCostCenterForm((p) => ({ ...p, code: e.target.value }))} />
+                  <Select
+                    label="Department"
+                    value={costCenterForm.departmentId}
+                    onChange={(e) => setCostCenterForm((p) => ({ ...p, departmentId: e.target.value }))}
+                    options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+                  />
                   <div className="grid grid-cols-2 gap-2">
-                    <input className={input} type="number" placeholder="Budget" value={costCenterForm.budget} onChange={(e) => setCostCenterForm((p) => ({ ...p, budget: e.target.value }))} />
-                    <input className={input} type="number" placeholder="Spent" value={costCenterForm.spent} onChange={(e) => setCostCenterForm((p) => ({ ...p, spent: e.target.value }))} />
+                    <Input label="Budget" type="number" value={costCenterForm.budget} onChange={(e) => setCostCenterForm((p) => ({ ...p, budget: e.target.value }))} />
+                    <Input label="Spent" type="number" value={costCenterForm.spent} onChange={(e) => setCostCenterForm((p) => ({ ...p, spent: e.target.value }))} />
                   </div>
                   <Button type="submit" variant="outline" size="sm" disabled={submitting} fullWidth>Add Cost Center</Button>
                 </form>
@@ -1694,8 +1767,8 @@ export const FinanceBudgetsPage = () => {
               )}
 
               <div className="mt-6">
-                <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Cost Centers</h3>
-                <div className="mt-3 space-y-2">
+                <SectionHdr title="Cost Centers" />
+                <div className="space-y-2">
                   {costCenters.map((center) => (
                     <div key={center._id} className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700">
                       <div>
@@ -1751,27 +1824,32 @@ export const FinancePayrollPage = () => {
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Payroll" subtitle="Payroll runs and disbursement" icon="badge" user={user} crumbs={['Finance', 'Payroll']} />
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
+        {error && <ErrorState description={error} onRetry={refetch} />}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Process Payroll" />
               <form onSubmit={handleSubmit} className="space-y-3">
-                <input className={input} placeholder="Employee name" value={form.employeeName} onChange={(e) => setForm((p) => ({ ...p, employeeName: e.target.value }))} required />
+                <Input label="Employee name" placeholder="e.g. Priya Sharma" value={form.employeeName} onChange={(e) => setForm((p) => ({ ...p, employeeName: e.target.value }))} required />
                 <div className="grid grid-cols-2 gap-2">
-                  <input className={input} type="date" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} />
-                  <input className={input} type="date" value={form.periodEnd} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} />
+                  <Input label="Period start" type="date" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} />
+                  <Input label="Period end" type="date" value={form.periodEnd} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <input className={input} type="number" placeholder="Gross pay" value={form.grossPay} onChange={(e) => setForm((p) => ({ ...p, grossPay: e.target.value }))} />
-                  <input className={input} type="number" placeholder="Deductions" value={form.deductions} onChange={(e) => setForm((p) => ({ ...p, deductions: e.target.value }))} />
+                  <Input label="Gross pay" type="number" value={form.grossPay} onChange={(e) => setForm((p) => ({ ...p, grossPay: e.target.value }))} />
+                  <Input label="Deductions" type="number" value={form.deductions} onChange={(e) => setForm((p) => ({ ...p, deductions: e.target.value }))} />
                 </div>
-                <select className={input} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
-                  <option value="draft">Draft</option>
-                  <option value="processed">Processed</option>
-                  <option value="disbursed">Disbursed</option>
-                </select>
+                <Select
+                  label="Status"
+                  value={form.status}
+                  onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
+                  options={[
+                    { value: 'draft', label: 'Draft' },
+                    { value: 'processed', label: 'Processed' },
+                    { value: 'disbursed', label: 'Disbursed' },
+                  ]}
+                />
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Payroll'}</Button>
               </form>
@@ -1781,24 +1859,18 @@ export const FinancePayrollPage = () => {
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Payroll Runs" subtitle={`${payrolls.length} records`} />
-              {loading ? <SkeletonBlock /> : payrolls.length === 0 ? <EmptyState icon="badge" title="No payroll runs yet" /> : (
-                <div className="space-y-3">
-                  {payrolls.map((payroll) => (
-                    <div key={payroll._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-neutral-800 dark:text-neutral-100">{payroll.employeeName || 'Employee'}</p>
-                          <p className="text-xs text-neutral-500">{fmtDateOnly(payroll.periodStart)} - {fmtDateOnly(payroll.periodEnd)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{formatCurrency(payroll.netPay)}</p>
-                          <Pill value={payroll.status} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <DataTable
+                columns={[
+                  { key: 'employeeName', header: 'Employee', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{r.employeeName || 'Employee'}</span> },
+                  { key: 'period', header: 'Period', render: (r) => `${fmtDateOnly(r.periodStart)} - ${fmtDateOnly(r.periodEnd)}` },
+                  { key: 'netPay', header: 'Net Pay', render: (r) => formatCurrency(r.netPay) },
+                  { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} /> },
+                ]}
+                rows={payrolls}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle="No payroll runs yet"
+              />
             </div>
           </section>
         </div>
@@ -1867,11 +1939,20 @@ export const FinanceAccountingPage = () => {
     }
   };
 
+  const [postingId, setPostingId] = useState(null);
+  const [actionError, setActionError] = useState('');
+
   const postEntry = async (entryId) => {
+    setPostingId(entryId);
+    setActionError('');
     try {
       await financeApi.postJournalEntry(entryId, token);
       refetch();
-    } catch { /* surfaced via list error state on next load */ }
+    } catch (err) {
+      setActionError(err.message || 'Failed to post journal entry');
+    } finally {
+      setPostingId(null);
+    }
   };
 
   return (
@@ -1879,7 +1960,8 @@ export const FinanceAccountingPage = () => {
       <div className="portal-page-inner space-y-4">
         <Header title="Accounting" subtitle="Chart of accounts and journal entries" icon="menu_book" user={user} crumbs={['Finance', 'Accounting']} />
         <TabBar tabs={ACCOUNTING_TABS} active={tab} onChange={(id) => setSearchParams({ tab: id })} />
-        {(error || formError) && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error || formError}</div>}
+        {(error || formError) && <ErrorState description={error || formError} onRetry={error ? refetch : undefined} />}
+        {actionError && <ErrorState title="Action failed" description={actionError} />}
 
         {tab === 'accounts' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
@@ -1887,20 +1969,27 @@ export const FinanceAccountingPage = () => {
               <div className={inner}>
                 <SectionHdr title="Chart of Accounts" />
                 <form onSubmit={saveAccount} className="space-y-3">
-                  <input className={input} placeholder="Account code" value={accountForm.code} onChange={(e) => setAccountForm((p) => ({ ...p, code: e.target.value }))} required />
-                  <input className={input} placeholder="Account name" value={accountForm.name} onChange={(e) => setAccountForm((p) => ({ ...p, name: e.target.value }))} required />
+                  <Input label="Account code" placeholder="e.g. 1000" value={accountForm.code} onChange={(e) => setAccountForm((p) => ({ ...p, code: e.target.value }))} required />
+                  <Input label="Account name" placeholder="e.g. Cash in Bank" value={accountForm.name} onChange={(e) => setAccountForm((p) => ({ ...p, name: e.target.value }))} required />
                   <div className="grid grid-cols-2 gap-2">
-                    <select className={input} value={accountForm.type} onChange={(e) => setAccountForm((p) => ({ ...p, type: e.target.value }))}>
-                      <option value="asset">Asset</option>
-                      <option value="liability">Liability</option>
-                      <option value="equity">Equity</option>
-                      <option value="revenue">Revenue</option>
-                      <option value="expense">Expense</option>
-                    </select>
-                    <select className={input} value={accountForm.normalBalance} onChange={(e) => setAccountForm((p) => ({ ...p, normalBalance: e.target.value }))}>
-                      <option value="debit">Debit</option>
-                      <option value="credit">Credit</option>
-                    </select>
+                    <Select
+                      label="Type"
+                      value={accountForm.type}
+                      onChange={(e) => setAccountForm((p) => ({ ...p, type: e.target.value }))}
+                      options={[
+                        { value: 'asset', label: 'Asset' },
+                        { value: 'liability', label: 'Liability' },
+                        { value: 'equity', label: 'Equity' },
+                        { value: 'revenue', label: 'Revenue' },
+                        { value: 'expense', label: 'Expense' },
+                      ]}
+                    />
+                    <Select
+                      label="Normal balance"
+                      value={accountForm.normalBalance}
+                      onChange={(e) => setAccountForm((p) => ({ ...p, normalBalance: e.target.value }))}
+                      options={[{ value: 'debit', label: 'Debit' }, { value: 'credit', label: 'Credit' }]}
+                    />
                   </div>
                   <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Account'}</Button>
                 </form>
@@ -1932,17 +2021,23 @@ export const FinanceAccountingPage = () => {
               <div className={inner}>
                 <SectionHdr title="Journal Entry" />
                 <form onSubmit={saveJournalEntry} className="space-y-3">
-                  <input className={input} placeholder="Memo" value={journalForm.memo} onChange={(e) => setJournalForm((p) => ({ ...p, memo: e.target.value }))} />
-                  <input className={input} type="date" value={journalForm.entryDate} onChange={(e) => setJournalForm((p) => ({ ...p, entryDate: e.target.value }))} />
-                  <select className={input} value={journalForm.debitAccount} onChange={(e) => setJournalForm((p) => ({ ...p, debitAccount: e.target.value }))} required>
-                    <option value="">Select debit account</option>
-                    {accounts.map((account) => <option key={account._id} value={account._id}>{account.code} - {account.name}</option>)}
-                  </select>
-                  <select className={input} value={journalForm.creditAccount} onChange={(e) => setJournalForm((p) => ({ ...p, creditAccount: e.target.value }))} required>
-                    <option value="">Select credit account</option>
-                    {accounts.map((account) => <option key={account._id} value={account._id}>{account.code} - {account.name}</option>)}
-                  </select>
-                  <input className={input} type="number" placeholder="Amount" value={journalForm.amount} onChange={(e) => setJournalForm((p) => ({ ...p, amount: e.target.value }))} />
+                  <Input label="Memo" placeholder="What is this entry for?" value={journalForm.memo} onChange={(e) => setJournalForm((p) => ({ ...p, memo: e.target.value }))} />
+                  <Input label="Entry date" type="date" value={journalForm.entryDate} onChange={(e) => setJournalForm((p) => ({ ...p, entryDate: e.target.value }))} />
+                  <Select
+                    label="Debit account"
+                    value={journalForm.debitAccount}
+                    onChange={(e) => setJournalForm((p) => ({ ...p, debitAccount: e.target.value }))}
+                    required
+                    options={[{ value: '', label: 'Select debit account' }, ...accounts.map((account) => ({ value: account._id, label: `${account.code} - ${account.name}` }))]}
+                  />
+                  <Select
+                    label="Credit account"
+                    value={journalForm.creditAccount}
+                    onChange={(e) => setJournalForm((p) => ({ ...p, creditAccount: e.target.value }))}
+                    required
+                    options={[{ value: '', label: 'Select credit account' }, ...accounts.map((account) => ({ value: account._id, label: `${account.code} - ${account.name}` }))]}
+                  />
+                  <Input label="Amount" type="number" value={journalForm.amount} onChange={(e) => setJournalForm((p) => ({ ...p, amount: e.target.value }))} />
                   <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Entry'}</Button>
                 </form>
               </div>
@@ -1950,29 +2045,27 @@ export const FinanceAccountingPage = () => {
             <section className={card}>
               <div className={inner}>
                 <SectionHdr title="Journal Register" subtitle={`${journalEntries.length} records`} />
-                {loading ? <SkeletonBlock /> : journalEntries.length === 0 ? <EmptyState icon="menu_book" title="No journal entries yet" /> : (
-                  <div className="space-y-3">
-                    {journalEntries.map((entry) => (
-                      <div key={entry._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-neutral-800 dark:text-neutral-100">{entry.entryNumber}</p>
-                            <p className="text-xs text-neutral-500">{entry.memo || 'No memo'}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{formatCurrency(entry.totalDebit)}</p>
-                            <Pill value={entry.status} />
-                          </div>
-                        </div>
-                        {entry.status !== 'posted' && (
-                          <button type="button" onClick={() => postEntry(entry._id)} className="mt-2 text-xs font-semibold text-primary hover:underline">
-                            Post entry
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <DataTable
+                  columns={[
+                    { key: 'entryNumber', header: 'Entry', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{r.entryNumber}</span> },
+                    { key: 'memo', header: 'Memo', render: (r) => r.memo || 'No memo' },
+                    { key: 'totalDebit', header: 'Amount', render: (r) => formatCurrency(r.totalDebit) },
+                    { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} /> },
+                    {
+                      key: 'actions',
+                      header: 'Action',
+                      render: (r) => r.status !== 'posted' && (
+                        <button type="button" onClick={(e) => { e.stopPropagation(); postEntry(r._id); }} disabled={postingId === r._id} className="text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                          {postingId === r._id ? 'Posting…' : 'Post entry'}
+                        </button>
+                      ),
+                    },
+                  ]}
+                  rows={journalEntries}
+                  rowKey="_id"
+                  loading={loading}
+                  emptyTitle="No journal entries yet"
+                />
               </div>
             </section>
           </div>
@@ -2046,7 +2139,7 @@ export const FinanceReportsPage = () => {
       <div className="portal-page-inner space-y-4">
         <Header title="Reports" subtitle="Financial reports and ERP statements" icon="bar_chart" user={user} crumbs={['Finance', 'Reports']} />
         <TabBar tabs={REPORT_TABS} active={tab} onChange={(id) => setSearchParams({ tab: id })} />
-        {(error || formError) && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error || formError}</div>}
+        {(error || formError) && <ErrorState description={error || formError} onRetry={error ? refetch : undefined} />}
 
         {tab === 'archive' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
@@ -2054,20 +2147,28 @@ export const FinanceReportsPage = () => {
               <div className={inner}>
                 <SectionHdr title="Generate Report" />
                 <form onSubmit={handleSubmit} className="space-y-3">
-                  <select className={input} value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}>
-                    <option value="profit-loss">Profit & Loss</option>
-                    <option value="expense-summary">Expense Summary</option>
-                    <option value="revenue">Revenue Report</option>
-                    <option value="cash-flow">Cash Flow Statement</option>
-                    <option value="tax">Tax Report</option>
-                    <option value="monthly">Monthly Summary</option>
-                    <option value="yearly">Yearly Summary</option>
-                  </select>
+                  <Select
+                    label="Report type"
+                    value={form.type}
+                    onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+                    options={[
+                      { value: 'profit-loss', label: 'Profit & Loss' },
+                      { value: 'expense-summary', label: 'Expense Summary' },
+                      { value: 'revenue', label: 'Revenue Report' },
+                      { value: 'cash-flow', label: 'Cash Flow Statement' },
+                      { value: 'tax', label: 'Tax Report' },
+                      { value: 'monthly', label: 'Monthly Summary' },
+                      { value: 'yearly', label: 'Yearly Summary' },
+                    ]}
+                  />
                   <div className="grid grid-cols-2 gap-2">
-                    <input className={input} type="date" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} />
-                    <input className={input} type="date" value={form.periodEnd} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} />
+                    <Input label="Period start" type="date" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} />
+                    <Input label="Period end" type="date" value={form.periodEnd} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} />
                   </div>
-                  <textarea className={input} rows={3} placeholder="Summary" value={form.summary} onChange={(e) => setForm((p) => ({ ...p, summary: e.target.value }))} />
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Summary</span>
+                    <textarea className={input} rows={3} placeholder="Optional summary" value={form.summary} onChange={(e) => setForm((p) => ({ ...p, summary: e.target.value }))} />
+                  </label>
                   <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Report'}</Button>
                 </form>
               </div>
@@ -2075,17 +2176,17 @@ export const FinanceReportsPage = () => {
             <section className={card}>
               <div className={inner}>
                 <SectionHdr title="Report Archive" subtitle={`${reports.length} records`} />
-                {loading ? <SkeletonBlock /> : reports.length === 0 ? <EmptyState icon="bar_chart" title="No reports yet" /> : (
-                  <div className="space-y-3">
-                    {reports.map((report) => (
-                      <div key={report._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                        <p className="font-semibold text-neutral-800 dark:text-neutral-100">{report.type}</p>
-                        <p className="text-xs text-neutral-500">{fmtDateOnly(report.periodStart)} - {fmtDateOnly(report.periodEnd)}</p>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-300">{report.summary}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <DataTable
+                  columns={[
+                    { key: 'type', header: 'Type', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{r.type}</span> },
+                    { key: 'period', header: 'Period', render: (r) => `${fmtDateOnly(r.periodStart)} - ${fmtDateOnly(r.periodEnd)}` },
+                    { key: 'summary', header: 'Summary', render: (r) => r.summary || '—' },
+                  ]}
+                  rows={reports}
+                  rowKey="_id"
+                  loading={loading}
+                  emptyTitle="No reports yet"
+                />
               </div>
             </section>
           </div>
@@ -2168,28 +2269,38 @@ export const FinanceCompliancePage = () => {
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Compliance" subtitle="GST, TDS and statutory tracking" icon="gavel" user={user} crumbs={['Finance', 'Compliance']} />
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
+        {error && <ErrorState description={error} onRetry={refetch} />}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Compliance Record" />
               <form onSubmit={handleSubmit} className="space-y-3">
-                <select className={input} value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}>
-                  <option value="gst">GST</option>
-                  <option value="tds">TDS</option>
-                  <option value="statutory">Statutory</option>
-                  <option value="audit">Audit</option>
-                  <option value="other">Other</option>
-                </select>
-                <input className={input} placeholder="Period label" value={form.periodLabel} onChange={(e) => setForm((p) => ({ ...p, periodLabel: e.target.value }))} />
-                <input className={input} type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
-                <select className={input} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
-                  <option value="pending">Pending</option>
-                  <option value="filed">Filed</option>
-                  <option value="overdue">Overdue</option>
-                </select>
-                <input className={input} placeholder="Reference" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
+                <Select
+                  label="Type"
+                  value={form.type}
+                  onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+                  options={[
+                    { value: 'gst', label: 'GST' },
+                    { value: 'tds', label: 'TDS' },
+                    { value: 'statutory', label: 'Statutory' },
+                    { value: 'audit', label: 'Audit' },
+                    { value: 'other', label: 'Other' },
+                  ]}
+                />
+                <Input label="Period label" placeholder="e.g. Q1 FY2026-27" value={form.periodLabel} onChange={(e) => setForm((p) => ({ ...p, periodLabel: e.target.value }))} />
+                <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
+                <Select
+                  label="Status"
+                  value={form.status}
+                  onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
+                  options={[
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'filed', label: 'Filed' },
+                    { value: 'overdue', label: 'Overdue' },
+                  ]}
+                />
+                <Input label="Reference" placeholder="Filing reference number" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Compliance'}</Button>
               </form>
@@ -2199,20 +2310,18 @@ export const FinanceCompliancePage = () => {
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Compliance Tracker" subtitle={`${compliance.length} records`} />
-              {loading ? <SkeletonBlock /> : compliance.length === 0 ? <EmptyState icon="gavel" title="No compliance records yet" /> : (
-                <div className="space-y-3">
-                  {compliance.map((record) => (
-                    <div key={record._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold text-neutral-800 dark:text-neutral-100">{record.type}</p>
-                        <Pill value={record.status} />
-                      </div>
-                      <p className="text-xs text-neutral-500">{record.periodLabel}</p>
-                      <p className="text-xs text-neutral-500">Due {fmtDateOnly(record.dueDate)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <DataTable
+                columns={[
+                  { key: 'type', header: 'Type', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{r.type}</span> },
+                  { key: 'periodLabel', header: 'Period', render: (r) => r.periodLabel || '—' },
+                  { key: 'dueDate', header: 'Due', render: (r) => fmtDateOnly(r.dueDate) },
+                  { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} /> },
+                ]}
+                rows={compliance}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle="No compliance records yet"
+              />
             </div>
           </section>
         </div>
@@ -2282,7 +2391,7 @@ export const FinanceDirectoryPage = () => {
       <div className="portal-page-inner space-y-4">
         <Header title="Directory" subtitle="Vendors and clients" icon="contacts" user={user} crumbs={['Finance', 'Directory']} />
         <TabBar tabs={DIRECTORY_TABS} active={tab} onChange={(id) => setSearchParams({ tab: id })} />
-        {(error || formError) && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error || formError}</div>}
+        {(error || formError) && <ErrorState description={error || formError} onRetry={error ? refetch : undefined} />}
 
         {tab === 'vendors' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
@@ -2290,10 +2399,10 @@ export const FinanceDirectoryPage = () => {
               <div className={inner}>
                 <SectionHdr title="Vendor Profile" />
                 <form onSubmit={saveVendor} className="space-y-3">
-                  <input className={input} placeholder="Vendor name" value={vendorForm.name} onChange={(e) => setVendorForm((p) => ({ ...p, name: e.target.value }))} required />
-                  <input className={input} placeholder="Contact email" value={vendorForm.contactEmail} onChange={(e) => setVendorForm((p) => ({ ...p, contactEmail: e.target.value }))} />
-                  <input className={input} placeholder="Payment terms" value={vendorForm.paymentTerms} onChange={(e) => setVendorForm((p) => ({ ...p, paymentTerms: e.target.value }))} />
-                  <input className={input} type="number" placeholder="Balance" value={vendorForm.balance} onChange={(e) => setVendorForm((p) => ({ ...p, balance: e.target.value }))} />
+                  <Input label="Vendor name" placeholder="e.g. Acme Supplies" value={vendorForm.name} onChange={(e) => setVendorForm((p) => ({ ...p, name: e.target.value }))} required />
+                  <Input label="Contact email" type="email" placeholder="contact@vendor.com" value={vendorForm.contactEmail} onChange={(e) => setVendorForm((p) => ({ ...p, contactEmail: e.target.value }))} />
+                  <Input label="Payment terms" placeholder="e.g. Net 30" value={vendorForm.paymentTerms} onChange={(e) => setVendorForm((p) => ({ ...p, paymentTerms: e.target.value }))} />
+                  <Input label="Balance" type="number" value={vendorForm.balance} onChange={(e) => setVendorForm((p) => ({ ...p, balance: e.target.value }))} />
                   <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Vendor'}</Button>
                 </form>
               </div>
@@ -2301,18 +2410,18 @@ export const FinanceDirectoryPage = () => {
             <section className={card}>
               <div className={inner}>
                 <SectionHdr title="Vendor Directory" subtitle={`${vendors.length} records`} />
-                {loading ? <SkeletonBlock /> : vendors.length === 0 ? <EmptyState icon="storefront" title="No vendors yet" /> : (
-                  <div className="space-y-3">
-                    {vendors.map((vendor) => (
-                      <div key={vendor._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                        <p className="font-semibold text-neutral-800 dark:text-neutral-100">{vendor.name}</p>
-                        <p className="text-xs text-neutral-500">{vendor.contactEmail}</p>
-                        <p className="text-xs text-neutral-500">Terms: {vendor.paymentTerms || 'N/A'}</p>
-                        <p className="text-xs text-neutral-500">Balance: {formatCurrency(vendor.balance)}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <DataTable
+                  columns={[
+                    { key: 'name', header: 'Vendor', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{r.name}</span> },
+                    { key: 'contactEmail', header: 'Contact', render: (r) => r.contactEmail || '—' },
+                    { key: 'paymentTerms', header: 'Terms', render: (r) => r.paymentTerms || 'N/A' },
+                    { key: 'balance', header: 'Balance', render: (r) => formatCurrency(r.balance) },
+                  ]}
+                  rows={vendors}
+                  rowKey="_id"
+                  loading={loading}
+                  emptyTitle="No vendors yet"
+                />
               </div>
             </section>
           </div>
@@ -2324,10 +2433,10 @@ export const FinanceDirectoryPage = () => {
               <div className={inner}>
                 <SectionHdr title="Client Profile" />
                 <form onSubmit={saveClient} className="space-y-3">
-                  <input className={input} placeholder="Client name" value={clientForm.name} onChange={(e) => setClientForm((p) => ({ ...p, name: e.target.value }))} required />
-                  <input className={input} placeholder="Contact email" value={clientForm.contactEmail} onChange={(e) => setClientForm((p) => ({ ...p, contactEmail: e.target.value }))} />
-                  <input className={input} placeholder="Payment terms" value={clientForm.paymentTerms} onChange={(e) => setClientForm((p) => ({ ...p, paymentTerms: e.target.value }))} />
-                  <input className={input} type="number" placeholder="Balance" value={clientForm.balance} onChange={(e) => setClientForm((p) => ({ ...p, balance: e.target.value }))} />
+                  <Input label="Client name" placeholder="e.g. Nimbus Retail" value={clientForm.name} onChange={(e) => setClientForm((p) => ({ ...p, name: e.target.value }))} required />
+                  <Input label="Contact email" type="email" placeholder="billing@client.com" value={clientForm.contactEmail} onChange={(e) => setClientForm((p) => ({ ...p, contactEmail: e.target.value }))} />
+                  <Input label="Payment terms" placeholder="e.g. Net 30" value={clientForm.paymentTerms} onChange={(e) => setClientForm((p) => ({ ...p, paymentTerms: e.target.value }))} />
+                  <Input label="Balance" type="number" value={clientForm.balance} onChange={(e) => setClientForm((p) => ({ ...p, balance: e.target.value }))} />
                   <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Saving…' : 'Save Client'}</Button>
                 </form>
               </div>
@@ -2335,18 +2444,18 @@ export const FinanceDirectoryPage = () => {
             <section className={card}>
               <div className={inner}>
                 <SectionHdr title="Client Directory" subtitle={`${clients.length} records`} />
-                {loading ? <SkeletonBlock /> : clients.length === 0 ? <EmptyState icon="groups" title="No clients yet" /> : (
-                  <div className="space-y-3">
-                    {clients.map((client) => (
-                      <div key={client._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                        <p className="font-semibold text-neutral-800 dark:text-neutral-100">{client.name}</p>
-                        <p className="text-xs text-neutral-500">{client.contactEmail}</p>
-                        <p className="text-xs text-neutral-500">Terms: {client.paymentTerms || 'N/A'}</p>
-                        <p className="text-xs text-neutral-500">Balance: {formatCurrency(client.balance)}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <DataTable
+                  columns={[
+                    { key: 'name', header: 'Client', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{r.name}</span> },
+                    { key: 'contactEmail', header: 'Contact', render: (r) => r.contactEmail || '—' },
+                    { key: 'paymentTerms', header: 'Terms', render: (r) => r.paymentTerms || 'N/A' },
+                    { key: 'balance', header: 'Balance', render: (r) => formatCurrency(r.balance) },
+                  ]}
+                  rows={clients}
+                  rowKey="_id"
+                  loading={loading}
+                  emptyTitle="No clients yet"
+                />
               </div>
             </section>
           </div>
@@ -2416,15 +2525,20 @@ export const FinanceActivityPage = () => {
     return actions;
   };
 
+  const [runningAction, setRunningAction] = useState(false);
+
   const runRequestAction = async () => {
     if (!actingRequest) return;
     setActionError('');
+    setRunningAction(true);
     try {
       await financeApi.updateRequestAction(actingRequest.row.id, actingRequest.action.id, { comment: actingRequest.comment || '' }, token);
       setActingRequest(null);
       refetch();
     } catch (err) {
       setActionError(err.message || 'Failed to update finance request');
+    } finally {
+      setRunningAction(false);
     }
   };
 
@@ -2433,26 +2547,32 @@ export const FinanceActivityPage = () => {
       <div className="portal-page-inner space-y-4">
         <Header title="Activity" subtitle="Transaction ledger and audit trail" icon="history" user={user} crumbs={['Finance', 'Activity']} />
         <TabBar tabs={ACTIVITY_TABS} active={tab} onChange={(id) => setSearchParams({ tab: id })} />
-        {(error || actionError) && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error || actionError}</div>}
+        {(error || actionError) && <ErrorState description={error || actionError} onRetry={error ? refetch : undefined} />}
 
         {tab === 'requests' && (
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Finance Request Center" subtitle="Department generated financial requests with lifecycle tracking" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{requests.length} rows</p>} />
               <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-                <input className={`${input} md:col-span-2`} placeholder="Search request ID, employee, department..." value={filters.search} onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))} />
-                <select className={input} value={filters.department} onChange={(e) => setFilters((p) => ({ ...p, department: e.target.value }))}>
-                  <option value="">All Departments</option>
-                  {departmentCatalog.filter((d) => !d.isSystem).map((department) => <option key={department._id} value={department._id}>{department.name}</option>)}
-                </select>
-                <select className={input} value={filters.status} onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}>
-                  <option value="">All Status</option>
-                  {['submitted', 'under_review', 'needs_information', 'verified', 'pending_approval', 'approved', 'rejected', 'processing', 'completed'].map((status) => <option key={status} value={status}>{status}</option>)}
-                </select>
-                <select className={input} value={filters.priority} onChange={(e) => setFilters((p) => ({ ...p, priority: e.target.value }))}>
-                  <option value="">All Priority</option>
-                  {['Normal', 'High', 'Critical'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-                </select>
+                <Input className="md:col-span-2" label="Search" placeholder="Request ID, employee, department..." value={filters.search} onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))} />
+                <Select
+                  label="Department"
+                  value={filters.department}
+                  onChange={(e) => setFilters((p) => ({ ...p, department: e.target.value }))}
+                  options={[{ value: '', label: 'All Departments' }, ...departmentCatalog.filter((d) => !d.isSystem).map((department) => ({ value: department._id, label: department.name }))]}
+                />
+                <Select
+                  label="Status"
+                  value={filters.status}
+                  onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
+                  options={[{ value: '', label: 'All Status' }, ...['submitted', 'under_review', 'needs_information', 'verified', 'pending_approval', 'approved', 'rejected', 'processing', 'completed'].map((status) => ({ value: status, label: status }))]}
+                />
+                <Select
+                  label="Priority"
+                  value={filters.priority}
+                  onChange={(e) => setFilters((p) => ({ ...p, priority: e.target.value }))}
+                  options={[{ value: '', label: 'All Priority' }, ...['Normal', 'High', 'Critical'].map((priority) => ({ value: priority, label: priority }))]}
+                />
               </div>
               {loading ? <SkeletonBlock /> : requests.length === 0 ? <EmptyState icon="assignment" title="No finance requests found" /> : (
                 <div className="overflow-x-auto">
@@ -2545,38 +2665,41 @@ export const FinanceActivityPage = () => {
             </div>
           </section>
         )}
-        {actingRequest && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-black text-neutral-950 dark:text-neutral-100">{actingRequest.action.label} {actingRequest.row.requestId}</p>
-                  <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                    {actingRequest.row.department} - {formatCurrency(actingRequest.row.amount)} - current status {actingRequest.row.status}
-                  </p>
-                </div>
-                <button type="button" onClick={() => setActingRequest(null)} className="material-symbols-outlined text-neutral-400">close</button>
-              </div>
-              <textarea
-                className={`${input} mt-4 min-h-[90px]`}
-                placeholder={actingRequest.action.id === 'request_information' ? 'What information is missing?' : 'Comment for audit trail'}
-                value={actingRequest.comment}
-                onChange={(event) => setActingRequest((prev) => ({ ...prev, comment: event.target.value }))}
-              />
-              <div className="mt-4 flex justify-between gap-2">
+        <Modal
+          open={Boolean(actingRequest)}
+          onClose={() => setActingRequest(null)}
+          title={actingRequest ? `${actingRequest.action.label} ${actingRequest.row.requestId}` : ''}
+          description={actingRequest ? `${actingRequest.row.department} - ${formatCurrency(actingRequest.row.amount)} - current status ${actingRequest.row.status}` : ''}
+          footer={
+            actingRequest && (
+              <div className="flex justify-between gap-2">
                 <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/finance/dashboard/project-overview?department=${encodeURIComponent(actingRequest.row.departmentId || actingRequest.row.department)}&tab=requests`)}>
                   Department Profile
                 </Button>
                 <div className="flex gap-2">
                   <Button type="button" variant="secondary" size="sm" onClick={() => setActingRequest(null)}>Cancel</Button>
-                  <Button type="button" variant={actingRequest.action.variant} size="sm" onClick={runRequestAction}>
-                    Confirm
+                  <Button type="button" variant={actingRequest.action.variant} size="sm" disabled={runningAction} onClick={runRequestAction}>
+                    {runningAction ? 'Saving…' : 'Confirm'}
                   </Button>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            )
+          }
+        >
+          {actingRequest && (
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                {actingRequest.action.id === 'request_information' ? 'What information is missing?' : 'Comment for audit trail'}
+              </span>
+              <textarea
+                className={`${input} min-h-[90px]`}
+                placeholder="Add a comment"
+                value={actingRequest.comment}
+                onChange={(event) => setActingRequest((prev) => ({ ...prev, comment: event.target.value }))}
+              />
+            </label>
+          )}
+        </Modal>
       </div>
     </main>
   );
@@ -2618,7 +2741,7 @@ export const FinanceApprovalsPage = () => {
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Approval Center" subtitle="Finance Head controlled approvals and exceptions" icon="approval" user={user} crumbs={['Finance', 'Approvals']} />
-        {(error || actionError) && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error || actionError}</div>}
+        {(error || actionError) && <ErrorState description={error || actionError} onRetry={error ? refetch : undefined} />}
 
         <section className={card}>
           <div className={inner}>
@@ -2658,36 +2781,41 @@ export const FinanceApprovalsPage = () => {
             )}
           </div>
         </section>
-        {confirmAction && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-black text-neutral-950 dark:text-neutral-100">{confirmAction.decision === 'approve' ? 'Approve Request?' : 'Reject Request?'}</p>
-                  <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">This decision updates workflow status and writes a finance audit event.</p>
-                </div>
-                <button type="button" onClick={() => setConfirmAction(null)} className="material-symbols-outlined text-neutral-400">close</button>
+        <Modal
+          open={Boolean(confirmAction)}
+          onClose={() => setConfirmAction(null)}
+          title={confirmAction?.decision === 'approve' ? 'Approve Request?' : 'Reject Request?'}
+          description="This decision updates workflow status and writes a finance audit event."
+          footer={
+            confirmAction && (
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmAction(null)}>Cancel</Button>
+                <Button type="button" variant={confirmAction.decision === 'approve' ? 'primary' : 'danger'} size="sm" disabled={decidingId === confirmAction.id} onClick={decide}>
+                  {decidingId === confirmAction.id ? 'Saving…' : confirmAction.decision === 'approve' ? 'Approve Request' : 'Reject Request'}
+                </Button>
               </div>
-              <div className="mt-4 space-y-2 rounded-xl bg-neutral-50 p-3 text-sm dark:bg-neutral-900">
+            )
+          }
+        >
+          {confirmAction && (
+            <>
+              <div className="space-y-2 rounded-xl bg-neutral-50 p-3 text-sm dark:bg-neutral-900">
                 <p><span className="font-bold">Request:</span> {confirmAction.row?.entityType} {confirmAction.row?.entityId}</p>
                 <p><span className="font-bold">Module:</span> {confirmAction.row?.module || 'finance'}</p>
                 <p><span className="font-bold">Status:</span> {confirmAction.row?.status}</p>
               </div>
-              <textarea
-                className={`${input} mt-4 min-h-[90px]`}
-                placeholder="Approval comment or rejection reason"
-                value={confirmAction.remarks || ''}
-                onChange={(event) => setConfirmAction((prev) => ({ ...prev, remarks: event.target.value }))}
-              />
-              <div className="mt-4 flex justify-end gap-2">
-                <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmAction(null)}>Cancel</Button>
-                <Button type="button" variant={confirmAction.decision === 'approve' ? 'primary' : 'danger'} size="sm" disabled={decidingId === confirmAction.id} onClick={decide}>
-                  {confirmAction.decision === 'approve' ? 'Approve Request' : 'Reject Request'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+              <label className="mt-4 block">
+                <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Comment</span>
+                <textarea
+                  className={`${input} min-h-[90px]`}
+                  placeholder="Approval comment or rejection reason"
+                  value={confirmAction.remarks || ''}
+                  onChange={(event) => setConfirmAction((prev) => ({ ...prev, remarks: event.target.value }))}
+                />
+              </label>
+            </>
+          )}
+        </Modal>
       </div>
     </main>
   );

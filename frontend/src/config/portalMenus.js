@@ -224,15 +224,6 @@ export const portalMenuConfig = {
   ],
 };
 
-const employeeDepartmentWorkspace = (user) => {
-  const role = String(user?.role || '').toLowerCase();
-  if (role === 'it_employee') return null;
-  if (role.startsWith('it_')) return { label: 'IT Workspace', icon: 'memory', path: '/it/dashboard', description: 'Department systems and support' };
-  if (role.startsWith('finance_')) return { label: 'Finance Workspace', icon: 'account_balance', path: '/finance/dashboard', description: 'Department finance operations' };
-  if (role.startsWith('media_')) return { label: 'Media Workspace', icon: 'campaign', path: '/media/dashboard', description: 'Department media operations' };
-  return null;
-};
-
 // Drops items whose roles allow-list does not include the user role (recursively).
 const filterByRole = (items, user) => {
   const role = String(user?.role || '').toLowerCase();
@@ -241,11 +232,13 @@ const filterByRole = (items, user) => {
     .map((item) => (Array.isArray(item.children) ? { ...item, children: filterByRole(item.children, user) } : item));
 };
 
+// Employees stay inside the Employee Portal — no cross-link into department
+// portals (Finance/IT/Media) from the sidebar. Department-role employees use
+// the Employee Portal for their personal workspace like everyone else.
 export const resolvePortalMenu = (role, user = null) => {
   const normalizedRole = String(role || '').toLowerCase();
   if (normalizedRole === 'employee') {
-    const departmentItem = employeeDepartmentWorkspace(user);
-    return departmentItem ? [...portalMenuConfig.user, departmentItem] : portalMenuConfig.user;
+    return portalMenuConfig.user;
   }
   const menu = portalMenuConfig[normalizedRole] || portalMenuConfig.user;
   return filterByRole(menu, user);

@@ -25,7 +25,6 @@ const departmentWorkspace = (user) => {
   const role = String(user?.role || '').toLowerCase();
   if (role === 'it_employee') return null;
   if (role.startsWith('it_')) return { label: 'Open IT workspace', path: '/it/dashboard', icon: 'memory' };
-  if (role.startsWith('finance_')) return { label: 'Open Finance workspace', path: '/finance/dashboard', icon: 'account_balance' };
   if (role.startsWith('media_')) return { label: 'Open Media workspace', path: '/media/dashboard', icon: 'campaign' };
   return null;
 };

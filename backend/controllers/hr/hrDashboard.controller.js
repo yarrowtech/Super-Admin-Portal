@@ -1374,11 +1374,13 @@ exports.createTask = async (req, res) => {
       status,
       progress,
       // Only set by the Law-portal middleware after validation (middlewares/lawTaskLinks.js).
-      ...(req.validatedLinkedItems ? { linkedItems: req.validatedLinkedItems } : {})
+      ...(req.validatedLinkedItems ? { linkedItems: req.validatedLinkedItems } : {}),
+      ...(req.validatedProject !== undefined ? { project: req.validatedProject } : {})
     });
 
     await task.populate('assignedTo', 'firstName lastName email department role');
     await task.populate('assignedBy', 'firstName lastName email role');
+    await task.populate('project', 'name projectCode');
 
     res.status(201).json({
       success: true,
@@ -1423,6 +1425,7 @@ exports.updateTask = async (req, res) => {
     if (estimatedHours !== undefined) task.estimatedHours = estimatedHours;
     if (actualHours !== undefined) task.actualHours = actualHours;
     if (req.validatedLinkedItems) task.linkedItems = req.validatedLinkedItems;
+    if (req.validatedProject !== undefined) task.project = req.validatedProject;
 
     if (status === 'completed' && !task.completedDate) {
       task.completedDate = Date.now();
@@ -1431,6 +1434,7 @@ exports.updateTask = async (req, res) => {
     await task.save();
     await task.populate('assignedTo', 'firstName lastName email department role');
     await task.populate('assignedBy', 'firstName lastName email role');
+    await task.populate('project', 'name projectCode');
 
     res.status(200).json({
       success: true,

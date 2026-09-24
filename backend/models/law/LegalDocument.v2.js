@@ -27,6 +27,21 @@ const legalAttachmentSchema = new mongoose.Schema(
   { _id: true }
 );
 
+// Notes and key highlight points pinned to a document, usually added by the employee
+// editing it through a Law task. `critical` flags points the head must not miss.
+const legalAnnotationSchema = new mongoose.Schema(
+  {
+    kind: { type: String, enum: ['note', 'highlight'], default: 'note' },
+    text: { type: String, trim: true, required: true, maxlength: 2000 },
+    critical: { type: Boolean, default: false },
+    taskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdByName: { type: String, default: '' },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const legalDocumentSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -74,6 +89,7 @@ const legalDocumentSchema = new mongoose.Schema(
     priority: { type: String, enum: PRIORITIES, default: 'Medium' },
     tags: { type: [String], default: [] },
     attachments: { type: [legalAttachmentSchema], default: [] },
+    annotations: { type: [legalAnnotationSchema], default: [] },
 
     isArchived: { type: Boolean, default: false, index: true },
     archivedAt: { type: Date },

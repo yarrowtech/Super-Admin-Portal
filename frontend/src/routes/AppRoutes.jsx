@@ -155,7 +155,6 @@ import { useAuth } from '../context/AuthContext';
 import { canAccessPortal, PORTALS } from '../utils/rbac';
 import { dashboardWorkflowApi } from '../services/dashboardWorkflow';
 import { itApi } from '../services/it';
-import { financeApi } from '../services/finance';
 import { lawApi } from '../services/law';
 import { LawHome, LawHeadOnly } from '../components/law/LawRoleGates';
 const LawAssignedWorkPage = lazy(() => import('../components/law/LawAssignedWorkPage'));
@@ -521,7 +520,8 @@ export default function AppRoutes() {
           <Route path="payroll" element={<FinancePayrollPage />} />
           <Route path="accounting" element={<FinanceAccountingPage />} />
           <Route path="tasks" element={<TaskWorkspacePage portal="finance" icon="task" title="Finance Tasks" description="The finance head assigns and manages finance work items; team members update their own progress." manageRoles={['finance_manager', 'admin', 'super_admin', 'superadmin']} />} />
-          <Route path="attendance" element={<DepartmentAttendancePage api={financeApi} portalLabel="Finance" />} />
+          <Route path="leave" element={<EmployeeLeavePage />} />
+          <Route path="documents" element={<EmployeeDocumentsPage />} />
           <Route path="team" element={<DepartmentTeamPage dept="finance" />} />
           <Route path="messages" element={<DepartmentMessagesPage dept="finance" />} />
           <Route path="reports" element={<FinanceReportsPage />} />

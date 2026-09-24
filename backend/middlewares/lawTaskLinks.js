@@ -3,6 +3,9 @@ const Task = require('../models/common/Task');
 const Law = require('../models/department/Law');
 const LawContract = require('../models/law/LawContract');
 const LegalDocument = require('../models/law/LegalDocument.v2');
+const LegalDocumentVersion = require('../models/law/LegalDocumentVersion.v2');
+const LegalAuditLog = require('../models/law/LegalAuditLog');
+const Project = require('../models/common/Project');
 const OutsourcingContract = require('../models/outsourcing/OutsourcingContract');
 const { ROLES } = require('../config/roles');
 const logger = require('../utils/logger');
@@ -53,6 +56,19 @@ const findForTitle = (module, recordId) => {
  */
 const validateLinkedItems = async (req, res, next) => {
   try {
+    // Optional project the task belongs to (head only). '' / null clears it.
+    if (req.body?.project !== undefined) {
+      if (!isManager(req)) {
+        delete req.body.project;
+      } else if (!req.body.project) {
+        req.validatedProject = null;
+      } else {
+        if (!isValidId(req.body.project)) return res.status(400).json({ success: false, error: 'Invalid project' });
+        const exists = await Project.exists({ _id: req.body.project });
+        if (!exists) return res.status(404).json({ success: false, error: 'Project not found' });
+        req.validatedProject = String(req.body.project);
+      }
+    }
     const raw = req.body?.linkedItems;
     if (raw === undefined) return next();
     if (!isManager(req)) {
@@ -76,7 +92,7 @@ const validateLinkedItems = async (req, res, next) => {
       if (!doc) {
         return res.status(404).json({ success: false, error: `Linked ${module} not found` });
       }
-      normalized.push({ module, recordId, title: displayTitle(module, doc) });
+      normalized.push({ module, recordId, title: displayTitle(module, doc), canEdit: module === 'document' && entry.canEdit === true });
     }
     req.validatedLinkedItems = normalized;
     return next();
@@ -103,7 +119,7 @@ const loadTaskForItem = async (req, res) => {
     sendError(res, 403, 'Not allowed');
     return null;
   }
-  const task = await Task.findById(taskId).select('assignedTo linkedItems title').lean();
+  const task = await Task.findById(taskId).select('assignedTo linkedItems title status project').lean();
   if (!task) {
     sendError(res, 404, 'Task not found');
     return null;
@@ -170,14 +186,41 @@ const summarize = (module, doc) => {
     description: doc.description || '', referenceNumber: doc.documentNumber || '',
     version: doc.currentVersion, confidentiality: doc.confidentiality,
     dueDate: dateOrNull(doc.expiryDate), updatedAt: doc.updatedAt,
+    projectId: doc.projectId || null, projectName: doc.projectName || '',
+    isLocked: Boolean(doc.isLocked),
+    annotations: (doc.annotations || []).map((a) => ({
+      _id: a._id, kind: a.kind, text: a.text, critical: Boolean(a.critical),
+      taskId: a.taskId || null, createdBy: a.createdBy || null, createdByName: a.createdByName || '', createdAt: a.createdAt,
+    })),
   };
 };
+
+// Edits through a task are only allowed while the document is still a working draft:
+// once it is submitted (Pending) or Approved it belongs to the CEO approval flow.
+const EDITABLE_DOC_STATUSES = ['Draft', 'Rejected'];
+const CLOSED_TASK_STATUSES = ['completed', 'cancelled'];
+
+// Why the caller may not edit this linked document through this task ('' = may edit).
+const editBlocker = (req, ctx, doc) => {
+  if (ctx.link.module !== 'document') return 'Only legal documents can be edited through a task';
+  if (!isManager(req) && !ctx.link.canEdit) return 'The law head has shared this document read-only';
+  if (!isManager(req) && CLOSED_TASK_STATUSES.includes(String(ctx.task.status || ''))) return 'This task is closed';
+  if (doc.isLocked) return 'The document is locked';
+  if (!EDITABLE_DOC_STATUSES.includes(doc.status)) return `The document is ${doc.status} and can no longer be edited`;
+  return '';
+};
+
+const actorName = (req) => [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ').trim() || req.user?.email || 'Unknown';
+
+const auditDoc = (req, documentId, action, remarks, metadata = {}) => LegalAuditLog.create({
+  documentId, action, performedBy: req.user._id, role: req.user?.role || 'unknown', remarks, metadata, timestamp: new Date(),
+}).catch((err) => logger.warn({ err }, 'Law task document audit failed'));
 
 const SELECT = {
   record: 'title section status priority description referenceNumber owner dueDate updatedAt metadata.referencePdfs',
   contract: 'title status approvalStatus expiryDate updatedAt metadata.description metadata.referenceNumber metadata.referencePdfs metadata.attachments metadata.files',
   outsourcing_contract: 'job status lawStatus terms endDate updatedAt',
-  document: 'title documentNumber type status priority description currentVersion confidentiality expiryDate updatedAt attachments.originalFileName attachments.mimeType attachments.fileSize attachments.url attachments.data',
+  document: 'title documentNumber type status priority description currentVersion confidentiality expiryDate updatedAt projectId projectName isLocked annotations attachments.originalFileName attachments.mimeType attachments.fileSize attachments.url attachments.data',
 };
 
 const loadRecord = (module, recordId) => {

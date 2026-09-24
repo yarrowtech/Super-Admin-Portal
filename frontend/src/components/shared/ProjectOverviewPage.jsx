@@ -263,10 +263,22 @@ const MetricCardSkeleton = () => (
   </div>
 );
 
+// The generic /employee/* portal is shared by plain employees and department
+// staff (finance_employee, it_employee, ...). Resolve the metrics/branding to
+// the employee's actual department instead of always showing generic
+// employee task counts.
+const resolveEmployeePortalKey = (user) => {
+  const role = String(user?.role || '').toLowerCase();
+  if (role.startsWith('finance_')) return 'finance';
+  if (role.startsWith('it_')) return 'it';
+  return 'employee';
+};
+
 const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride }) => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
-  const fallback =PORTAL_DEFAULTS[portalKey] || PORTAL_DEFAULTS.manager;
+  const resolvedPortalKey = portalKey === 'employee' ? resolveEmployeePortalKey(user) : portalKey;
+  const fallback = PORTAL_DEFAULTS[resolvedPortalKey] || PORTAL_DEFAULTS.manager;
   const [projects, setProjects] = useState([]);
 
   // Project selection lives in the URL (?projectId=…) rather than purely
@@ -302,7 +314,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
     setLoading(true);
     setError('');
     departmentApi
-      .getProjectOverviewProjects(token, { portal: portalKey, limit: 200 }, { forceRefresh: true })
+      .getProjectOverviewProjects(token, { portal: resolvedPortalKey, limit: 200 }, { forceRefresh: true })
       .then((res) => {
         if (!alive) return;
         const rows = res?.data?.items || res?.data?.data?.items || [];
@@ -329,7 +341,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
     return () => {
       alive = false;
     };
-  }, [token, portalKey]);
+  }, [token, resolvedPortalKey]);
 
   useEffect(() => {
     let alive = true;
@@ -341,7 +353,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
     setDetailLoading(true);
     setDetailError('');
     departmentApi
-      .getProjectOverviewDetail(token, selectedId, { portal: portalKey }, { forceRefresh: true })
+      .getProjectOverviewDetail(token, selectedId, { portal: resolvedPortalKey }, { forceRefresh: true })
       .then((res) => {
         if (alive) setDetail(res?.data || null);
       })
@@ -356,7 +368,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
     return () => {
       alive = false;
     };
-  }, [token, selectedId, portalKey, detailRetryToken]);
+  }, [token, selectedId, resolvedPortalKey, detailRetryToken]);
 
   const selectedProject = useMemo(
     () => (selectedId ? projects.find((project) => getProjectId(project) === selectedId) || null : null),
@@ -379,24 +391,24 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
     });
   }, [projects, search, statusFilter]);
 
-  const portalLabel = portalName || fallback.name;
+  const portalLabel = (portalKey === 'employee' ? null : portalName) || fallback.name;
   const project = detail?.project || selectedProject || {};
   const canonical = project ? findCanonicalProject(project) : null;
   const projectName = project?.name || canonical?.name || project?.projectCode || project?.code || 'Project';
   const projectDescription = project?.description || canonical?.description || 'Project workspace.';
-  const metrics = selectedProject ? (safeRows(detail?.metrics).length ? safeRows(detail?.metrics) : defaultMetrics(portalKey, project)) : [];
+  const metrics = selectedProject ? (safeRows(detail?.metrics).length ? safeRows(detail?.metrics) : defaultMetrics(resolvedPortalKey, project)) : [];
   const sections = selectedProject ? (safeRows(detail?.sections).length ? safeRows(detail?.sections) : EMPTY_SECTIONS) : [];
   const [primarySection, ...restSections] = sections;
   const greeting = getGreetingParts(now);
   const firstName = getFirstName(user);
   const greetingText = firstName ? `${greeting.greeting}, ${firstName}` : greeting.greeting;
   // Law employees have no direct access to the document/contract/compliance modules.
-  const lawLinksAllowed = portalKey === 'law' && String(user?.role || '').toLowerCase() !== 'law_employee';
+  const lawLinksAllowed = resolvedPortalKey === 'law' && String(user?.role || '').toLowerCase() !== 'law_employee';
   const sectionLinks = lawLinksAllowed ? LAW_SECTION_LINKS : {};
   const metricLinks = lawLinksAllowed ? LAW_METRIC_LINKS : {};
 
   return (
-    <main className={`min-h-screen w-full ${PORTAL_BG[portalKey] || PORTAL_BG.manager} text-neutral-900 dark:bg-background-dark dark:text-neutral-100`}>
+    <main className={`min-h-screen w-full ${PORTAL_BG[resolvedPortalKey] || PORTAL_BG.manager} text-neutral-900 dark:bg-background-dark dark:text-neutral-100`}>
       <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 md:p-5 lg:p-6">
         {/* ── Page header ─────────────────────────────────────────────── */}
         <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">

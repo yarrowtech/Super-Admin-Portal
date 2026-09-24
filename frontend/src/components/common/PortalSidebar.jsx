@@ -125,10 +125,27 @@ const PortalSidebar = ({
   // Unread staff replies on the user's own support tickets -> badge on the footer Support link.
   const supportUnread = useSupportUnread(footerItems.some((item) => item.label === 'Support'));
 
+  const prefixMatches = (pathname) => currentPath === pathname || currentPath.startsWith(pathname + '/');
+
+  // Longest menu pathname matching the current route. Portals nest pages under
+  // their dashboard (e.g. /finance/dashboard/payroll), so a plain prefix match
+  // would light up Dashboard alongside the real page — only the most specific
+  // match wins.
+  const bestMatch = useMemo(() => {
+    const paths = [];
+    const collect = (items) => items.forEach((item) => {
+      if (item?.path) paths.push(String(item.path).split('?')[0]);
+      if (Array.isArray(item?.children)) collect(item.children);
+    });
+    collect(navItems);
+    collect(footerItems);
+    return paths.filter(prefixMatches).sort((a, b) => b.length - a.length)[0] || '';
+  }, [navItems, footerItems, currentPath]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isPathActive  = (path) => {
     if (!path) return false;
     const pathname = String(path).split('?')[0];
-    return currentPath === pathname || currentPath.startsWith(pathname + '/');
+    return prefixMatches(pathname) && pathname.length >= bestMatch.length;
   };
   const { search: currentSearch } = useLocation();
 
@@ -167,6 +184,16 @@ const PortalSidebar = ({
   }, [currentPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleGroup = (path) => setOpenGroups((prev) => ({ ...prev, [path]: !prev[path] }));
+
+  // Top-level groups behave as an accordion so long menus stay on screen.
+  const toggleTopGroup = (path) => setOpenGroups((prev) => {
+    if (prev[path]) return { ...prev, [path]: false };
+    const closed = {};
+    resolvedNavItems.forEach((item) => {
+      if (Array.isArray(item.children) && item.children.length > 0) closed[item.path] = false;
+    });
+    return { ...prev, ...closed, [path]: true };
+  });
 
   const sidebarW = collapsed ? 'w-16' : 'w-[250px]';
 
@@ -235,22 +262,33 @@ const PortalSidebar = ({
         className="flex-1 overflow-y-auto px-2 pb-2 pt-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-200 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700"
       >
         <div className="space-y-0.5">
-          {resolvedNavItems.map((item) => {
+          {resolvedNavItems.map((item, index) => {
             const hasChildren = Array.isArray(item.children) && item.children.length > 0;
             const isActive = hasChildren
               ? isGroupActive(item)
               : isPathActive(item.path);
             const isOpen = openGroups[item.path] ?? false;
+            // Optional `section` on menu items renders a heading when it changes.
+            const startsSection = Boolean(item.section) && item.section !== resolvedNavItems[index - 1]?.section;
 
             return (
               <div key={item.path}>
+                {startsSection && (
+                  collapsed ? (
+                    index > 0 && <div className="mx-2 my-2 h-px bg-neutral-100 dark:bg-neutral-800" aria-hidden="true" />
+                  ) : (
+                    <p className={`px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-neutral-400 dark:text-neutral-500 ${index > 0 ? 'pt-3' : 'pt-1'}`}>
+                      {item.section}
+                    </p>
+                  )
+                )}
                 {hasChildren ? (
                   <GroupButton
                     item={item}
                     collapsed={collapsed}
                     isActive={isActive}
                     isOpen={isOpen}
-                    onToggle={() => toggleGroup(item.path)}
+                    onToggle={() => toggleTopGroup(item.path)}
                   />
                 ) : (
                   <NavItem
@@ -258,9 +296,6 @@ const PortalSidebar = ({
                     collapsed={collapsed}
                     isActive={isActive}
                     onClick={onNavigate}
-                    suffix={isActive && !collapsed ? (
-                      <span className="material-symbols-outlined shrink-0 text-[14px] text-[var(--portal-accent)]/70">chevron_right</span>
-                    ) : null}
                   />
                 )}
 

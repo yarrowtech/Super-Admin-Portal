@@ -94,7 +94,10 @@ const taskSchema = new mongoose.Schema(
         _id: false,
         module: { type: String, enum: ['record', 'contract', 'document', 'outsourcing_contract'], required: true },
         recordId: { type: mongoose.Schema.Types.ObjectId, required: true },
-        title: { type: String, trim: true, default: '' }
+        title: { type: String, trim: true, default: '' },
+        // Documents only: the head grants the assignee edit rights (content, notes, key points)
+        // through this task. Everything else stays read-only.
+        canEdit: { type: Boolean, default: false }
       }],
       default: undefined
     },

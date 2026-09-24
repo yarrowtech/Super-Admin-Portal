@@ -24,11 +24,6 @@ router.use(authorizePortalAccess("finance"));
 router.use(attachOptionalProjectContext);
 
 router.get("/overview", requireProjectContext, controller.getOverview);
-const canDecideFinance = (req, res, next) => {
-  const role = String(req.user?.role || "").toLowerCase();
-  if (["finance_manager", "admin", "super_admin"].includes(role)) return next();
-  return res.status(403).json({ success: false, error: "Role cannot decide finance approvals" });
-};
 const canTriggerPayroll = (req, res, next) => {
   const role = String(req.user?.role || "").toLowerCase();
   if (["hr", "finance_manager", "admin", "super_admin"].includes(role)) return next();
@@ -36,8 +31,6 @@ const canTriggerPayroll = (req, res, next) => {
 };
 
 router.get("/transactions", requireProjectContext, v.listValidation, validate, controller.getTransactions);
-router.post("/expenses", requireProjectContext, canWriteFinance, v.createExpenseValidation, validate, controller.createExpenseRequest);
-router.patch("/expenses/:workflowId/decision", requireProjectContext, canDecideFinance, v.decisionValidation, validate, controller.decideExpenseRequest);
 router.post("/payroll/hr-trigger", requireProjectContext, canTriggerPayroll, v.payrollTriggerValidation, validate, controller.triggerPayrollFromHr);
 router.post("/invoices/:invoiceId/link-contract", requireProjectContext, canWriteFinance, v.linkContractValidation, validate, controller.createContractLinkedInvoice);
 

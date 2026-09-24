@@ -1127,6 +1127,11 @@ exports.updateInvoice = async (req, res) => {
     if (['paid', 'void'].includes(String(existing.status || '').toLowerCase()) && shouldRecalculate) {
       return res.status(409).json({ success: false, error: 'Paid or cancelled invoices cannot be re-amounted' });
     }
+    // "Paid" is reached by recording payments (createPayment settles the balance);
+    // flipping the flag alone would leave balanceDue owed with no payment on the ledger.
+    if (String(payload.status || '').toLowerCase() === 'paid' && existing.status !== 'paid' && Number(existing.balanceDue ?? existing.total) > 0) {
+      return res.status(409).json({ success: false, error: 'Record a payment for the outstanding balance to mark this invoice paid' });
+    }
     if (payload.invoiceNumber && payload.invoiceNumber !== existing.invoiceNumber) {
       const duplicate = await Invoice.findOne({ invoiceNumber: payload.invoiceNumber, _id: { $ne: existing._id } }).lean();
       if (duplicate) return res.status(409).json({ success: false, error: 'Invoice number already exists' });
@@ -1297,6 +1302,21 @@ exports.updatePayment = async (req, res) => {
       { ...req.body, ...(req.projectId ? { projectId: req.projectId } : {}) },
       { new: true, runValidators: true }
     );
+    // A payment that fails or is cancelled after being applied to an invoice must give
+    // the balance back, otherwise the invoice stays "paid" for money never received.
+    const VOIDED_PAYMENT = ['failed', 'cancelled'];
+    const wasApplied = !VOIDED_PAYMENT.includes(String(existing.status || '').toLowerCase());
+    if (existing.invoice && wasApplied && VOIDED_PAYMENT.includes(String(payment.status || '').toLowerCase())) {
+      const invoice = await Invoice.findById(existing.invoice);
+      if (invoice) {
+        invoice.amountPaid = Math.max((Number(invoice.amountPaid) || 0) - (Number(existing.amount) || 0), 0);
+        invoice.balanceDue = Math.max((Number(invoice.total) || 0) - invoice.amountPaid, 0);
+        if (invoice.balanceDue > 0 && invoice.status === 'paid') {
+          invoice.status = invoice.dueDate && invoice.dueDate < new Date() ? 'overdue' : 'sent';
+        }
+        await invoice.save();
+      }
+    }
     await logAudit({
       req,
       action: 'payment_updated',
@@ -1432,6 +1452,14 @@ exports.createBudget = async (req, res) => {
   try {
     const payload = await normalizeBudgetPayload(req.body || {});
     await assertOpenFinancialPeriod(req.body?.financialPeriodId);
+    // findActiveBudget picks the newest match, so a second budget for the same
+    // department/year would silently hide the first one's allocation and spend.
+    if (payload.departmentId) {
+      const duplicate = await Budget.findOne({ departmentId: payload.departmentId, fiscalYear: payload.fiscalYear }).lean();
+      if (duplicate) {
+        return res.status(409).json({ success: false, error: `${payload.department || 'This department'} already has a budget for ${payload.fiscalYear}. Adjust that budget's allocation instead.` });
+      }
+    }
     const reserved = Number(req.body?.reserved || 0);
     if (payload.allocated < 0 || payload.spent < 0 || reserved < 0) {
       return res.status(422).json({ success: false, error: 'Budget amounts cannot be negative' });
@@ -1461,8 +1489,17 @@ exports.createBudget = async (req, res) => {
 
 exports.updateBudget = async (req, res) => {
   try {
-    const normalized = await normalizeBudgetPayload(req.body || {});
-    const payload = { ...normalized, ...req.body, department: normalized.department, departmentId: normalized.departmentId };
+    // Partial update: only touch fields the caller sent. Running the whole body through
+    // normalizeBudgetPayload would default spent to 0 and clear the department link.
+    const body = req.body || {};
+    const payload = { ...body };
+    if (body.departmentId !== undefined || body.department !== undefined) {
+      const { departmentId, department } = await resolveDepartmentFields(body);
+      payload.departmentId = departmentId;
+      payload.department = department;
+    }
+    if (payload.allocated === undefined && body.allocatedAmount !== undefined) payload.allocated = body.allocatedAmount;
+    if (payload.spent === undefined && body.spentAmount !== undefined) payload.spent = body.spentAmount;
     const existing = await Budget.findById(req.params.id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Budget not found' });
@@ -1587,7 +1624,24 @@ exports.updatePayroll = async (req, res) => {
     if (['disbursed'].includes(String(existing.status || '').toLowerCase()) && (req.body?.netPay !== undefined || req.body?.grossPay !== undefined)) {
       return res.status(409).json({ success: false, error: 'Disbursed payroll cannot be re-amounted' });
     }
-    const payroll = await Payroll.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    // Lifecycle is forward-only: draft → processed → disbursed.
+    const PAYROLL_STAGES = ['draft', 'processed', 'disbursed'];
+    const fromStatus = String(existing.status || 'draft').toLowerCase();
+    const toStatus = req.body?.status !== undefined ? String(req.body.status).toLowerCase() : fromStatus;
+    if (!PAYROLL_STAGES.includes(toStatus)) {
+      return res.status(422).json({ success: false, error: `Invalid payroll status "${req.body.status}"` });
+    }
+    if (PAYROLL_STAGES.indexOf(toStatus) < PAYROLL_STAGES.indexOf(fromStatus)) {
+      return res.status(409).json({ success: false, error: `Payroll cannot move back from ${fromStatus} to ${toStatus}` });
+    }
+    const update = { ...req.body };
+    if (toStatus === 'disbursed' && fromStatus !== 'disbursed' && !update.paidOn) update.paidOn = new Date();
+    const payroll = await Payroll.findByIdAndUpdate(req.params.id, update, { new: true });
+    // createPayroll only charges the budget for records created past draft; a draft
+    // advanced here is charged once, on leaving draft.
+    if (fromStatus === 'draft' && toStatus !== 'draft' && payroll.budgetId) {
+      await Budget.findByIdAndUpdate(payroll.budgetId, { $inc: { spent: Number(payroll.netPay || payroll.grossPay) || 0 } });
+    }
     await logAudit({
       req,
       action: 'payroll_updated',
@@ -2113,9 +2167,22 @@ exports.createApprovalWorkflow = async (req, res) => {
 exports.updateApprovalWorkflowDecision = async (req, res) => {
   try {
     const { id } = req.params;
-    const { decision, remarks = '' } = req.body || {};
+    const { decision: rawDecision, remarks: rawRemarks = '' } = req.body || {};
+    const decision = String(rawDecision || '').toLowerCase();
+    const remarks = String(rawRemarks || '').trim();
+    if (!['approve', 'reject'].includes(decision)) {
+      return res.status(400).json({ success: false, error: 'Decision must be approve or reject' });
+    }
+    if (decision === 'reject' && !remarks) {
+      return res.status(400).json({ success: false, error: 'A rejection reason is required' });
+    }
     const workflow = await ApprovalWorkflow.findById(id);
     if (!workflow) return res.status(404).json({ success: false, error: 'Workflow not found' });
+    // Without this, a head could "approve" an already-rejected workflow whose later
+    // steps were still pending, flipping it (and its expense) back to approved.
+    if (workflow.status !== 'pending') {
+      return res.status(409).json({ success: false, error: `Approval request is already ${workflow.status}` });
+    }
     if (String(workflow.requestedBy || '') === String(req.user?.id || '')) {
       return res.status(403).json({ success: false, error: 'Users cannot approve their own finance requests' });
     }

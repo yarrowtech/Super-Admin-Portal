@@ -121,34 +121,14 @@ export const portalMenuConfig = {
     { label: 'Reports',          icon: 'analytics',              path: '/it/dashboard/reports',         description: 'SLA reports, uptime and ticket trends' },
     { label: 'Activity',         icon: 'history',                path: '/it/dashboard/activity',        description: 'Audit trails and system event logs' },
   ],
+  // `section` groups items under headings, ordered along the money workflow:
+  // bill (Invoices) → collect/pay (Payments) → spend (Expenses, Payroll) →
+  // control (Budgets, Accounting, Approval Rules) → personal workspace.
   finance: [
-    { label: 'Dashboard', icon: 'dashboard', path: '/finance/dashboard', description: 'Financial control center' },
+    { section: 'Overview', label: 'Dashboard', icon: 'dashboard', path: '/finance/dashboard', description: 'Financial control center' },
+    { section: 'Overview', label: 'Reports',   icon: 'bar_chart', path: '/finance/dashboard/reports', description: 'Financial reports' },
     {
-      label: 'Requests',
-      icon: 'assignment',
-      path: '/finance/group/requests',
-      children: [
-        { label: 'All Requests',       icon: 'list_alt',               path: '/finance/dashboard/activity?type=requests' },
-        { label: 'Pending Requests',   icon: 'pending_actions',        path: '/finance/dashboard/activity?status=submitted' },
-        { label: 'Purchase Requests',  icon: 'shopping_cart',          path: '/finance/dashboard/activity?type=purchase' },
-        { label: 'Advance Requests',   icon: 'payments',               path: '/finance/dashboard/activity?type=advance' },
-        { label: 'Expense Requests',   icon: 'request_quote',          path: '/finance/dashboard/expenses' },
-        { label: 'Reimbursements',     icon: 'currency_exchange',      path: '/finance/dashboard/expenses?category=reimbursement' },
-        { label: 'Payment Requests',   icon: 'payments',               path: '/finance/dashboard/payments' },
-        { label: 'Budget Requests',    icon: 'account_balance_wallet', path: '/finance/dashboard/budgets?status=pending' },
-      ],
-    },
-    {
-      label: 'Transactions',
-      icon: 'receipt',
-      path: '/finance/group/transactions',
-      children: [
-        { label: 'All Transactions', icon: 'history',     path: '/finance/dashboard/activity' },
-        { label: 'Income',           icon: 'trending_up', path: '/finance/dashboard/activity?type=income' },
-        { label: 'Transfers',        icon: 'swap_horiz',  path: '/finance/dashboard/payments' },
-      ],
-    },
-    {
+      section: 'Transactions',
       label: 'Invoices',
       icon: 'receipt_long',
       path: '/finance/group/invoices',
@@ -161,21 +141,24 @@ export const portalMenuConfig = {
       ],
     },
     {
+      section: 'Transactions',
       label: 'Payments',
       icon: 'payments',
       path: '/finance/group/payments',
       children: [
-        { label: 'Payment Queue',    icon: 'payments', path: '/finance/dashboard/payments' },
-        { label: 'Scheduled',        icon: 'event',    path: '/finance/dashboard/payments?status=recorded' },
-        { label: 'Completed',        icon: 'done_all', path: '/finance/dashboard/payments?status=reconciled' },
+        { label: 'Payment Ledger',   icon: 'payments', path: '/finance/dashboard/payments' },
+        { label: 'To Reconcile',     icon: 'event',    path: '/finance/dashboard/payments?status=recorded' },
+        { label: 'Reconciled',       icon: 'done_all', path: '/finance/dashboard/payments?status=reconciled' },
         { label: 'Failed',           icon: 'error',    path: '/finance/dashboard/payments?status=failed' },
-        { label: 'Pending Approval', icon: 'approval', path: '/finance/dashboard/approvals' },
+        // Heads reach the same page via Approval Rules; one entry avoids a double highlight.
+        { label: 'Pending Approval', icon: 'approval', path: '/finance/dashboard/approvals', roles: ['finance_employee'] },
       ],
     },
-    { label: 'Budgets',  icon: 'account_balance_wallet', path: '/finance/dashboard/budgets',  description: 'Department budgets' },
-    { label: 'Expenses', icon: 'request_quote',          path: '/finance/dashboard/expenses', description: 'Expense management' },
-    { label: 'Payroll',  icon: 'badge',                  path: '/finance/dashboard/payroll',  description: 'Payroll processing' },
+    { section: 'Transactions', label: 'Expenses', icon: 'request_quote', path: '/finance/dashboard/expenses', description: 'Expense management' },
+    { section: 'Transactions', label: 'Payroll',  icon: 'badge',         path: '/finance/dashboard/payroll',  description: 'Payroll processing' },
+    { section: 'Planning & Control', label: 'Budgets', icon: 'account_balance_wallet', path: '/finance/dashboard/budgets', description: 'Department budgets' },
     {
+      section: 'Planning & Control',
       label: 'Accounting',
       icon: 'menu_book',
       path: '/finance/group/accounting',
@@ -185,32 +168,13 @@ export const portalMenuConfig = {
         { label: 'Compliance & Tax',             icon: 'gavel',        path: '/finance/dashboard/compliance' },
       ],
     },
-    { label: 'Reports', icon: 'bar_chart', path: '/finance/dashboard/reports', description: 'Financial reports' },
-    {
-      label: 'Departments',
-      icon: 'domain',
-      path: '/finance/group/departments',
-      // Per-department entries are appended at runtime from the department catalog (FinanceSidebar).
-      dynamicChildren: 'departments',
-      children: [
-        { label: 'All Departments', icon: 'domain', path: '/finance/dashboard/project-overview' },
-      ],
-    },
-    {
-      label: 'Audit',
-      icon: 'policy',
-      path: '/finance/group/audit',
-      children: [
-        { label: 'Activity Logs',    icon: 'history',  path: '/finance/dashboard/activity' },
-        { label: 'Approval History', icon: 'approval', path: '/finance/dashboard/approvals' },
-      ],
-    },
-    { label: 'Tasks',      icon: 'task',           path: '/finance/dashboard/tasks',      description: 'Workflow tasks and reminders' },
-    { label: 'Attendance', icon: 'calendar_month', path: '/finance/dashboard/attendance', description: 'Attendance operations' },
-    { label: 'Team',       icon: 'group',          path: '/finance/dashboard/team',       description: 'Finance department directory', roles: FINANCE_DEPT_ROLES },
-    { label: 'Messages',   icon: 'forum',          path: '/finance/dashboard/messages',   description: 'Finance team messages', roles: FINANCE_DEPT_ROLES },
     // Finance Head only (previously the Administration section).
-    { label: 'Approval Rules', icon: 'rule', path: '/finance/dashboard/approvals', description: 'Approval workflows', roles: FINANCE_HEAD_ROLES },
+    { section: 'Planning & Control', label: 'Approval Rules', icon: 'rule', path: '/finance/dashboard/approvals', description: 'Approval workflows', roles: FINANCE_HEAD_ROLES },
+    { section: 'My Workspace', label: 'Tasks',     icon: 'task',        path: '/finance/dashboard/tasks',     description: 'Workflow tasks and reminders' },
+    { section: 'My Workspace', label: 'Leave',     icon: 'event_note',  path: '/finance/dashboard/leave',     description: 'Leave requests and status' },
+    { section: 'My Workspace', label: 'Documents', icon: 'folder_open', path: '/finance/dashboard/documents', description: 'Payslips and documents' },
+    { section: 'My Workspace', label: 'Team',      icon: 'group',       path: '/finance/dashboard/team',      description: 'Finance department directory', roles: FINANCE_DEPT_ROLES },
+    { section: 'My Workspace', label: 'Messages',  icon: 'forum',       path: '/finance/dashboard/messages',  description: 'Finance team messages', roles: FINANCE_DEPT_ROLES },
   ],
   media: [
     { label: 'Dashboard', icon: 'campaign', path: '/media/dashboard', description: 'Media command center' },

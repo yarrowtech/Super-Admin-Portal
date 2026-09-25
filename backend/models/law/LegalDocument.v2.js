@@ -34,6 +34,8 @@ const legalAnnotationSchema = new mongoose.Schema(
     kind: { type: String, enum: ['note', 'highlight'], default: 'note' },
     text: { type: String, trim: true, required: true, maxlength: 2000 },
     critical: { type: Boolean, default: false },
+    // The document passage this point is about (selected text), so readers can jump to it.
+    quote: { type: String, trim: true, default: '', maxlength: 500 },
     taskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdByName: { type: String, default: '' },

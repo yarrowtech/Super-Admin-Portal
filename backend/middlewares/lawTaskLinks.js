@@ -40,15 +40,6 @@ const displayTitle = (module, doc) => String(
   doc?.title || doc?.job?.title || doc?.documentNumber || `${module.replace('_', ' ')} ${String(doc?._id || '').slice(-6)}`,
 ).slice(0, 200);
 
-// Loads just enough of a record to validate it exists and derive a display title.
-const findForTitle = (module, recordId) => {
-  const filter = { _id: recordId };
-  if (module === 'document') filter.deletedAt = null;
-  const query = MODULES[module].findOne(filter);
-  if (module === 'outsourcing_contract') return query.select('job').populate('job', 'title').lean();
-  return query.select('title documentNumber').lean();
-};
-
 /**
  * Task create/update hook (Law). Only the head/admin may set `linkedItems`; each entry must
  * reference an existing record. Titles are re-read from the database (never trusted from the
@@ -70,7 +61,19 @@ const validateLinkedItems = async (req, res, next) => {
       }
     }
     const raw = req.body?.linkedItems;
-    if (raw === undefined) return next();
+    if (raw === undefined) {
+      // Moving a task to another project must not leave it pointing at the old project's documents.
+      if (req.validatedProject !== undefined && req.params?.id && isValidId(req.params.id)) {
+        const current = await Task.findById(req.params.id).select('linkedItems').lean();
+        const docIds = (current?.linkedItems || []).filter((l) => l.module === 'document').map((l) => l.recordId);
+        if (docIds.length) {
+          if (!req.validatedProject) return res.status(400).json({ success: false, error: 'Remove the linked documents before clearing the project' });
+          const outside = await LegalDocument.countDocuments({ _id: { $in: docIds }, projectId: { $ne: req.validatedProject } });
+          if (outside) return res.status(400).json({ success: false, error: 'Linked documents belong to another project — update the documents together with the project' });
+        }
+      }
+      return next();
+    }
     if (!isManager(req)) {
       delete req.body.linkedItems;
       return res.status(403).json({ success: false, error: 'Only the law head can link items to a task' });
@@ -78,19 +81,33 @@ const validateLinkedItems = async (req, res, next) => {
     if (!Array.isArray(raw) || raw.length > MAX_LINKED_ITEMS) {
       return res.status(400).json({ success: false, error: `linkedItems must be an array of at most ${MAX_LINKED_ITEMS} items` });
     }
+    // Tasks share project-wise legal documents only: every link must be a live (not archived)
+    // legal document of the task's own project. The project comes from this request, or from
+    // the existing task when an update doesn't change it.
+    let taskProject = req.validatedProject;
+    if (taskProject === undefined && req.params?.id && isValidId(req.params.id)) {
+      const current = await Task.findById(req.params.id).select('project').lean();
+      taskProject = current?.project ? String(current.project) : null;
+    }
+    if (raw.length > 0 && !taskProject) {
+      return res.status(400).json({ success: false, error: 'Choose the task project before linking documents' });
+    }
     const seen = new Set();
     const normalized = [];
     for (const entry of raw) {
       const module = String(entry?.module || '');
       const recordId = String(entry?.recordId || '');
-      if (!MODULES[module] || !isValidId(recordId)) {
-        return res.status(400).json({ success: false, error: 'Each linked item needs a valid module (record, contract, document, outsourcing_contract) and recordId' });
+      if (module !== 'document' || !isValidId(recordId)) {
+        return res.status(400).json({ success: false, error: 'Only legal documents can be linked to a task' });
       }
       if (seen.has(`${module}:${recordId}`)) continue;
       seen.add(`${module}:${recordId}`);
-      const doc = await findForTitle(module, recordId);
+      const doc = await LegalDocument.findOne({ _id: recordId, deletedAt: null, isArchived: { $ne: true } }).select('title documentNumber projectId').lean();
       if (!doc) {
-        return res.status(404).json({ success: false, error: `Linked ${module} not found` });
+        return res.status(404).json({ success: false, error: 'Linked document not found' });
+      }
+      if (String(doc.projectId || '') !== String(taskProject)) {
+        return res.status(400).json({ success: false, error: `"${doc.title}" does not belong to this task's project` });
       }
       normalized.push({ module, recordId, title: displayTitle(module, doc), canEdit: module === 'document' && entry.canEdit === true });
     }
@@ -136,6 +153,9 @@ const loadTaskForItem = async (req, res) => {
     sendError(res, 404, 'Task not found');
     return null;
   }
+  // Employees / freelancers only ever reach legal-document links; older tasks may still carry
+  // contract / compliance links, which stay visible to the head only.
+  if (!isManager(req)) task.linkedItems = (task.linkedItems || []).filter((l) => l.module === 'document');
   const link = recordId === undefined ? null : (task.linkedItems || []).find((l) => idStr(l.recordId) === String(recordId));
   if (recordId !== undefined && !link) {
     sendError(res, 404, 'Item is not linked to this task');
@@ -189,7 +209,7 @@ const summarize = (module, doc) => {
     projectId: doc.projectId || null, projectName: doc.projectName || '',
     isLocked: Boolean(doc.isLocked),
     annotations: (doc.annotations || []).map((a) => ({
-      _id: a._id, kind: a.kind, text: a.text, critical: Boolean(a.critical),
+      _id: a._id, kind: a.kind, text: a.text, critical: Boolean(a.critical), quote: a.quote || '',
       taskId: a.taskId || null, createdBy: a.createdBy || null, createdByName: a.createdByName || '', createdAt: a.createdAt,
     })),
   };
@@ -237,19 +257,14 @@ const listLinkableItems = async (req, res) => {
     if (!isManager(req)) return sendError(res, 403, 'Only the law head can link items to a task');
     const search = String(req.query.search || '').trim().slice(0, 80);
     const rx = search ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
-    const CAP = 200;
-    const [records, contracts, documents, outsourcing] = await Promise.all([
-      Law.find(rx ? { title: rx } : {}).select('title section status').sort({ updatedAt: -1 }).limit(CAP).lean(),
-      LawContract.find(rx ? { title: rx } : {}).select('title status').sort({ updatedAt: -1 }).limit(CAP).lean(),
-      LegalDocument.find({ deletedAt: null, ...(rx ? { title: rx } : {}) }).select('title type status').sort({ updatedAt: -1 }).limit(CAP).lean(),
-      OutsourcingContract.find({}).select('job status').populate('job', 'title').sort({ updatedAt: -1 }).limit(CAP).lean(),
-    ]);
-    const data = [
-      ...records.map((d) => ({ module: 'record', recordId: d._id, title: displayTitle('record', d), type: d.section, status: d.status })),
-      ...contracts.map((d) => ({ module: 'contract', recordId: d._id, title: displayTitle('contract', d), type: 'contract', status: d.status })),
-      ...documents.map((d) => ({ module: 'document', recordId: d._id, title: displayTitle('document', d), type: d.type, status: d.status })),
-      ...outsourcing.filter((d) => !rx || rx.test(d.job?.title || '')).map((d) => ({ module: 'outsourcing_contract', recordId: d._id, title: displayTitle('outsourcing_contract', d), type: 'outsourcing contract', status: d.status })),
-    ];
+    // Project-wise legal documents only: a project is required and nothing else is offered.
+    if (!isValidId(req.query.projectId)) return sendError(res, 400, 'Choose a project to list its legal documents');
+    const documents = await LegalDocument.find({ deletedAt: null, isArchived: { $ne: true }, projectId: String(req.query.projectId), ...(rx ? { title: rx } : {}) })
+      .select('title documentNumber type status projectId projectName').sort({ updatedAt: -1 }).limit(200).lean();
+    const data = documents.map((d) => ({
+      module: 'document', recordId: d._id, title: displayTitle('document', d), type: d.type, status: d.status,
+      referenceNumber: d.documentNumber || '', projectId: d.projectId, projectName: d.projectName || '',
+    }));
     return res.json({ success: true, data });
   } catch (err) {
     logger.error({ err }, 'Law linkable items error');
@@ -271,8 +286,9 @@ const listMyItems = async (req, res) => {
     const tasks = await Task.find({
       assignedTo: req.user._id,
       status: { $ne: 'cancelled' },
-      'linkedItems.0': { $exists: true },
+      'linkedItems.module': 'document',
     }).select('title status priority dueDate linkedItems').sort({ dueDate: 1 }).limit(200).lean();
+    tasks.forEach((t) => { t.linkedItems = (t.linkedItems || []).filter((l) => l.module === 'document'); });
 
     const cache = new Map();
     const load = (link) => {
@@ -290,7 +306,18 @@ const listMyItems = async (req, res) => {
         const doc = await load(link);
         if (!doc) return { ...base, title: link.title, missing: true };
         const s = summarize(link.module, doc);
-        return { ...base, title: s.title || link.title, type: s.type, status: s.status, fileCount: fileMeta(filesOf(link.module, doc)).length };
+        return {
+          ...base, title: s.title || link.title, type: s.type, status: s.status, fileCount: fileMeta(filesOf(link.module, doc)).length,
+          canEdit: Boolean(link.canEdit), projectName: s.projectName || '', annotationCount: (s.annotations || []).length,
+          highlightCount: (s.annotations || []).filter((a) => a.kind === 'highlight').length,
+          criticalCount: (s.annotations || []).filter((a) => a.critical).length,
+          // Up to 3 key points for the list preview: critical first, then newest.
+          topPoints: (s.annotations || [])
+            .filter((a) => a.kind === 'highlight' || a.critical)
+            .sort((a, b) => (Number(b.critical) - Number(a.critical)) || (new Date(b.createdAt) - new Date(a.createdAt)))
+            .slice(0, 3)
+            .map((a) => ({ text: String(a.text).slice(0, 160), critical: a.critical, kind: a.kind })),
+        };
       }));
       data.push(...rows);
     }
@@ -310,7 +337,12 @@ const listTaskItems = async (req, res) => {
       const doc = await loadRecord(link.module, link.recordId);
       if (!doc) return { module: link.module, recordId: link.recordId, title: link.title, missing: true };
       const s = summarize(link.module, doc);
-      return { module: link.module, recordId: link.recordId, title: s.title || link.title, type: s.type, status: s.status, fileCount: fileMeta(filesOf(link.module, doc)).length };
+      return {
+        module: link.module, recordId: link.recordId, title: s.title || link.title, type: s.type, status: s.status,
+        fileCount: fileMeta(filesOf(link.module, doc)).length, canEdit: Boolean(link.canEdit),
+        projectName: s.projectName || '', annotationCount: (s.annotations || []).length,
+        criticalCount: (s.annotations || []).filter((a) => a.critical).length,
+      };
     }));
     return res.json({ success: true, data: items });
   } catch (err) {
@@ -327,10 +359,107 @@ const getTaskItem = async (req, res) => {
     const { module } = ctx.link;
     const doc = await loadRecord(module, req.params.recordId);
     if (!doc) return sendError(res, 404, 'Linked item no longer exists');
-    return res.json({ success: true, data: { module, recordId: req.params.recordId, ...summarize(module, doc), files: fileMeta(filesOf(module, doc)) } });
+    const data = {
+      module, recordId: req.params.recordId, ...summarize(module, doc), files: fileMeta(filesOf(module, doc)),
+      taskStatus: ctx.task.status, isAssignee: idStr(ctx.task.assignedTo) === idStr(req.user._id),
+    };
+    if (module === 'document') {
+      const blocker = editBlocker(req, ctx, doc);
+      data.canEdit = !blocker;
+      data.editBlockedReason = blocker;
+      data.sharedForEdit = Boolean(ctx.link.canEdit);
+      // The body is only sent to people allowed to edit it (and the head).
+      if (isManager(req) || ctx.link.canEdit) {
+        const body = await LegalDocument.findById(doc._id).select('latestContent').lean();
+        data.content = body?.latestContent || '';
+      }
+    }
+    return res.json({ success: true, data });
   } catch (err) {
     logger.error({ err }, 'Law task item detail error');
     return sendError(res, 500, 'Failed to load linked item');
+  }
+};
+
+// PUT /task-items/:taskId/:recordId/content — save the document body through the task.
+// Same versioning as the document editor: minor version bump + version snapshot + audit.
+const saveTaskItemContent = async (req, res) => {
+  try {
+    const ctx = await loadTaskForItem(req, res);
+    if (!ctx) return undefined;
+    const doc = await LegalDocument.findOne({ _id: req.params.recordId, deletedAt: null });
+    if (!doc) return sendError(res, 404, 'Linked item no longer exists');
+    const blocker = editBlocker(req, ctx, doc);
+    if (blocker) return sendError(res, 403, blocker);
+    const content = req.body?.content;
+    if (typeof content !== 'string') return sendError(res, 400, 'content is required');
+    if (content.length > 5 * 1024 * 1024) return sendError(res, 413, 'Document is too large');
+    const changeSummary = String(req.body?.changeSummary || '').trim().slice(0, 300) || `Edited via task "${ctx.task.title}"`;
+    doc.latestContent = content;
+    doc.versionMinor = (doc.versionMinor || 0) + 1;
+    doc.currentVersion = `v${doc.versionMajor || 1}.${doc.versionMinor}`;
+    await doc.save();
+    await LegalDocumentVersion.create({
+      documentId: doc._id, version: doc.currentVersion, content: content.trim() ? content : '<p><br></p>',
+      editedBy: req.user._id, editedByName: actorName(req), changeSummary, statusAtTime: doc.status,
+    });
+    await auditDoc(req, doc._id, 'UPDATE', changeSummary, { version: doc.currentVersion, taskId: ctx.task._id });
+    return res.json({ success: true, data: { version: doc.currentVersion, updatedAt: doc.updatedAt } });
+  } catch (err) {
+    logger.error({ err }, 'Law task document save error');
+    return sendError(res, 500, 'Failed to save document');
+  }
+};
+
+// POST /task-items/:taskId/:recordId/annotations — add a note or key highlight point.
+const addTaskItemAnnotation = async (req, res) => {
+  try {
+    const ctx = await loadTaskForItem(req, res);
+    if (!ctx) return undefined;
+    const doc = await LegalDocument.findOne({ _id: req.params.recordId, deletedAt: null });
+    if (!doc) return sendError(res, 404, 'Linked item no longer exists');
+    // Notes may still be added after approval (they don't change the signed text); only the
+    // share permission and an open task are required.
+    if (ctx.link.module !== 'document') return sendError(res, 400, 'Notes can only be added to legal documents');
+    if (!isManager(req) && !ctx.link.canEdit) return sendError(res, 403, 'The law head has shared this document read-only');
+    if (!isManager(req) && CLOSED_TASK_STATUSES.includes(String(ctx.task.status || ''))) return sendError(res, 403, 'This task is closed');
+    const text = String(req.body?.text || '').trim();
+    if (!text) return sendError(res, 400, 'Text is required');
+    if (text.length > 2000) return sendError(res, 400, 'Keep it under 2000 characters');
+    const kind = req.body?.kind === 'highlight' ? 'highlight' : 'note';
+    if ((doc.annotations || []).length >= 200) return sendError(res, 409, 'This document already has the maximum of 200 notes');
+    doc.annotations.push({
+      kind, text, critical: req.body?.critical === true, quote: String(req.body?.quote || '').trim().slice(0, 500), taskId: ctx.task._id,
+      createdBy: req.user._id, createdByName: actorName(req), createdAt: new Date(),
+    });
+    await doc.save();
+    const added = doc.annotations[doc.annotations.length - 1];
+    await auditDoc(req, doc._id, 'UPDATE', `${kind === 'highlight' ? 'Key point' : 'Note'} added via task`, { taskId: ctx.task._id, annotationId: added._id });
+    return res.status(201).json({ success: true, data: added });
+  } catch (err) {
+    logger.error({ err }, 'Law task annotation error');
+    return sendError(res, 500, 'Failed to add note');
+  }
+};
+
+// DELETE /task-items/:taskId/:recordId/annotations/:annotationId — author or head only.
+const deleteTaskItemAnnotation = async (req, res) => {
+  try {
+    const ctx = await loadTaskForItem(req, res);
+    if (!ctx) return undefined;
+    if (!isValidId(req.params.annotationId)) return sendError(res, 400, 'Invalid id');
+    const doc = await LegalDocument.findOne({ _id: req.params.recordId, deletedAt: null });
+    if (!doc) return sendError(res, 404, 'Linked item no longer exists');
+    const note = doc.annotations.id(req.params.annotationId);
+    if (!note) return sendError(res, 404, 'Note not found');
+    if (!isManager(req) && idStr(note.createdBy) !== idStr(req.user._id)) return sendError(res, 403, 'You can only remove your own notes');
+    note.deleteOne();
+    await doc.save();
+    await auditDoc(req, doc._id, 'UPDATE', 'Note removed via task', { taskId: ctx.task._id, annotationId: req.params.annotationId });
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Law task annotation delete error');
+    return sendError(res, 500, 'Failed to remove note');
   }
 };
 
@@ -382,4 +511,101 @@ const viewTaskItemFile = async (req, res) => {
   }
 };
 
-module.exports = { freelancerOnly, denyLawEmployee, validateLinkedItems, listLinkableItems, listMyItems, listTaskItems, getTaskItem, viewTaskItemFile };
+// GET /task-items/monitor — law head only: every legal document shared through a task, with the
+// assignee, task progress, edit access, last edit and notes, plus a recent activity feed.
+const monitorDocumentWork = async (req, res) => {
+  try {
+    if (!isManager(req)) return sendError(res, 403, 'Only the law head can monitor document work');
+    const tasks = await Task.find({ 'linkedItems.module': 'document' })
+      .select('title status priority dueDate isOverdue assignedTo project linkedItems updatedAt createdAt')
+      .populate('project', 'name projectCode')
+      .sort({ updatedAt: -1 })
+      .limit(500)
+      .lean();
+    // Names are looked up separately so the assignee id survives even if the account was removed.
+    const userIds = [...new Set(tasks.map((t) => idStr(t.assignedTo)).filter(isValidId))];
+    const usersById = new Map((await User.find({ _id: { $in: userIds } }).select('firstName lastName email').lean()).map((u) => [idStr(u._id), u]));
+
+    const docIds = [...new Set(tasks.flatMap((t) => (t.linkedItems || []).filter((l) => l.module === 'document').map((l) => idStr(l.recordId))))];
+    const [docs, versions] = await Promise.all([
+      LegalDocument.find({ _id: { $in: docIds } })
+        .select('title documentNumber type status currentVersion isLocked projectId projectName updatedAt deletedAt isArchived annotations')
+        .lean(),
+      LegalDocumentVersion.find({ documentId: { $in: docIds } })
+        .select('documentId version editedBy editedByName changeSummary createdAt')
+        .sort({ createdAt: -1 })
+        .limit(2000)
+        .lean(),
+    ]);
+    const docById = new Map(docs.map((d) => [idStr(d._id), d]));
+    const lastEditByDoc = new Map();
+    const lastEditByDocUser = new Map();
+    versions.forEach((v) => {
+      const d = idStr(v.documentId);
+      if (!lastEditByDoc.has(d)) lastEditByDoc.set(d, v);
+      const key = `${d}:${idStr(v.editedBy)}`;
+      if (!lastEditByDocUser.has(key)) lastEditByDocUser.set(key, v);
+    });
+
+    const personName = (p) => [p?.firstName, p?.lastName].filter(Boolean).join(' ').trim() || p?.email || 'Employee';
+    const rows = [];
+    tasks.forEach((task) => {
+      (task.linkedItems || []).filter((l) => l.module === 'document').forEach((link) => {
+        const docId = idStr(link.recordId);
+        const doc = docById.get(docId);
+        const notes = doc?.annotations || [];
+        const assigneeId = idStr(task.assignedTo);
+        const lastByAssignee = lastEditByDocUser.get(`${docId}:${assigneeId}`);
+        const lastAny = lastEditByDoc.get(docId);
+        rows.push({
+          key: `${idStr(task._id)}:${docId}`,
+          taskId: task._id,
+          taskTitle: task.title,
+          taskStatus: task.status,
+          priority: task.priority,
+          dueDate: task.dueDate,
+          isOverdue: Boolean(task.isOverdue || (task.dueDate && new Date(task.dueDate) < new Date() && !CLOSED_TASK_STATUSES.includes(task.status))),
+          assignee: { id: assigneeId, name: usersById.has(assigneeId) ? personName(usersById.get(assigneeId)) : 'Former employee' },
+          project: task.project ? { id: idStr(task.project), name: task.project.name || task.project.projectCode || 'Project' } : null,
+          canEdit: Boolean(link.canEdit),
+          document: doc && !doc.deletedAt ? {
+            _id: doc._id, title: doc.title, documentNumber: doc.documentNumber, type: doc.type, status: doc.status,
+            currentVersion: doc.currentVersion, isLocked: Boolean(doc.isLocked), isArchived: Boolean(doc.isArchived),
+            projectId: doc.projectId, projectName: doc.projectName, updatedAt: doc.updatedAt, annotations: notes,
+          } : null,
+          title: doc?.title || link.title,
+          missing: !doc || Boolean(doc.deletedAt),
+          noteCount: notes.length,
+          highlightCount: notes.filter((a) => a.kind === 'highlight').length,
+          criticalCount: notes.filter((a) => a.critical).length,
+          assigneeNoteCount: notes.filter((a) => idStr(a.createdBy) === assigneeId).length,
+          assigneeLastEdit: lastByAssignee ? { at: lastByAssignee.createdAt, version: lastByAssignee.version, summary: lastByAssignee.changeSummary } : null,
+          lastEdit: lastAny ? { at: lastAny.createdAt, by: lastAny.editedByName, version: lastAny.version } : null,
+        });
+      });
+    });
+
+    // Recent activity across these documents: edits (versions) and notes, newest first.
+    const activity = [
+      ...versions.slice(0, 40).map((v) => ({
+        type: 'edit', at: v.createdAt, by: v.editedByName || 'Someone', docId: v.documentId,
+        docTitle: docById.get(idStr(v.documentId))?.title || 'Document', text: v.changeSummary, version: v.version,
+      })),
+      ...docs.flatMap((d) => (d.annotations || []).map((a) => ({
+        type: a.kind === 'highlight' ? 'highlight' : 'note', critical: Boolean(a.critical), at: a.createdAt,
+        by: a.createdByName || 'Someone', docId: d._id, docTitle: d.title, text: String(a.text || '').slice(0, 200),
+      }))),
+    ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 40);
+
+    return res.json({ success: true, data: { rows, activity } });
+  } catch (err) {
+    logger.error({ err }, 'Law document monitor error');
+    return sendError(res, 500, 'Failed to load document work');
+  }
+};
+
+module.exports = {
+  monitorDocumentWork,
+  freelancerOnly, denyLawEmployee, validateLinkedItems, listLinkableItems, listMyItems, listTaskItems, getTaskItem, viewTaskItemFile,
+  saveTaskItemContent, addTaskItemAnnotation, deleteTaskItemAnnotation,
+};

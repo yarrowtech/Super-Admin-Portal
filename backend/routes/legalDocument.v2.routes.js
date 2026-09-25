@@ -72,6 +72,10 @@ router.get(
   authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.CEO, ROLES.ADMIN, ROLES.SUPER_ADMIN),
   ctrl.getVersions
 );
+// Key points & notes pinned to a document — head side (employees add theirs through their task).
+router.post('/:id/annotations', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.addAnnotation);
+router.patch('/:id/annotations/:annotationId', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.updateAnnotation);
+router.delete('/:id/annotations/:annotationId', authorize(ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.deleteAnnotation);
 router.post('/:id/restore/:versionId', authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN), ctrl.restoreVersion);
 
 module.exports = router;

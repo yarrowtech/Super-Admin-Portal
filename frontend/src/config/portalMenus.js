@@ -3,6 +3,7 @@
 export const IT_DEPT_ROLES = ['it_manager', 'it_admin', 'it_employee', 'it_hr'];
 export const FINANCE_DEPT_ROLES = ['finance_manager', 'finance_employee'];
 export const FINANCE_HEAD_ROLES = ['finance_manager', 'admin', 'super_admin'];
+export const LAW_HEAD_ROLES = ['law_head', 'admin', 'super_admin', 'superadmin'];
 
 export const portalMenuConfig = {
   admin: [
@@ -51,11 +52,31 @@ export const portalMenuConfig = {
   ceo: [
     { label: 'Dashboard', icon: 'dashboard', path: '/ceo/dashboard', description: 'Executive overview' },
   ],
+  // Grouped by `section`; head and employee get different layouts because each item is
+  // role-filtered before headings are drawn (see PortalSidebar).
   law: [
-    { label: 'Dashboard',  icon: 'gavel',         path: '/law/dashboard',   description: 'Legal operations' },
-    { label: 'Project Overview', icon: 'folder_copy', path: '/law/project-overview', description: 'Read-only project plan visibility' },
-    { label: 'Assigned Work', icon: 'assignment', path: '/law/assigned-work', description: 'Documents and contracts linked to your tasks', roles: ['law_employee'] },
+    { section: 'Overview', label: 'Dashboard', icon: 'gavel', path: '/law/dashboard', description: 'Legal operations' },
+    { section: 'Overview', label: 'Project Overview', icon: 'folder_copy', path: '/law/project-overview', description: 'Read-only project plan visibility', roles: LAW_HEAD_ROLES },
+
+    // Law employee: documents first, then the tasks they arrive through.
+    { section: 'My Work', label: 'My Documents', icon: 'description', path: '/law/assigned-work', description: 'Project-wise legal documents shared with you', roles: ['law_employee'] },
+    { section: 'My Work', label: 'Tasks', icon: 'task', path: '/law/tasks', description: 'Tasks assigned to you', roles: ['law_employee'] },
+    { section: 'My Work', label: 'Project Overview', icon: 'folder_copy', path: '/law/project-overview', description: 'Read-only project plan visibility', roles: ['law_employee'] },
+
+    // Law head: the legal library, documents first.
     {
+      section: 'Legal Library',
+      label: 'Documents',
+      icon: 'description',
+      path: '/law/group/documents',
+      roles: LAW_HEAD_ROLES,
+      children: [
+        { label: 'Legal Documents',  icon: 'description',   path: '/law/documents/legal' },
+        { label: 'Approved Library', icon: 'library_books', path: '/law/documents/library' },
+      ],
+    },
+    {
+      section: 'Legal Library',
       label: 'Contracts',
       icon: 'contract',
       path: '/law/group/contracts',
@@ -68,16 +89,7 @@ export const portalMenuConfig = {
       ],
     },
     {
-      label: 'Documents',
-      icon: 'description',
-      path: '/law/group/documents',
-      roles: ['law_head', 'admin', 'super_admin', 'superadmin'],
-      children: [
-        { label: 'Legal Documents',  icon: 'description',   path: '/law/documents/legal' },
-        { label: 'Approved Library', icon: 'library_books', path: '/law/documents/library' },
-      ],
-    },
-    {
+      section: 'Legal Library',
       label: 'Compliance',
       icon: 'policy',
       path: '/law/group/compliance',
@@ -89,6 +101,7 @@ export const portalMenuConfig = {
       ],
     },
     {
+      section: 'Legal Library',
       label: 'Risk',
       icon: 'balance',
       path: '/law/group/risk',
@@ -97,12 +110,16 @@ export const portalMenuConfig = {
         { label: 'Disputes & Fraud', icon: 'balance', path: '/law/risk/disputes' },
       ],
     },
-    { label: 'Tasks',      icon: 'task',           path: '/law/tasks',      description: 'Legal workflow tasks' },
-    { label: 'Attendance', icon: 'calendar_month', path: '/law/attendance', description: 'Attendance operations' },
-    { label: 'Team',       icon: 'group',          path: '/law/team',       description: 'Law department directory' },
-    { label: 'Messages',   icon: 'forum',          path: '/law/messages',   description: 'Law team messages' },
-    { label: 'Jobs',       icon: 'work_outline',   path: '/law/jobs',       description: 'Recruitment postings', roles: ['law_head', 'admin', 'super_admin', 'superadmin'] },
-    { label: 'Leave',      icon: 'event_busy',     path: '/law/leave', description: 'Request and track leave', roles: ['law_employee'] },
+    { section: 'Team Operations', label: 'Document Work', icon: 'monitoring', path: '/law/document-work', description: 'Monitor documents assigned to the team', roles: LAW_HEAD_ROLES },
+    { section: 'Team Operations', label: 'Tasks', icon: 'task', path: '/law/tasks', description: 'Assign work and share project documents', roles: LAW_HEAD_ROLES },
+    { section: 'Team Operations', label: 'Attendance', icon: 'calendar_month', path: '/law/attendance', description: 'Attendance operations', roles: LAW_HEAD_ROLES },
+    { section: 'Team Operations', label: 'Jobs', icon: 'work_outline', path: '/law/jobs', description: 'Recruitment postings', roles: LAW_HEAD_ROLES },
+
+    // Everyone: personal workspace.
+    { section: 'My Workspace', label: 'Attendance', icon: 'calendar_month', path: '/law/attendance', description: 'Your attendance', roles: ['law_employee'] },
+    { section: 'My Workspace', label: 'Leave', icon: 'event_busy', path: '/law/leave', description: 'Request and track leave', roles: ['law_employee'] },
+    { section: 'My Workspace', label: 'Team', icon: 'group', path: '/law/team', description: 'Law department directory' },
+    { section: 'My Workspace', label: 'Messages', icon: 'forum', path: '/law/messages', description: 'Law team messages' },
   ],
   it: [
     { label: 'Dashboard',        icon: 'dashboard',              path: '/it/dashboard',                description: 'Command center overview' },

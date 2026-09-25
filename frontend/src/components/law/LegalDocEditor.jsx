@@ -8,6 +8,7 @@ import React, {
   useImperativeHandle,
 } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import SelectionHighlighter from './editor/SelectionHighlighter';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
@@ -99,6 +100,8 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
     lastSavedAt,
     fullscreen = false,
     onToggleFullscreen,
+    // Optional: pin a key point / note from the selection toolbar ({ kind, critical, text, quote }).
+    onQuickNote,
   },
   ref
 ) {
@@ -236,6 +239,65 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
       editor?.commands.setContent(parsed.body || '', false);
     },
     focus: () => editor?.commands.focus(),
+    // Text currently selected in the document ('' when nothing is selected).
+    getSelectedText: () => {
+      if (!editor) return '';
+      const { from, to } = editor.state.selection;
+      if (from !== to) return editor.state.doc.textBetween(from, to, ' ').trim();
+      // Read-only documents don't sync the editor selection, so fall back to the browser's
+      // selection when it sits inside this document.
+      const sel = window.getSelection?.();
+      if (sel && !sel.isCollapsed && sel.anchorNode && editor.view.dom.contains(sel.anchorNode)) return sel.toString().trim();
+      return '';
+    },
+    // Marks the current selection with a highlight colour; false when read-only / nothing selected.
+    highlightSelection: (color) => {
+      if (!editor || !editor.isEditable || editor.state.selection.empty) return false;
+      return editor.chain().focus().setHighlight({ color }).run();
+    },
+    // Every highlighted passage in reading order: [{ from, to, text, color }] (adjacent runs merged).
+    getHighlights: () => {
+      if (!editor) return [];
+      const runs = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (!node.isText) return true;
+        const hl = node.marks.find((m) => m.type.name === 'highlight');
+        if (!hl) return true;
+        const color = hl.attrs.color || '#fef08a';
+        const last = runs[runs.length - 1];
+        if (last && last.color === color && last.to === pos) {
+          last.to = pos + node.nodeSize;
+          last.text += node.text;
+        } else {
+          runs.push({ from: pos, to: pos + node.nodeSize, text: node.text, color });
+        }
+        return true;
+      });
+      return runs.map((r) => ({ ...r, text: r.text.trim() })).filter((r) => r.text);
+    },
+    // Selects and scrolls to a document range (used by the highlights navigator).
+    goTo: (from, to) => {
+      if (!editor) return false;
+      const max = editor.state.doc.content.size;
+      editor.chain().focus().setTextSelection({ from: Math.min(from, max), to: Math.min(to, max) }).scrollIntoView().run();
+      return true;
+    },
+    // Finds a passage (by its opening words) and selects + scrolls to it. Returns whether found.
+    findText: (text) => {
+      if (!editor || !text) return false;
+      const needle = String(text).replace(/\s+/g, ' ').trim().slice(0, 60).toLowerCase();
+      if (!needle) return false;
+      let hit = null;
+      editor.state.doc.descendants((node, pos) => {
+        if (hit || !node.isText) return !hit;
+        const idx = node.text.toLowerCase().indexOf(needle);
+        if (idx >= 0) hit = { from: pos + idx, to: pos + idx + needle.length };
+        return !hit;
+      });
+      if (!hit) return false;
+      editor.chain().focus().setTextSelection(hit).scrollIntoView().run();
+      return true;
+    },
   }), [editor]);
 
   // Sync content when switching documents
@@ -749,6 +811,7 @@ const LegalDocEditor = forwardRef(function LegalDocEditor(
               )}
 
               <EditorContent editor={editor} className="legal-editor-body" />
+              <SelectionHighlighter editor={editor} canHighlight={!isReadOnly} onQuickNote={onQuickNote} />
 
               {printView && (
                 <div className="no-print" style={{ position: 'absolute', bottom: `${marginBoxBottom}mm`, left: `${geo.margins.left}mm`, right: `${geo.margins.right}mm`, display: 'flex', alignItems: 'center', gap: 8 }}>

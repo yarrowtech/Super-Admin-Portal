@@ -22,24 +22,23 @@ export const useTaskBoard = (portal, filters = {}) => {
     ...cachePolicyFor(queryKey),
   });
 
-  // `project` isn't a server-supported filter on any of the three portals'
-  // task-list endpoints (confirmed in the Phase 2B schema audit), so it's
-  // applied client-side over the already-fetched page rather than faking
-  // server support for it.
+  // Filters are applied client-side over the fetched tasks for every portal. Department
+  // portals (IT/Finance/Law/Media) fetch all their tasks unfiltered, so without this their
+  // search / priority / assignee / due filters silently did nothing; re-applying them where
+  // the server already filtered (manager/employee) is harmless.
   const tasks = useMemo(() => {
     const all = query.data?.tasks || [];
     return all.filter((task) => {
       if (filters.project && task.project?.id !== filters.project) return false;
-      if (portal !== 'hr') return true;
       if (filters.department && (task.department || 'Unassigned department') !== filters.department) return false;
       if (filters.assignee && task.assignee?.id !== filters.assignee) return false;
       if (filters.priority && task.priority !== filters.priority) return false;
       if (filters.status && task.status !== filters.status) return false;
       if (filters.dueTo && (!task.dueDate || task.dueDate.slice(0, 10) > filters.dueTo)) return false;
       const search = (filters.search || '').trim().toLowerCase();
-      return !search || [task.title, task.description, task.assignee?.name, task.department].filter(Boolean).join(' ').toLowerCase().includes(search);
+      return !search || [task.title, task.description, task.assignee?.name, task.department, task.project?.name, ...(task.linkedItems || []).map((l) => l.title)].filter(Boolean).join(' ').toLowerCase().includes(search);
     });
-  }, [query.data, filters, portal]);
+  }, [query.data, filters]);
 
   const columns = useMemo(() => {
     const byStatus = new Map(TASK_STATUS_KEYS.map((key) => [key, []]));
@@ -58,7 +57,7 @@ export const useTaskBoard = (portal, filters = {}) => {
     tasks,
     columns,
     allTasks: query.data?.tasks || [],
-    total: portal === 'hr' ? tasks.length : (query.data?.total ?? tasks.length),
+    total: tasks.length,
     queryKey,
     adapter,
   };

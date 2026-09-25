@@ -11,6 +11,8 @@ import TaskDetailDrawer from '../../components/tasks/TaskDetailDrawer';
 import CreateTaskModal from '../../components/tasks/CreateTaskModal';
 import { useTaskBoard } from './useTaskBoard';
 import { useCreateTaskMutation } from './useTaskMutations';
+import { taskAdapters } from './taskAdapters';
+import ProjectDocumentsView from '../../components/tasks/ProjectDocumentsView';
 
 /**
  * One shared task workspace body, reused by the IT Manager, HR, and
@@ -31,6 +33,8 @@ const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, 
   const [createOpen, setCreateOpen] = useState(false);
 
   const board = useTaskBoard(portal, filters);
+  // Portals whose tasks carry linked documents get a project-wise Documents view.
+  const showDocuments = Boolean(taskAdapters[portal]?.supportsLinkedItems);
   const createTask = useCreateTaskMutation(portal, filters);
 
   const content = (
@@ -53,6 +57,7 @@ const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, 
           actions={[
             ...(renderHeader || !canManage ? [] : [{ label: 'Create Task', icon: 'add_task', onClick: () => setCreateOpen(true) }]),
             { label: view === 'board' ? 'Switch to List' : 'Switch to Board', icon: view === 'board' ? 'view_list' : 'view_kanban', onClick: () => setView(view === 'board' ? 'list' : 'board') },
+            ...(showDocuments && view !== 'documents' ? [{ label: 'Project documents', icon: 'folder_open', onClick: () => setView('documents') }] : []),
           ]}
         />
       </div>
@@ -68,11 +73,13 @@ const TaskWorkspace = ({ portal, icon, title, description, renderHeader = true, 
         <div className="p-4 lg:p-5">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
             <TaskFilters filters={filters} onChange={setFilters} tasks={board.allTasks} departmentEnabled={portal === 'hr'} />
-            <TaskViewSwitcher view={view} onChange={setView} />
+            <TaskViewSwitcher view={view} onChange={setView} showDocuments={showDocuments} />
           </div>
 
           {view === 'board' ? (
             <KanbanBoard portal={portal} columns={board.columns} loading={board.isLoading} filters={filters} onOpenTask={setOpenTask} />
+          ) : view === 'documents' && showDocuments ? (
+            <ProjectDocumentsView tasks={board.tasks} loading={board.isLoading} onOpenTask={setOpenTask} />
           ) : (
             <TaskListView tasks={board.tasks} loading={board.isLoading} onOpenTask={setOpenTask} />
           )}

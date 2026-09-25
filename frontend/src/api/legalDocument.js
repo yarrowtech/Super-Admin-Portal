@@ -56,6 +56,18 @@ export const getProjectDocuments = (token, params = {}) => {
 export const getLegalDocumentById = (token, id) =>
   apiClient.get(`${P}/${id}`, token);
 
+/** Same document, bypassing the GET cache — used to pull fresh key points & notes */
+export const getLegalDocumentFresh = (token, id) =>
+  apiClient.get(`${P}/${id}`, token, { cache: false, forceRefresh: true });
+
+/** Key points & notes (law head) */
+export const addDocumentAnnotation = (token, id, body) =>
+  apiClient.post(`${P}/${id}/annotations`, body, token);
+export const updateDocumentAnnotation = (token, id, annotationId, body) =>
+  apiClient.patch(`${P}/${id}/annotations/${annotationId}`, body, token);
+export const deleteDocumentAnnotation = (token, id, annotationId) =>
+  apiClient.delete(`${P}/${id}/annotations/${annotationId}`, token);
+
 /** Auto-save document content (no version bump) */
 export const autoSaveDocument = (token, id, content) =>
   apiClient.put(`${P}/${id}/auto-save`, { content }, token);

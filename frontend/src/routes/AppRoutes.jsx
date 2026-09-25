@@ -158,6 +158,7 @@ import { itApi } from '../services/it';
 import { lawApi } from '../services/law';
 import { LawHome, LawHeadOnly } from '../components/law/LawRoleGates';
 const LawAssignedWorkPage = lazy(() => import('../components/law/LawAssignedWorkPage'));
+const LawDocumentWorkPage = lazy(() => import('../components/law/LawDocumentWorkPage'));
 import { hrApi } from '../services/hr';
 import { managerModulesApi, outsourcingModulesApi } from '../services/departmentModules';
 import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, PrivateRoute } from './routeGuards';
@@ -479,6 +480,7 @@ export default function AppRoutes() {
           <Route path="project-overview" element={<ProjectOverviewPage portalKey="law" portalName="Law Portal" />} />
           <Route path="overview/projects" element={<ProjectOverviewPage portalKey="law" portalName="Law Portal" />} />
           <Route path="assigned-work" element={<LawAssignedWorkPage />} />
+          <Route path="document-work" element={<LawHeadOnly><LawDocumentWorkPage /></LawHeadOnly>} />
           <Route path="tasks" element={<TaskWorkspacePage portal="law" icon="task" title="Law Tasks" description="The law head assigns and manages legal work items; team members update their own progress." manageRoles={['law_head', 'admin', 'super_admin', 'superadmin']} />} />
           <Route path="attendance" element={<DepartmentAttendancePage api={lawApi} portalLabel="Law" writeRoles={['law_head', 'admin', 'super_admin', 'superadmin']} />} />
           <Route path="jobs" element={<LawHeadOnly><DepartmentJobsPage api={lawApi} portalLabel="Law" /></LawHeadOnly>} />

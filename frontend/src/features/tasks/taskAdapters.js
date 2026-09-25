@@ -89,7 +89,7 @@ export const normalizeTask = (raw, { currentUser } = {}) => {
     progress: raw.progress ?? 0,
     isOverdue: Boolean(raw.isOverdue),
     tags: Array.isArray(raw.tags) ? raw.tags : [],
-    linkedItems: Array.isArray(raw.linkedItems) ? raw.linkedItems.map((l) => ({ module: l.module, recordId: String(l.recordId), title: l.title || '' })) : [],
+    linkedItems: Array.isArray(raw.linkedItems) ? raw.linkedItems.map((l) => ({ module: l.module, recordId: String(l.recordId), title: l.title || '', canEdit: Boolean(l.canEdit) })) : [],
     estimatedHours: raw.estimatedHours ?? null,
     actualHours: raw.actualHours ?? null,
     attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
@@ -197,9 +197,16 @@ export const taskAdapters = {
     ...departmentTaskAdapter(lawApi),
     // Law tasks can carry read-only linked records (head-only picker, employee sees them in the drawer).
     supportsLinkedItems: true,
-    fetchLinkableItems: async (token) => {
-      const res = await lawApi.getLinkableItems(token);
+    fetchLinkableItems: async (token, params = {}) => {
+      const res = await lawApi.getLinkableItems(token, params);
       return Array.isArray(res?.data) ? res.data : [];
+    },
+    // Optional project on a Law task (head only); drives project-wise documents.
+    supportsProject: true,
+    fetchProjects: async (token) => {
+      const res = await lawApi.getProjects(token, { limit: 200 });
+      const items = res?.data?.items || [];
+      return items.map((p) => ({ _id: p._id, name: p.name || p.projectCode || 'Project' }));
     },
   },
   media: departmentTaskAdapter(mediaModulesApi),

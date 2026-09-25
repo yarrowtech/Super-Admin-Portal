@@ -387,6 +387,83 @@ exports.autoSave = async (req, res) => {
   }
 };
 
+// ── Key points & notes (head) ────────────────────────────────────────────────
+// Employees add theirs through a task (middlewares/lawTaskLinks.js); the head manages them here.
+const MAX_ANNOTATIONS = 200;
+
+const loadForAnnotation = async (req) => {
+  ensureObjectId(req.params.id, 'document id');
+  const doc = await LegalDocument.findOne({ _id: req.params.id, deletedAt: null });
+  if (!doc) {
+    const error = new Error('Document not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  ensureProjectAccess(req, doc.projectId);
+  return doc;
+};
+
+exports.addAnnotation = async (req, res) => {
+  try {
+    const doc = await loadForAnnotation(req);
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ success: false, error: 'Text is required' });
+    if (text.length > 2000) return res.status(400).json({ success: false, error: 'Keep it under 2000 characters' });
+    if ((doc.annotations || []).length >= MAX_ANNOTATIONS) return res.status(409).json({ success: false, error: 'This document already has the maximum of 200 notes' });
+    const actor = actorFrom(req);
+    doc.annotations.push({
+      kind: req.body?.kind === 'highlight' ? 'highlight' : 'note',
+      text,
+      critical: req.body?.critical === true,
+      quote: String(req.body?.quote || '').trim().slice(0, 500),
+      createdBy: actor.id,
+      createdByName: actor.name,
+      createdAt: new Date(),
+    });
+    await doc.save();
+    const added = doc.annotations[doc.annotations.length - 1];
+    await audit(req, doc._id, 'UPDATE', `${added.kind === 'highlight' ? 'Key point' : 'Note'} added`, { annotationId: added._id });
+    return res.status(201).json({ success: true, data: added });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.addAnnotation failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to add note' });
+  }
+};
+
+// Head may re-flag a point as critical (or not) without rewriting it.
+exports.updateAnnotation = async (req, res) => {
+  try {
+    const doc = await loadForAnnotation(req);
+    ensureObjectId(req.params.annotationId, 'annotation id');
+    const note = doc.annotations.id(req.params.annotationId);
+    if (!note) return res.status(404).json({ success: false, error: 'Note not found' });
+    if (req.body?.critical !== undefined) note.critical = req.body.critical === true;
+    if (req.body?.kind !== undefined) note.kind = req.body.kind === 'highlight' ? 'highlight' : 'note';
+    await doc.save();
+    await audit(req, doc._id, 'UPDATE', 'Note updated', { annotationId: note._id, critical: note.critical, kind: note.kind });
+    return res.json({ success: true, data: note });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.updateAnnotation failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update note' });
+  }
+};
+
+exports.deleteAnnotation = async (req, res) => {
+  try {
+    const doc = await loadForAnnotation(req);
+    ensureObjectId(req.params.annotationId, 'annotation id');
+    const note = doc.annotations.id(req.params.annotationId);
+    if (!note) return res.status(404).json({ success: false, error: 'Note not found' });
+    note.deleteOne();
+    await doc.save();
+    await audit(req, doc._id, 'UPDATE', 'Note removed', { annotationId: req.params.annotationId });
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'legalDocument.deleteAnnotation failed');
+    return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to remove note' });
+  }
+};
+
 exports.saveDraft = async (req, res) => {
   try {
     ensureObjectId(req.params.id, 'document id');

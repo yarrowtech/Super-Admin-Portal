@@ -4,11 +4,12 @@ const VIEWS = [
   { key: 'board', label: 'Board', icon: 'view_kanban' },
   { key: 'list', label: 'List', icon: 'view_list' },
 ];
+const DOCUMENTS_VIEW = { key: 'documents', label: 'Documents', icon: 'folder_open' };
 
-/** Board | List toggle — both views share the same underlying task query/cache. */
-const TaskViewSwitcher = ({ view, onChange }) => (
+/** Board | List (| Documents) toggle — all views share the same underlying task query/cache. */
+const TaskViewSwitcher = ({ view, onChange, showDocuments = false }) => (
   <div role="group" aria-label="Task view" className="inline-flex rounded-lg border border-neutral-200 bg-white p-0.5 dark:border-neutral-800 dark:bg-neutral-900">
-    {VIEWS.map((v) => {
+    {(showDocuments ? [...VIEWS, DOCUMENTS_VIEW] : VIEWS).map((v) => {
       const active = v.key === view;
       return (
         <button

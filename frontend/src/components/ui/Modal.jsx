@@ -5,19 +5,27 @@ import Button from './Button';
 
 const Modal = ({ open, title, description, children, onClose, footer, className }) => {
   const dialogRef = useRef(null);
+  // Callers usually pass an inline onClose, which is a new function on every render. Keeping it
+  // in a ref means the focus effect below runs only when the dialog opens — otherwise every
+  // keystroke re-ran it and yanked focus out of the field being typed in.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     if (!open) return undefined;
     const previouslyFocused = document.activeElement;
     const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    // Start in the first form field (not the header's close button) so users can type right away.
     const focusFirst = () => {
-      const focusable = dialogRef.current?.querySelectorAll(focusableSelector);
-      focusable?.[0]?.focus?.();
+      const root = dialogRef.current;
+      if (!root || root.contains(document.activeElement)) return;
+      const field = root.querySelector('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])');
+      (field || root.querySelector(focusableSelector))?.focus?.();
     };
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -40,7 +48,7 @@ const Modal = ({ open, title, description, children, onClose, footer, className 
       document.removeEventListener('keydown', handleKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

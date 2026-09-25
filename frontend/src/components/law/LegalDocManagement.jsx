@@ -13,12 +13,18 @@ import {
   getLegalResponseData,
   deleteLegalDocument,
   setDocumentCustomerAgreement,
+  getLegalDocumentFresh,
+  addDocumentAnnotation,
+  updateDocumentAnnotation,
+  deleteDocumentAnnotation,
 } from '../../api/legalDocument';
 import { lawApi } from '../../services/law';
 import { useToast } from '../../context/ToastContext';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import LegalDocEditor from './LegalDocEditor';
 import LegalDocVersionHistory from './LegalDocVersionHistory';
+import DocumentAssignmentPanel from './DocumentAssignmentPanel';
+import DocumentNotesPanel from './DocumentNotesPanel';
 import useLawProjectContext from './useLawProjectContext';
 import { LAW_DOCUMENT_TYPES, LAW_PRIORITIES } from './lawStatus';
 import { lawControlClass } from './lawUi';
@@ -616,6 +622,8 @@ const LegalDocManagement = () => {
   // Modals
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showAssignPanel, setShowAssignPanel] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(null);
   const { confirm } = useConfirmDialog();
 
@@ -717,6 +725,18 @@ const LegalDocManagement = () => {
       const message = err.message || 'Unable to load document.';
       setError(message);
       toast.error(message);
+    }
+  };
+
+  // Pulls fresh employee notes / key points without touching the editor, so the head's
+  // unsaved typing is never overwritten.
+  const refreshDocNotes = async (id) => {
+    try {
+      const doc = getLegalResponseData(await getLegalDocumentFresh(token, id));
+      setActiveDoc((prev) => (prev && prev._id === doc?._id ? { ...prev, annotations: doc.annotations || [] } : prev));
+      setDocs((prev) => (Array.isArray(prev) ? prev.map((d) => (d._id === doc?._id ? { ...d, annotations: doc.annotations || [] } : d)) : prev));
+    } catch {
+      // Non-fatal: the panel still opens with the notes already loaded.
     }
   };
 
@@ -1194,6 +1214,14 @@ const LegalDocManagement = () => {
                 <div className="mt-1 flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
                   <span className="material-symbols-outlined text-[13px]">{doc.projectId ? 'folder' : 'business'}</span>
                   <span className="truncate">{doc.projectId ? (doc.projectName || 'Project legal') : 'In-house legal'}</span>
+                  {doc.annotations?.length > 0 && (
+                    <span
+                      title={`${doc.annotations.length} key point${doc.annotations.length === 1 ? '' : 's'} / note${doc.annotations.length === 1 ? '' : 's'}`}
+                      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-bold ${doc.annotations.some((a) => a.critical) ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}
+                    >
+                      <span className="material-symbols-outlined text-[12px]">star</span>{doc.annotations.length}
+                    </span>
+                  )}
                   <span className="ml-auto shrink-0" title={doc.updatedAt ? `Last updated ${formatDate(doc.updatedAt)}` : ''}>{timeAgo(doc.updatedAt) ? `Updated ${timeAgo(doc.updatedAt)}` : ''}</span>
                 </div>
                 {doc.status === 'Rejected' && doc.ceoRemarks && (
@@ -1303,6 +1331,26 @@ const LegalDocManagement = () => {
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => { setShowAssignPanel(true); refreshDocNotes(activeDoc._id); }}
+                    title="Assign this document to a team member and follow their work and notes"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--portal-accent)] px-3 text-xs font-semibold text-[var(--portal-accent)] hover:bg-[var(--portal-accent-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]"
+                  >
+                    <span className="material-symbols-outlined text-[17px]">assignment_ind</span>Assign &amp; track
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowNotes((v) => !v); refreshDocNotes(activeDoc._id); }}
+                    aria-pressed={showNotes}
+                    title="Show key points and notes for this document"
+                    className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] ${showNotes ? 'border-[var(--portal-accent)] bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}`}
+                  >
+                    <span className="material-symbols-outlined text-[17px]">star</span>Key points
+                    {activeDoc.annotations?.length > 0 && (
+                      <span className={`rounded-full px-1.5 text-[10px] font-bold text-white ${activeDoc.annotations.some((a) => a.critical) ? 'bg-rose-600' : 'bg-[var(--portal-accent)]'}`}>{activeDoc.annotations.length}</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setIsEditorFullscreen(true)}
                     title="Full screen: edit the document using the whole screen (Esc to exit)"
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
@@ -1372,7 +1420,8 @@ const LegalDocManagement = () => {
                 </div>
               )}
 
-              {/* Editor */}
+              {/* Editor (+ key points & notes beside it) */}
+              <div className="flex min-h-0 flex-1 overflow-hidden">
               <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${hideChrome ? '' : 'p-2 sm:p-3'}`}>
                 <LegalDocEditor
                   ref={editorRef}
@@ -1389,7 +1438,42 @@ const LegalDocManagement = () => {
                   onSaveDraft={isEditable ? handleSaveDraft : undefined}
                   onDownloadPdf={handleDownloadPdf}
                   onOpenHistory={() => setShowVersionHistory(true)}
+                  onQuickNote={async (body) => {
+                    await addDocumentAnnotation(token, activeDoc._id, body);
+                    await refreshDocNotes(activeDoc._id);
+                    setShowNotes(true);
+                  }}
                 />
+              </div>
+              {showNotes && !hideChrome && (
+                <aside className="flex w-80 shrink-0 flex-col border-l border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-[1050] max-lg:w-full max-lg:max-w-sm max-lg:shadow-2xl" aria-label="Key points and notes">
+                  <div className="flex justify-end px-2 pt-2 lg:hidden">
+                    <button type="button" onClick={() => setShowNotes(false)} aria-label="Close notes" className="material-symbols-outlined rounded-lg p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">close</button>
+                  </div>
+                  <DocumentNotesPanel
+                    annotations={activeDoc.annotations || []}
+                    subtitle="Your notes and what the team pinned while working on it."
+                    emptyHint={isEditable ? 'Select text in the document to highlight it or pin a point to it — then choose Key point, Critical or Note.' : 'Notes your team pins while working on this document appear here.'}
+                    onAdd={async (body) => {
+                      await addDocumentAnnotation(token, activeDoc._id, body);
+                      await refreshDocNotes(activeDoc._id);
+                    }}
+                    onToggleCritical={async (a) => {
+                      await updateDocumentAnnotation(token, activeDoc._id, a._id, { critical: !a.critical });
+                      await refreshDocNotes(activeDoc._id);
+                    }}
+                    onDelete={async (a) => {
+                      await deleteDocumentAnnotation(token, activeDoc._id, a._id);
+                      await refreshDocNotes(activeDoc._id);
+                    }}
+                    canDelete={() => true}
+                    onJump={(quote) => Boolean(editorRef.current?.findText?.(quote))}
+                    getHighlights={() => editorRef.current?.getHighlights?.() || []}
+                    onGoTo={(from, to) => editorRef.current?.goTo?.(from, to)}
+                    contentVersion={editorContent}
+                  />
+                </aside>
+              )}
               </div>
             </>
           )}
@@ -1411,6 +1495,9 @@ const LegalDocManagement = () => {
         )}
         {previewVersion && (
           <VersionPreviewModal version={previewVersion} onClose={() => setPreviewVersion(null)} />
+        )}
+        {showAssignPanel && activeDoc && (
+          <DocumentAssignmentPanel doc={activeDoc} onClose={() => setShowAssignPanel(false)} onChanged={() => refreshDocNotes(activeDoc._id)} />
         )}
       </div>
     </div>

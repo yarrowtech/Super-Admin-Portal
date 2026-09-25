@@ -172,6 +172,10 @@ const mountDepartmentModules = (router, scope, hrController, opts = {}) => {
       const role = String(req.user?.role || '').toLowerCase();
       if (opts.taskManageRoles && opts.taskManageRoles.includes(role)) return next();
       const { status, progress } = req.body || {};
+      // opts.memberStatuses: statuses a non-manager may set (e.g. Law: only the head completes).
+      if (status !== undefined && Array.isArray(opts.memberStatuses) && !opts.memberStatuses.includes(String(status))) {
+        return res.status(403).json({ success: false, error: 'Only the department head can set this status — submit it for review instead' });
+      }
       req.body = {};
       if (status !== undefined) req.body.status = status;
       if (progress !== undefined) req.body.progress = progress;

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Drawer from '../ui/Drawer';
 import StatusBadge from '../common/StatusBadge';
 import Avatar from '../common/Avatar';
-import { TASK_STATUSES, TASK_PRIORITIES, priorityToTone } from '../../features/tasks/taskConstants';
+import { TASK_STATUSES, TASK_PRIORITIES, priorityToTone, priorityLabel } from '../../features/tasks/taskConstants';
 import { useAuth } from '../../context/AuthContext';
 import { QK, cachePolicyFor } from '../../utils/queryKeys';
 import { taskAdapters, portalLabel } from '../../features/tasks/taskAdapters';
@@ -11,6 +11,7 @@ import { useTaskStatusMutation, useAddTaskCommentMutation } from '../../features
 import { useToast } from '../../context/ToastContext';
 import LinkedItemsPicker from './LinkedItemsPicker';
 import LinkedItemsSection from './LinkedItemsSection';
+import { Field, fieldCls } from './CreateTaskModal';
 
 const formatDate = (v) => (v ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(v)) : '—');
 
@@ -49,6 +50,12 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose, canManage = false })
     enabled: Boolean(task) && manageEnabled && editing && Boolean(adapter?.fetchAssignableUsers),
     staleTime: 60_000,
   });
+  const projectsQuery = useQuery({
+    queryKey: ['task-projects', portal],
+    queryFn: () => adapter.fetchProjects(token),
+    enabled: Boolean(task) && manageEnabled && editing && Boolean(adapter?.supportsProject),
+    staleTime: 60_000,
+  });
 
   useEffect(() => { setEditing(false); }, [task?.id]);
 
@@ -63,7 +70,9 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose, canManage = false })
       priority: task.priority || 'medium',
       dueDate: task.dueDate ? String(task.dueDate).slice(0, 10) : '',
       assignedTo: task.assignee?.id || '',
-      linkedItems: (task.linkedItems || []).map((l) => ({ module: l.module, recordId: l.recordId, title: l.title })),
+      project: task.project?.id || '',
+      // canEdit must round-trip, or saving the task would silently revoke edit rights.
+      linkedItems: (task.linkedItems || []).map((l) => ({ module: l.module, recordId: l.recordId, title: l.title, canEdit: Boolean(l.canEdit) })),
     });
     setEditing(true);
   };
@@ -79,6 +88,7 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose, canManage = false })
         dueDate: form.dueDate,
         ...(form.assignedTo ? { assignedTo: form.assignedTo } : {}),
         ...(adapter.supportsLinkedItems ? { linkedItems: form.linkedItems } : {}),
+        ...(adapter.supportsProject ? { project: form.project || null } : {}),
       });
       toast?.success?.('Task updated');
       setEditing(false);
@@ -128,22 +138,46 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose, canManage = false })
         )}
         {editing && form && (
           <form onSubmit={saveEdit} className="space-y-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
-            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Task title" className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-            <textarea required rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+            <Field label="Task title" required>
+              <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={fieldCls} />
+            </Field>
+            <Field label="Description" required>
+              <textarea required rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={fieldCls} />
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <input required type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-              <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                {TASK_PRIORITIES.map((p) => <option key={p.key || p} value={p.key || p}>{p.label || p}</option>)}
-              </select>
+              <Field label="Due date" required>
+                <input required type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className={fieldCls} />
+              </Field>
+              <Field label="Priority">
+                <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className={fieldCls}>
+                  {TASK_PRIORITIES.map((p) => <option key={p.key || p} value={p.key || p}>{p.label || p}</option>)}
+                </select>
+              </Field>
             </div>
             {adapter.needsAssignee && (
-              <select value={form.assignedTo} onChange={(e) => setForm({ ...form, assignedTo: e.target.value })} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-                <option value="">Keep current assignee</option>
-                {(assigneesQuery.data || []).map((u) => <option key={u.id} value={u.id}>{u.name}{u.isFreelancer ? ' (Freelancer)' : ''}</option>)}
-              </select>
+              <Field label="Assignee">
+                <select value={form.assignedTo} onChange={(e) => setForm({ ...form, assignedTo: e.target.value })} className={fieldCls}>
+                  <option value="">Keep current assignee</option>
+                  {(assigneesQuery.data || []).map((u) => <option key={u.id} value={u.id}>{u.name}{u.isFreelancer ? ' (Freelancer)' : ''}</option>)}
+                </select>
+              </Field>
+            )}
+            {adapter.supportsProject && (
+              <Field label="Project">
+                <select value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} className={fieldCls}>
+                  <option value="">No project</option>
+                  {(projectsQuery.data || []).map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+                </select>
+              </Field>
             )}
             {adapter.supportsLinkedItems && (
-              <LinkedItemsPicker portal={portal} value={form.linkedItems} onChange={(linkedItems) => setForm((f) => ({ ...f, linkedItems }))} />
+              <LinkedItemsPicker
+                portal={portal}
+                projectId={form.project}
+                projectName={(projectsQuery.data || []).find((p) => p._id === form.project)?.name || ''}
+                value={form.linkedItems}
+                onChange={(linkedItems) => setForm((f) => ({ ...f, linkedItems }))}
+              />
             )}
             <div className="flex gap-2">
               <button type="submit" disabled={saving} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save changes'}</button>
@@ -172,7 +206,7 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose, canManage = false })
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Priority</p>
-            <StatusBadge tone={priorityToTone(full.priority)} label={full.priority} dot={false} className="mt-1" />
+            <StatusBadge tone={priorityToTone(full.priority)} label={priorityLabel(full.priority)} dot={false} className="mt-1" />
           </div>
           {full.project && (
             <div>
@@ -211,7 +245,7 @@ const TaskDetailDrawer = ({ portal, task, filters, onClose, canManage = false })
         </div>
 
         {(adapter?.supportsLinkedItems || full.linkedItems?.length > 0) && (
-          <LinkedItemsSection taskId={full.id} hasLinks={Boolean(full.linkedItems?.length)} />
+          <LinkedItemsSection taskId={full.id} taskTitle={full.title} hasLinks={Boolean(full.linkedItems?.length)} />
         )}
 
         {full.tags?.length > 0 && (

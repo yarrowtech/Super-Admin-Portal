@@ -75,9 +75,17 @@ export const lawApi = {
 
   // Records linked to a task (read-only; server authorises by task assignment + link).
   getLinkableItems: (token, params = {}) => apiClient.get(`/api/dept/law/task-items/options${toQueryString(params)}`, token, { cache: false }),
+  // Law head: every document shared through a task, with progress, edits and notes.
+  getDocumentWork: (token) => apiClient.get('/api/dept/law/task-items/monitor', token, { cache: false }),
   getMyTaskItems: (token) => apiClient.get('/api/dept/law/task-items/mine', token, { cache: false }),
   getTaskItems: (token, taskId) => apiClient.get(`/api/dept/law/task-items/${taskId}`, token, { cache: false }),
   getTaskItem: (token, taskId, recordId) => apiClient.get(`/api/dept/law/task-items/${taskId}/${recordId}`, token, { cache: false }),
+  // Edit rights on a linked document are granted per task link by the head (checked server-side).
+  saveTaskItemContent: (token, taskId, recordId, content, changeSummary) => apiClient.put(`/api/dept/law/task-items/${taskId}/${recordId}/content`, { content, changeSummary }, token),
+  addTaskItemAnnotation: (token, taskId, recordId, body) => apiClient.post(`/api/dept/law/task-items/${taskId}/${recordId}/annotations`, body, token),
+  deleteTaskItemAnnotation: (token, taskId, recordId, annotationId) => apiClient.delete(`/api/dept/law/task-items/${taskId}/${recordId}/annotations/${annotationId}`, token),
+  // Head only: a blank project document to hand to an employee through a task.
+  createProjectDocument: (token, body) => apiClient.post('/api/legal/create', body, token),
   getTaskItemFile: async (token, taskId, recordId, index, { download = false } = {}) => {
     const res = await fetch(`${apiClient.getBaseUrl()}/api/dept/law/task-items/${taskId}/${recordId}/files/${index}${download ? '?download=1' : ''}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},

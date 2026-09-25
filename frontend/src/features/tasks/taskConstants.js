@@ -21,6 +21,8 @@ export const TASK_PRIORITIES = [
   { key: 'critical', label: 'Critical' },
 ];
 
+export const priorityLabel = (key) => TASK_PRIORITIES.find((p) => p.key === String(key || '').toLowerCase())?.label || key;
+
 export const priorityToTone = (priority) => {
   switch (String(priority || '').toLowerCase()) {
     case 'critical': return 'danger';

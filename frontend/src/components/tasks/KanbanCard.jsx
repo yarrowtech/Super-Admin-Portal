@@ -4,7 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import StatusBadge from '../common/StatusBadge';
 import Avatar from '../common/Avatar';
 import { statusToTone } from '../../utils/statusTone';
-import { priorityToTone, statusLabel } from '../../features/tasks/taskConstants';
+import { priorityToTone, priorityLabel, statusLabel } from '../../features/tasks/taskConstants';
 import { portalLabel } from '../../features/tasks/taskAdapters';
 
 const formatDueDate = (value) => {
@@ -12,12 +12,15 @@ const formatDueDate = (value) => {
   return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short' }).format(new Date(value));
 };
 
-/** A single draggable task card — only the fields a viewer needs to triage at a glance. */
+/** A single draggable task card â€” only the fields a viewer needs to triage at a glance. */
 const KanbanCard = ({ task, onOpen }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: { task },
   });
+
+  const linkedDocs = task.linkedItems || [];
+  const editableCount = linkedDocs.filter((l) => l.canEdit).length;
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -36,9 +39,22 @@ const KanbanCard = ({ task, onOpen }) => {
       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(task); }}
       className="cursor-grab rounded-xl border border-neutral-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:cursor-grabbing dark:border-neutral-800 dark:bg-neutral-900"
     >
-      <p className="line-clamp-2 text-sm font-bold text-neutral-900 dark:text-neutral-100">{task.title}</p>
+      <p className="line-clamp-2 wrap-break-word text-sm font-bold leading-snug text-neutral-900 dark:text-neutral-100">{task.title}</p>
+      {task.description && (
+        <p className="mt-1 line-clamp-2 wrap-break-word text-xs leading-snug text-neutral-500 dark:text-neutral-400">{task.description}</p>
+      )}
       {task.project?.name && (
-        <p className="mt-1 truncate text-xs text-neutral-500 dark:text-neutral-400">{task.project.name}</p>
+        <p className="mt-1.5 flex items-center gap-1 truncate text-xs font-medium text-neutral-600 dark:text-neutral-300">
+          <span className="material-symbols-outlined text-[14px] text-neutral-400">folder</span>
+          <span className="truncate">{task.project.name}</span>
+        </p>
+      )}
+      {linkedDocs.length > 0 && (
+        <p className="mt-1 flex items-center gap-1 text-xs text-neutral-600 dark:text-neutral-300" title={linkedDocs.map((l) => l.title).join('\n')}>
+          <span className="material-symbols-outlined text-[14px] text-neutral-400">description</span>
+          {linkedDocs.length} document{linkedDocs.length === 1 ? '' : 's'}
+          {editableCount > 0 && <span className="rounded-full bg-emerald-50 px-1.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">{editableCount} editable</span>}
+        </p>
       )}
 
       {task.department && <p className="mt-1 text-xs font-medium text-primary">{task.department}</p>}
@@ -49,7 +65,7 @@ const KanbanCard = ({ task, onOpen }) => {
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <StatusBadge tone={priorityToTone(task.priority)} label={task.priority} dot={false} />
+        <StatusBadge tone={priorityToTone(task.priority)} label={priorityLabel(task.priority)} dot={false} />
         {task.isOverdue && task.status !== 'completed' && task.status !== 'cancelled' ? (
           <StatusBadge tone="danger" label="Overdue" />
         ) : (

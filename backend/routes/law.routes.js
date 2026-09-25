@@ -22,6 +22,9 @@ router.get('/task-items/mine', lawTaskLinks.freelancerOnly, lawTaskLinks.listMyI
 router.get('/task-items/:taskId', lawTaskLinks.freelancerOnly, lawTaskLinks.listTaskItems);
 router.get('/task-items/:taskId/:recordId', lawTaskLinks.freelancerOnly, lawTaskLinks.getTaskItem);
 router.get('/task-items/:taskId/:recordId/files/:index', lawTaskLinks.freelancerOnly, lawTaskLinks.viewTaskItemFile);
+router.put('/task-items/:taskId/:recordId/content', lawTaskLinks.freelancerOnly, lawTaskLinks.saveTaskItemContent);
+router.post('/task-items/:taskId/:recordId/annotations', lawTaskLinks.freelancerOnly, lawTaskLinks.addTaskItemAnnotation);
+router.delete('/task-items/:taskId/:recordId/annotations/:annotationId', lawTaskLinks.freelancerOnly, lawTaskLinks.deleteTaskItemAnnotation);
 router.use(authorize(ROLES.LAW_HEAD, ROLES.LAW_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.IT_MANAGER));
 router.use(authorizePortalAccess('law'));
 router.use(attachOptionalProjectContext);
@@ -91,15 +94,22 @@ mountDepartmentModules(router, scope, hrController, {
   taskManage: canManageLaw,
   taskManageRoles: [ROLES.LAW_HEAD, ROLES.ADMIN, ROLES.SUPER_ADMIN],
   taskBodyHooks: [lawTaskLinks.validateLinkedItems],
+  // Employees move their own work up to "review"; completing / cancelling is the head's call.
+  memberStatuses: ['pending', 'in-progress', 'review'],
 });
 
 // Linked items: read-only, task-scoped access (head/admin any linked task; employee only their own
 // task AND only records listed on it - enforced in middlewares/lawTaskLinks.js).
 router.get('/task-items/options', lawTaskLinks.listLinkableItems);
+router.get('/task-items/monitor', lawTaskLinks.monitorDocumentWork);
 router.get('/task-items/mine', lawTaskLinks.listMyItems);
 router.get('/task-items/:taskId', lawTaskLinks.listTaskItems);
 router.get('/task-items/:taskId/:recordId', lawTaskLinks.getTaskItem);
 router.get('/task-items/:taskId/:recordId/files/:index', lawTaskLinks.viewTaskItemFile);
+// Edit / annotate a linked document — only when the head shared it with edit rights (checked per link).
+router.put('/task-items/:taskId/:recordId/content', lawTaskLinks.saveTaskItemContent);
+router.post('/task-items/:taskId/:recordId/annotations', lawTaskLinks.addTaskItemAnnotation);
+router.delete('/task-items/:taskId/:recordId/annotations/:annotationId', lawTaskLinks.deleteTaskItemAnnotation);
 
 // Law-only Team directory + Messages. Restricted to law_head / law_employee here, and the chat
 // services independently reject any non-Law recipient/conversation for law-role users

@@ -8,7 +8,22 @@ import LinkedItemsPicker from './LinkedItemsPicker';
 
 const emptyForm = { title: '', description: '', dueDate: '', priority: 'medium', assignedTo: '', department: '', project: '', linkedItems: [] };
 
-/** Minimal, real create-task form — only fields the backend genuinely accepts per portal. */
+export const fieldCls = 'mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+
+// Every box carries a visible label; placeholders are only examples.
+export const Field = ({ label, hint, required, children }) => (
+  <label className="block">
+    <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+      {label}{required && <span className="ml-0.5 text-rose-500">*</span>}
+    </span>
+    {children}
+    {hint && <span className="mt-1 block text-xs text-neutral-500 dark:text-neutral-400">{hint}</span>}
+  </label>
+);
+
+const todayIso = () => new Date().toISOString().split('T')[0];
+
+/** Create-task form — only fields the backend genuinely accepts per portal. */
 const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
   const { token } = useAuth();
   const adapter = taskAdapters[portal];
@@ -33,12 +48,15 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
     let active = true;
     if (open && adapter?.fetchProjects) {
       setProjectsError('');
-      adapter.fetchProjects(token).then(rows => { if (active) setProjects(rows); }).catch(() => { if (active) setProjectsError('Unable to load projects. Close and reopen to retry.'); });
+      adapter.fetchProjects(token).then((rows) => { if (active) setProjects(rows); }).catch(() => { if (active) setProjectsError('Unable to load projects. Close and reopen to retry.'); });
     }
     return () => { active = false; };
   }, [open, adapter, token]);
 
   if (!open) return null;
+
+  const showProject = adapter?.needsProject || adapter?.supportsProject;
+  const projectName = projects.find((p) => p._id === form.project)?.name || '';
 
   const handleClose = () => {
     setLoadingUsers(true);
@@ -68,7 +86,7 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
         description: form.description.trim(),
         dueDate: form.dueDate,
         priority: form.priority,
-        ...(adapter?.needsProject ? { project: form.project } : {}),
+        ...(showProject && form.project ? { project: form.project } : {}),
         ...(adapter?.needsAssignee ? { assignedTo: form.assignedTo } : {}),
         ...(adapter?.supportsLinkedItems && form.linkedItems.length ? { linkedItems: form.linkedItems } : {}),
       };
@@ -81,68 +99,76 @@ const CreateTaskModal = ({ portal, open, onClose, onSubmit }) => {
     }
   };
 
+  const visibleAssignees = assignees.filter((a) => portal !== 'hr' || (a.department || 'Unassigned department') === form.department);
+
   return (
-    <Modal open={open} onClose={handleClose} title="Create Task">
-      <form onSubmit={handleSubmit} className="space-y-3">
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">{error}</p>}
-        <input
-          required
-          placeholder="Task title"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-        />
-        <textarea
-          required
-          placeholder="Description"
-          rows={3}
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            required
-            type="date"
-            value={form.dueDate}
-            onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-          />
-          <select
-            value={form.priority}
-            onChange={(e) => setForm({ ...form, priority: e.target.value })}
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-          >
-            {TASK_PRIORITIES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-          </select>
+    <Modal open={open} onClose={handleClose} title="Create Task" description="Assign work, set the deadline and share the documents needed.">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">{error}</p>}
+
+        <Field label="Task title" required>
+          <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Review vendor NDA before signing" className={fieldCls} />
+        </Field>
+
+        <Field label="Description" required hint="What should be done and what “done” looks like.">
+          <textarea required rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Check liability and termination clauses, add key points for the head." className={fieldCls} />
+        </Field>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Due date" required>
+            <input required type="date" min={todayIso()} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className={fieldCls} />
+          </Field>
+          <Field label="Priority">
+            <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className={fieldCls}>
+              {TASK_PRIORITIES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+            </select>
+          </Field>
         </div>
-        {portal === 'hr' && <label className="block text-sm">Department
-          <select required aria-label="Department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value, assignedTo: '' })} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
-            <option value="">Choose department</option>
-            {[...new Set(assignees.map((a) => a.department || 'Unassigned department'))].sort().map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </label>}
-        {adapter?.needsProject && <label className="block text-sm">Project<select required value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} className="mt-1 w-full rounded-lg border bg-transparent p-2"><option value="">Choose a managed project</option>{projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}</select>{projectsError && <p role="alert" className="text-rose-600">{projectsError}</p>}</label>}
-        {usersError && <p role="alert" className="text-sm text-rose-600">{usersError}</p>}
-        {adapter?.needsAssignee && loadingUsers && <p className="text-sm text-neutral-500">Loading employees...</p>}
-        {portal === 'hr' && form.department && !loadingUsers && <p className="text-xs text-neutral-500">{assignees.filter((a) => (a.department || 'Unassigned department') === form.department).length} active employees in this department</p>}
+
+        {portal === 'hr' && (
+          <Field label="Department" required hint={form.department && !loadingUsers ? `${visibleAssignees.length} active employees in this department` : undefined}>
+            <select required value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value, assignedTo: '' })} className={fieldCls}>
+              <option value="">Choose department</option>
+              {[...new Set(assignees.map((a) => a.department || 'Unassigned department'))].sort().map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </Field>
+        )}
+
         {adapter?.needsAssignee && (
-          <select
-            required
-            aria-label="Employee"
-            disabled={loadingUsers || (portal === 'hr' && !form.department)}
-            value={form.assignedTo}
-            onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-          >
-            <option value="">Assign to…</option>
-            {assignees.filter((a) => portal !== 'hr' || (a.department || 'Unassigned department') === form.department).map((a) => <option key={a.id} value={a.id}>{a.name}{a.isFreelancer ? ' (Freelancer)' : ''}</option>)}
-          </select>
+          <Field label="Assign to" required hint={loadingUsers ? 'Loading employees…' : usersError || undefined}>
+            <select
+              required
+              disabled={loadingUsers || (portal === 'hr' && !form.department)}
+              value={form.assignedTo}
+              onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+              className={fieldCls}
+            >
+              <option value="">Choose a person…</option>
+              {visibleAssignees.map((a) => <option key={a.id} value={a.id}>{a.name}{a.isFreelancer ? ' (Freelancer)' : ''}</option>)}
+            </select>
+          </Field>
         )}
+
+        {showProject && (
+          <Field label="Project" required={adapter?.needsProject} hint={projectsError || (adapter?.supportsLinkedItems ? 'Pick a project to see and create its legal documents below.' : undefined)}>
+            <select required={adapter?.needsProject} value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} className={fieldCls}>
+              <option value="">{adapter?.needsProject ? 'Choose a managed project' : 'No project'}</option>
+              {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+            </select>
+          </Field>
+        )}
+
         {adapter?.supportsLinkedItems && (
-          <LinkedItemsPicker portal={portal} value={form.linkedItems} onChange={(linkedItems) => setForm((f) => ({ ...f, linkedItems }))} />
+          <LinkedItemsPicker
+            portal={portal}
+            projectId={form.project}
+            projectName={projectName}
+            value={form.linkedItems}
+            onChange={(linkedItems) => setForm((f) => ({ ...f, linkedItems }))}
+          />
         )}
-        <div className="flex justify-end gap-2 pt-2">
+
+        <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-800">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
           <Button type="submit" disabled={submitting || (adapter?.needsAssignee && loadingUsers) || Boolean(usersError)}>{submitting ? 'Creating…' : 'Create Task'}</Button>
         </div>

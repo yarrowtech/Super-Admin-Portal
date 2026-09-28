@@ -1598,6 +1598,7 @@ exports.createPayroll = async (req, res) => {
       departmentId,
       budgetId: req.body?.budgetId || budgetSnapshot?.budget?._id || null,
       financialPeriodId: req.body?.financialPeriodId || null,
+      createdBy: req.user?._id || req.user?.id || null,
     });
     if (budgetSnapshot?.budget?._id && ['processed', 'disbursed'].includes(String(payroll.status || '').toLowerCase())) {
       await Budget.findByIdAndUpdate(budgetSnapshot.budget._id, { $inc: { spent: payrollAmount } });
@@ -2305,5 +2306,197 @@ exports.getIntegrationSnapshot = async (req, res) => {
     });
   } catch (err) {
     sendError(res, err, 'Failed to fetch integration snapshot');
+  }
+};
+
+
+/**
+ * Maker-checker review (finance employee prepares → finance head approves / returns)
+ * Covers invoices, payroll runs and journal entries. Approving applies the real change.
+ */
+const REVIEW_MODULES = {
+  invoice: {
+    Model: Invoice,
+    label: 'Invoice',
+    isDraft: (d) => d.status === 'draft',
+    title: (d) => `${d.invoiceNumber} · ${d.clientName || 'Client'}`,
+    amount: (d) => Number(d.total) || 0,
+    approve: async (doc) => { doc.status = 'sent'; },
+  },
+  payroll: {
+    Model: Payroll,
+    label: 'Payroll run',
+    isDraft: (d) => d.status === 'draft',
+    title: (d) => `${d.employeeName || 'Employee'} · ${d.periodStart ? new Date(d.periodStart).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : ''}`,
+    amount: (d) => Number(d.netPay || d.grossPay) || 0,
+    // Same effect as processing it on the Payroll page: charged to the department budget once.
+    approve: async (doc) => {
+      doc.status = 'processed';
+      if (doc.budgetId) await Budget.findByIdAndUpdate(doc.budgetId, { $inc: { spent: Number(doc.netPay || doc.grossPay) || 0 } });
+    },
+  },
+  journal: {
+    Model: JournalEntry,
+    label: 'Journal entry',
+    isDraft: (d) => d.status === 'draft',
+    title: (d) => `${d.entryNumber}${d.memo ? ` · ${d.memo}` : ''}`,
+    amount: (d) => Number(d.totalDebit) || 0,
+    approve: async (doc) => {
+      assertBalancedJournal(doc.lines);
+      doc.status = 'posted';
+      doc.postedAt = new Date();
+    },
+  },
+};
+
+// Just enough of each item for the head to decide from the queue without opening it.
+const reviewDetails = (module, d) => {
+  if (module === 'invoice') {
+    return {
+      clientName: d.clientName, clientEmail: d.clientEmail || '', dueDate: d.dueDate || null,
+      items: (d.items || []).slice(0, 20).map((i) => ({ description: i.description || '', quantity: i.quantity, rate: i.rate, amount: i.amount })),
+      subtotal: d.subtotal || 0, gstRate: d.gstRate || 0, gstAmount: d.gstAmount || 0, tdsRate: d.tdsRate || 0, tdsAmount: d.tdsAmount || 0,
+      discount: d.discount || 0, total: d.total || 0,
+    };
+  }
+  if (module === 'payroll') {
+    return {
+      employeeName: d.employeeName, periodStart: d.periodStart, periodEnd: d.periodEnd,
+      grossPay: d.grossPay || 0, deductions: d.deductions || 0, netPay: d.netPay || 0, budgetLinked: Boolean(d.budgetId),
+    };
+  }
+  return {
+    memo: d.memo || '', entryDate: d.entryDate || null,
+    lines: (d.lines || []).slice(0, 30).map((l) => ({
+      account: l.account && typeof l.account === 'object' ? `${l.account.code} · ${l.account.name}` : 'Account',
+      debit: l.debit || 0, credit: l.credit || 0,
+    })),
+    totalDebit: d.totalDebit || 0, totalCredit: d.totalCredit || 0,
+  };
+};
+
+const reviewActorName = (req) => [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ').trim() || req.user?.email || 'Finance user';
+const isFinanceHead = (req) => FINANCE_HEAD_ROLES.has(String(req.user?.role || '').toLowerCase());
+
+const loadReviewTarget = async (req) => {
+  const cfg = REVIEW_MODULES[req.params.module];
+  if (!cfg) {
+    const err = new Error('Unknown item type'); err.statusCode = 400; throw err;
+  }
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    const err = new Error('Invalid id'); err.statusCode = 400; throw err;
+  }
+  const doc = await cfg.Model.findById(req.params.id);
+  if (!doc) {
+    const err = new Error(`${cfg.label} not found`); err.statusCode = 404; throw err;
+  }
+  if (!doc.review) doc.review = {};
+  return { cfg, doc };
+};
+
+// POST /review/:module/:id/submit — any finance writer; the item must still be a draft.
+exports.submitForReview = async (req, res) => {
+  try {
+    const { cfg, doc } = await loadReviewTarget(req);
+    if (!cfg.isDraft(doc)) return res.status(409).json({ success: false, error: `Only draft ${cfg.label.toLowerCase()}s can be submitted` });
+    if (doc.review.status === 'submitted') return res.status(409).json({ success: false, error: 'Already waiting for the finance head' });
+    if (req.params.module === 'journal') assertBalancedJournal(doc.lines);
+    doc.review = {
+      status: 'submitted',
+      submittedBy: req.user._id || req.user.id,
+      submittedByName: reviewActorName(req),
+      submittedAt: new Date(),
+      submitNote: String(req.body?.note || '').trim().slice(0, 1000),
+    };
+    await doc.save();
+    await logAudit({ req, action: `${req.params.module}_submitted_for_review`, resourceType: req.params.module, resourceId: doc._id, meta: { note: doc.review.submitNote } });
+    return res.json({ success: true, data: doc });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to submit for review' });
+  }
+};
+
+// POST /review/:module/:id/decision { decision: 'approve' | 'return', note } — finance head only.
+exports.decideReview = async (req, res) => {
+  try {
+    if (!isFinanceHead(req)) return res.status(403).json({ success: false, error: 'Finance Head permission required' });
+    const decision = String(req.body?.decision || '');
+    const note = String(req.body?.note || '').trim().slice(0, 1000);
+    if (!['approve', 'return'].includes(decision)) return res.status(400).json({ success: false, error: 'Decision must be approve or return' });
+    if (decision === 'return' && !note) return res.status(400).json({ success: false, error: 'Say what needs to change before returning it' });
+    const { cfg, doc } = await loadReviewTarget(req);
+    if (doc.review.status !== 'submitted') return res.status(409).json({ success: false, error: 'This item is not waiting for review' });
+    if (decision === 'approve') {
+      if (!cfg.isDraft(doc)) return res.status(409).json({ success: false, error: `This ${cfg.label.toLowerCase()} is no longer a draft` });
+      await cfg.approve(doc);
+    }
+    doc.review.status = decision === 'approve' ? 'approved' : 'returned';
+    doc.review.decidedBy = req.user._id || req.user.id;
+    doc.review.decidedByName = reviewActorName(req);
+    doc.review.decidedAt = new Date();
+    doc.review.decisionNote = note;
+    doc.markModified('review');
+    await doc.save();
+    await logAudit({
+      req, action: `${req.params.module}_review_${decision === 'approve' ? 'approved' : 'returned'}`, resourceType: req.params.module, resourceId: doc._id,
+      meta: { note, submittedBy: doc.review.submittedByName }, riskFlag: decision === 'approve' ? 'none' : 'low',
+    });
+    return res.json({ success: true, data: doc });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to record the decision' });
+  }
+};
+
+// GET /review/queue?status=submitted|returned|approved|all — head: whole team; employee: own submissions.
+exports.getReviewQueue = async (req, res) => {
+  try {
+    const head = isFinanceHead(req);
+    const wanted = String(req.query.status || (head ? 'submitted' : 'all'));
+    const reviewFilter = wanted === 'all' ? { 'review.status': { $in: ['submitted', 'returned', 'approved'] } } : { 'review.status': wanted };
+    const mine = head ? {} : { 'review.submittedBy': req.user._id || req.user.id };
+    const rows = [];
+    for (const [module, cfg] of Object.entries(REVIEW_MODULES)) {
+      let query = cfg.Model.find({ ...reviewFilter, ...mine }).sort({ 'review.submittedAt': -1 }).limit(300);
+      if (module === 'journal') query = query.populate('lines.account', 'code name');
+      const docs = await query.lean();
+      docs.forEach((d) => rows.push({
+        module,
+        moduleLabel: cfg.label,
+        id: d._id,
+        title: cfg.title(d),
+        amount: cfg.amount(d),
+        itemStatus: d.status,
+        review: d.review,
+        createdAt: d.createdAt,
+        details: reviewDetails(module, d),
+      }));
+    }
+    rows.sort((a, b) => new Date(b.review?.submittedAt || 0) - new Date(a.review?.submittedAt || 0));
+    return res.json({ success: true, data: { rows, isHead: head } });
+  } catch (err) {
+    return sendError(res, err, 'Failed to load the review queue');
+  }
+};
+
+// Route guards: employees prepare drafts; only the head moves money-affecting items forward.
+exports.guardHeadOnlyStatus = (module) => async (req, res, next) => {
+  if (isFinanceHead(req)) return next();
+  const status = req.body?.status;
+  if (status === undefined || status === 'draft') return next();
+  const hint = module === 'invoice' ? 'Submit the invoice for approval instead' : module === 'payroll' ? 'Submit the payroll run for processing instead' : 'Submit it for review instead';
+  return res.status(403).json({ success: false, error: `Only the finance head can change this status. ${hint}.` });
+};
+
+// Items waiting for the head are frozen for everyone else until approved or returned.
+exports.guardNotUnderReview = (module) => async (req, res, next) => {
+  try {
+    if (isFinanceHead(req) || !mongoose.Types.ObjectId.isValid(req.params.id)) return next();
+    const doc = await REVIEW_MODULES[module].Model.findById(req.params.id).select('review').lean();
+    if (doc?.review?.status === 'submitted') {
+      return res.status(409).json({ success: false, error: 'Waiting for the finance head — it can be edited again if it is returned' });
+    }
+    return next();
+  } catch (err) {
+    return next(err);
   }
 };

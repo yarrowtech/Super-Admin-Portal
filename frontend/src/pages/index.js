@@ -148,6 +148,7 @@ export const FinanceCompliancePage      = lazy(() => import('../components/finan
 export const FinanceDirectoryPage       = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceDirectoryPage })));
 export const FinanceActivityPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceActivityPage })));
 export const FinanceApprovalsPage       = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceApprovalsPage })));
+export const FinanceReviewPage          = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceReviewPage })));
 export const FinanceSettingsPage        = lazy(() => import('../components/finance/FinanceSettingsPage'));
 export const FinanceSupportPage         = lazy(() => import('../components/finance/FinanceSupportPage'));
 

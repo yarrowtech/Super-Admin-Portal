@@ -19,9 +19,10 @@ router.use(cacheGetResponses('finance', { tags: ['finance', 'dashboard', 'analyt
 router.use(invalidateCacheAfterMutation('finance'));
 router.use('/module', modularFinanceRoutes);
 
+// CEO and HR can view finance but never change it (HR keeps only the payroll sync below).
 const canWriteFinance = (req, res, next) => {
   const role = String(req.user?.role || '').toLowerCase();
-  const readonly = new Set([ROLES.CEO]);
+  const readonly = new Set([ROLES.CEO, ROLES.HR]);
   if (readonly.has(role)) {
     return res.status(403).json({ success: false, error: 'Read-only role for finance operations' });
   }
@@ -34,6 +35,19 @@ const canControlFinance = (req, res, next) => {
   return res.status(403).json({ success: false, error: 'Finance Head permission required' });
 };
 
+const canSyncPayroll = (req, res, next) => {
+  const role = String(req.user?.role || '').toLowerCase();
+  if (role === ROLES.CEO) return res.status(403).json({ success: false, error: 'Read-only role for finance operations' });
+  return next();
+};
+
+// Maker-checker: finance employees prepare and submit; the finance head approves or returns.
+const headOnlyStatus = financeController.guardHeadOnlyStatus;
+const notUnderReview = financeController.guardNotUnderReview;
+router.get('/review/queue', financeController.getReviewQueue);
+router.post('/review/:module/:id/submit', canWriteFinance, financeController.submitForReview);
+router.post('/review/:module/:id/decision', canControlFinance, financeController.decideReview);
+
 // Finance dashboard
 router.get('/dashboard', financeController.getDashboard);
 router.get('/departments', financeController.getDepartmentFinancials);
@@ -45,19 +59,19 @@ router.get('/departments/:departmentId', financeController.getDepartmentFinancia
 
 // ERP Chart of Accounts
 router.get('/accounts', financeController.getAccounts);
-router.post('/accounts', financeController.createAccount);
-router.put('/accounts/:id', financeController.updateAccount);
+router.post('/accounts', canControlFinance, financeController.createAccount);
+router.put('/accounts/:id', canControlFinance, financeController.updateAccount);
 
 // ERP Journals
 router.get('/journals', financeController.getJournalEntries);
-router.post('/journals', financeController.createJournalEntry);
-router.put('/journals/:id', financeController.updateJournalEntry);
-router.post('/journals/:id/post', financeController.postJournalEntry);
+router.post('/journals', canWriteFinance, financeController.createJournalEntry);
+router.put('/journals/:id', canWriteFinance, notUnderReview('journal'), financeController.updateJournalEntry);
+router.post('/journals/:id/post', canControlFinance, financeController.postJournalEntry);
 
 // Invoice and Billing
 router.get('/invoices', financeController.getInvoices);
-router.post('/invoices', canWriteFinance, financeController.createInvoice);
-router.put('/invoices/:id', canWriteFinance, financeController.updateInvoice);
+router.post('/invoices', canWriteFinance, headOnlyStatus('invoice'), financeController.createInvoice);
+router.put('/invoices/:id', canWriteFinance, headOnlyStatus('invoice'), notUnderReview('invoice'), financeController.updateInvoice);
 router.delete('/invoices/:id', canControlFinance, financeController.deleteInvoice);
 router.post('/invoices/:id/notes', canWriteFinance, financeController.createInvoiceNote);
 router.get('/invoice-notes', financeController.getInvoiceNotes);
@@ -75,16 +89,16 @@ router.delete('/expenses/:id', canControlFinance, financeController.deleteExpens
 
 // Budget and Cost Control
 router.get('/budgets', financeController.getBudgets);
-router.post('/budgets', canWriteFinance, financeController.createBudget);
-router.put('/budgets/:id', canWriteFinance, financeController.updateBudget);
+router.post('/budgets', canControlFinance, financeController.createBudget);
+router.put('/budgets/:id', canControlFinance, financeController.updateBudget);
 router.get('/cost-centers', financeController.getCostCenters);
-router.post('/cost-centers', canWriteFinance, financeController.createCostCenter);
-router.put('/cost-centers/:id', canWriteFinance, financeController.updateCostCenter);
+router.post('/cost-centers', canControlFinance, financeController.createCostCenter);
+router.put('/cost-centers/:id', canControlFinance, financeController.updateCostCenter);
 
 // Payroll Processing
 router.get('/payrolls', financeController.getPayrolls);
-router.post('/payrolls', canWriteFinance, financeController.createPayroll);
-router.put('/payrolls/:id', canWriteFinance, financeController.updatePayroll);
+router.post('/payrolls', canWriteFinance, headOnlyStatus('payroll'), financeController.createPayroll);
+router.put('/payrolls/:id', canWriteFinance, headOnlyStatus('payroll'), notUnderReview('payroll'), financeController.updatePayroll);
 
 // Financial Reports
 router.get('/reports', financeController.getReports);
@@ -114,7 +128,7 @@ router.get('/audit-logs', financeController.getAuditLogs);
 router.get('/approvals', financeController.getApprovalWorkflows);
 router.post('/approvals', canWriteFinance, financeController.createApprovalWorkflow);
 router.patch('/approvals/:id/decision', canControlFinance, financeController.updateApprovalWorkflowDecision);
-router.post('/integrations/hr/payroll-sync', canWriteFinance, financeController.syncPayrollFromHr);
+router.post('/integrations/hr/payroll-sync', canSyncPayroll, financeController.syncPayrollFromHr);
 router.post('/integrations/law/compliance-link', canWriteFinance, financeController.linkComplianceWithLaw);
 router.get('/integrations/snapshot', financeController.getIntegrationSnapshot);
 

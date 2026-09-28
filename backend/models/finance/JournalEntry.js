@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const reviewSchema = require('./reviewSchema');
 
 const lineSchema = new mongoose.Schema(
   {
@@ -21,6 +22,7 @@ const journalEntrySchema = new mongoose.Schema(
     status: { type: String, enum: ['draft', 'posted'], default: 'draft' },
     postedAt: { type: Date },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    review: { type: reviewSchema, default: () => ({}) },
   },
   { timestamps: true }
 );

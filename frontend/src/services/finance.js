@@ -98,6 +98,13 @@ export const financeApi = {
   },
   createApproval: (data, token) => apiClient.post('/api/dept/finance/approvals', data, token),
   decideApproval: (id, data, token) => apiClient.patch(`/api/dept/finance/approvals/${id}/decision`, data, token),
+  // Maker-checker review: module = 'invoice' | 'payroll' | 'journal'.
+  submitForReview: (module, id, note, token) => apiClient.post(`/api/dept/finance/review/${module}/${id}/submit`, { note }, token),
+  decideReview: (module, id, body, token) => apiClient.post(`/api/dept/finance/review/${module}/${id}/decision`, body, token),
+  getReviewQueue: (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/finance/review/queue${query ? `?${query}` : ''}`, token, { cache: false });
+  },
   getIntegrationSnapshot: (token) => apiClient.get('/api/dept/finance/integrations/snapshot', token, { cache: false }),
   syncPayrollFromHr: (data, token) => apiClient.post('/api/dept/finance/integrations/hr/payroll-sync', data, token),
   linkComplianceWithLaw: (data, token) => apiClient.post('/api/dept/finance/integrations/law/compliance-link', data, token),

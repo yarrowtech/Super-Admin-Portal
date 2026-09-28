@@ -100,6 +100,7 @@ import {
   FinanceDirectoryPage,
   FinanceActivityPage,
   FinanceApprovalsPage,
+  FinanceReviewPage,
   FinanceSettingsPage,
   FinanceSupportPage,
   HRSettingsPage,
@@ -531,6 +532,7 @@ export default function AppRoutes() {
           <Route path="directory" element={<FinanceDirectoryPage />} />
           <Route path="activity" element={<FinanceActivityPage />} />
           <Route path="approvals" element={<FinanceApprovalsPage />} />
+          <Route path="review" element={<FinanceReviewPage />} />
           <Route path="settings" element={<FinanceSettingsPage />} />
           <Route path="support" element={<FinanceSupportPage />} />
         </Route>

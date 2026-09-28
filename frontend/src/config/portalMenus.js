@@ -144,6 +144,9 @@ export const portalMenuConfig = {
   finance: [
     { section: 'Overview', label: 'Dashboard', icon: 'dashboard', path: '/finance/dashboard', description: 'Financial control center' },
     { section: 'Overview', label: 'Reports',   icon: 'bar_chart', path: '/finance/dashboard/reports', description: 'Financial reports' },
+    // Same page, per role: the head's approval inbox / the employee's sent items.
+    { section: 'Overview', label: 'Review Queue', icon: 'fact_check', path: '/finance/dashboard/review', description: 'Approve or return what the team submitted', roles: FINANCE_HEAD_ROLES },
+    { section: 'Overview', label: 'My Submissions', icon: 'outbox', path: '/finance/dashboard/review', description: 'What you sent to the finance head', roles: ['finance_employee'] },
     {
       section: 'Transactions',
       label: 'Invoices',

@@ -15,6 +15,7 @@ import AttentionPanel from '../common/AttentionPanel';
 import QuickActions from '../common/QuickActions';
 import SectionCard from '../ui/SectionCard';
 import { statusToTone } from '../../utils/statusTone';
+import { useQueryClient } from '@tanstack/react-query';
 import { financeApi } from '../../services/finance';
 import { useAuth } from '../../context/AuthContext';
 
@@ -176,6 +177,192 @@ const Notice = ({ children, onDismiss }) => (
 );
 
 const todayIso = () => new Date().toISOString().split('T')[0];
+
+// ─── Maker-checker (finance employee prepares → finance head approves) ─────────
+
+const FINANCE_HEAD = ['finance_manager', 'admin', 'super_admin'];
+const useIsFinanceHead = () => {
+  const { user } = useAuth();
+  return FINANCE_HEAD.includes(String(user?.role || '').toLowerCase());
+};
+const reviewStatusOf = (item) => item?.review?.status || 'none';
+const isAwaitingHead = (item) => reviewStatusOf(item) === 'submitted';
+
+// Where an item stands in review, shown next to its own status.
+const ReviewBadge = ({ item }) => {
+  const r = item?.review;
+  if (!r || r.status === 'none') return null;
+  if (r.status === 'submitted') {
+    return (
+      <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-800" title={`Submitted by ${r.submittedByName || 'team'}${r.submitNote ? ` — “${r.submitNote}”` : ''}`}>
+        <span className="material-symbols-outlined text-[13px]">hourglass_top</span>Waiting for head
+      </span>
+    );
+  }
+  if (r.status === 'returned') {
+    return (
+      <span className="inline-flex max-w-[16rem] items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-800" title={r.decisionNote}>
+        <span className="material-symbols-outlined text-[13px]">undo</span><span className="truncate">Returned{r.decisionNote ? `: ${r.decisionNote}` : ''}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-800" title={`Approved by ${r.decidedByName || 'finance head'}`}>
+      <span className="material-symbols-outlined text-[13px]">verified</span>Head approved
+    </span>
+  );
+};
+
+const REVIEW_COPY = {
+  invoice: { submit: 'Submit for approval', approveLabel: 'Approve & send', what: 'invoice' },
+  payroll: { submit: 'Submit for processing', approveLabel: 'Approve & process', what: 'payroll run' },
+  journal: { submit: 'Submit for posting', approveLabel: 'Approve & post', what: 'journal entry' },
+};
+
+/**
+ * One dialog for the whole handoff. mode: 'submit' (employee, optional note) · 'approve' /
+ * 'return' (head; return needs a reason). Calls onDone(message) after a successful save.
+ */
+const ReviewDialog = ({ state, onClose, onDone: onDoneProp }) => {
+  const { token } = useAuth();
+  const queryClient = useQueryClient();
+  // Keep the sidebar count in step with every submit / decision.
+  const onDone = (msg) => {
+    queryClient.invalidateQueries({ queryKey: ['finance', 'review-count'] });
+    onDoneProp(msg);
+  };
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  if (!state) return null;
+  const { module, item, mode, title } = state;
+  const copy = REVIEW_COPY[module];
+  const needsNote = mode === 'return';
+
+  const run = async () => {
+    if (needsNote && !note.trim()) { setError('Tell them what needs to change.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      if (mode === 'submit') {
+        await financeApi.submitForReview(module, item._id, note.trim(), token);
+        onDone(`Submitted to the finance head — you will see the decision in My Submissions.`);
+      } else {
+        await financeApi.decideReview(module, item._id, { decision: mode, note: note.trim() }, token);
+        onDone(mode === 'approve' ? `Approved — the ${copy.what} has been applied.` : `Returned to ${item.review?.submittedByName || 'the employee'} with your reason.`);
+      }
+    } catch (err) {
+      setError(err.message || 'Could not save.');
+      setSaving(false);
+    }
+  };
+
+  const heading = mode === 'submit' ? copy.submit : mode === 'approve' ? copy.approveLabel : `Return ${copy.what}`;
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={heading}
+      description={title}
+      className="sm:max-w-lg"
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button type="button" variant={mode === 'return' ? 'danger' : 'primary'} size="sm" disabled={saving} onClick={run}>{saving ? 'Saving…' : heading}</Button>
+        </div>
+      )}
+    >
+      <div className="space-y-3">
+        {mode !== 'submit' && item.review?.submittedByName && (
+          <div className="rounded-lg bg-neutral-50 px-3 py-2 text-sm dark:bg-neutral-800">
+            <p className="text-xs text-neutral-500">Submitted by <span className="font-semibold text-neutral-800 dark:text-neutral-100">{item.review.submittedByName}</span> · {fmtDate(item.review.submittedAt)}</p>
+            {item.review.submitNote && <p className="mt-1 italic text-neutral-700 dark:text-neutral-200">“{item.review.submitNote}”</p>}
+          </div>
+        )}
+        {mode === 'submit' && <p className="text-sm text-neutral-600 dark:text-neutral-300">The finance head reviews it. Until then it is locked; if it is returned you can edit and resubmit.</p>}
+        {mode === 'approve' && <p className="text-sm text-neutral-600 dark:text-neutral-300">Approving applies it straight away{module === 'payroll' ? ' and charges the department budget' : module === 'journal' ? ' and posts it to the ledger' : ' and marks the invoice as sent'}.</p>}
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">
+            {mode === 'submit' ? 'Note for the finance head (optional)' : mode === 'return' ? 'What needs to change?' : 'Comment (optional)'}{needsNote && <span className="text-rose-500">*</span>}
+          </span>
+          <textarea className={input} rows={3} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} placeholder={mode === 'return' ? 'e.g. GST should be 18%, not 12%' : ''} />
+        </label>
+        {error && <p className="text-sm text-rose-600 dark:text-rose-300">{error}</p>}
+      </div>
+    </Modal>
+  );
+};
+
+// One-line "who does what" under the page header, so each role knows its part of the flow.
+const RoleStrip = ({ module }) => {
+  const isHead = useIsFinanceHead();
+  const navigate = useNavigate();
+  const what = REVIEW_COPY[module].what;
+  const steps = isHead
+    ? ['Team drafts', 'Submits to you', 'You approve or return']
+    : ['You draft', `${REVIEW_COPY[module].submit}`, 'Head approves or returns'];
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-2 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/15 dark:text-blue-100">
+      <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-300">{isHead ? 'verified_user' : 'info'}</span>
+      <span className="font-semibold">{isHead ? `You approve every ${what}.` : `You prepare, the finance head approves.`}</span>
+      <span className="flex flex-wrap items-center gap-1.5 text-blue-800/80 dark:text-blue-200/80">
+        {steps.map((s, i) => (
+          <React.Fragment key={s}>
+            {i > 0 && <span className="material-symbols-outlined text-[14px]">arrow_forward</span>}
+            <span>{s}</span>
+          </React.Fragment>
+        ))}
+      </span>
+      <button type="button" onClick={() => navigate('/finance/dashboard/review')} className="ml-auto font-semibold text-blue-700 hover:underline dark:text-blue-300">
+        {isHead ? 'Open Review Queue' : 'My Submissions'} →
+      </button>
+    </div>
+  );
+};
+
+// Dashboard nudge: the head sees what is waiting for approval; an employee sees returned work.
+const ReviewCallout = () => {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const isHead = useIsFinanceHead();
+  const { data } = useAsync(async () => unwrap(await financeApi.getReviewQueue(token, { status: isHead ? 'submitted' : 'returned' })), [token, isHead]);
+  const count = (data?.rows || []).length;
+  if (!count) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/finance/dashboard/review')}
+      className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left ${isHead ? 'border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/20' : 'border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-900/20'}`}
+    >
+      <span className={`material-symbols-outlined ${isHead ? 'text-amber-600' : 'text-rose-600'}`}>{isHead ? 'fact_check' : 'undo'}</span>
+      <span className="flex-1 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+        {isHead
+          ? `${count} item${count === 1 ? ' is' : 's are'} waiting for your approval`
+          : `${count} of your submission${count === 1 ? ' was' : 's were'} returned — fix and resubmit`}
+      </span>
+      <span className="text-sm font-semibold text-primary">{isHead ? 'Review now' : 'View'} →</span>
+    </button>
+  );
+};
+
+// Row actions for a draft item, by role: employee submits; head approves directly or decides.
+const ReviewActions = ({ module, item, isHead, onOpen, directApprove, directLabel }) => {
+  const status = reviewStatusOf(item);
+  const link = 'whitespace-nowrap text-xs font-semibold hover:underline disabled:opacity-50';
+  if (isHead) {
+    if (status === 'submitted') {
+      return (
+        <>
+          <button type="button" onClick={() => onOpen({ module, item, mode: 'return' })} className={`${link} text-rose-600 dark:text-rose-300`}>Return</button>
+          <button type="button" onClick={() => onOpen({ module, item, mode: 'approve' })} className={`${link} text-emerald-700 dark:text-emerald-300`}>{REVIEW_COPY[module].approveLabel}</button>
+        </>
+      );
+    }
+    return directApprove ? <button type="button" onClick={directApprove} className={`${link} text-primary`}>{directLabel}</button> : null;
+  }
+  if (status === 'submitted') return <span className="text-xs text-neutral-400">With the head</span>;
+  return <button type="button" onClick={() => onOpen({ module, item, mode: 'submit' })} className={`${link} text-primary`}>{status === 'returned' ? 'Resubmit' : REVIEW_COPY[module].submit}</button>;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -720,6 +907,7 @@ export const FinanceOverviewPage = () => {
         />
 
         <WarmGreeting user={user} roleHint="financial overview" />
+        <ReviewCallout />
 
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
 
@@ -1334,10 +1522,15 @@ export const FinanceInvoicesPage = () => {
     refetch();
   };
 
+  const isHead = useIsFinanceHead();
+  const [reviewing, setReviewing] = useState(null);
+  const closeReview = useCallback(() => setReviewing(null), [setReviewing]);
+
   return (
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Invoices & Billing" subtitle="Draft → approve → collect payment" icon="receipt_long" user={user} crumbs={['Finance', 'Invoices']} />
+        <RoleStrip module="invoice" />
 
         {error && <ErrorState description={error} onRetry={refetch} />}
         {actionError && <ErrorState title="Action failed" description={actionError} />}
@@ -1456,7 +1649,19 @@ export const FinanceInvoicesPage = () => {
                     header: 'Due',
                     render: (r) => <span className={invoiceStage(r) === 'overdue' ? 'font-semibold text-rose-600 dark:text-rose-300' : ''}>{fmtDateOnly(r.dueDate)}</span>,
                   },
-                  { key: 'status', header: 'Status', render: (r) => { const stage = invoiceStage(r); return <Pill value={stage} label={INVOICE_STAGE_LABEL[stage]} />; } },
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    render: (r) => {
+                      const stage = invoiceStage(r);
+                      return (
+                        <div className="flex flex-col items-start gap-1">
+                          <Pill value={stage} label={INVOICE_STAGE_LABEL[stage]} />
+                          {stage === 'draft' && <ReviewBadge item={r} />}
+                        </div>
+                      );
+                    },
+                  },
                   { key: 'total', header: 'Total', render: (r) => formatCurrency(getInvoiceTotal(r)) },
                   { key: 'balanceDue', header: 'Balance', render: (r) => <span className="font-semibold">{formatCurrency(invoiceStage(r) === 'paid' ? 0 : invoiceBalance(r))}</span> },
                   {
@@ -1468,10 +1673,17 @@ export const FinanceInvoicesPage = () => {
                         <div className="flex justify-end gap-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {stage === 'draft' && (
                             <>
-                              <button type="button" onClick={() => startEdit(r)} className="text-xs font-semibold text-neutral-500 hover:underline">Edit</button>
-                              <button type="button" onClick={() => approve(r)} disabled={approvingId === r._id} className="text-xs font-semibold text-primary hover:underline disabled:opacity-50">
-                                {approvingId === r._id ? 'Approving…' : 'Approve'}
-                              </button>
+                              {(isHead || !isAwaitingHead(r)) && (
+                                <button type="button" onClick={() => startEdit(r)} className="text-xs font-semibold text-neutral-500 hover:underline">Edit</button>
+                              )}
+                              <ReviewActions
+                                module="invoice"
+                                item={r}
+                                isHead={isHead}
+                                onOpen={(s) => setReviewing({ ...s, title: `${r.invoiceNumber} · ${r.clientName || 'Client'} · ${formatCurrency(getInvoiceTotal(r))}` })}
+                                directApprove={approvingId === r._id ? undefined : () => approve(r)}
+                                directLabel="Approve"
+                              />
                             </>
                           )}
                           {isPayableInvoice(r) && (
@@ -1495,6 +1707,7 @@ export const FinanceInvoicesPage = () => {
       </div>
 
       {payingInvoice && <RecordPaymentModal key={payingInvoice._id} invoice={payingInvoice} onClose={() => setPayingInvoice(null)} onSaved={onPaymentSaved} />}
+      <ReviewDialog key={reviewing ? `${reviewing.item._id}-${reviewing.mode}` : 'none'} state={reviewing} onClose={closeReview} onDone={(msg) => { setReviewing(null); setNotice(msg); refetch(); }} />
     </main>
   );
 };
@@ -1570,8 +1783,32 @@ export const FinanceInvoiceDetailPage = () => {
     }
   };
 
+  const isHead = useIsFinanceHead();
+  const [reviewing, setReviewing] = useState(null);
+  const draftStep = () => {
+    const rs = reviewStatusOf(invoice);
+    const open = (mode) => setReviewing({ module: 'invoice', item: invoice, mode, title: `${invoice.invoiceNumber} · ${invoice.clientName || 'Client'}` });
+    if (isHead && rs === 'submitted') {
+      return {
+        hint: `${invoice.review.submittedByName || 'A team member'} submitted this for your approval${invoice.review.submitNote ? ` — “${invoice.review.submitNote}”` : ''}.`,
+        action: (
+          <div className="flex gap-2">
+            <Button variant="danger" size="sm" onClick={() => open('return')}>Return</Button>
+            <Button variant="primary" size="sm" onClick={() => open('approve')}>Approve &amp; send</Button>
+          </div>
+        ),
+      };
+    }
+    if (isHead) return { hint: 'Verify the amounts, then approve to send it to the client.', action: <Button variant="primary" size="sm" onClick={approve} disabled={approving}>{approving ? 'Approving…' : 'Approve & send'}</Button> };
+    if (rs === 'submitted') return { hint: 'Waiting for the finance head to approve it. It is locked until then.', action: null };
+    return {
+      hint: rs === 'returned' ? `Returned by ${invoice.review.decidedByName || 'the finance head'}: “${invoice.review.decisionNote}”. Fix it and resubmit.` : 'Check the amounts, then submit it to the finance head for approval.',
+      action: <Button variant="primary" size="sm" onClick={() => open('submit')}>{rs === 'returned' ? 'Resubmit' : 'Submit for approval'}</Button>,
+    };
+  };
+
   const nextStep = !invoice ? null
-    : stage === 'draft' ? { hint: 'Verify the amounts, then approve to send it to the client.', action: <Button variant="primary" size="sm" onClick={approve} disabled={approving}>{approving ? 'Approving…' : 'Approve & send'}</Button> }
+    : stage === 'draft' ? draftStep()
       : isPayableInvoice(invoice) ? { hint: stage === 'overdue' ? 'Past its due date — follow up and record the payment when it arrives.' : 'Waiting on the client. Record each payment as it comes in.', action: <Button variant="primary" size="sm" onClick={() => setPaying(true)}>Record payment</Button> }
         : { hint: stage === 'void' ? 'This invoice was voided.' : 'Fully settled. No further action needed.', action: null };
 
@@ -1717,6 +1954,7 @@ export const FinanceInvoiceDetailPage = () => {
           onSaved={(message) => { setPaying(false); setNotice(message); refetch(); }}
         />
       )}
+      <ReviewDialog key={reviewing ? `${reviewing.item._id}-${reviewing.mode}` : 'none'} state={reviewing} onClose={() => setReviewing(null)} onDone={(msg) => { setReviewing(null); setNotice(msg); refetch(); }} />
     </main>
   );
 };
@@ -2300,6 +2538,8 @@ export const FinanceBudgetsPage = () => {
   const [savingAdjust, setSavingAdjust] = useState(false);
   const [adjustError, setAdjustError] = useState('');
   const closeAdjust = useCallback(() => { setAdjusting(null); setAdjustError(''); }, [setAdjusting, setAdjustError]);
+  // Budgets and cost centres are set by the finance head; the team sees them read-only.
+  const isHead = useIsFinanceHead();
 
   const duplicateBudget = budgetForm.departmentId
     ? budgets.find((b) => String(b.departmentId) === String(budgetForm.departmentId) && String(b.fiscalYear) === String(budgetForm.fiscalYear).trim())
@@ -2380,7 +2620,8 @@ export const FinanceBudgetsPage = () => {
           ]}
         />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
+        <div className={`grid grid-cols-1 gap-6 ${isHead ? 'lg:grid-cols-[1fr,1.7fr]' : ''}`}>
+          {!isHead ? null : (
           <section className={card}>
             <div className={inner}>
               <SectionHdr title="Allocate budget" subtitle="One budget per department per year" />
@@ -2435,6 +2676,7 @@ export const FinanceBudgetsPage = () => {
               </div>
             </div>
           </section>
+          )}
 
           <section className={card}>
             <div className={inner}>
@@ -2467,7 +2709,7 @@ export const FinanceBudgetsPage = () => {
                           </div>
                           <div className="flex items-center gap-3">
                             <Pill value={budget.status} label={humanizeStatus(budget.status)} />
-                            <button type="button" onClick={() => setAdjusting({ budget, allocated: budget.allocated, reason: '' })} className="text-xs font-semibold text-primary hover:underline">Adjust</button>
+                            {isHead && <button type="button" onClick={() => setAdjusting({ budget, allocated: budget.allocated, reason: '' })} className="text-xs font-semibold text-primary hover:underline">Adjust</button>}
                           </div>
                         </div>
                         <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label={`${spentPct.toFixed(0)}% spent, ${reservedPct.toFixed(0)}% reserved`}>
@@ -2592,6 +2834,8 @@ export const FinancePayrollPage = () => {
   const [savingAdvance, setSavingAdvance] = useState(false);
   const [actionError, setActionError] = useState('');
   const closeAdvance = useCallback(() => setAdvancing(null), []);
+  const isHead = useIsFinanceHead();
+  const [reviewing, setReviewing] = useState(null);
 
   const gross = (Number(form.grossPay) || 0) + (Number(form.allowances) || 0);
   const netPay = Math.max(gross - (Number(form.deductions) || 0), 0);
@@ -2647,7 +2891,8 @@ export const FinancePayrollPage = () => {
   return (
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
-        <Header title="Payroll" subtitle="Draft → process → disburse" icon="badge" user={user} crumbs={['Finance', 'Payroll']} />
+        <Header title="Payroll" subtitle={isHead ? 'Review drafts → process → disburse' : 'Prepare draft runs → submit to the finance head'} icon="badge" user={user} crumbs={['Finance', 'Payroll']} />
+        <RoleStrip module="payroll" />
         {error && <ErrorState description={error} onRetry={refetch} />}
         {actionError && <ErrorState title="Action failed" description={actionError} />}
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
@@ -2722,6 +2967,7 @@ export const FinancePayrollPage = () => {
                     render: (r) => (
                       <div>
                         <Pill value={r.status} label={humanizeStatus(r.status)} />
+                        {r.status === 'draft' && <div className="mt-1"><ReviewBadge item={r} /></div>}
                         {r.status === 'disbursed' && r.paidOn && <p className="mt-1 text-xs text-neutral-500">Paid {fmtDateOnly(r.paidOn)}</p>}
                       </div>
                     ),
@@ -2729,11 +2975,29 @@ export const FinancePayrollPage = () => {
                   {
                     key: 'actions',
                     header: 'Next step',
-                    render: (r) => PAYROLL_NEXT[r.status] && (
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setAdvancing(r); }} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
-                        {PAYROLL_NEXT[r.status].label}
-                      </button>
-                    ),
+                    render: (r) => {
+                      if (r.status === 'draft') {
+                        return (
+                          <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                            <ReviewActions
+                              module="payroll"
+                              item={r}
+                              isHead={isHead}
+                              onOpen={(s) => setReviewing({ ...s, title: `${r.employeeName || 'Employee'} · net ${formatCurrency(r.netPay)}` })}
+                              directApprove={() => setAdvancing(r)}
+                              directLabel="Process"
+                            />
+                          </div>
+                        );
+                      }
+                      // Disbursing moves money out — finance head only.
+                      if (r.status === 'processed') {
+                        return isHead
+                          ? <button type="button" onClick={(e) => { e.stopPropagation(); setAdvancing(r); }} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">Disburse</button>
+                          : <span className="text-xs text-neutral-400">Head disburses</span>;
+                      }
+                      return null;
+                    },
                   },
                 ]}
                 rows={visiblePayrolls}
@@ -2780,6 +3044,7 @@ export const FinancePayrollPage = () => {
           </div>
         )}
       </Modal>
+      <ReviewDialog key={reviewing ? `${reviewing.item._id}-${reviewing.mode}` : 'none'} state={reviewing} onClose={() => setReviewing(null)} onDone={(msg) => { setReviewing(null); setNotice(msg); refetch(); }} />
     </main>
   );
 };
@@ -2874,6 +3139,8 @@ export const FinanceAccountingPage = () => {
   const [savingPost, setSavingPost] = useState(false);
   const [actionError, setActionError] = useState('');
   const closePosting = useCallback(() => setPosting(null), [setPosting]);
+  const isHead = useIsFinanceHead();
+  const [reviewing, setReviewing] = useState(null);
 
   const postEntry = async () => {
     if (!posting) return;
@@ -2897,6 +3164,7 @@ export const FinanceAccountingPage = () => {
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
         <Header title="Accounting" subtitle="Chart of accounts · draft → post journal entries" icon="menu_book" user={user} crumbs={['Finance', 'Accounting']} />
+        {tab === 'journals' && <RoleStrip module="journal" />}
         <TabBar tabs={ACCOUNTING_TABS.map((t) => ({ ...t, label: `${t.label} (${t.id === 'accounts' ? accounts.length : journalEntries.length})` }))} active={tab} onChange={(id) => { setFormError(''); setSearchParams({ tab: id }); }} />
         {error && <ErrorState description={error} onRetry={refetch} />}
         {actionError && <ErrorState title="Action failed" description={actionError} />}
@@ -2907,6 +3175,12 @@ export const FinanceAccountingPage = () => {
             <section className={card}>
               <div className={inner}>
                 <SectionHdr title="New account" subtitle="Normal balance follows the account type" />
+                {!isHead ? (
+                  <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
+                    <span className="material-symbols-outlined mr-1 align-middle text-[18px] text-neutral-400">lock</span>
+                    The chart of accounts is managed by the finance head. Ask them to add an account you need.
+                  </p>
+                ) : (
                 <form onSubmit={saveAccount} className="space-y-3">
                   <Input
                     label="Account code"
@@ -2937,6 +3211,7 @@ export const FinanceAccountingPage = () => {
                   {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                   <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(duplicateCode)} fullWidth>{submitting ? 'Saving…' : 'Add account'}</Button>
                 </form>
+                )}
               </div>
             </section>
             <section className={card}>
@@ -3043,14 +3318,30 @@ export const FinanceAccountingPage = () => {
                       ),
                     },
                     { key: 'totalDebit', header: 'Amount', render: (r) => <span className="font-semibold">{formatCurrency(r.totalDebit)}</span> },
-                    { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} label={humanizeStatus(r.status)} /> },
+                    {
+                      key: 'status',
+                      header: 'Status',
+                      render: (r) => (
+                        <div className="flex flex-col items-start gap-1">
+                          <Pill value={r.status} label={humanizeStatus(r.status)} />
+                          {r.status === 'draft' && <ReviewBadge item={r} />}
+                        </div>
+                      ),
+                    },
                     {
                       key: 'actions',
                       header: 'Next step',
                       render: (r) => r.status !== 'posted' && (
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setPosting(r); }} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
-                          Post
-                        </button>
+                        <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                          <ReviewActions
+                            module="journal"
+                            item={r}
+                            isHead={isHead}
+                            onOpen={(s) => setReviewing({ ...s, title: `${r.entryNumber} · ${formatCurrency(r.totalDebit)}${r.memo ? ` · ${r.memo}` : ''}` })}
+                            directApprove={() => setPosting(r)}
+                            directLabel="Post"
+                          />
+                        </div>
                       ),
                     },
                   ]}
@@ -3090,6 +3381,7 @@ export const FinanceAccountingPage = () => {
           </div>
         )}
       </Modal>
+      <ReviewDialog key={reviewing ? `${reviewing.item._id}-${reviewing.mode}` : 'none'} state={reviewing} onClose={() => setReviewing(null)} onDone={(msg) => { setReviewing(null); setNotice(msg); refetch(); }} />
     </main>
   );
 };
@@ -4204,6 +4496,322 @@ export const FinanceApprovalsPage = () => {
           </label>
         )}
       </Modal>
+    </main>
+  );
+};
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// Review Queue (head) · My Submissions (employee)
+// ════════════════════════════════════════════════════════════════════════════
+
+const REVIEW_LINK = { invoice: '/finance/dashboard/invoices', payroll: '/finance/dashboard/payroll', journal: '/finance/dashboard/accounting?tab=journals' };
+const REVIEW_ICON = { invoice: 'receipt_long', payroll: 'badge', journal: 'menu_book' };
+const DAY_MS_REVIEW = 24 * 60 * 60 * 1000;
+
+// "3h" / "2d" since a timestamp, plus whether it has waited long enough to flag.
+const waitingFor = (since) => {
+  if (!since) return { label: '', stale: false };
+  const ms = Date.now() - new Date(since).getTime();
+  const days = Math.floor(ms / DAY_MS_REVIEW);
+  const label = days >= 1 ? `${days}d` : `${Math.max(1, Math.round(ms / 3600000))}h`;
+  return { label, stale: days >= 2 };
+};
+
+// What the head needs to decide, without leaving the queue.
+const ReviewDetails = ({ row }) => {
+  const d = row.details || {};
+  const line = 'flex justify-between gap-3 text-xs';
+  if (row.module === 'invoice') {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-neutral-500">{d.clientName}{d.clientEmail ? ` · ${d.clientEmail}` : ''} · due {fmtDateOnly(d.dueDate)}</p>
+        <div className="space-y-1 rounded-lg bg-white p-2.5 dark:bg-neutral-900">
+          {(d.items || []).map((i, idx) => (
+            <div key={idx} className={line}>
+              <span className="truncate text-neutral-700 dark:text-neutral-300">{i.description || 'Item'} · {i.quantity} × {formatCurrency(i.rate)}</span>
+              <span className="font-medium">{formatCurrency(i.amount)}</span>
+            </div>
+          ))}
+          <div className="mt-1 space-y-0.5 border-t border-neutral-100 pt-1.5 text-neutral-500 dark:border-neutral-800">
+            <div className={line}><span>Subtotal</span><span>{formatCurrency(d.subtotal)}</span></div>
+            <div className={line}><span>GST ({d.gstRate}%)</span><span>+ {formatCurrency(d.gstAmount)}</span></div>
+            {d.tdsAmount > 0 && <div className={line}><span>TDS ({d.tdsRate}%)</span><span>− {formatCurrency(d.tdsAmount)}</span></div>}
+            {d.discount > 0 && <div className={line}><span>Discount</span><span>− {formatCurrency(d.discount)}</span></div>}
+            <div className={`${line} text-sm font-bold text-neutral-900 dark:text-white`}><span>Total</span><span>{formatCurrency(d.total)}</span></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (row.module === 'payroll') {
+    return (
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[['Period', `${fmtDateOnly(d.periodStart)} – ${fmtDateOnly(d.periodEnd)}`], ['Gross', formatCurrency(d.grossPay)], ['Deductions', formatCurrency(d.deductions)], ['Net pay', formatCurrency(d.netPay)]].map(([k, v]) => (
+          <div key={k} className="rounded-lg bg-white p-2 dark:bg-neutral-900">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{k}</p>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-white">{v}</p>
+          </div>
+        ))}
+        <p className="col-span-full text-xs text-neutral-500">{d.budgetLinked ? 'Approving charges this to the department budget.' : 'Not linked to a department budget.'}</p>
+      </div>
+    );
+  }
+  const balanced = Math.abs((d.totalDebit || 0) - (d.totalCredit || 0)) < 0.01;
+  return (
+    <div className="space-y-1 rounded-lg bg-white p-2.5 font-mono text-xs dark:bg-neutral-900">
+      {(d.lines || []).map((l, idx) => (
+        <div key={idx} className={`${line} ${l.credit > 0 ? 'pl-5' : ''}`}>
+          <span className="truncate">{l.debit > 0 ? 'Dr' : 'Cr'} {l.account}</span>
+          <span>{formatCurrency(l.debit || l.credit)}</span>
+        </div>
+      ))}
+      <p className={`pt-1 font-sans text-[11px] font-semibold ${balanced ? 'text-emerald-600' : 'text-rose-600'}`}>
+        {balanced ? `Balanced · ${formatCurrency(d.totalDebit)}` : `Unbalanced: Dr ${formatCurrency(d.totalDebit)} ≠ Cr ${formatCurrency(d.totalCredit)}`}
+      </p>
+    </div>
+  );
+};
+
+export const FinanceReviewPage = () => {
+  const { token, user } = useAuth();
+  const navigate = useNavigate();
+  const isHead = useIsFinanceHead();
+  const [status, setStatus] = useState(isHead ? 'submitted' : 'all');
+  const [layout, setLayout] = useState('list');
+  const [moduleFilter, setModuleFilter] = useState('');
+  const [reviewing, setReviewing] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [openKey, setOpenKey] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulk, setBulk] = useState(null); // { done, total, failed: [] }
+
+  const { loading, error, data, refetch } = useAsync(async () => {
+    const all = await financeApi.getReviewQueue(token, { status: 'all' });
+    return { rows: unwrap(all)?.rows || [] };
+  }, [token]);
+  const rows = useMemo(() => data.rows || [], [data.rows]);
+  const keyOf = (r) => `${r.module}:${r.id}`;
+
+  const counts = useMemo(() => rows.reduce((acc, r) => { acc[r.review?.status] = (acc[r.review?.status] || 0) + 1; return acc; }, {}), [rows]);
+  // Waiting items: oldest first (fair queue). Everything else: newest first.
+  const visible = useMemo(() => rows
+    .filter((r) => status === 'all' || r.review?.status === status)
+    .filter((r) => !moduleFilter || r.module === moduleFilter)
+    .sort((a, b) => (status === 'submitted'
+      ? new Date(a.review?.submittedAt || 0) - new Date(b.review?.submittedAt || 0)
+      : new Date(b.review?.submittedAt || 0) - new Date(a.review?.submittedAt || 0))), [rows, status, moduleFilter]);
+
+  const selectable = isHead ? visible.filter((r) => r.review?.status === 'submitted') : [];
+  const selectedRows = selectable.filter((r) => selected.has(keyOf(r)));
+  const allSelected = selectable.length > 0 && selectedRows.length === selectable.length;
+  const toggle = (r) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(keyOf(r))) next.delete(keyOf(r)); else next.add(keyOf(r));
+    return next;
+  });
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectable.map(keyOf)));
+
+  // Approves one by one so a single failure (e.g. an unbalanced journal) doesn't stop the rest.
+  const approveSelected = async () => {
+    const list = selectedRows;
+    if (!list.length) return;
+    if (!window.confirm(`Approve ${list.length} item${list.length === 1 ? '' : 's'} totalling ${formatCurrency(list.reduce((s, r) => s + (Number(r.amount) || 0), 0))}?`)) return;
+    const failed = [];
+    setBulk({ done: 0, total: list.length, failed });
+    for (let i = 0; i < list.length; i += 1) {
+      const r = list[i];
+      try {
+        await financeApi.decideReview(r.module, r.id, { decision: 'approve' }, token);
+      } catch (err) {
+        failed.push(`${r.title}: ${err.message || 'failed'}`);
+      }
+      setBulk({ done: i + 1, total: list.length, failed: [...failed] });
+    }
+    setSelected(new Set());
+    setBulk(null);
+    setNotice(failed.length ? `Approved ${list.length - failed.length} of ${list.length}. Not approved — ${failed.join('; ')}` : `Approved ${list.length} item${list.length === 1 ? '' : 's'}.`);
+    refetch();
+  };
+
+  const byPerson = useMemo(() => {
+    const map = new Map();
+    visible.forEach((r) => {
+      const key = String(r.review?.submittedBy || 'unknown');
+      if (!map.has(key)) map.set(key, { key, name: r.review?.submittedByName || 'Team member', rows: [], amount: 0 });
+      const p = map.get(key);
+      p.rows.push(r);
+      if (r.review?.status === 'submitted') p.amount += Number(r.amount) || 0;
+    });
+    return [...map.values()].sort((a, b) => b.rows.length - a.rows.length);
+  }, [visible]);
+
+  const statusTabs = isHead
+    ? [['submitted', 'Waiting for you'], ['returned', 'Returned'], ['approved', 'Approved'], ['all', 'All']]
+    : [['all', 'All'], ['submitted', 'Waiting'], ['returned', 'Returned — fix & resubmit'], ['approved', 'Approved']];
+
+  const renderRow = (r) => {
+    const rv = r.review || {};
+    const k = keyOf(r);
+    const open = openKey === k;
+    const wait = rv.status === 'submitted' ? waitingFor(rv.submittedAt) : { label: '', stale: false };
+    const canSelect = isHead && rv.status === 'submitted';
+    const accent = rv.status === 'returned' ? 'border-rose-200 dark:border-rose-900/50' : rv.status === 'submitted' ? 'border-amber-200 dark:border-amber-900/50' : 'border-neutral-200 dark:border-neutral-800';
+    return (
+      <li key={k} className={`rounded-xl border bg-white transition-shadow hover:shadow-sm dark:bg-neutral-950 ${accent} ${selected.has(k) ? 'ring-2 ring-primary/40' : ''}`}>
+        <div className="flex items-start gap-3 p-3">
+          {canSelect && (
+            <input type="checkbox" className="mt-1.5 h-4 w-4 shrink-0" checked={selected.has(k)} onChange={() => toggle(r)} aria-label={`Select ${r.title}`} />
+          )}
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-800">
+            <span className="material-symbols-outlined text-[20px]">{REVIEW_ICON[r.module]}</span>
+          </span>
+          <button type="button" onClick={() => setOpenKey(open ? null : k)} aria-expanded={open} className="min-w-0 flex-1 text-left">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-sm font-bold text-neutral-900 dark:text-white">{r.title}</p>
+              <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{r.moduleLabel}</span>
+              <ReviewBadge item={r} />
+              {wait.label && (
+                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${wait.stale ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'}`} title="Time waiting for a decision">
+                  waiting {wait.label}
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 truncate text-xs text-neutral-500">
+              {isHead ? `${rv.submittedByName || 'Team'} · ` : ''}submitted {fmtDate(rv.submittedAt)}
+              {rv.decidedAt ? ` · ${rv.status === 'approved' ? 'approved' : 'returned'} by ${rv.decidedByName || 'finance head'}` : ''}
+            </p>
+            {rv.submitNote && <p className="mt-1 line-clamp-2 text-xs italic text-neutral-600 dark:text-neutral-300">“{rv.submitNote}”</p>}
+            {rv.status === 'returned' && rv.decisionNote && (
+              <p className="mt-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs text-rose-800 dark:bg-rose-900/20 dark:text-rose-200"><span className="font-semibold">What to change:</span> {rv.decisionNote}</p>
+            )}
+          </button>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <p className="text-base font-bold tabular-nums text-neutral-900 dark:text-white">{formatCurrency(r.amount)}</p>
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {isHead && rv.status === 'submitted' && (
+                <>
+                  <Button size="sm" variant="danger" onClick={() => setReviewing({ module: r.module, item: { _id: r.id, review: rv }, mode: 'return', title: r.title })}>Return</Button>
+                  <Button size="sm" variant="primary" onClick={() => setReviewing({ module: r.module, item: { _id: r.id, review: rv }, mode: 'approve', title: r.title })}>{REVIEW_COPY[r.module].approveLabel}</Button>
+                </>
+              )}
+              {!isHead && rv.status === 'returned' && (
+                <Button size="sm" variant="primary" onClick={() => navigate(REVIEW_LINK[r.module])}>Fix it</Button>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-neutral-100 px-3 py-1.5 text-xs dark:border-neutral-800">
+          <button type="button" onClick={() => setOpenKey(open ? null : k)} className="inline-flex items-center gap-1 font-semibold text-neutral-600 hover:text-neutral-900 dark:text-neutral-300">
+            <span className="material-symbols-outlined text-[16px]">{open ? 'expand_less' : 'expand_more'}</span>{open ? 'Hide details' : 'Show details'}
+          </button>
+          <button type="button" onClick={() => navigate(REVIEW_LINK[r.module])} className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+            Open in {r.module === 'journal' ? 'Accounting' : r.module === 'payroll' ? 'Payroll' : 'Invoices'}<span className="material-symbols-outlined text-[14px]">open_in_new</span>
+          </button>
+        </div>
+        {open && <div className="border-t border-neutral-100 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/40"><ReviewDetails row={r} /></div>}
+      </li>
+    );
+  };
+
+  const waitingRows = rows.filter((r) => r.review?.status === 'submitted');
+  const waitingAmount = waitingRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const oldestWait = waitingRows.length ? waitingFor(waitingRows.reduce((min, r) => (new Date(r.review.submittedAt) < new Date(min) ? r.review.submittedAt : min), waitingRows[0].review.submittedAt)) : null;
+
+  return (
+    <main className="portal-page">
+      <div className="portal-page-inner space-y-4">
+        <Header
+          title={isHead ? 'Review Queue' : 'My Submissions'}
+          subtitle={isHead ? 'Approve or return what your team submitted' : 'What you sent to the finance head, and what came back'}
+          icon={isHead ? 'fact_check' : 'outbox'}
+          user={user}
+          crumbs={['Finance', isHead ? 'Review Queue' : 'My Submissions']}
+        />
+        {error && <ErrorState description={error} onRetry={refetch} />}
+        {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
+
+        <StatGrid
+          items={[
+            { label: isHead ? 'Waiting for you' : 'Waiting for head', value: counts.submitted || 0, subtext: `${formatCurrency(waitingAmount)}${oldestWait?.label ? ` · oldest ${oldestWait.label}` : ''}` },
+            { label: 'Returned', value: counts.returned || 0, subtext: isHead ? 'Sent back for changes' : 'Fix and resubmit' },
+            { label: 'Approved', value: counts.approved || 0 },
+            { label: isHead ? 'People submitting' : 'Total submitted', value: isHead ? new Set(rows.map((r) => String(r.review?.submittedBy))).size : rows.length },
+          ]}
+        />
+
+        <section className={card}>
+          <div className={`${inner} space-y-4`}>
+            <div className="flex flex-wrap items-center gap-2">
+              {statusTabs.map(([key, label]) => (
+                <button key={key} type="button" onClick={() => { setStatus(key); setSelected(new Set()); }} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${status === key ? 'bg-primary text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300'}`}>
+                  {label}
+                  <span className={`rounded-full px-1.5 text-[10px] font-bold ${status === key ? 'bg-white/25' : 'bg-white text-neutral-500 dark:bg-neutral-900'}`}>{key === 'all' ? rows.length : counts[key] || 0}</span>
+                </button>
+              ))}
+              <select value={moduleFilter} onChange={(e) => { setModuleFilter(e.target.value); setSelected(new Set()); }} aria-label="Filter by type" className="ml-auto h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                <option value="">All types</option>
+                <option value="invoice">Invoices</option>
+                <option value="payroll">Payroll runs</option>
+                <option value="journal">Journal entries</option>
+              </select>
+              {isHead && (
+                <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-0.5 dark:border-neutral-700 dark:bg-neutral-900" role="group" aria-label="Layout">
+                  {[['list', 'view_list', 'List'], ['people', 'groups', 'By employee']].map(([key, icon, label]) => (
+                    <button key={key} type="button" onClick={() => setLayout(key)} aria-pressed={layout === key} className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold ${layout === key ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' : 'text-neutral-600 dark:text-neutral-300'}`}>
+                      <span className="material-symbols-outlined text-[16px]">{icon}</span>{label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bulk bar — only when there is something to approve. */}
+            {isHead && selectable.length > 0 && (
+              <div className={`flex flex-wrap items-center gap-3 rounded-xl px-3 py-2 text-sm ${selectedRows.length ? 'bg-primary/10' : 'bg-neutral-50 dark:bg-neutral-900'}`}>
+                <label className="inline-flex cursor-pointer items-center gap-2 font-semibold text-neutral-700 dark:text-neutral-200">
+                  <input type="checkbox" className="h-4 w-4" checked={allSelected} onChange={toggleAll} />
+                  {selectedRows.length ? `${selectedRows.length} selected · ${formatCurrency(selectedRows.reduce((s, r) => s + (Number(r.amount) || 0), 0))}` : 'Select all waiting'}
+                </label>
+                {bulk && <span className="text-xs text-neutral-500">Approving {bulk.done}/{bulk.total}…</span>}
+                {selectedRows.length > 0 && !bulk && (
+                  <Button size="sm" variant="primary" className="ml-auto" onClick={approveSelected}>
+                    <span className="material-symbols-outlined mr-1 text-[16px]">done_all</span>Approve selected
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {loading ? <SkeletonBlock /> : visible.length === 0 ? (
+              <EmptyState
+                icon={isHead ? 'task_alt' : 'outbox'}
+                title={status === 'submitted' && isHead ? 'All caught up' : 'Nothing here'}
+                description={isHead
+                  ? 'When your team submits invoices, payroll runs or journal entries, they appear here for approval.'
+                  : 'Draft an invoice, payroll run or journal entry and use “Submit” to send it to the finance head.'}
+              />
+            ) : isHead && layout === 'people' ? (
+              <div className="space-y-4">
+                {byPerson.map((p) => (
+                  <div key={p.key} className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+                    <div className="flex flex-wrap items-center gap-3 border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-800">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-neutral-900 dark:text-white">{p.name}</p>
+                        <p className="text-xs text-neutral-500">{p.rows.length} item{p.rows.length === 1 ? '' : 's'}{p.amount ? ` · ${formatCurrency(p.amount)} waiting` : ''}</p>
+                      </div>
+                    </div>
+                    <ul className="space-y-2 p-3">{p.rows.map(renderRow)}</ul>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ul className="space-y-2">{visible.map(renderRow)}</ul>
+            )}
+          </div>
+        </section>
+      </div>
+      <ReviewDialog key={reviewing ? `${reviewing.item._id}-${reviewing.mode}` : 'none'} state={reviewing} onClose={() => setReviewing(null)} onDone={(msg) => { setReviewing(null); setNotice(msg); refetch(); }} />
     </main>
   );
 };

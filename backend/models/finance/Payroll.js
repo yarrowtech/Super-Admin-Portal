@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const reviewSchema = require('./reviewSchema');
 
 const payrollSchema = new mongoose.Schema(
   {
@@ -22,7 +23,9 @@ const payrollSchema = new mongoose.Schema(
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true, default: null },
     payslipNumber: { type: String, trim: true },
     paidOn: { type: Date },
-    notes: { type: String, trim: true }
+    notes: { type: String, trim: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    review: { type: reviewSchema, default: () => ({}) }
   },
   { timestamps: true }
 );

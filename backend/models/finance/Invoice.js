@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const reviewSchema = require('./reviewSchema');
 
 const invoiceItemSchema = new mongoose.Schema(
   {
@@ -50,7 +51,8 @@ const invoiceSchema = new mongoose.Schema(
     requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceExpense', index: true, default: null },
     approvalId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceApprovalWorkflow', index: true, default: null },
     paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinancePayment', index: true, default: null },
-    journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceJournalEntry', index: true, default: null }
+    journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceJournalEntry', index: true, default: null },
+    review: { type: reviewSchema, default: () => ({}) }
   },
   { timestamps: true }
 );

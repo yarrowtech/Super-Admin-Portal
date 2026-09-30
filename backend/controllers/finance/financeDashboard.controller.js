@@ -40,6 +40,12 @@ const buildInvoiceNumber = () => {
   return `INV-${stamp}-${rand}`;
 };
 
+// Include the complete run id to avoid payslip collisions across application processes.
+const buildPayslipNumber = (payroll) => {
+  const d = payroll.periodStart ? new Date(payroll.periodStart) : new Date();
+  return `PS-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}-${String(payroll._id).toUpperCase()}`;
+};
+
 const buildEntryNumber = () => {
   const now = new Date();
   const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -120,7 +126,12 @@ const normalizeExpensePayload = async (payload = {}) => {
     department,
     departmentId,
     incurredDate: payload.incurredDate || payload.date || new Date(),
-    notes: payload.notes || ''
+    notes: payload.notes || '',
+    // Supporting documents (receipt / bill links). Only http(s) links are kept.
+    documents: (Array.isArray(payload.documents) ? payload.documents : [])
+      .map((d) => ({ label: String(d?.label || '').trim().slice(0, 120), url: String(d?.url || '').trim().slice(0, 1000) }))
+      .filter((d) => /^https?:\/\//i.test(d.url))
+      .slice(0, 10),
   };
 };
 
@@ -1215,8 +1226,11 @@ exports.getInvoiceNotes = async (req, res) => {
  */
 exports.getPayments = async (req, res) => {
   try {
-    const { status, department } = req.query;
+    const { status, department, direction } = req.query;
     const query = { ...(status ? { status } : {}), ...(req.projectId ? { projectId: req.projectId } : {}) };
+    // Older records have no direction and are all receipts.
+    if (direction === 'in') query.direction = { $ne: 'out' };
+    else if (direction === 'out') query.direction = 'out';
     Object.assign(query, await buildDepartmentQuery(department));
     const payments = await Payment.find(query).sort({ paymentDate: -1 });
     res.status(200).json({ success: true, data: payments });
@@ -1228,6 +1242,7 @@ exports.getPayments = async (req, res) => {
 exports.createPayment = async (req, res) => {
   try {
     const payload = req.body || {};
+    if (payload.direction === 'out' || payload.vendor) return res.status(400).json({ success: false, error: 'Record vendor payments through the vendor ledger' });
     const amount = assertPositiveMoney(payload.amount, 'payment amount');
     await assertOpenFinancialPeriod(payload.financialPeriodId);
     if (payload.reference) {
@@ -1294,6 +1309,7 @@ exports.updatePayment = async (req, res) => {
     if (req.body?.amount !== undefined) assertPositiveMoney(req.body.amount, 'payment amount');
     const existing = await Payment.findOne({ _id: req.params.id, ...(req.projectId ? { projectId: req.projectId } : {}) }).lean();
     if (!existing) return res.status(404).json({ success: false, error: 'Payment not found' });
+    if (existing.direction === 'out' || req.body?.direction === 'out' || req.body?.vendor) return res.status(409).json({ success: false, error: 'Vendor ledger payments cannot be edited here' });
     if (['completed', 'reconciled'].includes(String(existing.status || '').toLowerCase()) && req.body?.amount !== undefined) {
       return res.status(409).json({ success: false, error: 'Completed payments cannot be re-amounted' });
     }
@@ -1417,6 +1433,9 @@ exports.updateExpense = async (req, res) => {
       excludeExpenseId: existing._id,
     });
     const payload = { ...normalized, ...req.body, department: normalized.department, departmentId: normalized.departmentId };
+    // Documents: keep what is stored unless new ones are sent, and then only the sanitised list.
+    if (req.body?.documents === undefined) delete payload.documents;
+    else payload.documents = normalized.documents;
     const expense = await Expense.findByIdAndUpdate(req.params.id, payload, { new: true });
     await logAudit({
       req,
@@ -1593,8 +1612,11 @@ exports.createPayroll = async (req, res) => {
       amount: payrollAmount,
       fiscalYear: req.body?.fiscalYear,
     }) : null;
+    const payrollId = new mongoose.Types.ObjectId();
     const payroll = await Payroll.create({
+      _id: payrollId,
       ...payload,
+      ...(payload.status !== 'draft' ? { payslipNumber: buildPayslipNumber({ ...payload, _id: payrollId }) } : {}),
       departmentId,
       budgetId: req.body?.budgetId || budgetSnapshot?.budget?._id || null,
       financialPeriodId: req.body?.financialPeriodId || null,
@@ -1637,6 +1659,7 @@ exports.updatePayroll = async (req, res) => {
     }
     const update = { ...req.body };
     if (toStatus === 'disbursed' && fromStatus !== 'disbursed' && !update.paidOn) update.paidOn = new Date();
+    if (['processed', 'disbursed'].includes(toStatus) && !existing.payslipNumber) update.payslipNumber = buildPayslipNumber(existing);
     const payroll = await Payroll.findByIdAndUpdate(req.params.id, update, { new: true });
     // createPayroll only charges the budget for records created past draft; a draft
     // advanced here is charged once, on leaving draft.
@@ -1734,7 +1757,10 @@ exports.getVendors = async (req, res) => {
 exports.createVendor = async (req, res) => {
   try {
     const payload = req.body || {};
+    const opening = Number(payload.balance || 0);
+    if (!Number.isFinite(opening) || opening < 0 || Math.abs(opening * 100 - Math.round(opening * 100)) > 0.000001) return res.status(400).json({ success: false, error: 'Opening payable must be a non-negative amount with at most two decimal places' });
     const normalized = {
+      balance: opening,
       name: payload.name,
       contactEmail: payload.contactEmail || payload.email || '',
       contactPhone: payload.contactPhone || payload.phone || '',
@@ -1950,9 +1976,25 @@ exports.deleteExpense = async (req, res) => {
   }
 };
 
+// POST /vendors/:id/ledger { type: 'bill' | 'payment', amount, reference, date, dueDate, method, note }
+// A bill raises what we owe the vendor; a payment lowers it and is also recorded as an outgoing
+// Payment so it shows in cash flow. Payments can't exceed what is owed.
+exports.addVendorLedgerEntry = async (req, res) => {
+  try {
+    const vendor = await require('../../services/finance/vendorLedger.service')(req.params.id, req.body, req.user);
+    await logAudit({ req, action: `vendor_${req.body.type}_recorded`, resourceType: 'vendor', resourceId: vendor._id,
+      meta: { amount: Number(req.body.amount), reference: req.body.reference, balance: vendor.balance } });
+    return res.status(201).json({ success: true, data: vendor });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to record vendor entry' });
+  }
+};
+
 exports.updateVendor = async (req, res) => {
   try {
-    const vendor = await Vendor.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const allowed = new Set(['name', 'contactEmail', 'contactPhone', 'address', 'paymentTerms', 'taxId', 'status', 'notes']);
+    if (Object.keys(req.body || {}).some(key => !allowed.has(key))) return res.status(400).json({ success: false, error: 'Balances and ledger entries must be changed through the vendor ledger' });
+    const vendor = await Vendor.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     res.status(200).json({ success: true, data: vendor });
   } catch (err) {
     sendError(res, err, 'Failed to update vendor');
@@ -2026,6 +2068,7 @@ exports.getTransactions = async (req, res) => {
       paymentQuery.$or = [{ customerName: q }, { reference: q }];
     }
 
+    if (type === 'vendor_payment') paymentQuery.direction = 'out';
     const loadInvoices = !type || type === 'income' || type === 'invoice';
     const loadExpenses = !type || type === 'expense';
     const loadPayments = !type || type === 'vendor_payment' || type === 'payment';
@@ -2061,7 +2104,8 @@ exports.getTransactions = async (req, res) => {
       })),
       ...payments.map((item) => ({
         id: String(item._id),
-        type: 'vendor_payment',
+        type: item.direction === 'out' ? 'vendor_payment' : 'payment',
+        direction: item.direction || 'in',
         category: item.method || 'bank',
         amount: Number(item.amount || 0),
         status: item.status,
@@ -2099,9 +2143,11 @@ exports.getAuditLogs = async (req, res) => {
     if (req.query.action) query.action = req.query.action;
     if (req.query.riskFlag) query.riskFlag = req.query.riskFlag;
     if (req.query.resourceType) query.resourceType = req.query.resourceType;
+    // One item's history (e.g. an invoice timeline).
+    if (req.query.resourceId) query.resourceId = String(req.query.resourceId);
 
     const [items, total] = await Promise.all([
-      AuditLog.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      AuditLog.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('actor', 'firstName lastName email').lean(),
       AuditLog.countDocuments(query),
     ]);
 
@@ -2332,6 +2378,7 @@ const REVIEW_MODULES = {
     // Same effect as processing it on the Payroll page: charged to the department budget once.
     approve: async (doc) => {
       doc.status = 'processed';
+      if (!doc.payslipNumber) doc.payslipNumber = buildPayslipNumber(doc);
       if (doc.budgetId) await Budget.findByIdAndUpdate(doc.budgetId, { $inc: { spent: Number(doc.netPay || doc.grossPay) || 0 } });
     },
   },
@@ -2500,3 +2547,10 @@ exports.guardNotUnderReview = (module) => async (req, res, next) => {
     return next(err);
   }
 };
+
+// Financial mutations share one transactional implementation across portal routes.
+Object.assign(exports, require('./financeOperations.controller'));
+
+Object.assign(exports, require('./financeReports.controller'));
+
+Object.assign(exports, require('./financeCompliance.controller'));

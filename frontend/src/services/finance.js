@@ -71,6 +71,33 @@ export const financeApi = {
   getTaxSummary: (token) => apiClient.get('/api/dept/finance/reports/tax-summary', token),
   getItrSummary: (token) => apiClient.get('/api/dept/finance/reports/itr-summary', token),
 
+  getPeriodSummary: (token, year) => apiClient.get(`/api/dept/finance/reports/period-summary?year=${encodeURIComponent(year)}`, token),
+  getRevenueReport: (token, params) => apiClient.get(`/api/dept/finance/reports/revenue?${new URLSearchParams(params)}`, token),
+  getCustomerBalances: (token) => apiClient.get('/api/dept/finance/receivables/customers', token),
+  getFinancialSummary: (token, params = {}) => apiClient.get(`/api/dept/finance/financial-summary?${new URLSearchParams(params)}`, token),
+
+  // Tax rules (GST/TDS, effective-dated) and statutory filing worksheets.
+  getTaxRules: (token, params = {}) => apiClient.get(`/api/dept/finance/tax-rules?${new URLSearchParams(params)}`, token, { cache: false }),
+  createTaxRule: (data, token) => apiClient.post('/api/dept/finance/tax-rules', data, token),
+  updateTaxRule: (id, data, token) => apiClient.patch(`/api/dept/finance/tax-rules/${id}`, data, token),
+  getGstReturn: (token, params) => apiClient.get(`/api/dept/finance/tax/gst-return?${new URLSearchParams(params)}`, token, { cache: false }),
+  getTdsReturn: (token, params) => apiClient.get(`/api/dept/finance/tax/tds-return?${new URLSearchParams(params)}`, token, { cache: false }),
+
+  // Authenticated file downloads. kind: 'gst' | 'tds' | 'audit' | 'period' | 'report'.
+  download: (kind, params, token) => {
+    const q = new URLSearchParams(params);
+    const paths = {
+      gst: ['/api/dept/finance/tax/gst-return/export', 'gst-worksheet.csv'],
+      tds: ['/api/dept/finance/tax/tds-return/export', 'tds-worksheet.csv'],
+      audit: ['/api/dept/finance/audit-logs/export', 'finance-audit-trail.csv'],
+      period: ['/api/dept/finance/reports/period-summary/export', `finance-summary-${params.year}.csv`],
+      report: ['/api/dept/finance/reports/export', `finance-report.${params.format === 'pdf' ? 'pdf' : 'csv'}`],
+    };
+    const [path, name] = paths[kind];
+    return apiClient.download(`${path}?${q}`, token, name);
+  },
+  downloadDocument: (kind, id, token) => apiClient.download(`/api/dept/finance/documents/${kind}/${id}/download`, token, `${kind}-${id}.pdf`),
+
   getCompliance: (token) => apiClient.get('/api/dept/finance/compliance', token),
   createCompliance: (data, token) => apiClient.post('/api/dept/finance/compliance', data, token),
   updateCompliance: (id, data, token) => apiClient.put(`/api/dept/finance/compliance/${id}`, data, token),
@@ -78,6 +105,8 @@ export const financeApi = {
   getVendors: (token) => apiClient.get('/api/dept/finance/vendors', token),
   createVendor: (data, token) => apiClient.post('/api/dept/finance/vendors', data, token),
   updateVendor: (id, data, token) => apiClient.put(`/api/dept/finance/vendors/${id}`, data, token),
+  // Vendor account: { type: 'bill' | 'payment', amount, reference, date, dueDate, method, note }.
+  addVendorLedgerEntry: (id, data, token) => apiClient.post(`/api/dept/finance/vendors/${id}/ledger`, data, token),
 
   getClients: (token) => apiClient.get('/api/dept/finance/clients', token),
   createClient: (data, token) => apiClient.post('/api/dept/finance/clients', data, token),

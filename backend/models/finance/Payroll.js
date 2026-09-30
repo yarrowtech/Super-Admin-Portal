@@ -33,4 +33,7 @@ const payrollSchema = new mongoose.Schema(
 payrollSchema.index({ periodStart: 1, periodEnd: 1 });
 payrollSchema.index({ projectId: 1, periodStart: -1 });
 
+payrollSchema.add({ periodKey: String, salarySnapshot: mongoose.Schema.Types.Mixed });
+payrollSchema.index({ employee: 1, periodKey: 1 }, { unique: true, partialFilterExpression: { employee: { $type: 'objectId' }, periodKey: { $type: 'string' } } });
+
 module.exports = mongoose.models['FinancePayroll'] || mongoose.model('FinancePayroll', payrollSchema);

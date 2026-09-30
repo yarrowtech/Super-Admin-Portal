@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const reviewSchema = require('./reviewSchema');
 
 const invoiceItemSchema = new mongoose.Schema(
@@ -7,6 +7,7 @@ const invoiceItemSchema = new mongoose.Schema(
     quantity: { type: Number, default: 0 },
     rate: { type: Number, default: 0 },
     amount: { type: Number, default: 0 },
+    taxableValue: { type: Number },
     taxRate: { type: Number, default: 0 },
     taxAmount: { type: Number, default: 0 }
   },
@@ -59,5 +60,10 @@ const invoiceSchema = new mongoose.Schema(
 
 invoiceSchema.index({ status: 1 });
 invoiceSchema.index({ projectId: 1, status: 1, createdAt: -1 });
+
+invoiceSchema.add({ costCenterId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceCostCenter' }, totalMinor: Number, taxableValue: { type: Number, default: 0 }, tdsSection: { type: String, default: '' } });
+invoiceSchema.index({ issueDate: -1, status: 1 });
+invoiceSchema.path('status').enumValues.push('partially_paid');
+invoiceSchema.index({ status: 1, dueDate: 1 });
 
 module.exports = mongoose.models['FinanceInvoice'] || mongoose.model('FinanceInvoice', invoiceSchema);

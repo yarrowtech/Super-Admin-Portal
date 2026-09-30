@@ -28,4 +28,8 @@ const budgetSchema = new mongoose.Schema(
 budgetSchema.index({ department: 1, fiscalYear: 1 }, { unique: false });
 budgetSchema.index({ projectId: 1, fiscalYear: 1 });
 
+budgetSchema.add({ costCenterId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceCostCenter' }, alertThreshold: { type: Number, min: 1, max: 100, default: 85 } });
+
+budgetSchema.index({ departmentId: 1, fiscalYear: 1, costCenterId: 1, financialPeriodId: 1 }, { unique: true, partialFilterExpression: { departmentId: { $type: 'objectId' } } });
+
 module.exports = mongoose.models['FinanceBudget'] || mongoose.model('FinanceBudget', budgetSchema);

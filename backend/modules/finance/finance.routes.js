@@ -7,7 +7,7 @@ const controller = require("./finance.controller");
 const v = require("./finance.validation");
 
 const router = express.Router();
-const canWriteFinance = (req, res, next) => next();
+const canWriteFinance = (req, res, next) => ['finance_manager', 'finance_employee', 'admin', 'super_admin'].includes(req.user?.role) ? next() : res.status(403).json({ success: false, error: 'Read-only finance access' });
 
 router.use(authenticate);
 router.use(
@@ -31,7 +31,7 @@ const canTriggerPayroll = (req, res, next) => {
 };
 
 router.get("/transactions", requireProjectContext, v.listValidation, validate, controller.getTransactions);
-router.post("/payroll/hr-trigger", requireProjectContext, canTriggerPayroll, v.payrollTriggerValidation, validate, controller.triggerPayrollFromHr);
+router.post("/payroll/hr-trigger", requireProjectContext, canTriggerPayroll, v.payrollTriggerValidation, validate, require('../../controllers/finance/financeOperations.controller').createPayroll);
 router.post("/invoices/:invoiceId/link-contract", requireProjectContext, canWriteFinance, v.linkContractValidation, validate, controller.createContractLinkedInvoice);
 
 module.exports = router;

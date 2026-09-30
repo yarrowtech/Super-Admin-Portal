@@ -1,7 +1,7 @@
-const test = require('node:test');
+﻿const test = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
 
 const ctrl = require('../controllers/finance/financeDashboard.controller');
 const Invoice = require('../models/finance/Invoice');
@@ -36,10 +36,10 @@ const call = async (fn, { user, params = {}, body = {}, query = {} }) => {
   return { res, nextCalled };
 };
 
-const makeInvoice = (over = {}) => Invoice.create({ invoiceNumber: `INV-${Math.random()}`, clientName: 'Acme', total: 1180, balanceDue: 1180, createdBy: empId, ...over });
+const makeInvoice = (over = {}) => Invoice.create({ invoiceNumber: `INV-${Math.random()}`, clientName: 'Acme', dueDate: new Date(Date.now() + 864e6), items: [{ description: 'Service', quantity: 1, rate: 1000, amount: 1000 }], subtotal: 1000, total: 1000, balanceDue: 1000, createdBy: empId, ...over });
 
 test.before(async () => {
-  mongod = await MongoMemoryServer.create();
+  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   await mongoose.connect(mongod.getUri());
 });
 test.after(async () => { await mongoose.disconnect(); await mongod.stop(); });
@@ -79,7 +79,7 @@ test('returning needs a reason and unlocks the item for editing', async () => {
   assert.equal(locked.nextCalled, false);
 
   const noReason = await call(ctrl.decideReview, { user: users.head, params, body: { decision: 'return' } });
-  assert.equal(noReason.res.statusCode, 400);
+  assert.equal(noReason.res.statusCode, 422);
 
   const ret = await call(ctrl.decideReview, { user: users.head, params, body: { decision: 'return', note: 'GST should be 18%' } });
   assert.equal(ret.res.statusCode, 200);
@@ -109,18 +109,20 @@ test('employees cannot move money-affecting statuses themselves', async () => {
 
 test('approving a payroll run processes it and charges the department budget once', async () => {
   const budget = await Budget.create({ department: 'Ops', fiscalYear: '2026', allocated: 100000, spent: 0 });
-  const run = await Payroll.create({ employeeName: 'Priya', periodStart: new Date(), periodEnd: new Date(), grossPay: 50000, netPay: 45000, budgetId: budget._id });
+  const run = await Payroll.create({ employee: oid(), employeeName: 'Priya', periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30'), periodKey: '2026-09', grossPay: 50000, deductions: 5000, netPay: 45000, salarySnapshot: { baseMinor: 5000000 }, budgetId: budget._id });
   const params = { module: 'payroll', id: String(run._id) };
   await call(ctrl.submitForReview, { user: users.emp, params });
   const approve = await call(ctrl.decideReview, { user: users.head, params, body: { decision: 'approve' } });
   assert.equal(approve.res.statusCode, 200);
   assert.equal((await Payroll.findById(run._id).lean()).status, 'processed');
-  assert.equal((await Budget.findById(budget._id).lean()).spent, 45000);
+  // Payroll cost to the budget is gross pay (net pay plus withheld deductions).
+  assert.equal((await Budget.findById(budget._id).lean()).spent, 50000);
 });
 
 test('unbalanced journal entries cannot be submitted; balanced ones post on approval', async () => {
-  const acctA = oid();
-  const acctB = oid();
+  const Account = require('../models/finance/Account');
+  const acctA = (await Account.create({ code: '1000', name: 'Cash', type: 'asset' }))._id;
+  const acctB = (await Account.create({ code: '4000', name: 'Sales', type: 'revenue', normalBalance: 'credit' }))._id;
   const bad = await JournalEntry.create({ entryNumber: 'JE-1', lines: [{ account: acctA, debit: 100, credit: 0 }, { account: acctB, debit: 0, credit: 90 }], totalDebit: 100, totalCredit: 90 });
   const badSubmit = await call(ctrl.submitForReview, { user: users.emp, params: { module: 'journal', id: String(bad._id) } });
   assert.equal(badSubmit.res.statusCode, 422);

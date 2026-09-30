@@ -6,7 +6,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'e2e-test-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
 
 let mongod;
 let server;
@@ -52,7 +52,8 @@ const USERS = {
 const ids = {};
 
 test.before(async () => {
-  mongod = await MongoMemoryServer.create();
+  // Financial writes are transactional, so they need a replica set.
+  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   process.env.MONGO_URI = mongod.getUri();
   // Require only after MONGO_URI is set — app.js connects on load.
   ({ server } = require('../app'));
@@ -74,6 +75,9 @@ test.before(async () => {
     tokens[key] = login.body?.data?.accessToken || login.body?.data?.token || login.body?.accessToken || login.body?.token;
     assert.ok(tokens[key], `token for ${key}: ${JSON.stringify(login.body).slice(0, 300)}`);
   }
+  // Tax rates are configuration; the invoice flows below use an 18% GST rule.
+  const rule = await api('POST', '/api/dept/finance/tax-rules', 'finHead', { kind: 'gst', code: 'GST18', name: 'GST 18%', rate: 18, effectiveFrom: '2020-01-01' });
+  assert.equal(rule.status, 201, JSON.stringify(rule.body));
   // Raw insert: only the id/name matter to these flows.
   ids.project = String((await Project.collection.insertOne({ name: 'Better Pass', projectCode: 'BP', status: 'in-progress', createdAt: new Date(), updatedAt: new Date() })).insertedId);
 });
@@ -124,7 +128,7 @@ test('finance: invoice — employee drafts & submits, head returns, employee fix
   assert.equal(row.review.submittedByName, 'Farhan Emp');
   assert.equal(row.details.total, 11800, 'queue carries invoice details');
 
-  expectStatus(await api('POST', `${F}/review/invoice/${invId}/decision`, 'finHead', { decision: 'return' }), 400, 'return without reason');
+  expectStatus(await api('POST', `${F}/review/invoice/${invId}/decision`, 'finHead', { decision: 'return' }), 422, 'return without reason');
   expectStatus(await api('POST', `${F}/review/invoice/${invId}/decision`, 'finHead', { decision: 'return', note: 'Use 10 hours, not 12' }), 200, 'head returns');
 
   const empQueue = expectStatus(await api('GET', `${F}/review/queue?status=returned`, 'finEmp'), 200, 'employee sees returned').data;
@@ -138,9 +142,9 @@ test('finance: invoice — employee drafts & submits, head returns, employee fix
 
   // Paid is reached only through a payment, and never above the balance.
   expectStatus(await api('PUT', `${F}/invoices/${invId}`, 'finHead', { status: 'paid' }), 409, 'mark paid without payment');
-  expectStatus(await api('POST', `${F}/payments`, 'finEmp', { invoice: invId, customerName: 'Acme Corporation', amount: 20000, method: 'bank' }), 409, 'overpayment');
+  expectStatus(await api('POST', `${F}/payments`, 'finEmp', { invoice: invId, customerName: 'Acme Corporation', amount: 20000, method: 'bank', reference: 'UTR-E2E-0' }), 409, 'overpayment');
   expectStatus(await api('POST', `${F}/payments`, 'finEmp', { invoice: invId, customerName: 'Acme Corporation', amount: 11800, method: 'bank', reference: 'UTR-E2E-1' }), 201, 'full payment');
-  const inv = (expectStatus(await api('GET', `${F}/invoices`, 'finHead'), 200, 'list invoices').data).find((i) => String(i._id) === String(invId));
+  const inv = (expectStatus(await api('GET', `${F}/invoices`, 'finHead'), 200, 'list invoices').data.items).find((i) => String(i._id) === String(invId));
   assert.equal(inv.status, 'paid');
   assert.equal(inv.balanceDue, 0);
 });
@@ -151,16 +155,24 @@ test('finance: payroll — employee submits, head approves (budget charged once)
   const deptId = String(dept._id);
   const budget = expectStatus(await api('POST', `${F}/budgets`, 'finHead', { departmentId: deptId, fiscalYear: String(new Date().getFullYear()), allocated: 500000 }), 201, 'head creates budget').data;
 
-  expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', { employeeName: 'Priya', grossPay: 60000, deductions: 5000, departmentId: deptId, status: 'processed' }), 403, 'employee creates processed payroll');
-  const run = expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', { employeeName: 'Priya', grossPay: 60000, deductions: 5000, departmentId: deptId, status: 'draft' }), 201, 'employee drafts payroll').data;
+  // Pay comes from a salary profile the head authorizes, never from amounts typed into the run.
+  expectStatus(await api('POST', `${F}/salary-profiles`, 'finEmp', { employee: ids.hr, departmentId: deptId, basePay: 55000, allowances: 5000, deductions: 5000, effectiveFrom: '2020-01-01' }), 403, 'employee sets salary');
+  expectStatus(await api('POST', `${F}/salary-profiles`, 'finHead', { employee: ids.hr, departmentId: deptId, basePay: 55000, allowances: 5000, deductions: 5000, effectiveFrom: '2020-01-01' }), 200, 'head authorizes salary');
+  const now = new Date(); const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+  const period = { employee: ids.hr, periodStart: `${month}-01`, periodEnd: lastDay };
+  expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', { ...period, status: 'processed' }), 403, 'employee creates processed payroll');
+  const run = expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', period), 201, 'employee drafts payroll').data;
+  assert.equal(run.grossPay, 60000);
   assert.equal(run.netPay, 55000);
+  expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', period), 409, 'duplicate payroll for the month');
 
   expectStatus(await api('POST', `${F}/review/payroll/${run._id}/submit`, 'finEmp'), 200, 'employee submits payroll');
   const processed = expectStatus(await api('POST', `${F}/review/payroll/${run._id}/decision`, 'finHead', { decision: 'approve' }), 200, 'head approves payroll').data;
   assert.equal(processed.status, 'processed');
 
   const budgets = expectStatus(await api('GET', `${F}/budgets`, 'finHead'), 200, 'budgets').data;
-  assert.equal(budgets.find((b) => String(b._id) === String(budget._id)).spent, 55000, 'budget charged exactly once');
+  assert.equal(budgets.find((b) => String(b._id) === String(budget._id)).spent, 60000, 'budget charged gross pay exactly once');
 
   expectStatus(await api('PUT', `${F}/payrolls/${run._id}`, 'finEmp', { status: 'disbursed' }), 403, 'employee disburses');
   const paid = expectStatus(await api('PUT', `${F}/payrolls/${run._id}`, 'finHead', { status: 'disbursed' }), 200, 'head disburses').data;
@@ -170,8 +182,9 @@ test('finance: payroll — employee submits, head approves (budget charged once)
 });
 
 test('finance: journal — unbalanced cannot be submitted; approved entry posts and reaches the trial balance', async () => {
-  const cash = expectStatus(await api('POST', `${F}/accounts`, 'finHead', { code: '1000', name: 'Cash', type: 'asset', normalBalance: 'debit' }), 201, 'head creates account').data;
-  const revenue = expectStatus(await api('POST', `${F}/accounts`, 'finHead', { code: '4000', name: 'Revenue', type: 'revenue', normalBalance: 'credit' }), 201, 'head creates account').data;
+  const cash = expectStatus(await api('POST', `${F}/accounts`, 'finHead', { code: '1010', name: 'Current account', type: 'asset', normalBalance: 'debit' }), 201, 'head creates account').data;
+  expectStatus(await api('POST', `${F}/accounts`, 'finHead', { code: '1010', name: 'Dup', type: 'asset' }), 409, 'duplicate account code');
+  const revenue = expectStatus(await api('POST', `${F}/accounts`, 'finHead', { code: '4010', name: 'Consulting revenue', type: 'revenue', normalBalance: 'credit' }), 201, 'head creates account').data;
 
   expectStatus(await api('POST', `${F}/journals`, 'finEmp', { memo: 'bad', lines: [{ account: cash._id, debit: 100 }, { account: revenue._id, credit: 90 }] }), 422, 'unbalanced journal rejected');
   const je = expectStatus(await api('POST', `${F}/journals`, 'finEmp', { memo: 'Consulting income', lines: [{ account: cash._id, debit: 5000 }, { account: revenue._id, credit: 5000 }] }), 201, 'employee drafts journal').data;
@@ -182,8 +195,12 @@ test('finance: journal — unbalanced cannot be submitted; approved entry posts 
   assert.equal(posted.status, 'posted');
 
   const tb = expectStatus(await api('GET', `${F}/reports/trial-balance`, 'finHead'), 200, 'trial balance').data;
-  assert.equal(tb.totals.debit, 5000);
-  assert.equal(tb.totals.credit, 5000);
+  assert.equal(tb.balanced, true);
+  assert.equal(tb.rows.find((r) => r.code === '1010').debit, 5000);
+  assert.equal(tb.rows.find((r) => r.code === '4010').credit, 5000);
+  // Earlier invoice (10000 + 18% GST) and its full payment are already in the ledger.
+  assert.equal(tb.rows.find((r) => r.code === '2400').credit, 1800, 'GST output posted');
+  expectStatus(await api('PUT', `${F}/accounts/${cash._id}`, 'finHead', { type: 'expense' }), 409, 'type locked after posting');
 });
 
 test('finance: each employee sees only their own submissions; the head sees everyone', async () => {

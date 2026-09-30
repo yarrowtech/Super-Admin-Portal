@@ -9,6 +9,9 @@ import ErrorState from '../ui/ErrorState';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Modal from '../ui/Modal';
+import VendorLedger from './VendorLedger';
+import TaxFilingPanel from './TaxFilingPanel';
+import FinanceReportExtras from './FinanceReportExtras';
 import KPICard from '../common/KPICard';
 import StatusBadge from '../common/StatusBadge';
 import AttentionPanel from '../common/AttentionPanel';
@@ -178,6 +181,24 @@ const Notice = ({ children, onDismiss }) => (
 
 const todayIso = () => new Date().toISOString().split('T')[0];
 
+// Downloads rows (first row = headers) as a CSV that opens cleanly in Excel.
+const downloadCsv = (filename, rows) => {
+  const esc = (v) => {
+    const value = String(v ?? '');
+    const safe = typeof v === 'string' && /^[=+@\-\t\r]/.test(value) ? `'${value}` : value;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+  const csv = rows.map((r) => r.map(esc).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+};
+
+const EXPENSE_CATEGORIES = ['Travel', 'Meals & Entertainment', 'Office Supplies', 'Software & Subscriptions', 'Hardware & Equipment', 'Rent & Utilities', 'Professional Fees', 'Marketing', 'Training', 'Communication', 'Maintenance', 'Other'];
+
 // ─── Maker-checker (finance employee prepares → finance head approves) ─────────
 
 const FINANCE_HEAD = ['finance_manager', 'admin', 'super_admin'];
@@ -320,6 +341,48 @@ const RoleStrip = ({ module }) => {
   );
 };
 
+// Over-budget alerts: every department over (red) or at ≥85% (amber) of its allocation.
+const BudgetAlerts = ({ budgets = [], compact = false }) => {
+  const navigate = useNavigate();
+  const flagged = budgets
+    .filter((b) => ['over', 'at-risk'].includes(b.status) || budgetUsedPct(b) >= 85)
+    .sort((a, b) => budgetUsedPct(b) - budgetUsedPct(a));
+  if (!flagged.length) return null;
+  const over = flagged.filter((b) => budgetUsedPct(b) > 100);
+  return (
+    <div className={`rounded-2xl border p-4 ${over.length ? 'border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-900/15' : 'border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/15'}`} role="alert">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`material-symbols-outlined ${over.length ? 'text-rose-600' : 'text-amber-600'}`}>notification_important</span>
+        <p className="flex-1 text-sm font-bold text-neutral-900 dark:text-white">
+          {over.length ? `${over.length} department${over.length === 1 ? ' is' : 's are'} over budget` : `${flagged.length} department${flagged.length === 1 ? ' is' : 's are'} close to the limit`}
+          {over.length > 0 && flagged.length > over.length ? ` · ${flagged.length - over.length} close to the limit` : ''}
+        </p>
+        {compact && <button type="button" onClick={() => navigate('/finance/dashboard/budgets')} className="text-sm font-semibold text-primary hover:underline">View budgets →</button>}
+      </div>
+      <ul className="mt-2 space-y-1">
+        {flagged.slice(0, compact ? 3 : undefined).map((b) => {
+          const pct = budgetUsedPct(b);
+          const committed = Number(b.spent || 0) + Number(b.reserved || 0);
+          const overBy = committed - Number(b.allocated || 0);
+          return (
+            <li key={b._id} className="flex flex-wrap items-center gap-x-3 text-xs">
+              <span className="font-semibold text-neutral-800 dark:text-neutral-100">{b.department || 'Department'}</span>
+              <span className={`font-bold tabular-nums ${pct > 100 ? 'text-rose-700 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}`}>{Number.isFinite(pct) ? `${pct.toFixed(0)}% committed` : 'No allocation'}</span>
+              <span className="text-neutral-600 dark:text-neutral-300">{formatCurrency(committed)} committed of {formatCurrency(b.allocated)}{overBy > 0 ? ` · over by ${formatCurrency(overBy)}` : ''}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
+
+const DashboardBudgetAlerts = () => {
+  const { token } = useAuth();
+  const { data } = useAsync(async () => ({ budgets: toList(unwrap(await financeApi.getBudgets(token))) }), [token]);
+  return <BudgetAlerts budgets={data.budgets || []} compact />;
+};
+
 // Dashboard nudge: the head sees what is waiting for approval; an employee sees returned work.
 const ReviewCallout = () => {
   const { token } = useAuth();
@@ -404,12 +467,13 @@ const invoiceStatusLabel = (invoice) => (invoice.status === 'sent' ? 'unpaid' : 
 // draft (Pending verification) → sent (Approved) → paid. "Paid" is only reached by
 // recording payments; the backend settles the balance and flips the status.
 
-const INVOICE_STAGE_LABEL = { draft: 'Pending verification', sent: 'Approved', overdue: 'Overdue', paid: 'Paid', void: 'Void' };
+const INVOICE_STAGE_LABEL = { draft: 'Pending verification', sent: 'Approved', partially_paid: 'Partially paid', overdue: 'Overdue', paid: 'Paid', void: 'Void' };
 const INVOICE_STEPS = ['Draft', 'Approved & sent', 'Paid'];
 const INVOICE_FILTERS = [
   { value: '', label: 'All' },
   { value: 'draft', label: 'Pending verification' },
   { value: 'sent', label: 'Approved' },
+  { value: 'partially_paid', label: 'Partially paid' },
   { value: 'overdue', label: 'Overdue' },
   { value: 'paid', label: 'Paid' },
 ];
@@ -420,23 +484,42 @@ const invoiceBalance = (invoice) => Number(invoice?.balanceDue ?? getInvoiceTota
 // anything has re-stamped its stored status.
 const invoiceStage = (invoice) => {
   const status = String(invoice?.status || 'draft').toLowerCase();
-  if (status === 'sent' && invoice?.dueDate && new Date(invoice.dueDate) < new Date() && invoiceBalance(invoice) > 0) return 'overdue';
+  if (['sent', 'partially_paid'].includes(status) && invoice?.dueDate && new Date(invoice.dueDate) < new Date() && invoiceBalance(invoice) > 0) return 'overdue';
   return status;
 };
 
 const invoiceStepIndex = (stage) => (stage === 'paid' ? 2 : stage === 'draft' ? 0 : 1);
 
-const isPayableInvoice = (invoice) => ['sent', 'overdue'].includes(invoiceStage(invoice)) && invoiceBalance(invoice) > 0;
+const isPayableInvoice = (invoice) => ['sent', 'partially_paid', 'overdue'].includes(invoiceStage(invoice)) && invoiceBalance(invoice) > 0;
 
-// Mirrors the backend's calculateInvoiceTotals (tax and TDS on subtotal, discount off the end).
+// Server-side pagination control; hidden when everything fits on one page.
+const Pager = ({ pagination, onPage, disabled }) => {
+  const { page = 1, totalPages = 1, total = 0 } = pagination || {};
+  if (totalPages <= 1) return null;
+  return (
+    <nav className="mt-3 flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-300" aria-label="Pagination">
+      <span>Page {page} of {totalPages} · {total} records</span>
+      <div className="flex gap-2">
+        <Button type="button" size="sm" variant="secondary" disabled={disabled || page <= 1} onClick={() => onPage(page - 1)}>Previous</Button>
+        <Button type="button" size="sm" variant="secondary" disabled={disabled || page >= totalPages} onClick={() => onPage(page + 1)}>Next</Button>
+      </div>
+    </nav>
+  );
+};
+
+// Preview only; mirrors backend money.invoice in paise: discount comes off before tax, GST is
+// charged on the discounted value, TDS is withheld on it. Customer owes total − TDS.
 const previewInvoiceTotals = (form) => {
-  const subtotal = (Number(form.quantity) || 0) * (Number(form.rate) || 0);
+  const paise = (v) => Math.round((Number(v) || 0) * 100);
+  const subtotal = Math.round((Number(form.quantity) || 0) * paise(form.rate));
+  const discount = Math.min(paise(form.discount), subtotal);
+  const taxable = subtotal - discount;
   const gstRate = Number(form.gstRate) || 0;
   const tdsRate = Number(form.tdsRate) || 0;
-  const gst = (subtotal * gstRate) / 100;
-  const tds = (subtotal * tdsRate) / 100;
-  const discount = Number(form.discount) || 0;
-  return { subtotal, gst, gstRate, tds, tdsRate, discount, total: subtotal + gst - tds - discount };
+  const gst = Math.round((taxable * gstRate) / 100);
+  const tds = Math.round((taxable * tdsRate) / 100);
+  const total = taxable + gst;
+  return { subtotal: subtotal / 100, discount: discount / 100, taxable: taxable / 100, gst: gst / 100, gstRate, tds: tds / 100, tdsRate, total: total / 100, receivable: (total - tds) / 100 };
 };
 
 // Records a payment against an invoice. Mount it keyed by invoice id so each
@@ -533,18 +616,20 @@ const PAYMENT_FILTERS = [
   { value: 'failed', label: 'Failed' },
 ];
 
+// `loading` is derived: true until the result for the current request key arrives, so the
+// effect never sets state synchronously and stale data stays visible while refetching.
 const useAsync = (loader, deps = []) => {
-  const [state, setState] = useState({ loading: true, error: '', data: {} });
+  const [state, setState] = useState({ key: null, error: '', data: {} });
   const [reloadKey, setReloadKey] = useState(0);
+  const key = JSON.stringify([...deps.map((d) => (typeof d === 'object' ? String(d) : d)), reloadKey]);
   useEffect(() => {
     let alive = true;
-    setState((prev) => ({ ...prev, loading: true, error: '' }));
     const run = async () => {
       try {
         const raw = await loader();
-        if (alive) setState({ loading: false, error: '', data: raw });
+        if (alive) setState({ key, error: '', data: raw });
       } catch (err) {
-        if (alive) setState({ loading: false, error: err.message || 'Failed to load data', data: {} });
+        if (alive) setState((prev) => ({ key, error: err.message || 'Failed to load data', data: prev.data || {} }));
       }
     };
     run();
@@ -552,9 +637,9 @@ const useAsync = (loader, deps = []) => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, reloadKey]);
-  const refetch = () => setReloadKey((k) => k + 1);
-  return { ...state, refetch };
+  }, [key]);
+  const refetch = useCallback(() => setReloadKey((k) => k + 1), []);
+  return { loading: state.key !== key, error: state.key === key ? state.error : '', data: state.data, refetch };
 };
 
 const SkeletonBlock = () => (
@@ -627,10 +712,10 @@ export const FinanceOverviewPage = () => {
   }, [token]);
 
   const dashboard = data.dashboard || {};
-  const invoices = data.invoices || [];
-  const expenses = data.expenses || [];
-  const profitLoss = data.profitLoss || { revenue: 0, expenses: 0, netIncome: 0 };
-  const balanceSheet = data.balanceSheet || { assets: 0, liabilities: 0, equity: 0 };
+  const invoices = useMemo(() => data.invoices || [], [data.invoices]);
+  const expenses = useMemo(() => data.expenses || [], [data.expenses]);
+  const profitLoss = useMemo(() => data.profitLoss || { revenue: 0, expenses: 0, netIncome: 0 }, [data.profitLoss]);
+  const balanceSheet = useMemo(() => data.balanceSheet || { assets: 0, liabilities: 0, equity: 0 }, [data.balanceSheet]);
   const sourceErrors = data.errors || {};
   const roleExperience = dashboard.roleExperience || (String(user?.role || '').toLowerCase() === 'finance_employee' ? 'employee' : 'head');
   const isFinanceHead = roleExperience === 'head';
@@ -908,6 +993,7 @@ export const FinanceOverviewPage = () => {
 
         <WarmGreeting user={user} roleHint="financial overview" />
         <ReviewCallout />
+        <DashboardBudgetAlerts />
 
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
 
@@ -1394,41 +1480,50 @@ const emptyInvoiceForm = {
   description: '',
   quantity: 1,
   rate: 0,
-  gstRate: 18,
+  gstRate: 0,
   tdsRate: 0,
   discount: 0,
   departmentId: '',
 };
+const INVOICE_PAGE_SIZE = 25;
 
 export const FinanceInvoicesPage = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useStatusParam();
   const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  // Search is debounced so typing doesn't fire a request per keystroke.
+  useEffect(() => { const t = setTimeout(() => { setQuery(search.trim()); setPage(1); }, 300); return () => clearTimeout(t); }, [search]);
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [invoicesRes, notesRes, catalogRes] = await Promise.all([financeApi.getInvoices(token), financeApi.getInvoiceNotes(token), financeApi.getDepartmentCatalog(token)]);
-    return { invoices: toList(unwrap(invoicesRes)), notes: toList(unwrap(notesRes)), departmentCatalog: toList(unwrap(catalogRes)) };
-  }, [token]);
+    const params = { page, limit: INVOICE_PAGE_SIZE, ...(statusFilter ? { status: statusFilter } : {}), ...(query ? { search: query } : {}) };
+    const [invoicesRes, notesRes, catalogRes, rulesRes] = await Promise.all([
+      financeApi.getInvoices(token, params),
+      financeApi.getInvoiceNotes(token),
+      financeApi.getDepartmentCatalog(token),
+      financeApi.getTaxRules(token, { on: todayIso() }).catch(() => null),
+    ]);
+    const list = unwrap(invoicesRes);
+    return { invoices: toList(list), pagination: list?.pagination, counts: list?.counts || {}, totals: list?.totals || {}, notes: toList(unwrap(notesRes)), departmentCatalog: toList(unwrap(catalogRes)), taxRules: toList(unwrap(rulesRes)) };
+  }, [token, page, statusFilter, query]);
 
   const invoices = useMemo(() => data.invoices || [], [data.invoices]);
   const notes = data.notes || [];
   const departmentCatalog = data.departmentCatalog || [];
-
-  const stageCounts = useMemo(() => invoices.reduce((acc, invoice) => {
-    const stage = invoiceStage(invoice);
-    acc[stage] = (acc[stage] || 0) + 1;
-    return acc;
-  }, {}), [invoices]);
-
-  const visibleInvoices = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return invoices.filter((invoice) =>
-      (!statusFilter || invoiceStage(invoice) === statusFilter)
-      && (!query || `${invoice.invoiceNumber || ''} ${invoice.clientName || ''}`.toLowerCase().includes(query)));
-  }, [invoices, search, statusFilter]);
-
-  const receivable = useMemo(() => invoices.filter(isPayableInvoice).reduce((sum, invoice) => sum + invoiceBalance(invoice), 0), [invoices]);
-  const overdueAmount = useMemo(() => invoices.filter((invoice) => invoiceStage(invoice) === 'overdue').reduce((sum, invoice) => sum + invoiceBalance(invoice), 0), [invoices]);
+  const taxRules = useMemo(() => data.taxRules || [], [data.taxRules]);
+  const pagination = data.pagination || { page: 1, totalPages: 1, total: invoices.length };
+  // Server-side counts and totals cover every invoice, not just the page on screen.
+  const stageCounts = data.counts || {};
+  const visibleInvoices = invoices;
+  const receivable = Number(data.totals?.receivable || 0);
+  const overdueAmount = Number(data.totals?.overdue || 0);
+  const rateOptions = (kind, current) => {
+    const rules = taxRules.filter((r) => r.kind === kind);
+    const opts = [{ value: '0', label: kind === 'gst' ? 'No GST (exempt / nil)' : 'No TDS' }, ...rules.map((r) => ({ value: String(r.rate), label: `${r.rate}% · ${r.code}${r.section ? ` (${r.section})` : ''}` }))];
+    if (Number(current) && !rules.some((r) => Number(r.rate) === Number(current))) opts.push({ value: String(current), label: `${current}% (no active rule)` });
+    return opts;
+  };
 
   const [form, setForm] = useState(emptyInvoiceForm);
   const [editingId, setEditingId] = useState(null);
@@ -1451,7 +1546,7 @@ export const FinanceInvoicesPage = () => {
       description: firstItem.description || '',
       quantity: firstItem.quantity || 1,
       rate: firstItem.rate || 0,
-      gstRate: invoice.gstRate ?? firstItem.taxRate ?? 18,
+      gstRate: firstItem.taxRate ?? invoice.gstRate ?? 0,
       tdsRate: invoice.tdsRate || 0,
       discount: invoice.discount || 0,
       departmentId: invoice.departmentId || '',
@@ -1560,13 +1655,16 @@ export const FinanceInvoicesPage = () => {
                 <div className="grid grid-cols-3 gap-2">
                   <Input label="Qty" type="number" min="0" value={form.quantity} onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))} />
                   <Input label="Rate" type="number" min="0" step="0.01" value={form.rate} onChange={(e) => setForm((p) => ({ ...p, rate: e.target.value }))} />
-                  <Input label="GST %" type="number" min="0" value={form.gstRate} onChange={(e) => setForm((p) => ({ ...p, gstRate: e.target.value }))} />
+                  <Select label="GST" value={String(form.gstRate)} onChange={(e) => setForm((p) => ({ ...p, gstRate: e.target.value }))} options={rateOptions('gst', form.gstRate)} />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
-                  <Input label="TDS %" type="number" min="0" value={form.tdsRate} onChange={(e) => setForm((p) => ({ ...p, tdsRate: e.target.value }))} />
-                  <Input label="Discount" type="number" min="0" value={form.discount} onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))} />
+                  <Select label="TDS" value={String(form.tdsRate)} onChange={(e) => setForm((p) => ({ ...p, tdsRate: e.target.value }))} options={rateOptions('tds', form.tdsRate)} />
+                  <Input label="Discount" type="number" min="0" step="0.01" value={form.discount} onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))} />
                 </div>
+                {!taxRules.some((r) => r.kind === 'gst') && (
+                  <p className="text-xs text-neutral-500">No GST rules are active today. The Finance Head can add them under Compliance → Tax rules.</p>
+                )}
                 <Select
                   label="Department"
                   value={form.departmentId}
@@ -1577,9 +1675,11 @@ export const FinanceInvoicesPage = () => {
                 <dl className="space-y-1.5 rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-900">
                   {[
                     ['Subtotal', formatCurrency(totals.subtotal)],
-                    [`GST (${totals.gstRate}%)`, `+ ${formatCurrency(totals.gst)}`],
-                    [`TDS (${totals.tdsRate}%)`, `− ${formatCurrency(totals.tds)}`],
                     ['Discount', `− ${formatCurrency(totals.discount)}`],
+                    ['Taxable value', formatCurrency(totals.taxable)],
+                    [`GST (${totals.gstRate}%)`, `+ ${formatCurrency(totals.gst)}`],
+                    ['Invoice total', formatCurrency(totals.total)],
+                    [`TDS withheld by customer (${totals.tdsRate}%)`, `− ${formatCurrency(totals.tds)}`],
                   ].map(([label, value]) => (
                     <div key={label} className="flex justify-between text-neutral-600 dark:text-neutral-400">
                       <dt>{label}</dt>
@@ -1587,8 +1687,8 @@ export const FinanceInvoicesPage = () => {
                     </div>
                   ))}
                   <div className="flex justify-between border-t border-neutral-200 pt-1.5 text-sm font-bold text-neutral-900 dark:border-neutral-700 dark:text-white">
-                    <dt>Invoice total</dt>
-                    <dd className={totals.total <= 0 ? 'text-rose-600 dark:text-rose-300' : ''}>{formatCurrency(totals.total)}</dd>
+                    <dt>Receivable from customer</dt>
+                    <dd className={totals.total <= 0 ? 'text-rose-600 dark:text-rose-300' : ''}>{formatCurrency(totals.receivable)}</dd>
                   </div>
                 </dl>
 
@@ -1629,8 +1729,8 @@ export const FinanceInvoicesPage = () => {
               />
               <StatusFilterBar
                 value={statusFilter}
-                onChange={setStatusFilter}
-                options={INVOICE_FILTERS.map((f) => ({ ...f, count: f.value ? stageCounts[f.value] || 0 : invoices.length }))}
+                onChange={(v) => { setStatusFilter(v); setPage(1); }}
+                options={INVOICE_FILTERS.map((f) => ({ ...f, count: f.value ? stageCounts[f.value] || 0 : stageCounts.all ?? invoices.length }))}
               />
               <DataTable
                 columns={[
@@ -1698,9 +1798,10 @@ export const FinanceInvoicesPage = () => {
                 rows={visibleInvoices}
                 rowKey="_id"
                 loading={loading}
-                emptyTitle={statusFilter ? `No ${INVOICE_STAGE_LABEL[statusFilter]?.toLowerCase() || statusFilter} invoices` : 'No invoices yet'}
+                emptyTitle={query ? `No invoices match "${query}"` : statusFilter ? `No ${INVOICE_STAGE_LABEL[statusFilter]?.toLowerCase() || statusFilter} invoices` : 'No invoices yet'}
                 onRowClick={(r) => navigate(`/finance/dashboard/invoices/${r._id}`)}
               />
+              <Pager pagination={pagination} onPage={setPage} disabled={loading} />
             </div>
           </section>
         </div>
@@ -1724,7 +1825,7 @@ export const FinanceInvoiceDetailPage = () => {
     const [invoicesRes, notesRes, paymentsRes] = await Promise.all([
       financeApi.getInvoices(token),
       financeApi.getInvoiceNotes(token, { invoiceId }),
-      financeApi.getPayments(token),
+      financeApi.getPayments(token, { direction: 'in' }),
     ]);
     const invoices = toList(unwrap(invoicesRes));
     const payments = toList(unwrap(paymentsRes)).filter((p) => String(p.invoice?._id || p.invoice || '') === String(invoiceId));
@@ -1969,7 +2070,7 @@ export const FinancePaymentsPage = () => {
   const { token, user } = useAuth();
   const [statusFilter, setStatusFilter] = useStatusParam();
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [paymentsRes, invoicesRes, catalogRes] = await Promise.all([financeApi.getPayments(token), financeApi.getInvoices(token), financeApi.getDepartmentCatalog(token)]);
+    const [paymentsRes, invoicesRes, catalogRes] = await Promise.all([financeApi.getPayments(token, { direction: 'in' }), financeApi.getInvoices(token), financeApi.getDepartmentCatalog(token)]);
     return { payments: toList(unwrap(paymentsRes)), invoices: toList(unwrap(invoicesRes)), departmentCatalog: toList(unwrap(catalogRes)) };
   }, [token]);
 
@@ -2317,7 +2418,32 @@ export const FinanceExpensesPage = () => {
   const needsAction = expenses.filter((row) => financeExpenseRequestActions(row, isFinanceHead).length > 0).length;
 
   // New expenses always enter the workflow as "submitted"; the backend ignores any other status.
-  const emptyExpenseForm = { title: '', category: '', amount: '', departmentId: '' };
+  const emptyExpenseForm = { title: '', category: '', amount: '', departmentId: '', docLabel: '', docUrl: '' };
+  const docUrlError = form => (form.docUrl && !/^https?:\/\//i.test(form.docUrl.trim()) ? 'Paste a full link starting with https://' : '');
+
+  // Expense report: totals per category and per stage, for the whole list.
+  const [showReport, setShowReport] = useState(false);
+  const categoryReport = useMemo(() => {
+    const map = new Map();
+    expenses.forEach((r) => {
+      const c = r.category || 'Uncategorised';
+      if (!map.has(c)) map.set(c, { category: c, count: 0, total: 0, approved: 0, pending: 0 });
+      const row = map.get(c);
+      const amt = Number(r.amount) || 0;
+      const s = String(r.status || '').toLowerCase();
+      row.count += 1;
+      row.total += amt;
+      if (['approved', 'processing', 'completed', 'paid'].includes(s)) row.approved += amt;
+      else if (!['rejected', 'cancelled'].includes(s)) row.pending += amt;
+    });
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [expenses]);
+  const reportTotal = categoryReport.reduce((s, r) => s + r.total, 0);
+  const exportExpenseReport = () => downloadCsv(`expense-report-${todayIso()}.csv`, [
+    ['Category', 'Requests', 'Total', 'Approved / paid', 'Pending', 'Share %'],
+    ...categoryReport.map((r) => [r.category, r.count, r.total.toFixed(2), r.approved.toFixed(2), r.pending.toFixed(2), reportTotal ? ((r.total / reportTotal) * 100).toFixed(1) : '0']),
+    ['Total', expenses.length, reportTotal.toFixed(2), '', '', '100'],
+  ]);
   const [form, setForm] = useState(emptyExpenseForm);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
@@ -2326,7 +2452,7 @@ export const FinanceExpensesPage = () => {
   const [runningAction, setRunningAction] = useState(false);
   const [actionError, setActionError] = useState('');
   // Stable so the Modal's focus-trap effect doesn't re-run (and steal focus) on every keystroke.
-  const closeAction = useCallback(() => setActingRequest(null), []);
+  const closeAction = () => setActingRequest(null);
   const commentRequired = actingRequest && EXPENSE_ACTIONS_NEEDING_COMMENT.includes(actingRequest.action.id);
 
   const handleSubmit = async (e) => {
@@ -2335,10 +2461,12 @@ export const FinanceExpensesPage = () => {
       setFormError('Amount must be greater than zero.');
       return;
     }
+    if (docUrlError(form)) { setFormError(docUrlError(form)); return; }
     setSubmitting(true);
     setFormError('');
     try {
-      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, departmentId: form.departmentId }, token);
+      const documents = form.docUrl.trim() ? [{ label: form.docLabel.trim() || 'Receipt', url: form.docUrl.trim() }] : [];
+      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, departmentId: form.departmentId, documents }, token);
       setForm(emptyExpenseForm);
       setNotice('Expense submitted for verification.');
       refetch();
@@ -2394,7 +2522,13 @@ export const FinanceExpensesPage = () => {
               <SectionHdr title="Submit expense" subtitle="Enters the workflow as Submitted" />
               <form onSubmit={handleSubmit} className="space-y-3">
                 <Input label="Expense title" placeholder="e.g. Client dinner" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
-                <Input label="Category" placeholder="e.g. Travel" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} />
+                <Select
+                  label="Category"
+                  value={form.category}
+                  onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                  required
+                  options={[{ value: '', label: 'Select category' }, ...EXPENSE_CATEGORIES.map((c) => ({ value: c, label: c }))]}
+                />
                 <Input label="Amount" type="number" min="0" step="0.01" placeholder="0" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} required />
                 <Select
                   label="Department"
@@ -2403,6 +2537,16 @@ export const FinanceExpensesPage = () => {
                   required
                   options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
                 />
+                <div className="rounded-xl border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
+                  <p className="mb-2 flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                    <span className="material-symbols-outlined text-[18px] text-neutral-400">attach_file</span>Receipt / bill
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
+                    <Input placeholder="Label" aria-label="Document label" value={form.docLabel} onChange={(e) => setForm((p) => ({ ...p, docLabel: e.target.value }))} />
+                    <Input placeholder="https://drive… link to the receipt" aria-label="Document link" value={form.docUrl} onChange={(e) => setForm((p) => ({ ...p, docUrl: e.target.value }))} error={docUrlError(form) || undefined} />
+                  </div>
+                  <p className="mt-1 text-xs text-neutral-500">Finance verifies the expense against this document.</p>
+                </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">Checked against the department's budget on submission.</p>
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
                 <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
@@ -2412,7 +2556,41 @@ export const FinanceExpensesPage = () => {
 
           <section className={card}>
             <div className={`${inner} space-y-4`}>
-              <SectionHdr title="Expense requests" subtitle={`${visibleExpenses.length} of ${expenses.length} shown`} />
+              <SectionHdr
+                title="Expense requests"
+                subtitle={`${visibleExpenses.length} of ${expenses.length} shown`}
+                action={<Button type="button" size="sm" variant="secondary" onClick={() => setShowReport((v) => !v)}><span className="material-symbols-outlined mr-1 text-[16px]">summarize</span>{showReport ? 'Hide report' : 'Expense report'}</Button>}
+              />
+              {showReport && (
+                <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-bold text-neutral-900 dark:text-white">By category · {formatCurrency(reportTotal)}</p>
+                    <Button type="button" size="sm" variant="secondary" onClick={exportExpenseReport} disabled={!categoryReport.length}>
+                      <span className="material-symbols-outlined mr-1 text-[16px]">download</span>CSV
+                    </Button>
+                  </div>
+                  {categoryReport.length === 0 ? <p className="text-xs text-neutral-500">No expenses yet.</p> : (
+                    <ul className="space-y-2">
+                      {categoryReport.map((r) => {
+                        const pct = reportTotal ? (r.total / reportTotal) * 100 : 0;
+                        return (
+                          <li key={r.category} className="text-xs">
+                            <div className="flex justify-between gap-2">
+                              <span className="font-semibold text-neutral-800 dark:text-neutral-100">{r.category} <span className="font-normal text-neutral-500">· {r.count}</span></span>
+                              <span className="tabular-nums">{formatCurrency(r.total)} <span className="text-neutral-400">({pct.toFixed(0)}%)</span></span>
+                            </div>
+                            <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label={`${r.category}: ${formatCurrency(r.approved)} approved, ${formatCurrency(r.pending)} pending`}>
+                              <div className="bg-emerald-500" style={{ width: `${reportTotal ? (r.approved / reportTotal) * 100 : 0}%` }} />
+                              <div className="bg-amber-400" style={{ width: `${reportTotal ? (r.pending / reportTotal) * 100 : 0}%` }} />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  <p className="mt-2 flex gap-3 text-[11px] text-neutral-500"><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />Approved / paid</span><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />In the workflow</span></p>
+                </div>
+              )}
               <StatusFilterBar value={statusFilter} onChange={setStatusFilter} options={filterOptions} />
               <DataTable
                 columns={[
@@ -2423,6 +2601,19 @@ export const FinanceExpensesPage = () => {
                       <div>
                         <p className="font-semibold text-neutral-900 dark:text-white">{r.type || r.requestId}</p>
                         <p className="text-xs text-neutral-500">{r.category || '—'} · {r.department || 'Unassigned'}</p>
+                        {(r.documents || []).length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {r.documents.map((d, i) => (
+                              <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 hover:underline dark:bg-blue-900/20 dark:text-blue-300">
+                                <span className="material-symbols-outlined text-[13px]">description</span>{d.label || 'Document'}
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                            <span className="material-symbols-outlined text-[13px]">warning</span>No document attached
+                          </p>
+                        )}
                       </div>
                     ),
                   },
@@ -2503,7 +2694,8 @@ export const FinanceExpensesPage = () => {
 
 const budgetUsedPct = (budget) => {
   const allocated = Number(budget?.allocated || 0);
-  return allocated > 0 ? ((Number(budget.spent || 0) + Number(budget.reserved || 0)) / allocated) * 100 : 0;
+  const committed = Number(budget.spent || 0) + Number(budget.reserved || 0);
+  return allocated > 0 ? (committed / allocated) * 100 : committed > 0 ? Infinity : 0;
 };
 
 export const FinanceBudgetsPage = () => {
@@ -2619,6 +2811,7 @@ export const FinanceBudgetsPage = () => {
             { label: 'Needs attention', value: totals.over + totals.atRisk, subtext: `${totals.over} over · ${totals.atRisk} at risk` },
           ]}
         />
+        <BudgetAlerts budgets={budgets} />
 
         <div className={`grid grid-cols-1 gap-6 ${isHead ? 'lg:grid-cols-[1fr,1.7fr]' : ''}`}>
           {!isHead ? null : (
@@ -3392,6 +3585,7 @@ export const FinanceAccountingPage = () => {
 
 const REPORT_TABS = [
   { id: 'erp', label: 'Financial Statements' },
+  { id: 'summaries', label: 'Monthly, Revenue & Cash' },
   { id: 'archive', label: 'Report Archive' },
 ];
 const REPORT_TYPE_LABEL = {
@@ -3455,7 +3649,11 @@ export const FinanceReportsPage = () => {
   const margin = Number(profitLoss.revenue) > 0 ? (Number(profitLoss.netIncome || 0) / Number(profitLoss.revenue)) * 100 : null;
 
   const exportTrialBalance = () => {
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const esc = (v) => {
+    const value = String(v ?? '');
+    const safe = typeof v === 'string' && /^[=+@\-\t\r]/.test(value) ? `'${value}` : value;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
     const lines = [
       ['Code', 'Account', 'Type', 'Debit', 'Credit'].map(esc).join(','),
       ...tbRows.map((r) => [r.code, r.name, r.type, Number(r.debit || 0).toFixed(2), Number(r.credit || 0).toFixed(2)].map(esc).join(',')),
@@ -3503,6 +3701,8 @@ export const FinanceReportsPage = () => {
           <ErrorState title="Some statements didn't load" description={`${failedSources.join(', ')} could not be fetched — the figures shown for them are zero.`} onRetry={refetch} />
         )}
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
+
+        {tab === 'summaries' && <FinanceReportExtras token={token} />}
 
         {tab === 'archive' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
@@ -3658,6 +3858,7 @@ const COMPLIANCE_ORDER = { overdue: 0, due_soon: 1, pending: 2, filed: 3 };
 
 export const FinanceCompliancePage = () => {
   const { token, user } = useAuth();
+  const isFinanceHead = useIsFinanceHead();
   const [statusFilter, setStatusFilter] = useStatusParam();
   const { loading, error, data, refetch } = useAsync(async () => ({ compliance: toList(unwrap(await financeApi.getCompliance(token))) }), [token]);
   const compliance = useMemo(() => data.compliance || [], [data.compliance]);
@@ -3733,6 +3934,8 @@ export const FinanceCompliancePage = () => {
             { label: 'Filed', value: stageCounts.filed || 0 },
           ]}
         />
+
+        <TaxFilingPanel token={token} isHead={isFinanceHead} canExportAudit={isFinanceHead || user?.role === 'ceo'} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
           <section className={card}>
@@ -4006,6 +4209,8 @@ export const FinanceDirectoryPage = () => {
             </section>
           </div>
         )}
+
+        {tab === 'vendors' && <VendorLedger vendors={data.vendors || []} token={token} user={user} onSaved={refetch} />}
 
         {tab === 'clients' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">

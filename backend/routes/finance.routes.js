@@ -15,7 +15,7 @@ const modularFinanceRoutes = require('../modules/finance/finance.routes');
 router.use(authenticate);
 router.use(authorize(ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO, ROLES.HR));
 router.use(authorizePortalAccess('finance'));
-router.use(cacheGetResponses('finance', { tags: ['finance', 'dashboard', 'analytics'] }));
+router.use(cacheGetResponses('finance', { tags: ['finance', 'dashboard', 'analytics'], skip: (req) => /salary|payroll|financial-summary|invoices|payments|bank-transactions|expenses|budgets|reports|receivables|tax|audit-logs/.test(req.path) }));
 router.use(invalidateCacheAfterMutation('finance'));
 router.use('/module', modularFinanceRoutes);
 
@@ -47,6 +47,17 @@ const notUnderReview = financeController.guardNotUnderReview;
 router.get('/review/queue', financeController.getReviewQueue);
 router.post('/review/:module/:id/submit', canWriteFinance, financeController.submitForReview);
 router.post('/review/:module/:id/decision', canControlFinance, financeController.decideReview);
+
+router.get('/bank-transactions', financeController.bankList);
+router.post('/bank-transactions/import', canWriteFinance, financeController.bankImport);
+router.get('/salary-profiles/employees', canControlFinance, financeController.salaryEmployees);
+router.get('/salary-profiles', canControlFinance, financeController.getSalaries);
+router.post('/salary-profiles', canControlFinance, financeController.saveSalary);
+
+router.get('/financial-summary', financeController.summary);
+router.get('/reports/export', financeController.reportExport);
+router.get('/documents/:kind/:id/download', financeController.documentExport);
+router.get('/invoices/:id', (req, res) => financeController.getInvoices({ ...req, query: { ...req.query, recordId: req.params.id } }, res));
 
 // Finance dashboard
 router.get('/dashboard', financeController.getDashboard);
@@ -108,6 +119,20 @@ router.get('/reports/balance-sheet', financeController.getBalanceSheet);
 router.get('/reports/profit-loss', financeController.getProfitLoss);
 router.get('/reports/tax-summary', financeController.getTaxSummary);
 router.get('/reports/itr-summary', financeController.getItrSummary);
+router.get('/reports/period-summary', financeController.getPeriodSummary);
+router.get('/reports/period-summary/export', financeController.periodCsv);
+router.get('/reports/revenue', financeController.getRevenueReport);
+router.get('/receivables/customers', financeController.getCustomerBalances);
+
+// Tax rules and statutory filing preparation (external filing integrations are not connected)
+router.get('/tax-rules', financeController.listTaxRules);
+router.post('/tax-rules', canControlFinance, financeController.createTaxRule);
+router.patch('/tax-rules/:id', canControlFinance, financeController.updateTaxRule);
+router.get('/tax/gst-return', financeController.getGstReturn);
+router.get('/tax/gst-return/export', financeController.gstCsv);
+router.get('/tax/tds-return', financeController.getTdsReturn);
+router.get('/tax/tds-return/export', financeController.tdsCsv);
+router.get('/audit-logs/export', financeController.auditCsv);
 
 // Compliance, Audit, and Taxation
 router.get('/compliance', attachOptionalProjectContext, financeController.getCompliance);
@@ -118,6 +143,7 @@ router.put('/compliance/:id', attachOptionalProjectContext, canWriteFinance, fin
 router.get('/vendors', financeController.getVendors);
 router.post('/vendors', canWriteFinance, financeController.createVendor);
 router.put('/vendors/:id', canWriteFinance, financeController.updateVendor);
+router.post('/vendors/:id/ledger', canWriteFinance, financeController.addVendorLedgerEntry);
 router.get('/clients', financeController.getClients);
 router.post('/clients', canWriteFinance, financeController.createClient);
 router.put('/clients/:id', canWriteFinance, financeController.updateClient);

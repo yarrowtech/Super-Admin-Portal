@@ -29,4 +29,8 @@ const journalEntrySchema = new mongoose.Schema(
 
 journalEntrySchema.index({ entryDate: -1 });
 
+journalEntrySchema.add({ sourceKey: String, departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' }, client: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceClient' }, vendor: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceVendor' }, costCenterId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceCostCenter' } });
+journalEntrySchema.index({ status: 1, entryDate: -1, departmentId: 1 });
+journalEntrySchema.index({ sourceKey: 1 }, { unique: true, partialFilterExpression: { sourceKey: { $type: 'string' } } });
+
 module.exports = mongoose.models.FinanceJournalEntry || mongoose.model('FinanceJournalEntry', journalEntrySchema);

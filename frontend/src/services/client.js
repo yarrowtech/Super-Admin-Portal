@@ -222,6 +222,25 @@ export const apiClient = {
     clearApiCache();
     return parsed;
   },
+  // Authenticated file download (CSV/PDF); surfaces the server's JSON error message on failure.
+  async download(path, token, filename) {
+    const headers = getDefaultHeaders(token);
+    delete headers['Content-Type'];
+    const res = await fetch(`${API_BASE_URL}${path}`, { headers, credentials: 'include', cache: 'no-store' });
+    if (!res.ok) {
+      let message = `Download failed (${res.status})`;
+      try { message = (await res.json())?.error || message; } catch { /* non-JSON error body */ }
+      throw new Error(message);
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
   getBaseUrl() {
     return API_BASE_URL;
   },

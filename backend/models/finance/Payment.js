@@ -13,6 +13,9 @@ const paymentSchema = new mongoose.Schema(
     journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceJournalEntry', index: true, default: null },
     financialPeriodId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceFinancialPeriod', index: true, default: null },
     customerName: { type: String, trim: true },
+    // 'in' = money received (clients/invoices); 'out' = money paid (vendors). Keeps receipts and
+    // vendor payments apart in the ledger, the receivables view and the cash-flow report.
+    direction: { type: String, enum: ['in', 'out'], default: 'in', index: true },
     amount: { type: Number, required: true },
     method: {
       type: String,
@@ -39,5 +42,7 @@ paymentSchema.index({ status: 1 });
 paymentSchema.index({ paymentDate: -1 });
 paymentSchema.index({ projectId: 1, status: 1, paymentDate: -1 });
 paymentSchema.index({ projectId: 1, reference: 1 }, { unique: true, sparse: true });
+
+paymentSchema.add({ amountMinor: Number, allocations: [{ invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceInvoice' }, amountMinor: { type: Number, min: 1, validate: Number.isSafeInteger } }] });
 
 module.exports = mongoose.models['FinancePayment'] || mongoose.model('FinancePayment', paymentSchema);

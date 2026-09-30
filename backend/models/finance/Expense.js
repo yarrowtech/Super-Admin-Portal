@@ -61,4 +61,6 @@ expenseSchema.index({ status: 1 });
 expenseSchema.index({ department: 1 });
 expenseSchema.index({ projectId: 1, status: 1, createdAt: -1 });
 
+expenseSchema.add({ vendor: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceVendor' }, costCenterId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceCostCenter' } });
+
 module.exports = mongoose.models['FinanceExpense'] || mongoose.model('FinanceExpense', expenseSchema);

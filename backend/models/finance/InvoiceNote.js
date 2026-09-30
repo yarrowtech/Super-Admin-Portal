@@ -13,4 +13,7 @@ const invoiceNoteSchema = new mongoose.Schema(
 
 invoiceNoteSchema.index({ invoice: 1, createdAt: -1 });
 
+invoiceNoteSchema.add({ reference: String, gstAmount: { type: Number, default: 0 } });
+invoiceNoteSchema.index({ invoice: 1, reference: 1 }, { unique: true, partialFilterExpression: { reference: { $type: 'string' } } });
+
 module.exports = mongoose.models.FinanceInvoiceNote || mongoose.model('FinanceInvoiceNote', invoiceNoteSchema);

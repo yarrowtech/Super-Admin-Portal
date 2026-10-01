@@ -11,6 +11,12 @@ import Select from '../ui/Select';
 import Modal from '../ui/Modal';
 import VendorLedger from './VendorLedger';
 import TaxFilingPanel from './TaxFilingPanel';
+import SalaryProfilePanel from './SalaryProfilePanel';
+import InvoiceLineItems from './InvoiceLineItems';
+import { blankLine, previewTotals } from './invoiceTotals';
+import ClientPicker from './ClientPicker';
+import GlobalFinanceSearch from './GlobalFinanceSearch';
+import FinanceNotificationBell from './FinanceNotificationBell';
 import FinanceReportExtras from './FinanceReportExtras';
 import KPICard from '../common/KPICard';
 import StatusBadge from '../common/StatusBadge';
@@ -507,21 +513,6 @@ const Pager = ({ pagination, onPage, disabled }) => {
   );
 };
 
-// Preview only; mirrors backend money.invoice in paise: discount comes off before tax, GST is
-// charged on the discounted value, TDS is withheld on it. Customer owes total − TDS.
-const previewInvoiceTotals = (form) => {
-  const paise = (v) => Math.round((Number(v) || 0) * 100);
-  const subtotal = Math.round((Number(form.quantity) || 0) * paise(form.rate));
-  const discount = Math.min(paise(form.discount), subtotal);
-  const taxable = subtotal - discount;
-  const gstRate = Number(form.gstRate) || 0;
-  const tdsRate = Number(form.tdsRate) || 0;
-  const gst = Math.round((taxable * gstRate) / 100);
-  const tds = Math.round((taxable * tdsRate) / 100);
-  const total = taxable + gst;
-  return { subtotal: subtotal / 100, discount: discount / 100, taxable: taxable / 100, gst: gst / 100, gstRate, tds: tds / 100, tdsRate, total: total / 100, receivable: (total - tds) / 100 };
-};
-
 // Records a payment against an invoice. Mount it keyed by invoice id so each
 // opening starts from that invoice's outstanding balance.
 const RecordPaymentModal = ({ invoice, onClose, onSaved }) => {
@@ -683,17 +674,20 @@ export const FinanceOverviewPage = () => {
   const [departmentScope, setDepartmentScope] = useState('');
   const [dashboardSearch, setDashboardSearch] = useState('');
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [dashboardRes, invoicesRes, expensesRes, profitLossRes, balanceSheetRes, catalogRes] = await Promise.allSettled([
+    const [dashboardRes, invoicesRes, expensesRes, profitLossRes, balanceSheetRes, catalogRes, agingRes] = await Promise.allSettled([
       financeApi.getDashboard(token),
-      financeApi.getInvoices(token),
-      financeApi.getExpenses(token),
+      financeApi.getInvoices(token, { limit: 10 }),
+      financeApi.getExpenses(token, { limit: 10 }),
       financeApi.getProfitLoss(token),
       financeApi.getBalanceSheet(token),
       financeApi.getDepartmentCatalog(token),
+      financeApi.getAgingSummary(token),
     ]);
     return {
       dashboard: dashboardRes.status === 'fulfilled' ? unwrap(dashboardRes.value) : null,
       invoices: invoicesRes.status === 'fulfilled' ? toList(unwrap(invoicesRes.value)) : [],
+      invoiceTotals: invoicesRes.status === 'fulfilled' ? unwrap(invoicesRes.value)?.totals : null,
+      aging: agingRes.status === 'fulfilled' ? unwrap(agingRes.value) : null,
       expenses: expensesRes.status === 'fulfilled' ? toList(unwrap(expensesRes.value)) : [],
       profitLoss: profitLossRes.status === 'fulfilled' ? unwrap(profitLossRes.value) : { revenue: 0, expenses: 0, netIncome: 0 },
       balanceSheet: balanceSheetRes.status === 'fulfilled' ? unwrap(balanceSheetRes.value) : { assets: 0, liabilities: 0, equity: 0 },
@@ -707,6 +701,7 @@ export const FinanceOverviewPage = () => {
         expenses: expensesRes.status === 'rejected' ? (expensesRes.reason?.message || 'Failed to load expenses') : null,
         profitLoss: profitLossRes.status === 'rejected' ? (profitLossRes.reason?.message || 'Failed to load profit & loss') : null,
         balanceSheet: balanceSheetRes.status === 'rejected' ? (balanceSheetRes.reason?.message || 'Failed to load the balance sheet') : null,
+        aging: agingRes.status === 'rejected' ? (agingRes.reason?.message || 'Failed to load receivables aging') : null,
       },
     };
   }, [token]);
@@ -734,69 +729,19 @@ export const FinanceOverviewPage = () => {
     [invoices]
   );
 
+  // Receivables, aging and the expense pipeline are aggregated by the backend over every
+  // record; the invoice/expense lists below are only the most recent page for the tables.
   const invoiceMetrics = useMemo(() => {
-    const now = new Date();
-    const metrics = { totalAmount: 0, overdueAmount: 0, outstandingAmount: 0, overdueCount: 0 };
-    invoices.forEach((invoice) => {
-      const total = getInvoiceTotal(invoice);
-      const balanceDue = Number(invoice?.balanceDue ?? (invoice?.status === 'paid' ? 0 : total));
-      metrics.totalAmount += Number(total) || 0;
-      metrics.outstandingAmount += Number(balanceDue) || 0;
-      const dueDate = invoice?.dueDate ? new Date(invoice.dueDate) : null;
-      if (dueDate && dueDate < now && invoice?.status !== 'paid' && balanceDue > 0) {
-        metrics.overdueAmount += Number(balanceDue) || 0;
-        metrics.overdueCount += 1;
-      }
-    });
-    return metrics;
-  }, [invoices]);
+    const r = data.aging?.receivables || {};
+    return { totalAmount: Number(data.invoiceTotals?.receivable || 0), outstandingAmount: Number(r.outstandingAmount || 0), overdueAmount: Number(r.overdueAmount || 0), overdueCount: Number(r.overdueCount || 0) };
+  }, [data.aging, data.invoiceTotals]);
 
-  const agingBuckets = useMemo(() => {
-    const now = new Date();
-    const buckets = {
-      current: { label: 'Current', amount: 0, count: 0 },
-      bucket1: { label: '1-30', amount: 0, count: 0 },
-      bucket2: { label: '31-60', amount: 0, count: 0 },
-      bucket3: { label: '61-90', amount: 0, count: 0 },
-      bucket4: { label: '90+', amount: 0, count: 0 },
-    };
-    outstandingInvoices.forEach((invoice) => {
-      const balance = Number(invoice?.balanceDue ?? getInvoiceTotal(invoice));
-      if (!Number.isFinite(balance) || balance <= 0) return;
-      const dueDate = invoice?.dueDate ? new Date(invoice.dueDate) : null;
-      if (!dueDate || dueDate >= now) {
-        buckets.current.amount += balance;
-        buckets.current.count += 1;
-        return;
-      }
-      const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
-      const bucket = daysOverdue <= 30 ? buckets.bucket1 : daysOverdue <= 60 ? buckets.bucket2 : daysOverdue <= 90 ? buckets.bucket3 : buckets.bucket4;
-      bucket.amount += balance;
-      bucket.count += 1;
-    });
-    return Object.values(buckets);
-  }, [outstandingInvoices]);
+  const agingBuckets = useMemo(() => data.aging?.aging || [], [data.aging]);
 
   const expenseSummary = useMemo(() => {
-    let totalAmount = 0;
-    let verifiedAmount = 0;
-    let verifiedCount = 0;
-    let pendingCount = 0;
-    let pendingAmount = 0;
-    expenses.forEach((expense) => {
-      const amount = Number(expense?.amount || 0);
-      totalAmount += amount;
-      if (expense?.status === 'verified') {
-        verifiedAmount += amount;
-        verifiedCount += 1;
-      }
-      if (expense?.status === 'submitted' || expense?.status === 'pending') {
-        pendingCount += 1;
-        pendingAmount += amount;
-      }
-    });
-    return { totalAmount, verifiedAmount, verifiedCount, pendingCount, pendingAmount };
-  }, [expenses]);
+    const e = data.aging?.expenses || {};
+    return { totalAmount: Number(e.totalAmount || 0), verifiedAmount: Number(e.verifiedAmount || 0), verifiedCount: Number(e.verifiedCount || 0), pendingCount: Number(e.pendingCount || 0), pendingAmount: Number(e.pendingAmount || 0) };
+  }, [data.aging]);
 
   const financeSummary = useMemo(() => {
     const revenue = Number(profitLoss?.revenue || 0);
@@ -962,15 +907,8 @@ export const FinanceOverviewPage = () => {
           crumbs={['Finance', 'Live Operations']}
           actions={
             <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-              <div className="relative min-w-[220px] flex-1 sm:flex-none">
-                <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[17px] text-neutral-400">search</span>
-                <input
-                  value={dashboardSearch}
-                  onChange={(event) => setDashboardSearch(event.target.value)}
-                  placeholder="Search finance..."
-                  className="h-9 w-full rounded-lg border border-neutral-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
-                />
-              </div>
+              <GlobalFinanceSearch token={token} />
+              <FinanceNotificationBell token={token} />
               <select
                 value={departmentScope}
                 onChange={(event) => setDepartmentScope(event.target.value)}
@@ -1080,6 +1018,13 @@ export const FinanceOverviewPage = () => {
                 emptyTitle="No department finance data"
               >
                 <div className="space-y-3">
+                  <input
+                    value={dashboardSearch}
+                    onChange={(event) => setDashboardSearch(event.target.value)}
+                    placeholder="Filter departments by name or status"
+                    aria-label="Filter departments"
+                    className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+                  />
                   {scopedDepartmentRows.map((row) => (
                     <button
                       key={row.department}
@@ -1151,7 +1096,7 @@ export const FinanceOverviewPage = () => {
                   error={sourceErrors.invoices}
                   onRetry={refetch}
                 >
-                  <p className="mb-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400">{outstandingInvoices.length} open invoices</p>
+                  <p className="mb-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400">{data.aging?.receivables?.count ?? outstandingInvoices.length} open invoices</p>
                   <div className="space-y-3">
                     {agingBuckets.map((bucket) => (
                       <div key={bucket.label} className="grid grid-cols-[72px_1fr_auto] items-center gap-3">
@@ -1473,18 +1418,16 @@ export const FinanceDepartmentProfilesPage = () => {
   );
 };
 
-const emptyInvoiceForm = {
+const emptyInvoiceForm = () => ({
   clientName: '',
   clientEmail: '',
+  client: '',
   dueDate: '',
-  description: '',
-  quantity: 1,
-  rate: 0,
-  gstRate: 0,
+  items: [blankLine()],
   tdsRate: 0,
   discount: 0,
   departmentId: '',
-};
+});
 const INVOICE_PAGE_SIZE = 25;
 
 export const FinanceInvoicesPage = () => {
@@ -1498,20 +1441,22 @@ export const FinanceInvoicesPage = () => {
   useEffect(() => { const t = setTimeout(() => { setQuery(search.trim()); setPage(1); }, 300); return () => clearTimeout(t); }, [search]);
   const { loading, error, data, refetch } = useAsync(async () => {
     const params = { page, limit: INVOICE_PAGE_SIZE, ...(statusFilter ? { status: statusFilter } : {}), ...(query ? { search: query } : {}) };
-    const [invoicesRes, notesRes, catalogRes, rulesRes] = await Promise.all([
+    const [invoicesRes, notesRes, catalogRes, rulesRes, clientsRes] = await Promise.all([
       financeApi.getInvoices(token, params),
       financeApi.getInvoiceNotes(token),
       financeApi.getDepartmentCatalog(token),
       financeApi.getTaxRules(token, { on: todayIso() }).catch(() => null),
+      financeApi.getClients(token).catch(() => null),
     ]);
     const list = unwrap(invoicesRes);
-    return { invoices: toList(list), pagination: list?.pagination, counts: list?.counts || {}, totals: list?.totals || {}, notes: toList(unwrap(notesRes)), departmentCatalog: toList(unwrap(catalogRes)), taxRules: toList(unwrap(rulesRes)) };
+    return { invoices: toList(list), pagination: list?.pagination, counts: list?.counts || {}, totals: list?.totals || {}, notes: toList(unwrap(notesRes)), departmentCatalog: toList(unwrap(catalogRes)), taxRules: toList(unwrap(rulesRes)), clients: toList(unwrap(clientsRes)) };
   }, [token, page, statusFilter, query]);
 
   const invoices = useMemo(() => data.invoices || [], [data.invoices]);
   const notes = data.notes || [];
   const departmentCatalog = data.departmentCatalog || [];
   const taxRules = useMemo(() => data.taxRules || [], [data.taxRules]);
+  const clients = useMemo(() => data.clients || [], [data.clients]);
   const pagination = data.pagination || { page: 1, totalPages: 1, total: invoices.length };
   // Server-side counts and totals cover every invoice, not just the page on screen.
   const stageCounts = data.counts || {};
@@ -1526,6 +1471,7 @@ export const FinanceInvoicesPage = () => {
   };
 
   const [form, setForm] = useState(emptyInvoiceForm);
+  const totals = previewTotals(form.items, form.discount, form.tdsRate);
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
@@ -1533,20 +1479,18 @@ export const FinanceInvoicesPage = () => {
   const [actionError, setActionError] = useState('');
   const [approvingId, setApprovingId] = useState(null);
   const [payingInvoice, setPayingInvoice] = useState(null);
-  const totals = previewInvoiceTotals(form);
 
   const startEdit = (invoice) => {
     setEditingId(invoice._id);
     setFormError('');
-    const firstItem = invoice.items?.[0] || {};
     setForm({
       clientName: invoice.clientName || '',
       clientEmail: invoice.clientEmail || '',
+      client: invoice.client || '',
       dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : '',
-      description: firstItem.description || '',
-      quantity: firstItem.quantity || 1,
-      rate: firstItem.rate || 0,
-      gstRate: firstItem.taxRate ?? invoice.gstRate ?? 0,
+      items: (invoice.items?.length ? invoice.items : [blankLine()]).map((i) => ({
+        description: i.description || '', quantity: i.quantity ?? 1, rate: i.rate ?? '', taxRate: i.taxRate ?? 0,
+      })),
       tdsRate: invoice.tdsRate || 0,
       discount: invoice.discount || 0,
       departmentId: invoice.departmentId || '',
@@ -1556,16 +1500,20 @@ export const FinanceInvoicesPage = () => {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setForm(emptyInvoiceForm);
+    setForm(emptyInvoiceForm());
     setFormError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.clientName.trim()) { setFormError('Pick a client or type a customer name.'); return; }
+    const badLine = form.items.findIndex((i) => !i.description.trim() || !(Number(i.quantity) > 0) || !(Number(i.rate) >= 0));
+    if (badLine >= 0) { setFormError(`Line ${badLine + 1} needs a description, a quantity above zero and a rate.`); return; }
     if (totals.total <= 0) {
       setFormError('Invoice total must be greater than zero.');
       return;
     }
+    if (Number(form.discount) > totals.subtotal) { setFormError('Discount cannot exceed the subtotal.'); return; }
     setSubmitting(true);
     setFormError('');
     try {
@@ -1574,12 +1522,17 @@ export const FinanceInvoicesPage = () => {
       const payload = {
         clientName: form.clientName,
         clientEmail: form.clientEmail,
+        client: form.client || undefined,
         dueDate: form.dueDate || undefined,
         discount: Number(form.discount) || 0,
-        gstRate: Number(form.gstRate) || 0,
         tdsRate: Number(form.tdsRate) || 0,
         departmentId: form.departmentId || undefined,
-        items: [{ description: form.description, quantity: Number(form.quantity) || 0, rate: Number(form.rate) || 0, taxRate: Number(form.gstRate) || 0 }],
+        items: form.items.map((i) => ({
+          description: i.description.trim(),
+          quantity: Number(i.quantity) || 0,
+          rate: Number(i.rate) || 0,
+          taxRate: Number(i.taxRate) || 0,
+        })),
       };
       if (editingId) {
         await financeApi.updateInvoice(editingId, payload, token);
@@ -1649,14 +1602,23 @@ export const FinanceInvoicesPage = () => {
                 action={editingId && <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>}
               />
               <form onSubmit={handleSubmit} className="space-y-3">
-                <Input label="Client name" placeholder="e.g. Acme Corp" value={form.clientName} onChange={(e) => setForm((p) => ({ ...p, clientName: e.target.value }))} required />
+                <ClientPicker
+                  clients={clients}
+                  value={form.clientName}
+                  clientId={form.client}
+                  onPick={(picked) => setForm((p) => ({ ...p, ...picked, clientEmail: picked.clientEmail || p.clientEmail }))}
+                  required
+                />
                 <Input label="Client email" type="email" placeholder="billing@client.com" value={form.clientEmail} onChange={(e) => setForm((p) => ({ ...p, clientEmail: e.target.value }))} />
-                <Input label="Item description" placeholder="e.g. Consulting services" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} required />
-                <div className="grid grid-cols-3 gap-2">
-                  <Input label="Qty" type="number" min="0" value={form.quantity} onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))} />
-                  <Input label="Rate" type="number" min="0" step="0.01" value={form.rate} onChange={(e) => setForm((p) => ({ ...p, rate: e.target.value }))} />
-                  <Select label="GST" value={String(form.gstRate)} onChange={(e) => setForm((p) => ({ ...p, gstRate: e.target.value }))} options={rateOptions('gst', form.gstRate)} />
-                </div>
+
+                <InvoiceLineItems
+                  lines={form.items}
+                  onChange={(items) => setForm((p) => ({ ...p, items }))}
+                  gstOptions={rateOptions('gst', 0)}
+                  totals={totals}
+                  disabled={submitting}
+                />
+
                 <div className="grid grid-cols-3 gap-2">
                   <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
                   <Select label="TDS" value={String(form.tdsRate)} onChange={(e) => setForm((p) => ({ ...p, tdsRate: e.target.value }))} options={rateOptions('tds', form.tdsRate)} />
@@ -1677,9 +1639,9 @@ export const FinanceInvoicesPage = () => {
                     ['Subtotal', formatCurrency(totals.subtotal)],
                     ['Discount', `− ${formatCurrency(totals.discount)}`],
                     ['Taxable value', formatCurrency(totals.taxable)],
-                    [`GST (${totals.gstRate}%)`, `+ ${formatCurrency(totals.gst)}`],
+                    ['GST', `+ ${formatCurrency(totals.tax)}`],
                     ['Invoice total', formatCurrency(totals.total)],
-                    [`TDS withheld by customer (${totals.tdsRate}%)`, `− ${formatCurrency(totals.tds)}`],
+                    [`TDS withheld by customer (${form.tdsRate || 0}%)`, `− ${formatCurrency(totals.tds)}`],
                   ].map(([label, value]) => (
                     <div key={label} className="flex justify-between text-neutral-600 dark:text-neutral-400">
                       <dt>{label}</dt>
@@ -1884,6 +1846,16 @@ export const FinanceInvoiceDetailPage = () => {
     }
   };
 
+  const [downloading, setDownloading] = useState(false);
+  // Server-rendered PDF: needs the auth header, so it can't be a plain link.
+  const downloadPdf = async () => {
+    setDownloading(true);
+    setActionError('');
+    try { await financeApi.downloadDocument('invoice', invoiceId, token); }
+    catch (err) { setActionError(err.message || 'Could not download the invoice PDF'); }
+    finally { setDownloading(false); }
+  };
+
   const isHead = useIsFinanceHead();
   const [reviewing, setReviewing] = useState(null);
   const draftStep = () => {
@@ -1922,7 +1894,16 @@ export const FinanceInvoiceDetailPage = () => {
           icon="receipt_long"
           user={user}
           crumbs={['Finance', 'Invoices', invoice?.invoiceNumber || 'Invoice']}
-          actions={<Button variant="secondary" size="sm" onClick={() => navigate('/finance/dashboard/invoices')}>All invoices</Button>}
+          actions={(
+            <div className="flex gap-2">
+              {invoice && stage !== 'draft' && (
+                <Button variant="secondary" size="sm" disabled={downloading} onClick={downloadPdf}>
+                  <span className="material-symbols-outlined mr-1 text-[16px]">download</span>{downloading ? 'Preparing…' : 'PDF'}
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => navigate('/finance/dashboard/invoices')}>All invoices</Button>
+            </div>
+          )}
         />
         {loading && <SkeletonBlock />}
         {!loading && error && <ErrorState title="Failed to load invoice" description={error} onRetry={refetch} />}
@@ -2069,29 +2050,35 @@ const emptyPaymentForm = { invoice: '', customerName: '', amount: '', method: 'b
 export const FinancePaymentsPage = () => {
   const { token, user } = useAuth();
   const [statusFilter, setStatusFilter] = useStatusParam();
+  const [page, setPage] = useState(1);
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [paymentsRes, invoicesRes, catalogRes] = await Promise.all([financeApi.getPayments(token, { direction: 'in' }), financeApi.getInvoices(token), financeApi.getDepartmentCatalog(token)]);
-    return { payments: toList(unwrap(paymentsRes)), invoices: toList(unwrap(invoicesRes)), departmentCatalog: toList(unwrap(catalogRes)) };
-  }, [token]);
+    // Receipts are paged server-side; the picker pulls only unsettled invoices, and
+    // customer balances are aggregated over every invoice by the backend.
+    const [paymentsRes, invoicesRes, catalogRes, balancesRes] = await Promise.all([
+      financeApi.getPayments(token, { direction: 'in', page, limit: 25, ...(statusFilter ? { status: statusFilter } : {}) }),
+      financeApi.getInvoices(token, { limit: 100, sort: 'issueDate', order: 'asc' }),
+      financeApi.getDepartmentCatalog(token),
+      financeApi.getCustomerBalances(token).catch(() => null),
+    ]);
+    const list = unwrap(paymentsRes);
+    return { payments: toList(list), pagination: list?.pagination, invoices: toList(unwrap(invoicesRes)), departmentCatalog: toList(unwrap(catalogRes)), balances: toList(unwrap(balancesRes)) };
+  }, [token, page, statusFilter]);
 
   const payments = useMemo(() => data.payments || [], [data.payments]);
   const invoices = useMemo(() => data.invoices || [], [data.invoices]);
   const departmentCatalog = data.departmentCatalog || [];
+  const pagination = data.pagination || { page: 1, totalPages: 1, total: payments.length };
   const invoiceById = useMemo(() => Object.fromEntries(invoices.map((inv) => [inv._id, inv])), [invoices]);
 
   const payableInvoices = useMemo(() => invoices.filter(isPayableInvoice).sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)), [invoices]);
-  const customerBalances = useMemo(() => {
-    const map = {};
-    payableInvoices.forEach((invoice) => {
-      const name = invoice.clientName || 'Unknown';
-      map[name] = (map[name] || 0) + invoiceBalance(invoice);
-    });
-    return Object.entries(map).map(([name, balance]) => ({ name, balance })).sort((a, b) => b.balance - a.balance);
-  }, [payableInvoices]);
+  const customerBalances = useMemo(
+    () => (data.balances || []).filter((r) => Number(r.outstanding) > 0).map((r) => ({ name: r.customer || 'Unknown', balance: Number(r.outstanding) })),
+    [data.balances],
+  );
 
   const statusCounts = useMemo(() => payments.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {}), [payments]);
   const sumBy = (status) => payments.filter((p) => p.status === status).reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const visiblePayments = useMemo(() => (statusFilter ? payments.filter((p) => p.status === statusFilter) : payments), [payments, statusFilter]);
+  const visiblePayments = payments;
 
   const [form, setForm] = useState(emptyPaymentForm);
   const [submitting, setSubmitting] = useState(false);
@@ -2285,11 +2272,11 @@ export const FinancePaymentsPage = () => {
 
           <section className={card}>
             <div className={`${inner} space-y-4`}>
-              <SectionHdr title="Payment ledger" subtitle={`${visiblePayments.length} of ${payments.length} shown`} />
+              <SectionHdr title="Payment ledger" subtitle={`${pagination.total || 0} receipt${pagination.total === 1 ? '' : 's'}`} />
               <StatusFilterBar
                 value={statusFilter}
-                onChange={setStatusFilter}
-                options={PAYMENT_FILTERS.map((f) => ({ ...f, count: f.value ? statusCounts[f.value] || 0 : payments.length }))}
+                onChange={(v) => { setStatusFilter(v); setPage(1); }}
+                options={PAYMENT_FILTERS.map((f) => ({ ...f, count: f.value ? statusCounts[f.value] || 0 : pagination.total || payments.length }))}
               />
               <DataTable
                 columns={[
@@ -2337,6 +2324,7 @@ export const FinancePaymentsPage = () => {
                 loading={loading}
                 emptyTitle={statusFilter ? `No ${(PAYMENT_STAGE_LABEL[statusFilter] || statusFilter).toLowerCase()} payments` : 'No payments recorded'}
               />
+              <Pager pagination={pagination} onPage={setPage} disabled={loading} />
             </div>
           </section>
         </div>
@@ -2401,31 +2389,49 @@ export const FinanceExpensesPage = () => {
   const { token, user } = useAuth();
   const role = String(user?.role || '').toLowerCase();
   const isFinanceHead = ['finance_manager', 'admin', 'super_admin'].includes(role);
+  const [statusFilter, setStatusFilter] = useStatusParam();
+  const [page, setPage] = useState(1);
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [requestsRes, catalogRes] = await Promise.all([financeApi.getRequests(token, { page: 1, limit: 100 }), financeApi.getDepartmentCatalog(token)]);
-    return { expenses: toList(unwrap(requestsRes)), departmentCatalog: toList(unwrap(catalogRes)) };
-  }, [token]);
+    const [requestsRes, catalogRes, agingRes, settingsRes] = await Promise.all([
+      financeApi.getRequests(token, { page, limit: 25, ...(statusFilter ? { status: statusFilter } : {}) }),
+      financeApi.getDepartmentCatalog(token),
+      // Status totals across every expense, so the counts and report aren't page-bound.
+      financeApi.getAgingSummary(token).catch(() => null),
+      financeApi.getSettings(token).catch(() => null),
+    ]);
+    const list = unwrap(requestsRes);
+    return { expenses: toList(list), pagination: list?.pagination, departmentCatalog: toList(unwrap(catalogRes)), byStatus: unwrap(agingRes)?.expenses?.byStatus || [], settings: unwrap(settingsRes) };
+  }, [token, page, statusFilter]);
   const expenses = useMemo(() => data.expenses || [], [data.expenses]);
   const departmentCatalog = data.departmentCatalog || [];
-  const [statusFilter, setStatusFilter] = useStatusParam();
-
-  const statusCounts = useMemo(() => expenses.reduce((acc, row) => {
-    const s = String(row.status || '').toLowerCase();
-    acc[s] = (acc[s] || 0) + 1;
-    return acc;
-  }, {}), [expenses]);
-  const visibleExpenses = useMemo(() => (statusFilter ? expenses.filter((row) => String(row.status || '').toLowerCase() === statusFilter) : expenses), [expenses, statusFilter]);
+  const pagination = data.pagination || { page: 1, totalPages: 1, total: expenses.length };
+  const statusCounts = useMemo(() => Object.fromEntries((data.byStatus || []).map((r) => [String(r.status || '').toLowerCase(), r.count])), [data.byStatus]);
+  const totalExpenseCount = useMemo(() => (data.byStatus || []).reduce((n, r) => n + r.count, 0), [data.byStatus]);
+  const visibleExpenses = expenses;
   const needsAction = expenses.filter((row) => financeExpenseRequestActions(row, isFinanceHead).length > 0).length;
 
   // New expenses always enter the workflow as "submitted"; the backend ignores any other status.
   const emptyExpenseForm = { title: '', category: '', amount: '', departmentId: '', docLabel: '', docUrl: '' };
   const docUrlError = form => (form.docUrl && !/^https?:\/\//i.test(form.docUrl.trim()) ? 'Paste a full link starting with https://' : '');
 
-  // Expense report: totals per category and per stage, for the whole list.
+  // Expense report: per-category totals over every expense, fetched on demand so the CSV
+  // is never limited to the page on screen.
   const [showReport, setShowReport] = useState(false);
+  const [reportRows, setReportRows] = useState(null);
+  const [reportError, setReportError] = useState('');
+  const openReport = async () => {
+    setShowReport(true);
+    setReportError('');
+    try {
+      const res = await financeApi.getExpenses(token, { limit: 200, page: 1 });
+      const payload = unwrap(res);
+      setReportRows({ rows: toList(payload), total: payload?.pagination?.total ?? toList(payload).length });
+    } catch (err) { setReportError(err.message || 'Could not build the expense report'); }
+  };
+  const reportSource = reportRows?.rows || expenses;
   const categoryReport = useMemo(() => {
     const map = new Map();
-    expenses.forEach((r) => {
+    reportSource.forEach((r) => {
       const c = r.category || 'Uncategorised';
       if (!map.has(c)) map.set(c, { category: c, count: 0, total: 0, approved: 0, pending: 0 });
       const row = map.get(c);
@@ -2437,12 +2443,13 @@ export const FinanceExpensesPage = () => {
       else if (!['rejected', 'cancelled'].includes(s)) row.pending += amt;
     });
     return [...map.values()].sort((a, b) => b.total - a.total);
-  }, [expenses]);
+  }, [reportSource]);
   const reportTotal = categoryReport.reduce((s, r) => s + r.total, 0);
+  const reportCount = reportRows?.rows.length ?? expenses.length;
   const exportExpenseReport = () => downloadCsv(`expense-report-${todayIso()}.csv`, [
     ['Category', 'Requests', 'Total', 'Approved / paid', 'Pending', 'Share %'],
     ...categoryReport.map((r) => [r.category, r.count, r.total.toFixed(2), r.approved.toFixed(2), r.pending.toFixed(2), reportTotal ? ((r.total / reportTotal) * 100).toFixed(1) : '0']),
-    ['Total', expenses.length, reportTotal.toFixed(2), '', '', '100'],
+    ['Total', reportCount, reportTotal.toFixed(2), '', '', '100'],
   ]);
   const [form, setForm] = useState(emptyExpenseForm);
   const [submitting, setSubmitting] = useState(false);
@@ -2455,6 +2462,10 @@ export const FinanceExpensesPage = () => {
   const closeAction = () => setActingRequest(null);
   const commentRequired = actingRequest && EXPENSE_ACTIONS_NEEDING_COMMENT.includes(actingRequest.action.id);
 
+  // The threshold comes from the server so the form and the workflow agree.
+  const receiptThreshold = Number(data.settings?.receiptRequiredAbove ?? 500);
+  const receiptRequired = (Number(form.amount) || 0) >= receiptThreshold;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if ((Number(form.amount) || 0) <= 0) {
@@ -2462,6 +2473,10 @@ export const FinanceExpensesPage = () => {
       return;
     }
     if (docUrlError(form)) { setFormError(docUrlError(form)); return; }
+    if (receiptRequired && !form.docUrl.trim()) {
+      setFormError(`A receipt is required for claims of ${formatCurrency(receiptThreshold)} or more.`);
+      return;
+    }
     setSubmitting(true);
     setFormError('');
     try {
@@ -2495,7 +2510,7 @@ export const FinanceExpensesPage = () => {
   };
 
   const filterOptions = [
-    { value: '', label: 'All', count: expenses.length },
+    { value: '', label: 'All', count: totalExpenseCount || expenses.length },
     ...Object.keys(statusCounts).sort((a, b) => expenseStepIndex(a) - expenseStepIndex(b)).map((s) => ({ value: s, label: humanizeStatus(s), count: statusCounts[s] })),
   ];
 
@@ -2537,19 +2552,27 @@ export const FinanceExpensesPage = () => {
                   required
                   options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
                 />
-                <div className="rounded-xl border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
+                <div className={`rounded-xl border border-dashed p-3 ${receiptRequired && !form.docUrl.trim() ? 'border-amber-400 bg-amber-50/60 dark:border-amber-500 dark:bg-amber-500/10' : 'border-neutral-300 dark:border-neutral-700'}`}>
                   <p className="mb-2 flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
-                    <span className="material-symbols-outlined text-[18px] text-neutral-400">attach_file</span>Receipt / bill
+                    <span className="material-symbols-outlined text-[18px] text-neutral-400">attach_file</span>
+                    Receipt / bill{receiptRequired && <span className="text-rose-600 dark:text-rose-300">*</span>}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
                     <Input placeholder="Label" aria-label="Document label" value={form.docLabel} onChange={(e) => setForm((p) => ({ ...p, docLabel: e.target.value }))} />
-                    <Input placeholder="https://drive… link to the receipt" aria-label="Document link" value={form.docUrl} onChange={(e) => setForm((p) => ({ ...p, docUrl: e.target.value }))} error={docUrlError(form) || undefined} />
+                    <Input placeholder="https://drive… link to the receipt" aria-label="Document link" value={form.docUrl} onChange={(e) => setForm((p) => ({ ...p, docUrl: e.target.value }))} error={docUrlError(form) || undefined} required={receiptRequired} />
                   </div>
-                  <p className="mt-1 text-xs text-neutral-500">Finance verifies the expense against this document.</p>
+                  {receiptRequired && !form.docUrl.trim() ? (
+                    <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                      <span className="material-symbols-outlined text-[13px]">warning</span>
+                      Required for claims of {formatCurrency(receiptThreshold)} or more.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-neutral-500">Finance verifies the expense against this document.</p>
+                  )}
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">Checked against the department's budget on submission.</p>
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || (receiptRequired && !form.docUrl.trim())} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
               </form>
             </div>
           </section>
@@ -2558,13 +2581,17 @@ export const FinanceExpensesPage = () => {
             <div className={`${inner} space-y-4`}>
               <SectionHdr
                 title="Expense requests"
-                subtitle={`${visibleExpenses.length} of ${expenses.length} shown`}
-                action={<Button type="button" size="sm" variant="secondary" onClick={() => setShowReport((v) => !v)}><span className="material-symbols-outlined mr-1 text-[16px]">summarize</span>{showReport ? 'Hide report' : 'Expense report'}</Button>}
+                subtitle={`${pagination.total || 0} request${pagination.total === 1 ? '' : 's'}`}
+                action={<Button type="button" size="sm" variant="secondary" onClick={() => (showReport ? setShowReport(false) : openReport())}><span className="material-symbols-outlined mr-1 text-[16px]">summarize</span>{showReport ? 'Hide report' : 'Expense report'}</Button>}
               />
               {showReport && (
                 <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+                  {reportError && <p role="alert" className="mb-2 text-xs text-rose-600 dark:text-rose-300">{reportError}</p>}
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-sm font-bold text-neutral-900 dark:text-white">By category · {formatCurrency(reportTotal)}</p>
+                    <p className="text-sm font-bold text-neutral-900 dark:text-white">
+                      By category · {formatCurrency(reportTotal)}
+                      <span className="ml-2 font-normal text-neutral-500">{reportRows ? `${reportCount} request${reportCount === 1 ? '' : 's'}` : 'loading…'}</span>
+                    </p>
                     <Button type="button" size="sm" variant="secondary" onClick={exportExpenseReport} disabled={!categoryReport.length}>
                       <span className="material-symbols-outlined mr-1 text-[16px]">download</span>CSV
                     </Button>
@@ -2591,7 +2618,7 @@ export const FinanceExpensesPage = () => {
                   <p className="mt-2 flex gap-3 text-[11px] text-neutral-500"><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />Approved / paid</span><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />In the workflow</span></p>
                 </div>
               )}
-              <StatusFilterBar value={statusFilter} onChange={setStatusFilter} options={filterOptions} />
+              <StatusFilterBar value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }} options={filterOptions} />
               <DataTable
                 columns={[
                   {
@@ -2647,6 +2674,7 @@ export const FinanceExpensesPage = () => {
                 loading={loading}
                 emptyTitle={statusFilter ? `No ${humanizeStatus(statusFilter).toLowerCase()} expenses` : 'No expenses yet'}
               />
+              <Pager pagination={pagination} onPage={setPage} disabled={loading} />
             </div>
           </section>
         </div>
@@ -2670,18 +2698,65 @@ export const FinanceExpensesPage = () => {
         }
       >
         {actingRequest && (
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">
-              {commentRequired ? (actingRequest.action.id === 'reject' ? 'Reason for rejection' : 'What information is needed?') : 'Comment (optional)'}
-            </span>
-            <textarea
-              className={input}
-              rows={3}
-              value={actingRequest.comment}
-              onChange={(e) => setActingRequest((p) => ({ ...p, comment: e.target.value }))}
-              placeholder={commentRequired ? 'Required — shared with the requester' : 'Visible in the request history'}
-            />
-          </label>
+          <div className="space-y-4">
+            {/* The claim and its proof, so a decision is never made blind. */}
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-900">
+              {[
+                ['Amount', formatCurrency(actingRequest.row.amount)],
+                ['Category', actingRequest.row.category || '—'],
+                ['Department', actingRequest.row.department || '—'],
+                ['Incurred', fmtDateOnly(actingRequest.row.incurredDate)],
+                ['Submitted by', actingRequest.row.submittedByName || '—'],
+                ['Current stage', humanizeStatus(actingRequest.row.status)],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-neutral-500">{label}</dt>
+                  <dd className="font-semibold text-neutral-900 dark:text-white">{value}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {actingRequest.row.documents?.length ? (
+              <div className="space-y-2">
+                <p className="text-sm font-bold text-neutral-700 dark:text-neutral-200">Supporting documents</p>
+                {actingRequest.row.documents.map((doc, i) => (
+                  <a
+                    key={i}
+                    href={doc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm text-primary hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">description</span>
+                    <span className="truncate">{doc.label || 'Receipt'}</span>
+                    <span className="material-symbols-outlined ml-auto text-[16px]">open_in_new</span>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="flex items-center gap-1 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                <span className="material-symbols-outlined text-[14px]">warning</span>
+                No document attached to this claim.
+              </p>
+            )}
+
+            {actingRequest.row.notes && (
+              <p className="rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">{actingRequest.row.notes}</p>
+            )}
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                {commentRequired ? (actingRequest.action.id === 'reject' ? 'Reason for rejection' : 'What information is needed?') : 'Comment (optional)'}
+              </span>
+              <textarea
+                className={input}
+                rows={3}
+                value={actingRequest.comment}
+                onChange={(e) => setActingRequest((p) => ({ ...p, comment: e.target.value }))}
+                placeholder={commentRequired ? 'Required — shared with the requester' : 'Visible in the request history'}
+              />
+            </label>
+          </div>
         )}
       </Modal>
     </main>
@@ -2762,12 +2837,14 @@ export const FinanceBudgetsPage = () => {
     const allocated = Number(adjusting.allocated) || 0;
     if (allocated <= 0) { setAdjustError('Allocation must be greater than zero.'); return; }
     if (!adjusting.reason.trim()) { setAdjustError('Give a reason for the change.'); return; }
+    const delta = Math.round((allocated - Number(adjusting.budget.allocated || 0)) * 100) / 100;
+    if (!delta) { setAdjustError('Enter a different allocation.'); return; }
     setSavingAdjust(true);
     setAdjustError('');
     try {
-      const stamp = `${new Date().toLocaleDateString('en-IN')}: ${formatCurrency(adjusting.budget.allocated)} → ${formatCurrency(allocated)} — ${adjusting.reason.trim()}`;
-      await financeApi.updateBudget(adjusting.budget._id, { allocated, notes: [adjusting.budget.notes, stamp].filter(Boolean).join('\n') }, token);
-      setNotice(`${adjusting.budget.department} allocation updated to ${formatCurrency(allocated)}.`);
+      // Posted as a delta with a reason, so each change is recorded on the budget.
+      await financeApi.adjustBudget(adjusting.budget._id, { delta, reason: adjusting.reason.trim() }, token);
+      setNotice(`${adjusting.budget.department} allocation ${delta > 0 ? 'increased' : 'reduced'} by ${formatCurrency(Math.abs(delta))} to ${formatCurrency(allocated)}.`);
       setAdjusting(null);
       refetch();
     } catch (err) {
@@ -3002,14 +3079,26 @@ const PAYROLL_FILTERS = [
   { value: 'processed', label: 'Processed' },
   { value: 'disbursed', label: 'Disbursed' },
 ];
-const emptyPayrollForm = { employeeName: '', departmentId: '', periodStart: '', periodEnd: '', grossPay: '', allowances: '', deductions: '' };
+// Pay comes from the salary profile the finance head authorizes, never from the run form:
+// the run only picks an employee and a month.
+const monthBounds = (monthValue) => {
+  if (!monthValue) return { periodStart: '', periodEnd: '' };
+  const [y, m] = monthValue.split('-').map(Number);
+  return { periodStart: `${monthValue}-01`, periodEnd: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) };
+};
+const emptyPayrollForm = { employee: '', month: new Date().toISOString().slice(0, 7) };
 
 export const FinancePayrollPage = () => {
   const { token, user } = useAuth();
   const [statusFilter, setStatusFilter] = useStatusParam();
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [payrollRes, catalogRes] = await Promise.all([financeApi.getPayrolls(token), financeApi.getDepartmentCatalog(token)]);
-    return { payrolls: toList(unwrap(payrollRes)), departmentCatalog: toList(unwrap(catalogRes)) };
+    const [payrollRes, catalogRes, salaryRes] = await Promise.all([
+      financeApi.getPayrolls(token),
+      financeApi.getDepartmentCatalog(token),
+      // Only the finance head may read salary profiles; employees get the runs list alone.
+      financeApi.getSalaryProfiles(token).catch(() => null),
+    ]);
+    return { payrolls: toList(unwrap(payrollRes)), departmentCatalog: toList(unwrap(catalogRes)), salaries: toList(unwrap(salaryRes)) };
   }, [token]);
   const payrolls = useMemo(() => data.payrolls || [], [data.payrolls]);
   const departments = useMemo(() => (data.departmentCatalog || []).filter((d) => !d.isSystem), [data.departmentCatalog]);
@@ -3030,32 +3119,34 @@ export const FinancePayrollPage = () => {
   const isHead = useIsFinanceHead();
   const [reviewing, setReviewing] = useState(null);
 
-  const gross = (Number(form.grossPay) || 0) + (Number(form.allowances) || 0);
-  const netPay = Math.max(gross - (Number(form.deductions) || 0), 0);
-  const periodError = form.periodStart && form.periodEnd && form.periodEnd < form.periodStart ? 'Period end must be on or after the start.' : '';
+  const [payslipId, setPayslipId] = useState(null);
+  const downloadPayslip = async (run) => {
+    setPayslipId(run._id);
+    setActionError('');
+    try { await financeApi.downloadDocument('payslip', run._id, token); }
+    catch (err) { setActionError(err.message || 'Could not download the payslip'); }
+    finally { setPayslipId(null); }
+  };
+
+  const salaries = useMemo(() => data.salaries || [], [data.salaries]);
+  const selectedSalary = salaries.find((s) => String(s.employee?._id || s.employee) === String(form.employee));
+  const paise = (n) => Number(n || 0) / 100;
+  const gross = selectedSalary ? paise(selectedSalary.baseMinor) + paise(selectedSalary.allowanceMinor) : 0;
+  const netPay = selectedSalary ? Math.max(gross - paise(selectedSalary.deductionMinor), 0) : 0;
+  const bounds = monthBounds(form.month);
+  const duplicateRun = Boolean(form.employee && form.month && payrolls.some((r) => String(r.employee) === String(form.employee) && (r.periodKey || String(r.periodStart || '').slice(0, 7)) === form.month));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (periodError) { setFormError(periodError); return; }
-    if (netPay <= 0) { setFormError('Net pay must be greater than zero.'); return; }
+    if (!form.employee || !form.month) { setFormError('Pick an employee with an authorized salary profile and a month.'); return; }
+    if (duplicateRun) { setFormError('This employee already has a payroll run for that month.'); return; }
     setSubmitting(true);
     setFormError('');
     try {
-      await financeApi.createPayroll(
-        {
-          employeeName: form.employeeName,
-          departmentId: form.departmentId || undefined,
-          periodStart: form.periodStart || undefined,
-          periodEnd: form.periodEnd || undefined,
-          grossPay: Number(form.grossPay) || 0,
-          allowances: Number(form.allowances) || 0,
-          deductions: Number(form.deductions) || 0,
-          status: 'draft',
-        },
-        token
-      );
-      setForm(emptyPayrollForm);
-      setNotice(`Draft payroll for ${form.employeeName} created — process it to charge the budget.`);
+      await financeApi.createPayroll({ employee: form.employee, ...bounds }, token);
+      const name = selectedSalary?.employee ? `${selectedSalary.employee.firstName} ${selectedSalary.employee.lastName}` : 'Employee';
+      setForm((p) => ({ ...p, employee: '' }));
+      setNotice(`Draft payroll for ${name} created — process it to charge the budget.`);
       refetch();
     } catch (err) {
       setFormError(err.message || 'Failed to create payroll');
@@ -3102,31 +3193,41 @@ export const FinancePayrollPage = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
           <section className={card}>
             <div className={inner}>
-              <SectionHdr title="New payroll run" subtitle="Created as a draft for review" />
+              <SectionHdr title="New payroll run" subtitle="One run per employee per month" />
               <form onSubmit={handleSubmit} className="space-y-3">
-                <Input label="Employee name" placeholder="e.g. Priya Sharma" value={form.employeeName} onChange={(e) => setForm((p) => ({ ...p, employeeName: e.target.value }))} required />
                 <Select
-                  label="Department"
-                  value={form.departmentId}
-                  onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
-                  options={[{ value: '', label: 'No department (not budget-tracked)' }, ...departments.map((d) => ({ value: d._id, label: d.name }))]}
+                  label="Employee"
+                  value={form.employee}
+                  onChange={(e) => { setForm((p) => ({ ...p, employee: e.target.value })); setFormError(''); }}
+                  options={[{ value: '', label: salaries.length ? 'Select an employee' : 'No authorized salary profiles' }, ...salaries.map((s) => ({ value: String(s.employee?._id || s.employee), label: s.employee ? `${s.employee.firstName} ${s.employee.lastName}` : 'Employee' }))]}
+                  required
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input label="Period start" type="date" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} />
-                  <Input label="Period end" type="date" value={form.periodEnd} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} error={periodError || undefined} />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Input label="Base pay" type="number" min="0" value={form.grossPay} onChange={(e) => setForm((p) => ({ ...p, grossPay: e.target.value }))} required />
-                  <Input label="Allowances" type="number" min="0" value={form.allowances} onChange={(e) => setForm((p) => ({ ...p, allowances: e.target.value }))} />
-                  <Input label="Deductions" type="number" min="0" value={form.deductions} onChange={(e) => setForm((p) => ({ ...p, deductions: e.target.value }))} />
-                </div>
-                <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2.5 text-sm dark:bg-neutral-900">
-                  <span className="text-neutral-600 dark:text-neutral-400">Gross {formatCurrency(gross)} → <span className="font-semibold">Net pay</span></span>
-                  <span className="font-bold text-neutral-900 dark:text-white">{formatCurrency(netPay)}</span>
-                </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Leave the period blank to use the current month.</p>
+                <Input label="Month" type="month" value={form.month} onChange={(e) => { setForm((p) => ({ ...p, month: e.target.value })); setFormError(''); }} error={duplicateRun ? 'Already run for this month.' : undefined} required />
+                {selectedSalary ? (
+                  <dl className="space-y-1.5 rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-900">
+                    {[
+                      ['Base pay', formatCurrency(paise(selectedSalary.baseMinor))],
+                      ['Allowances', `+ ${formatCurrency(paise(selectedSalary.allowanceMinor))}`],
+                      ['Deductions', `− ${formatCurrency(paise(selectedSalary.deductionMinor))}`],
+                      ['Period', bounds.periodStart ? `${fmtDateOnly(bounds.periodStart)} – ${fmtDateOnly(bounds.periodEnd)}` : '—'],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex justify-between text-neutral-600 dark:text-neutral-400">
+                        <dt>{label}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    ))}
+                    <div className="flex justify-between border-t border-neutral-200 pt-1.5 text-sm font-bold text-neutral-900 dark:border-neutral-700 dark:text-white">
+                      <dt>Net pay</dt>
+                      <dd>{formatCurrency(netPay)}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="rounded-xl bg-neutral-50 p-3 text-xs text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
+                    {isHead ? 'Salary components are configured per employee under Salary profiles; the run then uses those authorized amounts.' : 'Only the finance head can authorize salary components. Pick an employee to prepare their run.'}
+                  </p>
+                )}
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting || netPay <= 0 || Boolean(periodError)} fullWidth>{submitting ? 'Saving…' : 'Create draft'}</Button>
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || !form.employee || duplicateRun} fullWidth>{submitting ? 'Saving…' : 'Create draft'}</Button>
               </form>
             </div>
           </section>
@@ -3153,6 +3254,24 @@ export const FinancePayrollPage = () => {
                   },
                   { key: 'period', header: 'Period', render: (r) => <span className="whitespace-nowrap">{fmtDateOnly(r.periodStart)} – {fmtDateOnly(r.periodEnd)}</span> },
                   { key: 'grossPay', header: 'Gross', render: (r) => formatCurrency(r.grossPay) },
+                  {
+                    key: 'deductions',
+                    header: 'Deductions',
+                    render: (r) => (
+                      <div>
+                        <p>{formatCurrency(r.deductions)}</p>
+                        {(r.statutory?.pf > 0 || r.statutory?.professionalTax > 0) && (
+                          <p className="text-xs text-neutral-500">
+                            {[
+                              r.statutory.pf > 0 && `PF ${formatCurrency(r.statutory.pf)}`,
+                              r.statutory.professionalTax > 0 && `PT ${formatCurrency(r.statutory.professionalTax)}`,
+                              r.statutory.tds > 0 && `TDS ${formatCurrency(r.statutory.tds)}`,
+                            ].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                    ),
+                  },
                   { key: 'netPay', header: 'Net pay', render: (r) => <span className="font-semibold">{formatCurrency(r.netPay)}</span> },
                   {
                     key: 'status',
@@ -3184,12 +3303,18 @@ export const FinancePayrollPage = () => {
                         );
                       }
                       // Disbursing moves money out — finance head only.
-                      if (r.status === 'processed') {
-                        return isHead
-                          ? <button type="button" onClick={(e) => { e.stopPropagation(); setAdvancing(r); }} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">Disburse</button>
-                          : <span className="text-xs text-neutral-400">Head disburses</span>;
-                      }
-                      return null;
+                      return (
+                        <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                          {r.status === 'processed' && (isHead
+                            ? <button type="button" onClick={() => setAdvancing(r)} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">Disburse</button>
+                            : <span className="text-xs text-neutral-400">Head disburses</span>)}
+                          {r.status !== 'draft' && (
+                            <button type="button" onClick={() => downloadPayslip(r)} disabled={payslipId === r._id} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                              {payslipId === r._id ? 'Preparing…' : 'Payslip'}
+                            </button>
+                          )}
+                        </div>
+                      );
                     },
                   },
                 ]}
@@ -3201,6 +3326,8 @@ export const FinancePayrollPage = () => {
             </div>
           </section>
         </div>
+
+        {isHead && <SalaryProfilePanel token={token} departments={departments} onSaved={refetch} />}
       </div>
 
       <Modal

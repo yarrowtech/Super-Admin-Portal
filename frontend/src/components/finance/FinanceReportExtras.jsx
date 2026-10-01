@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { financeApi } from '../../services/finance';
 import Button from '../common/Button';
 import Input from '../ui/Input';
@@ -13,23 +13,26 @@ const thisYear = new Date().getFullYear();
 const yearStart = `${thisYear}-01-01`;
 const today = new Date().toISOString().slice(0, 10);
 
-// Loads one report per `key`; loading is derived from whether the result matches the key.
-function useReport(load, key) {
+// Loads one report whenever `args` change; `loading` is derived from whether the stored
+// result belongs to the current request, so the effect never writes state synchronously.
+function useReport(fetcher, token, params) {
   const [state, setState] = useState({ key: null, error: '', data: null });
   const [nonce, setNonce] = useState(0);
-  const loadRef = useRef(load);
-  useEffect(() => { loadRef.current = load; });
-  const current = `${key}#${nonce}`;
+  const serialized = JSON.stringify(params ?? null);
+  const key = `${serialized}#${nonce}`;
   useEffect(() => {
     let alive = true;
-    loadRef.current().then(
-      (res) => alive && setState({ key: current, error: '', data: res?.data ?? null }),
-      (err) => alive && setState({ key: current, error: err.message || 'Could not load report', data: null }),
+    const arg = JSON.parse(serialized);
+    (arg === null ? fetcher(token) : fetcher(token, arg)).then(
+      (res) => { if (alive) setState({ key, error: '', data: res?.data ?? null }); },
+      (err) => { if (alive) setState({ key, error: err.message || 'Could not load report', data: null }); },
     );
     return () => { alive = false; };
-  }, [current]);
+    // `fetcher` is a stable module-level API function; `key` covers token+params+reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, token]);
   const reload = useCallback(() => setNonce((n) => n + 1), []);
-  return [{ loading: state.key !== current, error: state.key === current ? state.error : '', data: state.data }, reload];
+  return [{ loading: state.key !== key, error: state.key === key ? state.error : '', data: state.data }, reload];
 }
 
 // Monthly/yearly summary, revenue by customer and customer balances; all computed server-side
@@ -37,9 +40,10 @@ function useReport(load, key) {
 export default function FinanceReportExtras({ token }) {
   const [year, setYear] = useState(String(thisYear));
   const [range, setRange] = useState({ from: yearStart, to: today });
-  const [period, reloadPeriod] = useReport(() => financeApi.getPeriodSummary(token, year), year);
-  const [revenue, reloadRevenue] = useReport(() => financeApi.getRevenueReport(token, range), `${range.from}|${range.to}`);
-  const [balances, reloadBalances] = useReport(() => financeApi.getCustomerBalances(token), 'balances');
+  const [pnl, reloadPnl] = useReport(financeApi.getDepartmentalPnl, token, range);
+  const [period, reloadPeriod] = useReport(financeApi.getPeriodSummary, token, year);
+  const [revenue, reloadRevenue] = useReport(financeApi.getRevenueReport, token, range);
+  const [balances, reloadBalances] = useReport(financeApi.getCustomerBalances, token, null);
   const [downloadError, setDownloadError] = useState('');
 
   const download = async (kind, params) => {
@@ -51,6 +55,39 @@ export default function FinanceReportExtras({ token }) {
   return (
     <div className="space-y-4">
       {downloadError && <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">{downloadError}</p>}
+
+      <section className={card}>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Departmental profit &amp; loss</h2>
+            <p className="text-sm text-neutral-500">{pnl.data?.basis || 'Revenue and direct costs per department, from posted journal lines.'}</p>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <Input label="From" type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
+            <Input label="To" type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
+          </div>
+        </div>
+        {pnl.error && <ErrorState description={pnl.error} onRetry={reloadPnl} />}
+        <DataTable
+          rows={pnl.data?.departments || []}
+          rowKey="department"
+          loading={pnl.loading}
+          emptyTitle="No posted activity in this range"
+          emptyDescription="Revenue and costs appear here once invoices, expenses or payroll are posted to the ledger."
+          columns={[
+            { key: 'department', header: 'Department', render: (r) => <span className="font-semibold">{r.department}</span> },
+            { key: 'revenue', header: 'Revenue', render: (r) => money(r.revenue) },
+            { key: 'expenses', header: 'Direct costs', render: (r) => money(r.expenses) },
+            { key: 'netIncome', header: 'Net', render: (r) => <span className={`font-semibold ${signedCls(r.netIncome)}`}>{money(r.netIncome)}</span> },
+            { key: 'margin', header: 'Margin', render: (r) => (r.margin === null ? '—' : <span className={signedCls(r.margin)}>{r.margin.toFixed(1)}%</span>) },
+          ]}
+        />
+        {pnl.data?.totals && (
+          <p className="mt-3 text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+            All departments: revenue {money(pnl.data.totals.revenue)} · direct costs {money(pnl.data.totals.expenses)} · net <span className={signedCls(pnl.data.totals.netIncome)}>{money(pnl.data.totals.netIncome)}</span>
+          </p>
+        )}
+      </section>
       <section className={card}>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>

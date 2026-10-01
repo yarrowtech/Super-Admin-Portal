@@ -8,7 +8,7 @@ const Audit = require('../../models/finance/AuditLog');
 const Period = require('../../models/finance/FinancialPeriod');
 const Account = require('../../models/finance/Account');
 const Journal = require('../../models/finance/JournalEntry');
-const { BankTransaction } = require('../../models/finance/FinanceOperations');
+const { BankTransaction, TaxRule } = require('../../models/finance/FinanceOperations');
 const money = require('./money');
 const fail = (statusCode, message) => { throw Object.assign(new Error(message), { statusCode }); };
 const head = user => ['finance_manager', 'admin', 'super_admin'].includes(user?.role);
@@ -33,14 +33,31 @@ async function openPeriod(periodId, session) {
   if (!p) fail(422, 'Financial period not found');
   if (p.isClosed) fail(409, 'Financial period is closed');
 }
-function rejectTax(body) {
-  if ([body.gstRate, body.tdsRate, ...(body.items || []).map(i => i.taxRate)].some(v => v !== undefined && String(v) !== '' && Number(v) !== 0)) fail(422, 'Statutory tax calculation is disabled until jurisdiction and tax rules are confirmed');
+// Any non-zero GST/TDS rate must match an active configured rule effective on the issue date.
+async function ruleFor(kind, rate, on, session) {
+  const rateBp = money.basisPoints(rate || 0, `${kind.toUpperCase()} rate`);
+  if (!rateBp) return null;
+  const rule = await TaxRule.findOne({ kind, rateBp, isActive: true, effectiveFrom: { $lte: on }, $or: [{ effectiveTo: null }, { effectiveTo: { $gte: on } }] }).sort({ effectiveFrom: -1 }).session(session).lean();
+  if (!rule) fail(422, `No active ${kind.toUpperCase()} rule at ${rateBp / 100}% is effective on ${on.toISOString().slice(0, 10)}`);
+  return rule;
 }
+async function taxedAmounts(items, discount, tdsRate, gstRate, on, session) {
+  const lines = (Array.isArray(items) ? items : []).map(i => ({ ...(i.toObject ? i.toObject() : i), taxRate: i.taxRate ?? gstRate ?? 0 }));
+  const amounts = money.invoice(lines, discount || 0, { tdsRate: tdsRate || 0 });
+  for (const l of amounts.items) await ruleFor('gst', l.taxRate, on, session);
+  const tds = await ruleFor('tds', amounts.tdsRate, on, session);
+  const rates = [...new Set(amounts.items.map(l => l.taxRate))];
+  return { ...amounts, gstRate: rates.length === 1 ? rates[0] : 0, tdsSection: tds?.section || '' };
+}
+// Reading is tolerant of legacy rows: historical records predating strict money handling can
+// hold negative or float-artifact amounts (e.g. 59279.32000000001). Rounding here keeps a
+// single bad row from failing a whole listing; writes still go through strict money parsing.
+const amountOf = value => Math.round((Number(value) || 0) * 100);
 function invoiceStatus(inv) {
   if (['draft', 'void'].includes(inv.status)) return inv.status;
-  if (money.minor(inv.balanceDue) === 0) return 'paid';
+  if (amountOf(inv.balanceDue) <= 0) return 'paid';
   if (inv.dueDate && new Date(inv.dueDate) < new Date(new Date().toISOString().slice(0, 10))) return 'overdue';
-  return money.minor(inv.amountPaid) > 0 ? 'partially_paid' : 'sent';
+  return amountOf(inv.amountPaid) > 0 ? 'partially_paid' : 'sent';
 }
 async function journal(req, source, lines, session, entryDate = new Date(), memo = '', dimensions = {}) {
   const codes = {
@@ -48,6 +65,9 @@ async function journal(req, source, lines, session, entryDate = new Date(), memo
     '4000': ['Sales revenue', 'revenue'], '2100': ['Expense payable', 'liability'],
     '2200': ['Payroll payable', 'liability'], '5000': ['Operating expenses', 'expense'],
     '5100': ['Payroll expense', 'expense'], '2300': ['Customer advances', 'liability'],
+    '1200': ['TDS receivable', 'asset'], '2400': ['GST output payable', 'liability'],
+    '2500': ['TDS payable', 'liability'], '2510': ['Provident fund payable', 'liability'],
+    '2520': ['Professional tax payable', 'liability'],
   };
   const resolved = [];
   let debit = 0n; let credit = 0n;
@@ -56,7 +76,17 @@ async function journal(req, source, lines, session, entryDate = new Date(), memo
     const account = await Account.findOneAndUpdate({ code }, { $setOnInsert: { name, type, normalBalance: ['asset', 'expense'].includes(type) ? 'debit' : 'credit' } }, { upsert: true, new: true, session });
     if (!account.isActive || account.type !== type) fail(409, `Account ${code} must be active and of type ${type}`);
     debit += BigInt(dr); credit += BigInt(cr);
-    if (dr || cr) resolved.push({ account: account._id, debit: money.decimal(dr), credit: money.decimal(cr) });
+    // Auto-posted lines carry the source document's dimensions, so departmental
+    // reports can read the line without walking back to the entry.
+    if (dr || cr) resolved.push({
+      account: account._id,
+      debit: money.decimal(dr),
+      credit: money.decimal(cr),
+      departmentId: dimensions.departmentId || null,
+      projectId: dimensions.projectId || null,
+      client: dimensions.client || null,
+      costCenterId: dimensions.costCenterId || null,
+    });
   }
   if (debit !== credit || debit <= 0n) fail(422, 'Journal must balance and have a positive amount');
   const [entry] = await Journal.create([{ ...pick(dimensions, ['departmentId', 'client', 'vendor', 'costCenterId']), entryNumber: `AUTO-${source}`, sourceKey: source, memo, entryDate, lines: resolved, totalDebit: money.decimal(debit), totalCredit: money.decimal(credit), status: 'posted', postedAt: new Date(), createdBy: actor(req) }], { session });
@@ -65,29 +95,31 @@ async function journal(req, source, lines, session, entryDate = new Date(), memo
 async function finalize(req, inv, session) {
   if (!head(req.user)) fail(403, 'Finance Head permission required to issue invoices');
   await openPeriod(inv.financialPeriodId, session);
-  rejectTax(inv);
   if (!inv.items.length || !inv.clientName || !inv.dueDate) fail(422, 'Customer, line items and due date are required');
   if (inv.invoiceType !== 'customer') fail(422, 'Use the vendor ledger for supplier bills');
-  const total = positive(inv.total);
-  const entry = await journal(req, `invoice-${inv._id}`, [['1100', total, 0], ['4000', 0, total]], session, inv.issueDate, inv.invoiceNumber, inv);
+  // Re-validate rates against the rules effective on the issue date at the moment of issue.
+  const amounts = await taxedAmounts(inv.items, inv.discount, inv.tdsRate, undefined, inv.issueDate, session);
+  Object.assign(inv, amounts, { balanceDue: amounts.receivable });
+  const total = positive(inv.total); const gst = money.minor(inv.gstAmount); const tds = money.minor(inv.tdsAmount);
+  const entry = await journal(req, `invoice-${inv._id}`, [['1100', total - tds, 0], ['1200', tds, 0], ['4000', 0, total - gst], ['2400', 0, gst]], session, inv.issueDate, inv.invoiceNumber, inv);
   inv.journalEntryId = entry._id;
   inv.status = 'sent';
   inv.status = invoiceStatus(inv);
 }
 async function createInvoice(req) {
   return transaction(async session => {
-    const b = req.body || {}; rejectTax(b);
-    const amounts = money.invoice(b.items, b.discount || 0);
+    const b = req.body || {};
+    const issueDate = b.issueDate ? date(b.issueDate) : new Date();
+    const amounts = await taxedAmounts(b.items, b.discount, b.tdsRate, b.gstRate, issueDate, session);
     if (!amounts.totalMinor) fail(422, 'Invoice total must be positive');
     if (b.amountPaid && money.minor(b.amountPaid)) fail(422, 'Record payments separately');
     if (b.status && !['draft', 'sent'].includes(b.status)) fail(422, 'New invoices must be draft or issued');
     const payload = pick(b, ['client', 'clientName', 'clientEmail', 'clientPhone', 'departmentId', 'costCenterId', 'financialPeriodId', 'terms', 'notes']);
     if (payload.client) id(payload.client);
-    const issueDate = b.issueDate ? date(b.issueDate) : new Date();
     const dueDate = b.dueDate ? date(b.dueDate) : null;
     if (dueDate && dueDate < new Date(issueDate.toISOString().slice(0, 10))) fail(422, 'Due date cannot precede issue date');
     await openPeriod(b.financialPeriodId, session);
-    const inv = new Invoice({ ...payload, ...amounts, invoiceNumber: text(b.invoiceNumber, 100) || `INV-${crypto.randomUUID()}`, currency: 'INR', issueDate, dueDate, amountPaid: 0, balanceDue: amounts.total, status: 'draft', createdBy: actor(req) });
+    const inv = new Invoice({ ...payload, ...amounts, invoiceNumber: text(b.invoiceNumber, 100) || `INV-${crypto.randomUUID()}`, currency: 'INR', issueDate, dueDate, amountPaid: 0, balanceDue: amounts.receivable, status: 'draft', createdBy: actor(req) });
     if (b.status === 'sent') await finalize(req, inv, session);
     await inv.save({ session });
     await audit(req, 'invoice_created', inv, null, inv.toObject(), session);
@@ -100,16 +132,16 @@ async function updateInvoice(req) {
     if (!inv) fail(404, 'Invoice not found');
     if (inv.status !== 'draft') fail(409, 'Issued invoices are immutable; use a credit or debit note');
     if (inv.review?.status === 'submitted' && !head(req.user)) fail(409, 'Invoice is under review');
-    const b = req.body || {}; rejectTax(b);
-    if (['amountPaid', 'balanceDue', 'total', 'subtotal', 'journalEntryId', 'review', 'createdBy'].some(k => b[k] !== undefined)) fail(422, 'Calculated and audit fields cannot be edited');
+    const b = req.body || {};
+    if (['amountPaid', 'balanceDue', 'total', 'subtotal', 'gstAmount', 'tdsAmount', 'taxTotal', 'journalEntryId', 'review', 'createdBy'].some(k => b[k] !== undefined)) fail(422, 'Calculated and audit fields cannot be edited');
     if (b.status && !['draft', 'sent', 'void'].includes(b.status)) fail(422, 'Use payments to settle an invoice');
     const before = inv.toObject();
     Object.assign(inv, pick(b, ['client', 'clientName', 'clientEmail', 'clientPhone', 'invoiceNumber', 'departmentId', 'costCenterId', 'terms', 'notes']));
     if (b.issueDate) inv.issueDate = date(b.issueDate);
     if (b.dueDate) inv.dueDate = date(b.dueDate);
     if (inv.dueDate && inv.dueDate < new Date(inv.issueDate.toISOString().slice(0, 10))) fail(422, 'Due date cannot precede issue date');
-    const amounts = money.invoice(b.items || inv.items, b.discount ?? inv.discount);
-    Object.assign(inv, amounts, { balanceDue: amounts.total });
+    const amounts = await taxedAmounts(b.items || inv.items, b.discount ?? inv.discount, b.tdsRate ?? inv.tdsRate, b.gstRate, inv.issueDate, session);
+    Object.assign(inv, amounts, { balanceDue: amounts.receivable });
     await openPeriod(inv.financialPeriodId, session);
     if (b.status === 'sent') await finalize(req, inv, session);
     if (b.status === 'void') { if (!head(req.user)) fail(403, 'Finance Head required'); inv.status = 'void'; }
@@ -128,11 +160,19 @@ async function note(req) {
     const key = text(b.reference || b.idempotencyKey, 120);
     if (!key) fail(422, 'A unique note reference is required');
     const before = inv.toObject();
-    const [record] = await Note.create([{ invoice: inv._id, type: b.type, amount: money.decimal(n), reason: text(b.reason), reference: key, createdBy: actor(req) }], { session });
-    const total = BigInt(money.minor(inv.total)) + (b.type === 'credit' ? -BigInt(n) : BigInt(n));
-    inv.total = money.decimal(total); inv.balanceDue = money.decimal(total - BigInt(money.minor(inv.amountPaid)));
+    // A note is tax-inclusive; its GST share follows the invoice's GST-to-total ratio.
+    const invTotal = BigInt(money.minor(inv.total));
+    const g = invTotal ? money.roundedProduct(BigInt(n), BigInt(money.minor(inv.gstAmount)), invTotal) : 0n;
+    const [record] = await Note.create([{ invoice: inv._id, type: b.type, amount: money.decimal(n), gstAmount: money.decimal(g), reason: text(b.reason), reference: key, createdBy: actor(req) }], { session });
+    const sign = b.type === 'credit' ? -1n : 1n;
+    const total = invTotal + sign * BigInt(n);
+    inv.total = money.decimal(total);
+    inv.gstAmount = money.decimal(BigInt(money.minor(inv.gstAmount)) + sign * g);
+    inv.taxTotal = inv.gstAmount;
+    inv.balanceDue = money.decimal(total - BigInt(money.minor(inv.tdsAmount)) - BigInt(money.minor(inv.amountPaid)));
     inv.status = invoiceStatus(inv); await inv.save({ session });
-    await journal(req, `note-${record._id}`, b.type === 'credit' ? [['4000', n, 0], ['1100', 0, n]] : [['1100', n, 0], ['4000', 0, n]], session, new Date(), text(b.reason), inv);
+    const net = n - Number(g); const gn = Number(g);
+    await journal(req, `note-${record._id}`, b.type === 'credit' ? [['4000', net, 0], ['2400', gn, 0], ['1100', 0, n]] : [['1100', n, 0], ['4000', 0, net], ['2400', 0, gn]], session, new Date(), text(b.reason), inv);
     await audit(req, `invoice_${b.type}_note`, inv, before, inv.toObject(), session); return record;
   });
 }
@@ -215,6 +255,11 @@ async function updatePayment(req) {
 }
 const handler = (fn, status = 200) => async (req, res) => {
   try { return res.status(status).json({ success: true, data: await fn(req) }); }
-  catch (e) { const code = e.statusCode || (e.code === 11000 ? 409 : ['ValidationError', 'CastError'].includes(e.name) ? 422 : 500); return res.status(code).json({ success: false, code: `FINANCE_${code}`, error: code === 500 ? 'Financial operation failed; no partial transaction was committed' : e.message }); }
+  catch (e) {
+    const code = e.statusCode || (e.code === 11000 ? 409 : ['ValidationError', 'CastError'].includes(e.name) ? 422 : 500);
+    // An unexpected failure is a bug: keep the stack server-side, return a generic message.
+    if (code === 500) (req.log || console).error({ err: e, path: req.originalUrl || req.path }, 'finance operation failed');
+    return res.status(code).json({ success: false, code: `FINANCE_${code}`, error: code === 500 ? 'Financial operation failed; no partial transaction was committed' : e.message });
+  }
 };
-module.exports = { createInvoice, updateInvoice, createPayment, updatePayment, note, finalize, invoiceStatus, transaction, audit, openPeriod, journal, fail, head, actor, text, id, date, positive, pick, handler, money };
+module.exports = { amountOf, createInvoice, updateInvoice, createPayment, updatePayment, note, finalize, invoiceStatus, transaction, audit, openPeriod, journal, fail, head, actor, text, id, date, positive, pick, handler, money };

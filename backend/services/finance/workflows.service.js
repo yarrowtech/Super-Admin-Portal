@@ -9,14 +9,19 @@ const Payment = require('../../models/finance/Payment');
 const User = require('../../models/auth/User');
 const Department = require('../../models/department/Department');
 const { Salary } = require('../../models/finance/FinanceOperations');
-const sum = (rows, field) => rows.reduce((n, row) => n + BigInt(money.minor(row[field] || 0)), 0n);
+const { getReceiptThreshold, getBudgetAlertLevels } = require('../../config/financeThresholds');
+const { monthlyDeductions: statutoryDeductions } = require('./statutory');
+const { assertDepartmentAccess } = require('./departmentAccess');
+const notify = require('./notify.service');
+// Snapshot reads tolerate legacy float/negative amounts; writes below stay strict.
+const sum = (rows, field) => rows.reduce((n, row) => n + BigInt(S.amountOf(row[field])), 0n);
 const signed = n => n < 0n ? -money.decimal(-n) : money.decimal(n);
 async function budgetSnapshot(b, session) {
   const expenses = await Expense.find({ budgetId: b._id, status: { $nin: ['draft', 'rejected', 'cancelled'] } }).session(session).lean();
   const payrolls = await Payroll.find({ budgetId: b._id, status: { $in: ['processed', 'disbursed'] } }).session(session).lean();
   const spent = sum(expenses.filter(e => ['approved', 'processing', 'completed', 'paid'].includes(e.status)), 'amount') + sum(payrolls, 'grossPay');
   const reserved = sum(expenses.filter(e => !['approved', 'processing', 'completed', 'paid'].includes(e.status)), 'amount');
-  const allocated = BigInt(money.minor(b.allocated));
+  const allocated = BigInt(S.amountOf(b.allocated));
   const utilization = allocated ? Number((spent + reserved) * 10000n / allocated) / 100 : 0;
   return { ...b.toObject(), spent: money.decimal(spent), reserved: money.decimal(reserved), available: signed(allocated - spent - reserved), utilization, status: utilization > 100 ? 'over' : utilization >= (b.alertThreshold || 85) ? 'at-risk' : 'on-track' };
 }
@@ -28,6 +33,22 @@ async function refreshBudget(budgetId, session) {
   const snapshot = await budgetSnapshot(budget, session);
   if (snapshot.available < 0) fail(409, 'Operation would exceed available budget');
   Object.assign(budget, S.pick(snapshot, ['spent', 'reserved', 'available', 'utilization']));
+  // Raise an alert the first time utilization crosses each level; `alertedAt` records
+  // the highest level already announced so one crossing does not notify repeatedly.
+  const crossed = getBudgetAlertLevels().filter(level => snapshot.utilization >= level);
+  const highest = crossed.length ? Math.max(...crossed) : 0;
+  if (highest > (budget.alertedAt || 0)) {
+    budget.alertedAt = highest;
+    snapshot.alert = {
+      level: highest,
+      utilization: snapshot.utilization,
+      message: highest >= 100
+        ? `${budget.department} has used its entire ${budget.fiscalYear} budget (${snapshot.utilization.toFixed(1)}%).`
+        : `${budget.department} has reached ${snapshot.utilization.toFixed(1)}% of its ${budget.fiscalYear} budget.`,
+    };
+  } else if (highest < (budget.alertedAt || 0)) {
+    budget.alertedAt = highest; // Utilization fell back (reversal or increased allocation).
+  }
   await budget.save({ session }); return snapshot;
 }
 async function selectBudget(body, departmentId, session) {
@@ -57,10 +78,29 @@ async function createPayroll(req) {
     if (await Payroll.exists({ employee: employeeId, periodStart: { $lt: nextMonth }, periodEnd: { $gte: monthStart } }).session(session)) fail(409, 'Payroll already exists for this employee and month');
     await openPeriod(b.financialPeriodId, session);
     const gross = BigInt(salary.baseMinor) + BigInt(salary.allowanceMinor);
-    const deductions = BigInt(salary.deductionMinor);
+    // PF on basic pay, Professional Tax on gross, plus anything on the salary profile.
+    const statutory = statutoryDeductions({
+      basicMinor: salary.baseMinor,
+      grossMinor: Number(gross),
+      profileDeductionMinor: salary.deductionMinor,
+      month: start.getUTCMonth() + 1,
+    });
+    const deductions = BigInt(statutory.total);
     if (gross <= deductions) fail(422, 'Net salary must be positive');
     const budgetId = await selectBudget(b, salary.departmentId, session);
-    const [p] = await Payroll.create([{ employee: employeeId, employeeName: `${employee.firstName} ${employee.lastName}`, departmentId: salary.departmentId, budgetId, periodStart: start, periodEnd: end, periodKey, grossPay: money.decimal(gross), deductions: money.decimal(deductions), netPay: money.decimal(gross - deductions), salarySnapshot: salary.toObject(), status: 'draft', financialPeriodId: b.financialPeriodId || null, notes: text(b.notes), createdBy: actor(req) }], { session });
+    const [p] = await Payroll.create([{
+      employee: employeeId, employeeName: `${employee.firstName} ${employee.lastName}`, departmentId: salary.departmentId, budgetId,
+      periodStart: start, periodEnd: end, periodKey,
+      grossPay: money.decimal(gross), deductions: money.decimal(deductions), netPay: money.decimal(gross - deductions),
+      statutory: {
+        pf: money.decimal(BigInt(statutory.pf)),
+        professionalTax: money.decimal(BigInt(statutory.professionalTax)),
+        tds: money.decimal(BigInt(statutory.tds)),
+        other: money.decimal(BigInt(statutory.other)),
+        basis: statutory.basis,
+      },
+      salarySnapshot: salary.toObject(), status: 'draft', financialPeriodId: b.financialPeriodId || null, notes: text(b.notes), createdBy: actor(req),
+    }], { session });
     await audit(req, 'payroll_draft_created', p, null, { employee: p.employee, periodKey }, session); return p;
   });
 }
@@ -71,7 +111,20 @@ async function processPayroll(req, p, session) {
   const gross = money.minor(p.grossPay); const net = money.minor(p.netPay); const deduction = money.minor(p.deductions);
   if (gross !== net + deduction) fail(422, 'Payroll does not balance');
   p.status = 'processed'; p.payslipNumber = `PS-${p.periodKey}-${p._id}`;
-  const entry = await journal(req, `payroll-${p._id}`, [['5100', gross, 0], ['2200', 0, gross]], session, p.periodEnd, p.payslipNumber, p);
+  // Gross is the cost to the business; what is withheld becomes a payable to the
+  // relevant authority, and only the net is owed to the employee.
+  const pf = money.minor(p.statutory?.pf || 0);
+  const pt = money.minor(p.statutory?.professionalTax || 0);
+  const tds = money.minor(p.statutory?.tds || 0);
+  const otherWithheld = deduction - pf - pt - tds;
+  if (otherWithheld < 0) fail(422, 'Statutory deductions exceed the recorded total');
+  const entry = await journal(req, `payroll-${p._id}`, [
+    ['5100', gross, 0],
+    ['2200', 0, net + otherWithheld],
+    ['2510', 0, pf],
+    ['2520', 0, pt],
+    ['2500', 0, tds],
+  ], session, p.periodEnd, p.payslipNumber, p);
   p.journalEntryId = entry._id;
   await p.save({ session }); await refreshBudget(p.budgetId, session);
 }
@@ -107,6 +160,11 @@ async function createExpense(req) {
     const b = req.body || {}; const amount = positive(b.amount);
     const department = await Department.findOne({ _id: id(b.departmentId), isActive: true }).session(session);
     if (!department || !text(b.title)) fail(422, 'Title and active department are required');
+    // Claims at or above the configured limit need proof at submission, not at review.
+    const threshold = getReceiptThreshold();
+    if (amount >= threshold * 100 && !(b.documents || []).length) {
+      fail(422, `A supporting document is required for claims of ₹${threshold.toLocaleString('en-IN')} or more`);
+    }
     await openPeriod(b.financialPeriodId, session);
     const budgetId = await selectBudget(b, department._id, session);
     const [e] = await Expense.create([{ title: text(b.title, 200), category: text(b.category, 100), amount: money.decimal(amount), departmentId: department._id, department: department.name, budgetId, financialPeriodId: b.financialPeriodId || null, vendor: b.vendor || null, costCenterId: b.costCenterId || null, incurredDate: b.incurredDate ? date(b.incurredDate) : new Date(), documents: documents(b.documents), notes: text(b.notes), submittedBy: actor(req), status: 'submitted', budgetReservedAt: new Date(), statusHistory: [{ from: '', to: 'submitted', action: 'submit', actor: actor(req), actorRole: req.user.role }] }], { session });
@@ -124,6 +182,12 @@ async function updateExpense(req) {
     if (req.body.amount !== undefined) e.amount = money.decimal(positive(req.body.amount));
     if (req.body.documents) e.documents = documents(req.body.documents);
     if (req.body.incurredDate) e.incurredDate = date(req.body.incurredDate);
+    // Re-check after the edit: raising the amount or removing the receipt must not
+    // sneak a claim past the threshold.
+    const threshold = getReceiptThreshold();
+    if (money.minor(e.amount) >= threshold * 100 && !e.documents.length) {
+      fail(422, `A supporting document is required for claims of ₹${threshold.toLocaleString('en-IN')} or more`);
+    }
     await e.save({ session }); await refreshBudget(e.budgetId, session); await audit(req, 'expense_updated', e, before, e.toObject(), session); return e;
   });
 }
@@ -134,11 +198,33 @@ const transitions = {
   process: [['approved'], 'processing'], complete: [['processing'], 'completed'], cancel: [['draft', 'submitted', 'under_review', 'needs_information'], 'cancelled'],
 };
 async function expenseAction(req) {
+  const result = await expenseActionTxn(req);
+  // The submitter hears what happened to their claim, and the head hears when a budget
+  // crosses an alert level. Both are after-commit, so neither can undo the decision.
+  await notify.expenseDecided({
+    expense: result.request,
+    action: req.params.action,
+    actorName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
+    comment: text(req.body?.comment || req.body?.reason),
+  });
+  if (result.budgetAlert) {
+    const budget = await Budget.findById(result.request.budgetId).lean();
+    if (budget) await notify.budgetAlert({ budget, alert: result.budgetAlert });
+  }
+  return result;
+}
+async function expenseActionTxn(req) {
   return transaction(async session => {
     const e = await Expense.findById(id(req.params.id)).session(session); if (!e) fail(404, 'Expense not found');
     const action = req.params.action; const rule = transitions[action]; const comment = text(req.body.comment || req.body.reason);
     if (!rule || !rule[0].includes(e.status)) fail(409, 'Invalid expense transition');
-    if (['approve', 'reject', 'cancel', 'complete'].includes(action) && !head(req.user)) fail(403, 'Finance Head permission required');
+    // Departmental silo: a department head may review and approve their own department's
+    // claims; paying one out stays with Finance, which controls the bank.
+    const FINANCE_ONLY = ['complete', 'process'];
+    if (FINANCE_ONLY.includes(action) && !head(req.user)) fail(403, 'Finance Head permission required to release payment');
+    if (['approve', 'reject', 'cancel'].includes(action) && !head(req.user)) {
+      await assertDepartmentAccess(req.user, e.departmentId, session);
+    }
     if (action === 'approve' && String(e.submittedBy) === String(actor(req))) fail(403, 'A different reviewer must approve this expense');
     if (['reject', 'request_information'].includes(action) && !comment) fail(422, 'Decision reason is required');
     if (action === 'verify' && !e.documents.length) fail(422, 'Attach supporting documents before verification');
@@ -153,7 +239,10 @@ async function expenseAction(req) {
       await journal(req, `expense-paid-${e._id}`, [['2100', amount, 0], ['1000', 0, amount]], session, p.paymentDate, e.title, e);
       e.paymentId = p._id; e.budgetConsumedAt = new Date(); e.processedBy = actor(req);
     }
-    await e.save({ session }); await refreshBudget(e.budgetId, session); await audit(req, `expense_${action}`, e, before, e.toObject(), session); return { request: e, workflow: null };
+    await e.save({ session });
+    const snapshot = await refreshBudget(e.budgetId, session);
+    await audit(req, `expense_${action}`, e, before, e.toObject(), session);
+    return { request: e, workflow: null, budgetAlert: snapshot?.alert || null };
   });
 }
 module.exports = { createPayroll, updatePayroll, processPayroll, createExpense, updateExpense, expenseAction, budgetSnapshot, refreshBudget, signed };

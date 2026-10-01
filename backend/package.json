@@ -13,6 +13,7 @@
     "test": "node --test __tests__/*.test.js",
     "db:final-seed": "node scripts/final_seed_users.js",
     "test:hr-integrity": "node --test __tests__/hrIntegrity.test.js",
+    "verify:finance-portal": "node scripts/verifyFinancePortal.js",
     "audit:projects": "node scripts/auditProjectIntegrity.js",
     "migrate:projects": "node scripts/auditProjectIntegrity.js --apply",
     "audit:policy-migration": "node scripts/auditPolicyMigration.js",

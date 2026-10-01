@@ -1,15 +1,22 @@
-﻿'use strict';
+'use strict';
 const S = require('../../services/finance/operations.service');
 const W = require('../../services/finance/workflows.service');
 const Invoice = require('../../models/finance/Invoice');
 const Note = require('../../models/finance/InvoiceNote');
 const Journal = require('../../models/finance/JournalEntry');
 const Payment = require('../../models/finance/Payment');
+const Expense = require('../../models/finance/Expense');
+const Client = require('../../models/finance/Client');
+const Payroll = require('../../models/finance/Payroll');
+const Department = require('../../models/department/Department');
+const Vendor = require('../../models/finance/Vendor');
 const AuditLog = require('../../models/finance/AuditLog');
 const Compliance = require('../../models/finance/Compliance');
 const { TaxRule } = require('../../models/finance/FinanceOperations');
 const { handler, fail, id, head, actor, text, date, transaction, audit, money } = S;
 const signed = W.signed;
+// Reads tolerate legacy float/negative amounts; see S.amountOf.
+const amt = S.amountOf;
 const day = d => (d ? new Date(d).toISOString().slice(0, 10) : '');
 
 function range(q) {
@@ -73,15 +80,15 @@ async function gstReturn(req) {
     for (const l of inv.items) {
       const key = Number(l.taxRate || 0);
       const row = byRate.get(key) || { taxable: 0n, tax: 0n, count: 0 };
-      const tax = BigInt(money.minor(l.taxAmount || 0));
-      const taxable = BigInt(money.minor(l.taxableValue ?? l.amount));
+      const tax = BigInt(amt(l.taxAmount));
+      const taxable = BigInt(amt(l.taxableValue ?? l.amount));
       row.taxable += taxable; row.tax += tax; row.count++; byRate.set(key, row);
     }
     invoices.push({ invoiceNumber: inv.invoiceNumber, date: day(inv.issueDate), customer: inv.clientName, taxableValue: inv.taxableValue || inv.subtotal, gst: inv.gstAmount, total: inv.total });
   }
   const notes = await Note.find({ createdAt: { $gte: from, $lte: to } }).populate('invoice', 'invoiceNumber clientName').lean();
   let noteGst = 0n;
-  const adjustments = notes.map(n => { const g = BigInt(money.minor(n.gstAmount || 0)); noteGst += n.type === 'credit' ? -g : g; return { type: n.type, reference: n.reference, invoiceNumber: n.invoice?.invoiceNumber, amount: n.amount, gst: n.gstAmount || 0, date: day(n.createdAt) }; });
+  const adjustments = notes.map(n => { const g = BigInt(amt(n.gstAmount)); noteGst += n.type === 'credit' ? -g : g; return { type: n.type, reference: n.reference, invoiceNumber: n.invoice?.invoiceNumber, amount: n.amount, gst: n.gstAmount || 0, date: day(n.createdAt) }; });
   const rates = [...byRate].sort((a, b) => a[0] - b[0]).map(([rate, r]) => ({ rate, lines: r.count, taxableValue: signed(r.taxable), tax: signed(r.tax) }));
   const outward = [...byRate.values()].reduce((n, r) => n + r.tax, 0n);
   return { from: day(from), to: day(to), rates, invoices, adjustments, outputTax: signed(outward), noteAdjustment: signed(noteGst), netOutputTax: signed(outward + noteGst), filing: { status: 'unavailable', message: 'GSTN filing integration is not connected. Export this worksheet and file through the GST portal or your GSP.' } };
@@ -90,7 +97,7 @@ async function tdsReturn(req) {
   const { from, to } = range(req.query || {});
   const rows = []; let total = 0n;
   for await (const inv of Invoice.find({ invoiceType: 'customer', status: { $nin: ['draft', 'void'] }, tdsAmount: { $gt: 0 }, issueDate: { $gte: from, $lte: to } }).sort({ issueDate: 1 }).lean().cursor()) {
-    total += BigInt(money.minor(inv.tdsAmount));
+    total += BigInt(amt(inv.tdsAmount));
     rows.push({ invoiceNumber: inv.invoiceNumber, date: day(inv.issueDate), customer: inv.clientName, section: inv.tdsSection, rate: inv.tdsRate, taxableValue: inv.taxableValue || inv.subtotal, tds: inv.tdsAmount });
   }
   return { from: day(from), to: day(to), rows, tdsReceivable: signed(total), filing: { status: 'unavailable', message: 'TRACES / Form 26AS reconciliation is not connected. Match these deductions manually against Form 26AS.' } };
@@ -142,7 +149,7 @@ async function periodSummary(req) {
   for await (const e of Journal.find({ status: 'posted', entryDate: { $gte: start, $lt: end } }).populate('lines.account', 'code type').lean().cursor()) {
     const m = months[new Date(e.entryDate).getUTCMonth()];
     for (const l of e.lines) {
-      const a = l.account; if (!a) continue; const dr = BigInt(money.minor(l.debit)); const cr = BigInt(money.minor(l.credit));
+      const a = l.account; if (!a) continue; const dr = BigInt(amt(l.debit)); const cr = BigInt(amt(l.credit));
       if (a.type === 'revenue') m.revenue += cr - dr;
       if (a.type === 'expense') m.expenses += dr - cr;
       if (a.code === '1000') { m.cashIn += dr; m.cashOut += cr; }
@@ -166,6 +173,125 @@ async function revenueReport(req) {
   const r2 = n => Math.round(n * 100) / 100;
   return { from: day(from), to: day(to), rows: rows.map(r => ({ customer: r._id, invoices: r.invoices, billed: r2(r.billed), gst: r2(r.gst), collected: r2(r.collected), outstanding: r2(r.outstanding) })), basis: 'Issued customer invoices by issue date; totals include GST and credit/debit note adjustments.' };
 }
+
+// ---- Receivables aging + expense pipeline for the dashboard -----------------
+// Computed server-side so the figures cover every record, not just the page on screen.
+async function agingSummary(req) {
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  const scope = {}; if (req.query.departmentId) scope.departmentId = id(req.query.departmentId);
+  const [aging] = await Invoice.aggregate([
+    { $match: { ...scope, invoiceType: 'customer', status: { $in: ['sent', 'partially_paid', 'overdue'] }, balanceDue: { $gt: 0 } } },
+    { $project: { balanceDue: 1, days: { $cond: [{ $and: ['$dueDate', { $lt: ['$dueDate', today] }] }, { $dateDiff: { startDate: '$dueDate', endDate: today, unit: 'day' } }, -1] } } },
+    { $group: {
+      _id: null,
+      outstandingAmount: { $sum: '$balanceDue' }, count: { $sum: 1 },
+      current: { $sum: { $cond: [{ $lt: ['$days', 0] }, '$balanceDue', 0] } }, currentCount: { $sum: { $cond: [{ $lt: ['$days', 0] }, 1, 0] } },
+      b1: { $sum: { $cond: [{ $and: [{ $gte: ['$days', 0] }, { $lte: ['$days', 30] }] }, '$balanceDue', 0] } }, b1Count: { $sum: { $cond: [{ $and: [{ $gte: ['$days', 0] }, { $lte: ['$days', 30] }] }, 1, 0] } },
+      b2: { $sum: { $cond: [{ $and: [{ $gt: ['$days', 30] }, { $lte: ['$days', 60] }] }, '$balanceDue', 0] } }, b2Count: { $sum: { $cond: [{ $and: [{ $gt: ['$days', 30] }, { $lte: ['$days', 60] }] }, 1, 0] } },
+      b3: { $sum: { $cond: [{ $and: [{ $gt: ['$days', 60] }, { $lte: ['$days', 90] }] }, '$balanceDue', 0] } }, b3Count: { $sum: { $cond: [{ $and: [{ $gt: ['$days', 60] }, { $lte: ['$days', 90] }] }, 1, 0] } },
+      b4: { $sum: { $cond: [{ $gt: ['$days', 90] }, '$balanceDue', 0] } }, b4Count: { $sum: { $cond: [{ $gt: ['$days', 90] }, 1, 0] } },
+    } },
+  ]);
+  const expenses = await Expense.aggregate([{ $match: scope }, { $group: { _id: '$status', amount: { $sum: '$amount' }, count: { $sum: 1 } } }]);
+  const r2 = n => Math.round((n || 0) * 100) / 100;
+  const pick2 = list => list.reduce((acc, s) => { const row = expenses.find(e => e._id === s); return { amount: acc.amount + (row?.amount || 0), count: acc.count + (row?.count || 0) }; }, { amount: 0, count: 0 });
+  const pending = pick2(['submitted', 'pending', 'under_review', 'needs_information', 'pending_approval']);
+  const verified = pick2(['verified']);
+  const a = aging || {};
+  return {
+    receivables: { outstandingAmount: r2(a.outstandingAmount), count: a.count || 0, overdueAmount: r2((a.b1 || 0) + (a.b2 || 0) + (a.b3 || 0) + (a.b4 || 0)), overdueCount: (a.b1Count || 0) + (a.b2Count || 0) + (a.b3Count || 0) + (a.b4Count || 0) },
+    aging: [
+      { label: 'Current', amount: r2(a.current), count: a.currentCount || 0 },
+      { label: '1-30', amount: r2(a.b1), count: a.b1Count || 0 },
+      { label: '31-60', amount: r2(a.b2), count: a.b2Count || 0 },
+      { label: '61-90', amount: r2(a.b3), count: a.b3Count || 0 },
+      { label: '90+', amount: r2(a.b4), count: a.b4Count || 0 },
+    ],
+    expenses: { totalAmount: r2(expenses.reduce((n, e) => n + e.amount, 0)), pendingAmount: r2(pending.amount), pendingCount: pending.count, verifiedAmount: r2(verified.amount), verifiedCount: verified.count, byStatus: expenses.map(e => ({ status: e._id, amount: r2(e.amount), count: e.count })) },
+  };
+}
+
+// ---- Departmental P&L ---------------------------------------------------------
+// Revenue and expense per department, read from posted journal LINES so an entry
+// split across departments is attributed correctly. A line with no department of its
+// own falls back to the entry's; anything still unset is reported as "Unallocated",
+// which is deliberate — silently hiding it would make the totals lie.
+async function departmentalPnl(req) {
+  const q = req.query || {};
+  const match = { status: 'posted' };
+  if (q.from || q.to) {
+    match.entryDate = {};
+    if (q.from) match.entryDate.$gte = date(q.from, 'From date');
+    if (q.to) { const end = date(q.to, 'To date'); end.setUTCHours(23, 59, 59, 999); match.entryDate.$lte = end; }
+  }
+  const rows = await Journal.aggregate([
+    { $match: match },
+    { $unwind: '$lines' },
+    { $lookup: { from: 'financeaccounts', localField: 'lines.account', foreignField: '_id', as: 'acct' } },
+    { $unwind: '$acct' },
+    { $match: { 'acct.type': { $in: ['revenue', 'expense'] } } },
+    { $group: {
+      _id: { department: { $ifNull: ['$lines.departmentId', '$departmentId'] }, type: '$acct.type' },
+      debit: { $sum: '$lines.debit' },
+      credit: { $sum: '$lines.credit' },
+    } },
+  ]);
+  const departments = await Department.find({}, 'name code').lean();
+  const nameOf = new Map(departments.map(d => [String(d._id), d.name]));
+  const byDept = new Map();
+  for (const row of rows) {
+    const key = row._id.department ? String(row._id.department) : 'unallocated';
+    const entry = byDept.get(key) || { departmentId: row._id.department || null, department: nameOf.get(key) || 'Unallocated', revenue: 0, expenses: 0 };
+    // Revenue is a credit balance; expense is a debit balance.
+    if (row._id.type === 'revenue') entry.revenue += row.credit - row.debit;
+    else entry.expenses += row.debit - row.credit;
+    byDept.set(key, entry);
+  }
+  const r2 = n => Math.round((n || 0) * 100) / 100;
+  const departmentsOut = [...byDept.values()]
+    .map(d => ({ ...d, revenue: r2(d.revenue), expenses: r2(d.expenses), netIncome: r2(d.revenue - d.expenses), margin: d.revenue > 0 ? r2(((d.revenue - d.expenses) / d.revenue) * 100) : null }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const totals = departmentsOut.reduce((acc, d) => ({ revenue: acc.revenue + d.revenue, expenses: acc.expenses + d.expenses }), { revenue: 0, expenses: 0 });
+  return {
+    from: day(match.entryDate?.$gte), to: day(match.entryDate?.$lte),
+    departments: departmentsOut,
+    totals: { revenue: r2(totals.revenue), expenses: r2(totals.expenses), netIncome: r2(totals.revenue - totals.expenses) },
+    basis: 'Accrual. Posted journal lines only, grouped by the line\'s department (falling back to the entry\'s). Lines with no department appear as Unallocated.',
+  };
+}
+
+// ---- Finance settings the UI mirrors -----------------------------------------
+// The receipt rule and alert levels live on the server; the form reads them so the
+// two can never drift apart.
+const getSettings = handler(async () => ({
+  receiptRequiredAbove: require('../../config/financeThresholds').getReceiptThreshold(),
+  budgetAlertLevels: require('../../config/financeThresholds').getBudgetAlertLevels(),
+  currency: 'INR',
+  locale: 'en-IN',
+}));
+
+// ---- Global search ----------------------------------------------------------
+// One query across the records a finance user jumps between. Payroll rows are
+// restricted to the finance head and HR, matching the payroll read rules elsewhere.
+const search = handler(async req => {
+  const term = text(req.query.q, 100);
+  if (term.length < 2) return { query: term, groups: [] };
+  const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const canSeePayroll = head(req.user) || req.user.role === 'hr';
+  const [invoices, clients, vendors, payrolls] = await Promise.all([
+    Invoice.find({ $or: [{ invoiceNumber: rx }, { clientName: rx }] }).sort({ issueDate: -1 }).limit(6).select('invoiceNumber clientName total balanceDue status issueDate').lean(),
+    Client.find({ $or: [{ name: rx }, { contactEmail: rx }] }).limit(6).select('name contactEmail balance').lean(),
+    Vendor.find({ $or: [{ name: rx }, { contactEmail: rx }, { taxId: rx }] }).limit(6).select('name contactEmail balance status').lean(),
+    canSeePayroll ? Payroll.find({ employeeName: rx }).sort({ periodStart: -1 }).limit(6).select('employeeName netPay status periodKey periodStart').lean() : [],
+  ]);
+  const groups = [
+    { kind: 'invoice', label: 'Invoices', path: '/finance/dashboard/invoices', items: invoices.map(i => ({ id: i._id, title: i.invoiceNumber, subtitle: i.clientName, amount: i.balanceDue, status: S.invoiceStatus(i), href: `/finance/dashboard/invoices/${i._id}` })) },
+    { kind: 'client', label: 'Clients', path: '/finance/dashboard/directory', items: clients.map(c => ({ id: c._id, title: c.name, subtitle: c.contactEmail, amount: c.balance })) },
+    { kind: 'vendor', label: 'Vendors', path: '/finance/dashboard/directory', items: vendors.map(v => ({ id: v._id, title: v.name, subtitle: v.contactEmail, amount: v.balance, status: v.status })) },
+    { kind: 'payroll', label: 'Payroll', path: '/finance/dashboard/payroll', items: (payrolls || []).map(p => ({ id: p._id, title: p.employeeName, subtitle: p.periodKey || day(p.periodStart), amount: p.netPay, status: p.status })) },
+  ].filter(g => g.items.length);
+  return { query: term, groups, total: groups.reduce((n, g) => n + g.items.length, 0) };
+});
 
 // ---- Customer balances (receivables per customer from invoices + unapplied receipts) ----
 async function customerBalances() {
@@ -213,5 +339,5 @@ module.exports = {
   getGstReturn: handler(gstReturn), getTdsReturn: handler(tdsReturn), gstCsv, tdsCsv, auditCsv,
   createCompliance, updateCompliance,
   getPeriodSummary: handler(periodSummary), periodCsv, getRevenueReport: handler(revenueReport),
-  getCustomerBalances: handler(customerBalances),
+  getCustomerBalances: handler(customerBalances), getAgingSummary: handler(agingSummary), search, getSettings, getDepartmentalPnl: handler(departmentalPnl),
 };

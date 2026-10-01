@@ -102,6 +102,7 @@ router.delete('/expenses/:id', canControlFinance, financeController.deleteExpens
 router.get('/budgets', financeController.getBudgets);
 router.post('/budgets', canControlFinance, financeController.createBudget);
 router.put('/budgets/:id', canControlFinance, financeController.updateBudget);
+router.post('/budgets/:id/adjust', canControlFinance, financeController.adjustBudget);
 router.get('/cost-centers', financeController.getCostCenters);
 router.post('/cost-centers', canControlFinance, financeController.createCostCenter);
 router.put('/cost-centers/:id', canControlFinance, financeController.updateCostCenter);
@@ -122,7 +123,11 @@ router.get('/reports/itr-summary', financeController.getItrSummary);
 router.get('/reports/period-summary', financeController.getPeriodSummary);
 router.get('/reports/period-summary/export', financeController.periodCsv);
 router.get('/reports/revenue', financeController.getRevenueReport);
+router.get('/reports/departmental-pnl', financeController.getDepartmentalPnl);
 router.get('/receivables/customers', financeController.getCustomerBalances);
+router.get('/receivables/aging', financeController.getAgingSummary);
+router.get('/search', financeController.search);
+router.get('/settings', financeController.getSettings);
 
 // Tax rules and statutory filing preparation (external filing integrations are not connected)
 router.get('/tax-rules', financeController.listTaxRules);

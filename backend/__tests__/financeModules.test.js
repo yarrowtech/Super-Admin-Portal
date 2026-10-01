@@ -128,11 +128,23 @@ test('expenses: documents before verification, separate approver, budget cannot 
   const dept = await Department.create({ name: 'Marketing T', code: 'MKTT' });
   const budget = await call(ctrl.createBudget, head, { departmentId: String(dept._id), fiscalYear: '2026', allocated: 1000, alertThreshold: 80 });
   assert.equal(budget.statusCode, 201);
-  const e = await W.createExpense(req(head, { title: 'Ads', category: 'Marketing', amount: 700, departmentId: String(dept._id), incurredDate: '2026-05-01' }));
+  // Claims at or above the configured limit need a receipt up front.
+  await assert.rejects(
+    W.createExpense(req(head, { title: 'Ads', category: 'Marketing', amount: 700, departmentId: String(dept._id), incurredDate: '2026-05-01' })),
+    /supporting document is required/,
+    'large claim without a receipt is rejected',
+  );
+  // A small claim still goes through without one.
+  const small = await W.createExpense(req(head, { title: 'Stamps', category: 'Office', amount: 100, departmentId: String(dept._id), incurredDate: '2026-05-01' }));
+  assert.equal(small.status, 'submitted');
+
+  const e = await W.createExpense(req(head, {
+    title: 'Ads', category: 'Marketing', amount: 700, departmentId: String(dept._id), incurredDate: '2026-05-01',
+    documents: [{ label: 'Receipt', url: 'https://files.example/r.pdf' }],
+  }));
   assert.equal(String(e.budgetId), String(budget.body.data._id));
-  await assert.rejects(W.createExpense(req(emp, { title: 'Big', amount: 400, departmentId: String(dept._id), incurredDate: '2026-05-01' })), { statusCode: 409 }, 'over budget');
-  await assert.rejects(W.expenseAction(req(emp, {}, { id: String(e._id), action: 'verify' })), /supporting documents/);
-  await W.updateExpense(req(head, { documents: [{ label: 'Receipt', url: 'https://files.example/r.pdf' }] }, { id: String(e._id) }));
+  await assert.rejects(W.createExpense(req(emp, { title: 'Big', amount: 400, departmentId: String(dept._id), incurredDate: '2026-05-01', documents: [{ label: 'R', url: 'https://files.example/b.pdf' }] })), { statusCode: 409 }, 'over budget');
+  await assert.rejects(W.updateExpense(req(head, { documents: [] }, { id: String(e._id) })), /supporting document is required/, 'receipt cannot be removed from a large claim');
   await assert.rejects(W.updateExpense(req(head, { documents: [{ label: 'x', url: 'http://insecure/x' }] }, { id: String(e._id) })), { statusCode: 422 });
   await W.expenseAction(req(emp, {}, { id: String(e._id), action: 'verify' }));
   await assert.rejects(W.expenseAction(req(emp, {}, { id: String(e._id), action: 'approve' })), { statusCode: 403 });
@@ -142,7 +154,9 @@ test('expenses: documents before verification, separate approver, budget cannot 
   const { request } = await W.expenseAction(req(head2, {}, { id: String(e._id), action: 'complete' }));
   assert.ok(request.paymentId);
   const b = await W.budgetSnapshot(await Budget.findById(budget.body.data._id), null);
-  assert.equal(b.spent, 700); assert.equal(b.utilization, 70); assert.equal(b.status, 'on-track');
+  // 700 approved and paid, plus the 100 small claim still reserved in the workflow.
+  assert.equal(b.spent, 700); assert.equal(b.reserved, 100);
+  assert.equal(b.utilization, 80); assert.equal(b.status, 'at-risk', 'crossing the 80% threshold flags the budget');
 });
 
 test('payroll: salary profile drives amounts, one run per month, approval charges gross to budget', async () => {
@@ -153,7 +167,11 @@ test('payroll: salary profile drives amounts, one run per month, approval charge
   assert.equal((await call(ctrl.saveSalary, head, { employee: String(empUser), departmentId: String(dept._id), basePay: 40000, allowances: 10000, deductions: 6000, effectiveFrom: '2026-01-01' })).statusCode, 200);
   const period = { employee: String(empUser), periodStart: '2026-08-01', periodEnd: '2026-08-31' };
   const run = await W.createPayroll(req(emp, period));
-  assert.deepEqual([run.grossPay, run.deductions, run.netPay], [50000, 6000, 44000]);
+  // PF is 12% of basic capped at the 15,000 wage ceiling (1,800); Professional Tax is
+  // 200 at this gross; plus the 6,000 on the salary profile.
+  assert.equal(run.statutory.pf, 1800);
+  assert.equal(run.statutory.professionalTax, 200);
+  assert.deepEqual([run.grossPay, run.deductions, run.netPay], [50000, 8000, 42000]);
   await assert.rejects(W.createPayroll(req(emp, period)), { statusCode: 409 });
   await assert.rejects(W.createPayroll(req(emp, { ...period, periodEnd: '2026-09-15' })), { statusCode: 422 }, 'must be one month');
   await assert.rejects(W.updatePayroll(req(emp, { status: 'processed' }, { id: String(run._id) })), { statusCode: 403 });

@@ -164,7 +164,9 @@ test('finance: payroll — employee submits, head approves (budget charged once)
   expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', { ...period, status: 'processed' }), 403, 'employee creates processed payroll');
   const run = expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', period), 201, 'employee drafts payroll').data;
   assert.equal(run.grossPay, 60000);
-  assert.equal(run.netPay, 55000);
+  // 5,000 profile deduction + PF 1,800 (12% of the 15,000 ceiling) + professional tax 200.
+  assert.equal(run.deductions, 7000);
+  assert.equal(run.netPay, 53000);
   expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', period), 409, 'duplicate payroll for the month');
 
   expectStatus(await api('POST', `${F}/review/payroll/${run._id}/submit`, 'finEmp'), 200, 'employee submits payroll');

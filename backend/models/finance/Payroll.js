@@ -33,7 +33,19 @@ const payrollSchema = new mongoose.Schema(
 payrollSchema.index({ periodStart: 1, periodEnd: 1 });
 payrollSchema.index({ projectId: 1, periodStart: -1 });
 
-payrollSchema.add({ periodKey: String, salarySnapshot: mongoose.Schema.Types.Mixed });
+payrollSchema.add({
+  periodKey: String,
+  salarySnapshot: mongoose.Schema.Types.Mixed,
+  // Statutory deductions broken out, so each posts to its own payable account and the
+  // payslip can show the employee exactly what was withheld and why.
+  statutory: {
+    pf: { type: Number, default: 0 },
+    professionalTax: { type: Number, default: 0 },
+    tds: { type: Number, default: 0 },
+    other: { type: Number, default: 0 },
+    basis: mongoose.Schema.Types.Mixed,
+  },
+});
 payrollSchema.index({ employee: 1, periodKey: 1 }, { unique: true, partialFilterExpression: { employee: { $type: 'objectId' }, periodKey: { $type: 'string' } } });
 
 module.exports = mongoose.models['FinancePayroll'] || mongoose.model('FinancePayroll', payrollSchema);

@@ -17,6 +17,7 @@ const AuditLog = require('../../models/finance/AuditLog');
 const ApprovalWorkflow = require('../../models/finance/ApprovalWorkflow');
 const Department = require('../../models/department/Department');
 const { getFinanceStatusThresholds } = require('../../config/financeThresholds');
+const notify = require('../../services/finance/notify.service');
 
 const FINANCE_HEAD_ROLES = new Set(['finance_manager', 'admin', 'super_admin']);
 const FINANCE_EMPLOYEE_ROLES = new Set(['finance_employee']);
@@ -492,7 +493,7 @@ const buildFinanceRequests = ({ expenses = [], approvals = [] }) => {
       source: 'department',
       department: item.department || 'Unassigned',
       departmentId: item.departmentId ? String(item.departmentId) : null,
-      requester: item.submittedBy || 'Department user',
+      requester: item.submittedBy ? `${item.submittedBy.firstName || ''} ${item.submittedBy.lastName || ''}`.trim() || 'Department user' : 'Department user',
       employeeId: '',
       type: item.category === 'reimbursement' ? 'Reimbursement' : 'Expense',
       amount,
@@ -507,6 +508,10 @@ const buildFinanceRequests = ({ expenses = [], approvals = [] }) => {
       approvalRequired: amount >= 10000,
       approvalId: approval?._id ? String(approval._id) : '',
       documents: item.documents || [],
+      // Shown in the approval dialog so a decision is made against the real claim.
+      incurredDate: item.incurredDate,
+      notes: item.notes || '',
+      submittedByName: item.submittedBy ? `${item.submittedBy.firstName || ''} ${item.submittedBy.lastName || ''}`.trim() : '',
       budgetCategory: item.category || 'Operations',
       availableBudget: 0,
       reservedAmount: ['submitted', 'verified'].includes(String(item.status || '').toLowerCase()) ? amount : 0,
@@ -1881,8 +1886,13 @@ exports.getFinanceRequests = async (req, res) => {
   try {
     const { page, limit, skip } = withPagination(req.query);
     const { search, department, status, requestType, priority, assignedEmployee } = req.query;
+    // Status maps to a stored field, so it is applied in the query rather than after
+    // loading every expense. The remaining filters are derived values computed below.
+    const expenseQuery = {};
+    if (status && String(status).toLowerCase() !== 'pending_approval') expenseQuery.status = String(status).toLowerCase();
+    if (department && mongoose.isValidObjectId(department)) expenseQuery.departmentId = department;
     const [expenses, approvals] = await Promise.all([
-      Expense.find().sort({ createdAt: -1 }).lean(),
+      Expense.find(expenseQuery).sort({ createdAt: -1 }).limit(5000).populate('submittedBy', 'firstName lastName').lean(),
       ApprovalWorkflow.find({ module: 'finance' }).sort({ createdAt: -1 }).lean(),
     ]);
 
@@ -2457,42 +2467,27 @@ exports.submitForReview = async (req, res) => {
     };
     await doc.save();
     await logAudit({ req, action: `${req.params.module}_submitted_for_review`, resourceType: req.params.module, resourceId: doc._id, meta: { note: doc.review.submitNote } });
+    // Tell the finance head it is waiting. Sent after the save so a notification
+    // problem can never lose the submission itself.
+    await notify.submittedForReview({
+      module: req.params.module,
+      doc,
+      actor: req.user._id || req.user.id,
+      actorName: doc.review.submittedByName,
+      title: cfg.title(doc),
+      amount: cfg.amount(doc),
+      note: doc.review.submitNote,
+    });
     return res.json({ success: true, data: doc });
   } catch (err) {
     return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to submit for review' });
   }
 };
 
-// POST /review/:module/:id/decision { decision: 'approve' | 'return', note } — finance head only.
-exports.decideReview = async (req, res) => {
-  try {
-    if (!isFinanceHead(req)) return res.status(403).json({ success: false, error: 'Finance Head permission required' });
-    const decision = String(req.body?.decision || '');
-    const note = String(req.body?.note || '').trim().slice(0, 1000);
-    if (!['approve', 'return'].includes(decision)) return res.status(400).json({ success: false, error: 'Decision must be approve or return' });
-    if (decision === 'return' && !note) return res.status(400).json({ success: false, error: 'Say what needs to change before returning it' });
-    const { cfg, doc } = await loadReviewTarget(req);
-    if (doc.review.status !== 'submitted') return res.status(409).json({ success: false, error: 'This item is not waiting for review' });
-    if (decision === 'approve') {
-      if (!cfg.isDraft(doc)) return res.status(409).json({ success: false, error: `This ${cfg.label.toLowerCase()} is no longer a draft` });
-      await cfg.approve(doc);
-    }
-    doc.review.status = decision === 'approve' ? 'approved' : 'returned';
-    doc.review.decidedBy = req.user._id || req.user.id;
-    doc.review.decidedByName = reviewActorName(req);
-    doc.review.decidedAt = new Date();
-    doc.review.decisionNote = note;
-    doc.markModified('review');
-    await doc.save();
-    await logAudit({
-      req, action: `${req.params.module}_review_${decision === 'approve' ? 'approved' : 'returned'}`, resourceType: req.params.module, resourceId: doc._id,
-      meta: { note, submittedBy: doc.review.submittedByName }, riskFlag: decision === 'approve' ? 'none' : 'low',
-    });
-    return res.json({ success: true, data: doc });
-  } catch (err) {
-    return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to record the decision' });
-  }
-};
+// decideReview lives in financeOperations.controller: approving an item must post its
+// journal inside the same transaction. The earlier version here updated budgets with a
+// direct $inc and never touched the ledger, so it was removed rather than left to be
+// re-exported by accident.
 
 // GET /review/queue?status=submitted|returned|approved|all — head: whole team; employee: own submissions.
 exports.getReviewQueue = async (req, res) => {

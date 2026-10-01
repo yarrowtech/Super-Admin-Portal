@@ -54,12 +54,18 @@ export const financeApi = {
   },
   createBudget: (data, token) => apiClient.post('/api/dept/finance/budgets', data, token),
   updateBudget: (id, data, token) => apiClient.put(`/api/dept/finance/budgets/${id}`, data, token),
+  // Adds to or removes from an allocation; each change is recorded with its reason.
+  adjustBudget: (id, data, token) => apiClient.post(`/api/dept/finance/budgets/${id}/adjust`, data, token),
 
   getCostCenters: (token) => apiClient.get('/api/dept/finance/cost-centers', token),
   createCostCenter: (data, token) => apiClient.post('/api/dept/finance/cost-centers', data, token),
   updateCostCenter: (id, data, token) => apiClient.put(`/api/dept/finance/cost-centers/${id}`, data, token),
 
-  getPayrolls: (token) => apiClient.get('/api/dept/finance/payrolls', token),
+  getPayrolls: (token, params = {}) => apiClient.get(`/api/dept/finance/payrolls?${new URLSearchParams(params)}`, token),
+  // Salary components: finance-head only; payroll runs derive pay from these.
+  getSalaryProfiles: (token) => apiClient.get('/api/dept/finance/salary-profiles', token, { cache: false }),
+  getSalaryEmployees: (token) => apiClient.get('/api/dept/finance/salary-profiles/employees', token, { cache: false }),
+  saveSalaryProfile: (data, token) => apiClient.post('/api/dept/finance/salary-profiles', data, token),
   createPayroll: (data, token) => apiClient.post('/api/dept/finance/payrolls', data, token),
   updatePayroll: (id, data, token) => apiClient.put(`/api/dept/finance/payrolls/${id}`, data, token),
 
@@ -72,8 +78,15 @@ export const financeApi = {
   getItrSummary: (token) => apiClient.get('/api/dept/finance/reports/itr-summary', token),
 
   getPeriodSummary: (token, year) => apiClient.get(`/api/dept/finance/reports/period-summary?year=${encodeURIComponent(year)}`, token),
+  // Revenue and direct costs per department, from posted journal lines.
+  getDepartmentalPnl: (token, params = {}) => apiClient.get(`/api/dept/finance/reports/departmental-pnl?${new URLSearchParams(params)}`, token),
   getRevenueReport: (token, params) => apiClient.get(`/api/dept/finance/reports/revenue?${new URLSearchParams(params)}`, token),
   getCustomerBalances: (token) => apiClient.get('/api/dept/finance/receivables/customers', token),
+  // Server-owned finance rules (receipt threshold, budget alert levels) the UI mirrors.
+  getSettings: (token) => apiClient.get('/api/dept/finance/settings', token),
+  // One query across invoices, clients, vendors and payroll.
+  search: (token, q) => apiClient.get(`/api/dept/finance/search?q=${encodeURIComponent(q)}`, token, { cache: false }),
+  getAgingSummary: (token, params = {}) => apiClient.get(`/api/dept/finance/receivables/aging?${new URLSearchParams(params)}`, token),
   getFinancialSummary: (token, params = {}) => apiClient.get(`/api/dept/finance/financial-summary?${new URLSearchParams(params)}`, token),
 
   // Tax rules (GST/TDS, effective-dated) and statutory filing worksheets.

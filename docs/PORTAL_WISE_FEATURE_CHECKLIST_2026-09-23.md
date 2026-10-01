@@ -161,28 +161,40 @@ Location: /employee
 
 Location: /finance/dashboard
 
+Verification basis for this section (1 October 2026): `npm run verify:finance-portal` logs in as a real finance head and a real finance employee over HTTP and exercises 30 endpoints — all returned 200, with a finance employee refused salary profiles (403) and an unauthenticated request refused (401). Automated suites: 35 finance tests pass (`backend/__tests__/finance*.test.js`, `vendorLedger.test.js`, `e2e.financeLawWorkflow.test.js`).
+
+Working is ticked where an endpoint returned a correct authenticated response AND the behaviour behind it is covered by a named automated test. Rows reachable but not covered by a finance-specific test are left unticked. Complete stays unticked throughout: that is a business acceptance decision, not a technical one.
+
 | ID | Feature | Present | Working | Complete | Notes / evidence / owner |
 |---|---|---|---|---|---|
-| 8.1 | Overview | [x] | [ ] | [ ] | ________________ |
-| 8.2 | Department profiles / project overview | [x] | [ ] | [ ] | ________________ |
-| 8.3 | Invoices and invoice details | [x] | [ ] | [ ] | ________________ |
-| 8.4 | Payments | [x] | [ ] | [ ] | ________________ |
-| 8.5 | Expenses | [x] | [ ] | [ ] | ________________ |
-| 8.6 | Budgets | [x] | [ ] | [ ] | ________________ |
-| 8.7 | Payroll | [x] | [ ] | [ ] | ________________ |
-| 8.8 | Accounting | [x] | [ ] | [ ] | ________________ |
-| 8.9 | Tasks | [x] | [ ] | [ ] | ________________ |
-| 8.10 | Leave | [x] | [ ] | [ ] | ________________ |
-| 8.11 | Documents | [x] | [ ] | [ ] | ________________ |
-| 8.12 | Team | [x] | [ ] | [ ] | ________________ |
-| 8.13 | Messages | [x] | [ ] | [ ] | ________________ |
-| 8.14 | Reports | [x] | [ ] | [ ] | ________________ |
-| 8.15 | Compliance | [x] | [ ] | [ ] | ________________ |
-| 8.16 | Vendor and client directory | [x] | [ ] | [ ] | ________________ |
-| 8.17 | Activity | [x] | [ ] | [ ] | ________________ |
-| 8.18 | Approvals | [x] | [ ] | [ ] | ________________ |
-| 8.19 | Settings | [x] | [ ] | [ ] | ________________ |
-| 8.20 | Support | [x] | [ ] | [ ] | ________________ |
+| 8.1 | Overview | [x] | [x] | [ ] | `/dashboard` 200. KPIs from server aggregates; `reports agree with each other and with the ledger` |
+| 8.2 | Department profiles / project overview | [x] | [x] | [ ] | `/departments` 200; departmental P&L test |
+| 8.3 | Invoices and invoice details | [x] | [x] | [ ] | `invoice maths…`, `multi-line invoice with mixed GST slabs…`, `draft to issued to part-paid to credit-noted…` |
+| 8.4 | Payments | [x] | [x] | [ ] | `partial payments, duplicate references, overpayment and reversal`; `bank reconciliation…` |
+| 8.5 | Expenses | [x] | [x] | [ ] | `expenses: documents before verification, separate approver, budget cannot be exceeded` |
+| 8.6 | Budgets | [x] | [x] | [ ] | Budget utilisation/alert assertions in the expenses test; audited adjustments |
+| 8.7 | Payroll | [x] | [x] | [ ] | `payroll: salary profile drives amounts…`; `payroll withholds PF and professional tax…` |
+| 8.8 | Accounting | [x] | [x] | [ ] | `unbalanced journal entries cannot be submitted; balanced ones post on approval` |
+| 8.9 | Tasks | [x] | [ ] | [ ] | `/tasks`, `/attendance`, `/members` 200. Shared department module; no finance-specific test |
+| 8.10 | Leave | [x] | [ ] | [ ] | Personal records via `/api/dept/employee/leave` 200, not a finance route. Untested here |
+| 8.11 | Documents | [x] | [ ] | [ ] | Personal records via `/api/employee/documents` 200, not a finance route. Untested here |
+| 8.12 | Team | [x] | [ ] | [ ] | `/team` 200. Shared collab module; no finance-specific test |
+| 8.13 | Messages | [x] | [ ] | [ ] | `/chat/threads` 200. Shared collab module; no finance-specific test |
+| 8.14 | Reports | [x] | [x] | [ ] | `/reports/trial-balance`, `/reports/departmental-pnl` 200; ledger-consistency test |
+| 8.15 | Compliance | [x] | [x] | [ ] | `tax rules: effective dates, overlap, immutability and head-only configuration` |
+| 8.16 | Vendor and client directory | [x] | [x] | [ ] | 9 vendor-ledger tests incl. concurrent-overspend and duplicate-reference rollback |
+| 8.17 | Activity | [x] | [x] | [ ] | `/audit-logs` 200; audit entries asserted across the financial tests |
+| 8.18 | Approvals | [x] | [x] | [ ] | `queue: head sees the whole team…`; `submitting an invoice notifies the head…` |
+| 8.19 | Settings | [x] | [ ] | [ ] | `/settings` 200 (server-owned finance rules). Page itself untested |
+| 8.20 | Support | [x] | [ ] | [ ] | Static page; no endpoint and no test |
+
+Known gaps in this portal, carried forward rather than hidden:
+
+1. Two invoices hold negative amounts (`INV-202601-4584`, `INV-202601-8248`, −1000 each). `node scripts/auditFinanceAmounts.js` lists them. They need a business decision — void, or raise a credit note — not an automated fix.
+2. PF, Professional Tax and the GST/TDS seed rates are the common defaults (Maharashtra PT slabs), configurable via `FINANCE_PF_RATE_BP`, `FINANCE_PF_WAGE_CEILING`, `FINANCE_PT_DISABLED`. Verify against current statute before live payroll or filing.
+3. Income-tax TDS on salary is not automated; it needs per-employee declarations and regime choices. The field is wired through but always zero.
+4. External filing integrations (GSTN, TRACES) are not connected and are labelled as such in the UI.
+5. Rows 8.9–8.13 and 8.19–8.20 are reachable but rely on shared modules owned outside finance; they need their own tests before anyone ticks Working.
 
 ## 9. Law
 
@@ -294,7 +306,7 @@ Location: Across authorized portals
 
 4. Law contracts, documents and compliance intentionally use a catch-all route with internal section selection. Missing individual routes are not by themselves defects. Check head/member permissions.
 
-5. Automated tests and portal checklist scripts exist in backend/__tests__ and backend/scripts. They were not run for this document and are not recorded as passed.
+5. Automated tests and portal checklist scripts exist in backend/__tests__ and backend/scripts. Updated 1 October 2026: the suite now runs at 95 of 96 passing. The one failure is `project overview pages count only accessible persisted projects and never double-skip` in `hrIntegrity.test.js`, which also fails in isolation and predates the finance work — it belongs to section 4 (HR) and is unowned. Portals other than Finance remain unverified for this document.
 
 6. Finance, employee, routing and menu files contain local modifications. Reconfirm behavior against the exact build submitted for approval.
 

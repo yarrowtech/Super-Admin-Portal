@@ -12,6 +12,7 @@ const Journal = require('../../models/finance/JournalEntry');
 const User = require('../../models/auth/User');
 const Department = require('../../models/department/Department');
 const { Salary, BankTransaction } = require('../../models/finance/FinanceOperations');
+const notify = require('../../services/finance/notify.service');
 const paging = q => { const page = Math.max(1, Number.parseInt(q.page, 10) || 1); const limit = Math.min(200, Math.max(1, Number.parseInt(q.limit, 10) || 50)); return { page, limit }; };
 const list = (Model, dateField, extra = () => ({})) => async req => {
   const q = req.query || {}; let filter = extra(req); const { page, limit } = paging(q);
@@ -72,6 +73,40 @@ const saveBudget = update => handler(req => transaction(async session => {
   if (await Budget.exists({ _id: { $ne: budget._id }, departmentId: budget.departmentId, fiscalYear: budget.fiscalYear, costCenterId: budget.costCenterId || null, financialPeriodId: budget.financialPeriodId || null }).session(session)) fail(409, 'Budget already exists for this department, cost center and period');
   await budget.save({ session }); const snapshot = await W.refreshBudget(budget._id, session); await audit(req, 'budget_saved', budget, before, snapshot, session); return snapshot;
 }), update ? 200 : 201);
+// Adds to or removes from a budget's allocation, always with a reason. Reducing below
+// what is already committed is refused, because that would make the budget retrospectively
+// overspent without anyone having spent anything new.
+const adjustBudget = handler(async req => transaction(async session => {
+  if (!head(req.user)) fail(403, 'Finance Head permission required');
+  const budget = await Budget.findById(id(req.params.id)).session(session);
+  if (!budget) fail(404, 'Budget not found');
+  const reason = text(req.body.reason, 500);
+  if (!reason) fail(422, 'A reason for the adjustment is required');
+  const raw = String(req.body.delta ?? '').trim();
+  const negative = raw.startsWith('-');
+  const magnitude = money.minor(negative ? raw.slice(1) : raw, 'Adjustment');
+  if (!magnitude) fail(422, 'Adjustment must be a non-zero amount');
+  const delta = negative ? -magnitude : magnitude;
+  const before = budget.toObject();
+  const allocatedAfter = BigInt(money.minor(budget.allocated)) + BigInt(delta);
+  if (allocatedAfter <= 0n) fail(422, 'Allocation must stay above zero');
+  await S.openPeriod(budget.financialPeriodId, session);
+  budget.allocated = money.decimal(allocatedAfter);
+  budget.adjustments.push({
+    delta: money.decimal(BigInt(Math.abs(delta))) * (negative ? -1 : 1),
+    allocatedAfter: budget.allocated,
+    reason,
+    actor: actor(req),
+    actorName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
+  });
+  // Reducing the allocation must not drop it below money already committed.
+  budget.alertedAt = 0;
+  await budget.save({ session });
+  const snapshot = await W.refreshBudget(budget._id, session);
+  await audit(req, 'budget_adjusted', budget, before, { delta, allocated: budget.allocated, reason }, session);
+  return snapshot;
+}));
+
 const salaryEmployees = handler(async req => { if (!head(req.user)) fail(403, 'Finance Head required'); return User.find({ isActive: true }).select('firstName lastName email department').sort({ firstName: 1 }).limit(1000).lean(); });
 const getSalaries = handler(async req => { if (!head(req.user)) fail(403, 'Finance Head required'); return Salary.find().populate('employee', 'firstName lastName email').limit(1000).lean(); });
 const saveSalary = handler(async req => transaction(async session => {
@@ -100,6 +135,21 @@ const bankImport = handler(async req => transaction(async session => {
   return { imported, skipped };
 }), 201);
 async function decision(req) {
+  const doc = await decisionTxn(req);
+  // Told after the transaction commits: the submitter should only hear about a decision
+  // that actually stuck, and a notification failure must not undo it.
+  await notify.reviewDecided({
+    module: req.params.module,
+    doc,
+    decision: req.body.decision,
+    decidedByName: doc.review?.decidedByName,
+    title: doc.invoiceNumber || doc.employeeName || doc.entryNumber || 'the record',
+    note: doc.review?.decisionNote,
+    submittedBy: doc.review?.submittedBy,
+  });
+  return doc;
+}
+async function decisionTxn(req) {
   return transaction(async session => {
     if (!head(req.user)) fail(403, 'Finance Head permission required');
     const Model = { invoice: Invoice, payroll: Payroll, journal: Journal }[req.params.module]; if (!Model) fail(422, 'Unknown review module');
@@ -127,8 +177,20 @@ const saveJournal = update => handler(async req => transaction(async session => 
   if (!doc) fail(404, 'Journal not found'); if (doc.status !== 'draft') fail(409, 'Posted journals are immutable; post a reversal');
   if (doc.review?.status === 'submitted') fail(409, 'Journal is awaiting review');
   const before = update ? doc.toObject() : null; doc.memo = text(req.body.memo); doc.entryDate = req.body.entryDate ? date(req.body.entryDate) : new Date();
-  if (req.body.lines) doc.lines = req.body.lines.map(l => ({ account: id(l.account), debit: money.decimal(money.minor(l.debit || 0)), credit: money.decimal(money.minor(l.credit || 0)), description: text(l.description) }));
+  if (req.body.departmentId !== undefined) doc.departmentId = req.body.departmentId ? id(req.body.departmentId) : null;
+  // A line may carry its own dimensions; otherwise it inherits the entry's, so a single
+  // entry can be split across departments for an accurate departmental P&L.
+  if (req.body.lines) doc.lines = req.body.lines.map(l => ({
+    account: id(l.account),
+    debit: money.decimal(money.minor(l.debit || 0)),
+    credit: money.decimal(money.minor(l.credit || 0)),
+    description: text(l.description),
+    departmentId: l.departmentId ? id(l.departmentId) : (doc.departmentId || null),
+    projectId: l.projectId ? id(l.projectId) : null,
+    client: l.client ? id(l.client) : null,
+    costCenterId: l.costCenterId ? id(l.costCenterId) : null,
+  }));
   await validateJournal(doc, session); await doc.save({ session }); await audit(req, 'journal_draft_saved', doc, before, doc.toObject(), session); return doc;
 }), update ? 200 : 201);
 const postJournalEntry = handler(async req => transaction(async session => { if (!head(req.user)) fail(403, 'Finance Head required'); const doc = await Journal.findById(id(req.params.id)).session(session); if (!doc) fail(404, 'Journal not found'); if (doc.status !== 'draft') fail(409, 'Journal already posted'); await validateJournal(doc, session); doc.status = 'posted'; doc.postedAt = new Date(); await doc.save({ session }); await audit(req, 'journal_posted', doc, { status: 'draft' }, { status: 'posted' }, session); return doc; }));
-module.exports = { createInvoice, updateInvoice, createInvoiceNote, createPayment, updatePayment, createExpense, updateExpense, updateFinanceRequestAction, createPayroll, updatePayroll, getInvoices, getPayments, getExpenses, getPayrolls, deleteInvoice, deleteExpense, getBudgets, createBudget: saveBudget(false), updateBudget: saveBudget(true), salaryEmployees, getSalaries, saveSalary, bankList, bankImport, decideReview: handler(decision), createJournalEntry: saveJournal(false), updateJournalEntry: saveJournal(true), postJournalEntry, paging };
+module.exports = { createInvoice, updateInvoice, createInvoiceNote, createPayment, updatePayment, createExpense, updateExpense, updateFinanceRequestAction, createPayroll, updatePayroll, getInvoices, getPayments, getExpenses, getPayrolls, deleteInvoice, deleteExpense, getBudgets, createBudget: saveBudget(false), updateBudget: saveBudget(true), adjustBudget, salaryEmployees, getSalaries, saveSalary, bankList, bankImport, decideReview: handler(decision), createJournalEntry: saveJournal(false), updateJournalEntry: saveJournal(true), postJournalEntry, paging };

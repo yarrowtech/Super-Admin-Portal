@@ -100,9 +100,13 @@ router.delete('/expenses/:id', canControlFinance, financeController.deleteExpens
 
 // Budget and Cost Control
 router.get('/budgets', financeController.getBudgets);
+router.get('/budgets/variance', financeController.getBudgetVariance);
+router.get('/projects/catalog', financeController.getProjectOptions);
 router.post('/budgets', canControlFinance, financeController.createBudget);
 router.put('/budgets/:id', canControlFinance, financeController.updateBudget);
 router.post('/budgets/:id/adjust', canControlFinance, financeController.adjustBudget);
+router.post('/budgets/:id/baseline', canControlFinance, financeController.approveBudgetBaseline);
+router.put('/budgets/:id/phasing', canControlFinance, financeController.setBudgetPhasing);
 router.get('/cost-centers', financeController.getCostCenters);
 router.post('/cost-centers', canControlFinance, financeController.createCostCenter);
 router.put('/cost-centers/:id', canControlFinance, financeController.updateCostCenter);

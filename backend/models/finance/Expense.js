@@ -63,4 +63,9 @@ expenseSchema.index({ projectId: 1, status: 1, createdAt: -1 });
 
 expenseSchema.add({ vendor: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceVendor' }, costCenterId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceCostCenter' } });
 
+// Cost behaviour. Fixed costs recur regardless of activity (rent, salaries, licences);
+// variable costs move with it (materials, per-unit vendor work, travel). Classifying at the
+// expense is what makes a fixed-vs-variable budget variance reportable rather than guessed.
+expenseSchema.add({ costType: { type: String, enum: ['fixed', 'variable'], default: 'variable', index: true } });
+
 module.exports = mongoose.models['FinanceExpense'] || mongoose.model('FinanceExpense', expenseSchema);

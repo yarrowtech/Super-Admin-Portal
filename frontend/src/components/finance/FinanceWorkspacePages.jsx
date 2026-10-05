@@ -2392,15 +2392,16 @@ export const FinanceExpensesPage = () => {
   const [statusFilter, setStatusFilter] = useStatusParam();
   const [page, setPage] = useState(1);
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [requestsRes, catalogRes, agingRes, settingsRes] = await Promise.all([
+    const [requestsRes, catalogRes, agingRes, settingsRes, projectsRes] = await Promise.all([
       financeApi.getRequests(token, { page, limit: 25, ...(statusFilter ? { status: statusFilter } : {}) }),
       financeApi.getDepartmentCatalog(token),
       // Status totals across every expense, so the counts and report aren't page-bound.
       financeApi.getAgingSummary(token).catch(() => null),
       financeApi.getSettings(token).catch(() => null),
+      financeApi.getProjectCatalog(token).catch(() => null),
     ]);
     const list = unwrap(requestsRes);
-    return { expenses: toList(list), pagination: list?.pagination, departmentCatalog: toList(unwrap(catalogRes)), byStatus: unwrap(agingRes)?.expenses?.byStatus || [], settings: unwrap(settingsRes) };
+    return { expenses: toList(list), pagination: list?.pagination, departmentCatalog: toList(unwrap(catalogRes)), byStatus: unwrap(agingRes)?.expenses?.byStatus || [], settings: unwrap(settingsRes), projectCatalog: toList(unwrap(projectsRes)) };
   }, [token, page, statusFilter]);
   const expenses = useMemo(() => data.expenses || [], [data.expenses]);
   const departmentCatalog = data.departmentCatalog || [];
@@ -2411,7 +2412,7 @@ export const FinanceExpensesPage = () => {
   const needsAction = expenses.filter((row) => financeExpenseRequestActions(row, isFinanceHead).length > 0).length;
 
   // New expenses always enter the workflow as "submitted"; the backend ignores any other status.
-  const emptyExpenseForm = { title: '', category: '', amount: '', departmentId: '', docLabel: '', docUrl: '' };
+  const emptyExpenseForm = { title: '', category: '', amount: '', departmentId: '', costType: 'variable', projectId: '', docLabel: '', docUrl: '' };
   const docUrlError = form => (form.docUrl && !/^https?:\/\//i.test(form.docUrl.trim()) ? 'Paste a full link starting with https://' : '');
 
   // Expense report: per-category totals over every expense, fetched on demand so the CSV
@@ -2481,7 +2482,9 @@ export const FinanceExpensesPage = () => {
     setFormError('');
     try {
       const documents = form.docUrl.trim() ? [{ label: form.docLabel.trim() || 'Receipt', url: form.docUrl.trim() }] : [];
-      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, departmentId: form.departmentId, documents }, token);
+      // costType decides which side of the budget this lands on; projectId, when set, charges
+      // the project's own budget instead of the department's running budget.
+      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, departmentId: form.departmentId, costType: form.costType, ...(form.projectId ? { projectId: form.projectId } : {}), documents }, token);
       setForm(emptyExpenseForm);
       setNotice('Expense submitted for verification.');
       refetch();
@@ -2551,6 +2554,20 @@ export const FinanceExpensesPage = () => {
                   onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
                   required
                   options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+                />
+                <Select
+                  label="Cost type"
+                  value={form.costType}
+                  onChange={(e) => setForm((p) => ({ ...p, costType: e.target.value }))}
+                  options={[{ value: 'variable', label: 'Variable — moves with activity' }, { value: 'fixed', label: 'Fixed — recurs regardless of activity' }]}
+                  helperText="Decides which side of the budget this is charged to."
+                />
+                <Select
+                  label="Project (optional)"
+                  value={form.projectId}
+                  onChange={(e) => setForm((p) => ({ ...p, projectId: e.target.value }))}
+                  options={[{ value: '', label: 'Not project work' }, ...(data.projectCatalog || []).map((p) => ({ value: p._id, label: p.code ? `${p.name} (${p.code})` : p.name }))]}
+                  helperText="With a project set, the project's budget is charged instead of the department's."
                 />
                 <div className={`rounded-xl border border-dashed p-3 ${receiptRequired && !form.docUrl.trim() ? 'border-amber-400 bg-amber-50/60 dark:border-amber-500 dark:bg-amber-500/10' : 'border-neutral-300 dark:border-neutral-700'}`}>
                   <p className="mb-2 flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
@@ -2773,29 +2790,133 @@ const budgetUsedPct = (budget) => {
   return allocated > 0 ? (committed / allocated) * 100 : committed > 0 ? Infinity : 0;
 };
 
+// A budget's planned split, falling back to "all variable" for budgets saved before the
+// fixed/variable plan existed, so legacy rows still render instead of showing blanks.
+const costSides = (budget) => budget?.costBreakdown || {
+  fixed: { allocated: 0, spent: 0, reserved: 0, committed: 0, variance: 0, utilization: 0 },
+  variable: { allocated: Number(budget?.allocated || 0), spent: Number(budget?.spent || 0), reserved: Number(budget?.reserved || 0), committed: Number(budget?.spent || 0) + Number(budget?.reserved || 0), variance: Number(budget?.available || 0), utilization: 0 },
+};
+
+// Pacing, forecast and baseline drift for one budget. These are the planning signals the
+// annual total cannot show: whether spend is ahead of the plan *for this point in the year*,
+// where the run rate lands at year end, and how far the plan has moved from what was approved.
+const BudgetPacing = ({ budget, isHead, onBaseline }) => {
+  const { toDate, forecast, baselineView: base, control } = budget;
+  if (!toDate || !forecast) return null; // Pre-planning budget; nothing to pace against.
+  const pace = toDate.planned > 0 ? (toDate.committed / toDate.planned) * 100 : null;
+  const aheadOfPlan = toDate.variance < 0;
+  const willOverrun = forecast.variance < 0;
+  return (
+    <div className="mt-3 space-y-2 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <span className="font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          Plan to date{toDate.periodsElapsed ? ` · ${toDate.periodsElapsed} mo` : ''}
+        </span>
+        {!toDate.phased && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">assumed even</span>}
+        {control?.breached && <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">LIMIT BREACHED</span>}
+        {control?.mode === 'soft' && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">soft control</span>}
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+        <div>
+          <p className="text-neutral-500 dark:text-neutral-400">Planned by now</p>
+          <p className="font-semibold text-neutral-800 dark:text-neutral-100">{formatCurrency(toDate.planned)}</p>
+        </div>
+        <div>
+          <p className="text-neutral-500 dark:text-neutral-400">Timing variance</p>
+          <p className={`font-semibold ${aheadOfPlan ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+            {aheadOfPlan ? 'ahead ' : 'behind '}{formatCurrency(Math.abs(toDate.variance))}
+          </p>
+        </div>
+        <div>
+          <p className="text-neutral-500 dark:text-neutral-400">Pace</p>
+          <p className={`font-semibold ${pace > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-800 dark:text-neutral-100'}`}>
+            {pace === null ? '—' : `${pace.toFixed(0)}% of plan`}
+          </p>
+        </div>
+        <div>
+          <p className="text-neutral-500 dark:text-neutral-400">Year-end forecast</p>
+          <p className={`font-semibold ${willOverrun ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-800 dark:text-neutral-100'}`}>
+            {formatCurrency(forecast.projected)}
+            {forecast.confidence !== 'high' && forecast.confidence !== 'none' && <span className="ml-1 font-normal text-neutral-400">({forecast.confidence})</span>}
+          </p>
+        </div>
+      </div>
+      {willOverrun && forecast.confidence !== 'none' && (
+        <p className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+          At {formatCurrency(forecast.runRate)}/month this ends {formatCurrency(Math.abs(forecast.variance))} over.
+          {forecast.monthsOfCover !== null && ` About ${forecast.monthsOfCover} month${forecast.monthsOfCover === 1 ? '' : 's'} of cover left.`}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        {base ? (
+          <span className="text-neutral-500 dark:text-neutral-400">
+            Baseline {formatCurrency(base.allocated)}
+            {base.drift !== 0 && (
+              <span className={base.drift > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-sky-700 dark:text-sky-300'}>
+                {' '}· drift {base.drift > 0 ? '+' : '−'}{formatCurrency(Math.abs(base.drift))} ({base.driftPct > 0 ? '+' : ''}{base.driftPct.toFixed(1)}%)
+              </span>
+            )}
+            {base.revision > 0 && ` · rev ${base.revision}`}
+          </span>
+        ) : (
+          <span className="text-neutral-500 dark:text-neutral-400">No approved baseline yet.</span>
+        )}
+        {isHead && (
+          <button type="button" onClick={onBaseline} className="font-semibold text-primary hover:underline">
+            {base ? 'Re-baseline' : 'Approve baseline'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const FinanceBudgetsPage = () => {
   const { token, user } = useAuth();
+  // Department budgets fund running costs; project budgets fund delivery. They are separate
+  // pots, so the page shows one dimension at a time rather than mixing the two totals.
+  const [scope, setScope] = useState('department');
   const { loading, error, data, refetch } = useAsync(async () => {
-    const [budgetsRes, costCentersRes, catalogRes] = await Promise.all([financeApi.getBudgets(token), financeApi.getCostCenters(token), financeApi.getDepartmentCatalog(token)]);
-    return { budgets: toList(unwrap(budgetsRes)), costCenters: toList(unwrap(costCentersRes)), departmentCatalog: toList(unwrap(catalogRes)) };
-  }, [token]);
+    const [budgetsRes, costCentersRes, catalogRes, projectsRes, varianceRes] = await Promise.all([
+      financeApi.getBudgets(token, { scope }),
+      financeApi.getCostCenters(token),
+      financeApi.getDepartmentCatalog(token),
+      financeApi.getProjectCatalog(token).catch(() => null),
+      financeApi.getBudgetVariance(token, { groupBy: scope }).catch(() => null),
+    ]);
+    return {
+      budgets: toList(unwrap(budgetsRes)),
+      costCenters: toList(unwrap(costCentersRes)),
+      departmentCatalog: toList(unwrap(catalogRes)),
+      projectCatalog: toList(unwrap(projectsRes)),
+      variance: unwrap(varianceRes) || null,
+    };
+  }, [token, scope]);
+  const isProjectScope = scope === 'project';
   const budgets = useMemo(() => data.budgets || [], [data.budgets]);
   const costCenters = data.costCenters || [];
   const departments = (data.departmentCatalog || []).filter((d) => !d.isSystem);
   const departmentOptions = [{ value: '', label: 'Select department' }, ...departments.map((d) => ({ value: d._id, label: d.name }))];
+  const projectOptions = [{ value: '', label: 'Select project' }, ...(data.projectCatalog || []).map((p) => ({ value: p._id, label: p.code ? `${p.name} (${p.code})` : p.name }))];
+  const variance = data.variance;
 
   // Worst first, so over-budget and at-risk departments are what you see.
   const rankedBudgets = useMemo(() => [...budgets].sort((a, b) => budgetUsedPct(b) - budgetUsedPct(a)), [budgets]);
   const totals = useMemo(() => budgets.reduce((acc, b) => {
+    const sides = costSides(b);
     acc.allocated += Number(b.allocated || 0);
     acc.spent += Number(b.spent || 0);
     acc.reserved += Number(b.reserved || 0);
+    acc.fixedPlanned += Number(sides.fixed.allocated || 0);
+    acc.fixedCommitted += Number(sides.fixed.committed || 0);
+    acc.variablePlanned += Number(sides.variable.allocated || 0);
+    acc.variableCommitted += Number(sides.variable.committed || 0);
     if (b.status === 'over') acc.over += 1;
     if (b.status === 'at-risk') acc.atRisk += 1;
     return acc;
-  }, { allocated: 0, spent: 0, reserved: 0, over: 0, atRisk: 0 }), [budgets]);
+  }, { allocated: 0, spent: 0, reserved: 0, over: 0, atRisk: 0, fixedPlanned: 0, fixedCommitted: 0, variablePlanned: 0, variableCommitted: 0 }), [budgets]);
 
-  const emptyBudgetForm = { departmentId: '', fiscalYear: String(new Date().getFullYear()), allocated: '', spent: '', notes: '' };
+  const emptyBudgetForm = { departmentId: '', projectId: '', fiscalYear: String(new Date().getFullYear()), allocatedFixed: '', allocatedVariable: '', phasingMethod: 'even', control: 'hard', tolerancePct: '0', notes: '' };
   const [budgetForm, setBudgetForm] = useState(emptyBudgetForm);
   const [costCenterForm, setCostCenterForm] = useState({ name: '', code: '', departmentId: '', budget: '', spent: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -2804,32 +2925,69 @@ export const FinanceBudgetsPage = () => {
   const [adjusting, setAdjusting] = useState(null);
   const [savingAdjust, setSavingAdjust] = useState(false);
   const [adjustError, setAdjustError] = useState('');
+  const [baselining, setBaselining] = useState(null);
+  const [savingBaseline, setSavingBaseline] = useState(false);
+  const [baselineError, setBaselineError] = useState('');
+  const closeBaseline = useCallback(() => { setBaselining(null); setBaselineError(''); }, []);
   const closeAdjust = useCallback(() => { setAdjusting(null); setAdjustError(''); }, [setAdjusting, setAdjustError]);
   // Budgets and cost centres are set by the finance head; the team sees them read-only.
   const isHead = useIsFinanceHead();
 
-  const duplicateBudget = budgetForm.departmentId
-    ? budgets.find((b) => String(b.departmentId) === String(budgetForm.departmentId) && String(b.fiscalYear) === String(budgetForm.fiscalYear).trim())
-    : null;
+  const plannedFixed = Number(budgetForm.allocatedFixed) || 0;
+  const plannedVariable = Number(budgetForm.allocatedVariable) || 0;
+  const plannedTotal = plannedFixed + plannedVariable;
+
+  const duplicateBudget = isProjectScope
+    ? (budgetForm.projectId ? budgets.find((b) => String(b.projectId?._id || b.projectId) === String(budgetForm.projectId) && String(b.fiscalYear) === String(budgetForm.fiscalYear).trim()) : null)
+    : (budgetForm.departmentId ? budgets.find((b) => String(b.departmentId) === String(budgetForm.departmentId) && String(b.fiscalYear) === String(budgetForm.fiscalYear).trim()) : null);
 
   const saveBudget = async (e) => {
     e.preventDefault();
     if (duplicateBudget) return;
-    if ((Number(budgetForm.allocated) || 0) <= 0) {
-      setFormError('Allocation must be greater than zero.');
+    if (plannedTotal <= 0) {
+      setFormError('Enter a fixed or variable allocation greater than zero.');
       return;
     }
     setSubmitting(true);
     setFormError('');
     try {
-      await financeApi.createBudget({ departmentId: budgetForm.departmentId, fiscalYear: budgetForm.fiscalYear.trim(), allocated: Number(budgetForm.allocated) || 0, spent: Number(budgetForm.spent) || 0, notes: budgetForm.notes }, token);
+      // The total is sent alongside the split; the server rejects the two if they disagree.
+      await financeApi.createBudget({
+        scope,
+        departmentId: budgetForm.departmentId,
+        ...(isProjectScope ? { projectId: budgetForm.projectId } : {}),
+        fiscalYear: budgetForm.fiscalYear.trim(),
+        allocated: plannedTotal,
+        allocatedFixed: plannedFixed,
+        allocatedVariable: plannedVariable,
+        phasingMethod: budgetForm.phasingMethod,
+        control: budgetForm.control,
+        tolerancePct: Number(budgetForm.tolerancePct) || 0,
+        notes: budgetForm.notes,
+      }, token);
       setBudgetForm(emptyBudgetForm);
-      setNotice('Budget allocated. Expenses and payroll for this department are now checked against it.');
+      setNotice(isProjectScope ? 'Project budget allocated. Costs booked to this project are now checked against it.' : 'Budget allocated. Expenses and payroll for this department are now checked against it.');
       refetch();
     } catch (err) {
       setFormError(err.message || 'Failed to save budget');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const saveBaseline = async () => {
+    if (baselining.rebaseline && !baselining.reason.trim()) { setBaselineError('Re-baselining needs a reason.'); return; }
+    setSavingBaseline(true);
+    setBaselineError('');
+    try {
+      await financeApi.approveBudgetBaseline(baselining.budget._id, { rebaseline: baselining.rebaseline, reason: baselining.reason.trim() }, token);
+      setNotice(`${baselining.budget.projectId?.name || baselining.budget.department} baseline ${baselining.rebaseline ? 're-approved' : 'approved'} at ${formatCurrency(baselining.budget.allocated)}. Later changes show as drift against it.`);
+      setBaselining(null);
+      refetch();
+    } catch (err) {
+      setBaselineError(err.message || 'Failed to approve baseline');
+    } finally {
+      setSavingBaseline(false);
     }
   };
 
@@ -2843,7 +3001,7 @@ export const FinanceBudgetsPage = () => {
     setAdjustError('');
     try {
       // Posted as a delta with a reason, so each change is recorded on the budget.
-      await financeApi.adjustBudget(adjusting.budget._id, { delta, reason: adjusting.reason.trim() }, token);
+      await financeApi.adjustBudget(adjusting.budget._id, { delta, reason: adjusting.reason.trim(), costType: adjusting.costType || 'variable' }, token);
       setNotice(`${adjusting.budget.department} allocation ${delta > 0 ? 'increased' : 'reduced'} by ${formatCurrency(Math.abs(delta))} to ${formatCurrency(allocated)}.`);
       setAdjusting(null);
       refetch();
@@ -2876,49 +3034,141 @@ export const FinanceBudgetsPage = () => {
   return (
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
-        <Header title="Budgets" subtitle="Allocate → track spend → adjust" icon="account_balance_wallet" user={user} crumbs={['Finance', 'Budgets']} />
+        <Header title="Budgets & Cost Control" subtitle="Plan fixed and variable → phase it → track pace and forecast" icon="account_balance_wallet" user={user} crumbs={['Finance', 'Budgets']} />
         {error && <ErrorState description={error} onRetry={refetch} />}
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
 
+        <div className="flex flex-wrap items-center gap-1 rounded-xl border border-neutral-200 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-900" role="tablist" aria-label="Budget dimension">
+          {[{ id: 'department', label: 'Department-wise', icon: 'apartment' }, { id: 'project', label: 'Project-wise', icon: 'folder_special' }].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={scope === tab.id}
+              onClick={() => { setScope(tab.id); setBudgetForm(emptyBudgetForm); setFormError(''); }}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${scope === tab.id ? 'bg-primary text-white' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'}`}
+            >
+              <span className="material-symbols-outlined text-base">{tab.icon}</span>{tab.label}
+            </button>
+          ))}
+        </div>
+
         <StatGrid
           items={[
-            { label: 'Allocated', value: formatCurrency(totals.allocated), subtext: `${budgets.length} department budget${budgets.length === 1 ? '' : 's'}` },
-            { label: 'Spent', value: formatCurrency(totals.spent), subtext: totals.allocated ? `${((totals.spent / totals.allocated) * 100).toFixed(1)}% of allocation` : undefined },
-            { label: 'Reserved', value: formatCurrency(totals.reserved), subtext: 'Committed by open expenses' },
+            { label: 'Allocated', value: formatCurrency(totals.allocated), subtext: `${budgets.length} ${isProjectScope ? 'project' : 'department'} budget${budgets.length === 1 ? '' : 's'}` },
+            { label: 'Fixed costs', value: formatCurrency(totals.fixedCommitted), subtext: `of ${formatCurrency(totals.fixedPlanned)} planned` },
+            { label: 'Variable costs', value: formatCurrency(totals.variableCommitted), subtext: `of ${formatCurrency(totals.variablePlanned)} planned` },
             { label: 'Needs attention', value: totals.over + totals.atRisk, subtext: `${totals.over} over · ${totals.atRisk} at risk` },
           ]}
         />
+        {/* Portfolio pacing: the one line that says whether the whole book is on plan. */}
+        {variance?.rows?.length > 0 && variance.totals.plannedToDate > 0 && (
+          <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border px-4 py-3 text-sm ${variance.totals.pace > 100 ? 'border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-900/15' : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-900/15'}`}>
+            <span className="font-bold text-neutral-800 dark:text-neutral-100">
+              {variance.totals.pace > 100 ? 'Running ahead of plan' : 'On or behind plan'}
+              <span className="ml-2 font-normal text-neutral-600 dark:text-neutral-300">{variance.periodsElapsed} month{variance.periodsElapsed === 1 ? '' : 's'} in</span>
+            </span>
+            <span className="text-neutral-700 dark:text-neutral-200">
+              Committed <strong>{formatCurrency(variance.totals.committedToDate)}</strong> vs <strong>{formatCurrency(variance.totals.plannedToDate)}</strong> planned
+              <span className={`ml-1.5 font-semibold ${variance.totals.pace > 100 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'}`}>({variance.totals.pace.toFixed(0)}%)</span>
+            </span>
+            <span className="text-neutral-700 dark:text-neutral-200">
+              Year-end <strong>{formatCurrency(variance.totals.projected)}</strong>
+              <span className={`ml-1.5 font-semibold ${variance.totals.forecastVariance < 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                {variance.totals.forecastVariance < 0 ? `${formatCurrency(Math.abs(variance.totals.forecastVariance))} over` : `${formatCurrency(variance.totals.forecastVariance)} under`}
+              </span>
+            </span>
+            {variance.totals.breached > 0 && (
+              <span className="rounded bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                {variance.totals.breached} limit breach{variance.totals.breached === 1 ? '' : 'es'}
+              </span>
+            )}
+            {variance.totals.drift !== 0 && (
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                Baseline drift {variance.totals.drift > 0 ? '+' : '−'}{formatCurrency(Math.abs(variance.totals.drift))}
+              </span>
+            )}
+          </div>
+        )}
         <BudgetAlerts budgets={budgets} />
 
         <div className={`grid grid-cols-1 gap-6 ${isHead ? 'lg:grid-cols-[1fr,1.7fr]' : ''}`}>
           {!isHead ? null : (
           <section className={card}>
             <div className={inner}>
-              <SectionHdr title="Allocate budget" subtitle="One budget per department per year" />
+              <SectionHdr title={isProjectScope ? 'Allocate project budget' : 'Allocate department budget'} subtitle={isProjectScope ? 'One budget per project per year' : 'One budget per department per year'} />
               <form onSubmit={saveBudget} className="space-y-3">
+                {isProjectScope && (
+                  <Select
+                    label="Project"
+                    value={budgetForm.projectId}
+                    onChange={(e) => setBudgetForm((p) => ({ ...p, projectId: e.target.value }))}
+                    required
+                    options={projectOptions}
+                  />
+                )}
                 <Select
-                  label="Department"
+                  label={isProjectScope ? 'Owning department' : 'Department'}
                   value={budgetForm.departmentId}
                   onChange={(e) => setBudgetForm((p) => ({ ...p, departmentId: e.target.value }))}
                   required
                   options={departmentOptions}
+                  helperText={isProjectScope ? 'The department accountable for delivering this project.' : undefined}
                 />
                 <Input label="Fiscal year" placeholder="e.g. 2026" value={budgetForm.fiscalYear} onChange={(e) => setBudgetForm((p) => ({ ...p, fiscalYear: e.target.value }))} required />
                 {duplicateBudget && (
                   <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-                    <span>{duplicateBudget.department} already has a {duplicateBudget.fiscalYear} budget ({formatCurrency(duplicateBudget.allocated)}).</span>
-                    <button type="button" className="shrink-0 font-semibold underline" onClick={() => setAdjusting({ budget: duplicateBudget, allocated: duplicateBudget.allocated, reason: '' })}>Adjust it</button>
+                    <span>{duplicateBudget.projectId?.name || duplicateBudget.department} already has a {duplicateBudget.fiscalYear} budget ({formatCurrency(duplicateBudget.allocated)}).</span>
+                    <button type="button" className="shrink-0 font-semibold underline" onClick={() => setAdjusting({ budget: duplicateBudget, allocated: duplicateBudget.allocated, reason: '', costType: 'variable' })}>Adjust it</button>
                   </div>
                 )}
-                <Input label="Allocation" type="number" min="0" value={budgetForm.allocated} onChange={(e) => setBudgetForm((p) => ({ ...p, allocated: e.target.value }))} required />
-                <Input
-                  label="Already spent (optional)"
-                  type="number"
-                  min="0"
-                  value={budgetForm.spent}
-                  onChange={(e) => setBudgetForm((p) => ({ ...p, spent: e.target.value }))}
-                  helperText="Only when starting mid-year. Spend is tracked automatically from expenses and payroll after this."
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    label="Fixed allocation"
+                    type="number"
+                    min="0"
+                    value={budgetForm.allocatedFixed}
+                    onChange={(e) => setBudgetForm((p) => ({ ...p, allocatedFixed: e.target.value }))}
+                    helperText="Rent, salaries, licences"
+                  />
+                  <Input
+                    label="Variable allocation"
+                    type="number"
+                    min="0"
+                    value={budgetForm.allocatedVariable}
+                    onChange={(e) => setBudgetForm((p) => ({ ...p, allocatedVariable: e.target.value }))}
+                    helperText="Materials, travel, per-unit work"
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2 text-sm dark:bg-neutral-800/60">
+                  <span className="font-semibold text-neutral-600 dark:text-neutral-300">Total allocation</span>
+                  <span className="font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(plannedTotal)}</span>
+                </div>
+                <Select
+                  label="Phase across the year"
+                  value={budgetForm.phasingMethod}
+                  onChange={(e) => setBudgetForm((p) => ({ ...p, phasingMethod: e.target.value }))}
+                  options={[{ value: 'even', label: 'Even — spread equally over 12 months' }, { value: 'none', label: 'No phasing — annual total only' }]}
+                  helperText="Phasing is what lets spend be judged against the plan to date, not just the annual total."
                 />
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    label="Overspend control"
+                    value={budgetForm.control}
+                    onChange={(e) => setBudgetForm((p) => ({ ...p, control: e.target.value }))}
+                    options={[{ value: 'hard', label: 'Hard — block it' }, { value: 'soft', label: 'Soft — allow, flag it' }]}
+                  />
+                  <Input
+                    label="Tolerance %"
+                    type="number"
+                    min="0"
+                    max="50"
+                    step="0.5"
+                    value={budgetForm.tolerancePct}
+                    onChange={(e) => setBudgetForm((p) => ({ ...p, tolerancePct: e.target.value }))}
+                    helperText="Overrun allowed first"
+                  />
+                </div>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</span>
                   <textarea className={input} placeholder="Optional notes" rows={2} value={budgetForm.notes} onChange={(e) => setBudgetForm((p) => ({ ...p, notes: e.target.value }))} />
@@ -2970,16 +3220,17 @@ export const FinanceBudgetsPage = () => {
                     const pct = (v) => (allocated > 0 ? Math.min((v / allocated) * 100, 100) : 0);
                     const spentPct = pct(spent);
                     const reservedPct = Math.min(pct(reserved), 100 - spentPct);
+                    const sides = costSides(budget);
                     return (
                       <div key={budget._id} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
-                            <p className="font-semibold text-neutral-800 dark:text-neutral-100">{budget.department}</p>
-                            <p className="text-xs text-neutral-500">FY {budget.fiscalYear} · {budgetUsedPct(budget).toFixed(0)}% used</p>
+                            <p className="font-semibold text-neutral-800 dark:text-neutral-100">{budget.projectId?.name || budget.department}</p>
+                            <p className="text-xs text-neutral-500">{budget.projectId?.name ? `${budget.department} · ` : ''}FY {budget.fiscalYear} · {budgetUsedPct(budget).toFixed(0)}% used</p>
                           </div>
                           <div className="flex items-center gap-3">
                             <Pill value={budget.status} label={humanizeStatus(budget.status)} />
-                            {isHead && <button type="button" onClick={() => setAdjusting({ budget, allocated: budget.allocated, reason: '' })} className="text-xs font-semibold text-primary hover:underline">Adjust</button>}
+                            {isHead && <button type="button" onClick={() => setAdjusting({ budget, allocated: budget.allocated, reason: '', costType: 'variable' })} className="text-xs font-semibold text-primary hover:underline">Adjust</button>}
                           </div>
                         </div>
                         <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label={`${spentPct.toFixed(0)}% spent, ${reservedPct.toFixed(0)}% reserved`}>
@@ -2994,10 +3245,90 @@ export const FinanceBudgetsPage = () => {
                             </div>
                           ))}
                         </div>
+                        {/* Fixed vs variable: a budget can look healthy overall while one side
+                            of it has already overrun, so each side carries its own variance. */}
+                        <div className="mt-3 grid grid-cols-1 gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-800 sm:grid-cols-2">
+                          {[['Fixed', sides.fixed], ['Variable', sides.variable]].map(([label, side]) => {
+                            const planned = Number(side.allocated || 0);
+                            const committedSide = Number(side.committed || 0);
+                            const varianceAmt = Number(side.variance || 0);
+                            const usedPct = planned > 0 ? Math.min((committedSide / planned) * 100, 100) : 0;
+                            return (
+                              <div key={label} className="rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800/50">
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <span className="text-xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{label}</span>
+                                  <span className={`text-xs font-semibold ${varianceAmt < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                                    {varianceAmt < 0 ? 'over by ' : 'left '}{formatCurrency(Math.abs(varianceAmt))}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 text-xs text-neutral-600 dark:text-neutral-300">{formatCurrency(committedSide)} of {formatCurrency(planned)}</p>
+                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                                  <div className={varianceAmt < 0 ? 'h-full bg-rose-500' : label === 'Fixed' ? 'h-full bg-indigo-500' : 'h-full bg-sky-500'} style={{ width: `${usedPct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <BudgetPacing budget={budget} isHead={isHead} onBaseline={() => setBaselining({ budget, reason: '', rebaseline: Boolean(budget.baselineView) })} />
                       </div>
                     );
                   })}
-                  {budgets.length === 0 && <EmptyState icon="account_balance_wallet" title="No budgets yet" description="Allocate a budget so department expenses and payroll can be approved against it." />}
+                  {budgets.length === 0 && <EmptyState icon="account_balance_wallet" title={isProjectScope ? 'No project budgets yet' : 'No department budgets yet'} description={isProjectScope ? 'Allocate a project budget so costs booked to that project are checked against it.' : 'Allocate a budget so department expenses and payroll can be approved against it.'} />}
+                </div>
+              )}
+
+              {variance?.rows?.length > 0 && (
+                <div className="mt-6">
+                  <SectionHdr title={`Budget vs actual — ${isProjectScope ? 'project' : 'department'} wise`} subtitle="Pace and forecast; fastest-burning first" />
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[820px] text-left text-xs">
+                      <thead className="text-neutral-500 dark:text-neutral-400">
+                        <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                          <th scope="col" className="py-2 pr-3 font-bold">{isProjectScope ? 'Project' : 'Department'}</th>
+                          <th scope="col" className="py-2 pr-3 text-right font-bold">Allocated</th>
+                          <th scope="col" className="py-2 pr-3 text-right font-bold">Fixed variance</th>
+                          <th scope="col" className="py-2 pr-3 text-right font-bold">Variable variance</th>
+                          <th scope="col" className="py-2 pr-3 text-right font-bold">Pace</th>
+                          <th scope="col" className="py-2 pr-3 text-right font-bold">Forecast</th>
+                          <th scope="col" className="py-2 text-right font-bold">Used</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {variance.rows.map((row) => (
+                          <tr key={row.key} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
+                            <td className="py-2 pr-3 font-semibold text-neutral-800 dark:text-neutral-100">{row.label}</td>
+                            <td className="py-2 pr-3 text-right text-neutral-700 dark:text-neutral-200">{formatCurrency(row.allocated)}</td>
+                            {[row.fixed.variance, row.variable.variance].map((v, i) => (
+                              <td key={i} className={`py-2 pr-3 text-right font-semibold ${v < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                                {v < 0 ? '−' : ''}{formatCurrency(Math.abs(v))}
+                              </td>
+                            ))}
+                            <td className={`py-2 pr-3 text-right font-semibold ${row.pace > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{row.pace === null ? '—' : `${row.pace.toFixed(0)}%`}</td>
+                            <td className={`py-2 pr-3 text-right font-semibold ${row.forecastVariance < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                              {row.forecastVariance < 0 ? '−' : ''}{formatCurrency(Math.abs(row.forecastVariance))}
+                            </td>
+                            <td className={`py-2 text-right font-semibold ${row.utilization > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{row.utilization.toFixed(0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-neutral-200 font-bold dark:border-neutral-700">
+                          <td className="py-2 pr-3 text-neutral-800 dark:text-neutral-100">Total</td>
+                          <td className="py-2 pr-3 text-right text-neutral-800 dark:text-neutral-100">{formatCurrency(variance.totals.allocated)}</td>
+                          {[variance.totals.fixed.variance, variance.totals.variable.variance].map((v, i) => (
+                            <td key={i} className={`py-2 pr-3 text-right ${v < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                              {v < 0 ? '−' : ''}{formatCurrency(Math.abs(v))}
+                            </td>
+                          ))}
+                          <td className={`py-2 pr-3 text-right ${variance.totals.pace > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-800 dark:text-neutral-100'}`}>{variance.totals.pace === null ? '—' : `${variance.totals.pace.toFixed(0)}%`}</td>
+                          <td className={`py-2 pr-3 text-right ${variance.totals.forecastVariance < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                            {variance.totals.forecastVariance < 0 ? '−' : ''}{formatCurrency(Math.abs(variance.totals.forecastVariance))}
+                          </td>
+                          <td className="py-2 text-right text-neutral-800 dark:text-neutral-100">{variance.totals.utilization.toFixed(0)}%</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               )}
 
@@ -3044,6 +3375,13 @@ export const FinanceBudgetsPage = () => {
               onChange={(e) => setAdjusting((p) => ({ ...p, allocated: e.target.value }))}
               helperText={`Change: ${adjustedAllocation >= Number(adjusting.budget.allocated || 0) ? '+' : '−'} ${formatCurrency(Math.abs(adjustedAllocation - Number(adjusting.budget.allocated || 0)))}`}
             />
+            <Select
+              label="Apply the change to"
+              value={adjusting.costType}
+              onChange={(e) => setAdjusting((p) => ({ ...p, costType: e.target.value }))}
+              options={[{ value: 'variable', label: 'Variable allocation' }, { value: 'fixed', label: 'Fixed allocation' }]}
+              helperText="Keeps the fixed and variable plan adding up to the new total."
+            />
             {adjustedAllocation > 0 && adjustedAllocation < adjustCommitted && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                 Below what's already spent or reserved ({formatCurrency(adjustCommitted)}). The budget will show as over and new spend will be blocked.
@@ -3055,6 +3393,40 @@ export const FinanceBudgetsPage = () => {
             </label>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">The change and reason are appended to the budget notes and written to the audit log.</p>
             {adjustError && <p className="text-sm text-rose-600 dark:text-rose-300">{adjustError}</p>}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={Boolean(baselining)}
+        onClose={closeBaseline}
+        title={baselining ? `${baselining.rebaseline ? 'Re-baseline' : 'Approve baseline'} · ${baselining.budget.projectId?.name || baselining.budget.department}` : ''}
+        description={baselining ? `FY ${baselining.budget.fiscalYear} · locking ${formatCurrency(baselining.budget.allocated)} as the approved plan` : ''}
+        className="sm:max-w-lg"
+        footer={baselining && (
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={closeBaseline}>Cancel</Button>
+            <Button type="button" variant="primary" size="sm" disabled={savingBaseline} onClick={saveBaseline}>{savingBaseline ? 'Saving…' : baselining.rebaseline ? 'Re-baseline' : 'Approve baseline'}</Button>
+          </div>
+        )}
+      >
+        {baselining && (
+          <div className="space-y-3">
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">
+              {baselining.rebaseline
+                ? 'Re-baselining resets the approved plan to the current allocation and clears the revision count. Drift measured so far is lost, so do this only when the plan has genuinely been re-approved.'
+                : 'This locks the current allocation as the approved plan. Every later change is reported as drift against it, with a revision number.'}
+            </p>
+            {baselining.rebaseline && baselining.budget.baselineView && (
+              <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                Current baseline {formatCurrency(baselining.budget.baselineView.allocated)} · drift {baselining.budget.baselineView.drift > 0 ? '+' : '−'}{formatCurrency(Math.abs(baselining.budget.baselineView.drift))} over {baselining.budget.baselineView.revision} revision{baselining.budget.baselineView.revision === 1 ? '' : 's'}.
+              </div>
+            )}
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Reason{baselining.rebaseline && <span className="text-rose-600 dark:text-rose-300">*</span>}</span>
+              <textarea className={input} rows={2} placeholder={baselining.rebaseline ? 'e.g. Revised plan approved by the board in Q3' : 'Optional note'} value={baselining.reason} onChange={(e) => setBaselining((p) => ({ ...p, reason: e.target.value }))} />
+            </label>
+            {baselineError && <p className="text-sm text-rose-600 dark:text-rose-300">{baselineError}</p>}
           </div>
         )}
       </Modal>

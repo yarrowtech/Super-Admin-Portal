@@ -42,6 +42,13 @@ export const financeApi = {
     const query = new URLSearchParams(params).toString();
     return apiClient.get(`/api/dept/finance/budgets${query ? `?${query}` : ''}`, token);
   },
+  getProjectCatalog: (token) => apiClient.get('/api/dept/finance/projects/catalog', token),
+  getBudgetVariance: (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/finance/budgets/variance${query ? `?${query}` : ''}`, token);
+  },
+  approveBudgetBaseline: (id, data, token) => apiClient.post(`/api/dept/finance/budgets/${id}/baseline`, data, token),
+  setBudgetPhasing: (id, data, token) => apiClient.put(`/api/dept/finance/budgets/${id}/phasing`, data, token),
   createBudget: (data, token) => apiClient.post('/api/dept/finance/budgets', data, token),
   updateBudget: (id, data, token) => apiClient.put(`/api/dept/finance/budgets/${id}`, data, token),
 

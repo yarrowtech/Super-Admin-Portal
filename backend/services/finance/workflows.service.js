@@ -16,14 +16,146 @@ const notify = require('./notify.service');
 // Snapshot reads tolerate legacy float/negative amounts; writes below stay strict.
 const sum = (rows, field) => rows.reduce((n, row) => n + BigInt(S.amountOf(row[field])), 0n);
 const signed = n => n < 0n ? -money.decimal(-n) : money.decimal(n);
+const SPENT_STATUSES = ['approved', 'processing', 'completed', 'paid'];
+// Payroll is a fixed cost by nature, so it lands on the fixed side of every split below
+// without needing its own classification field.
+const isFixed = e => String(e.costType || 'variable') === 'fixed';
+// Months of a fiscal year that have begun, 1–12. A budget's progress is judged against the
+// plan for the periods that have actually started, not against the whole year.
+function elapsedPeriods(fiscalYear, now = new Date()) {
+  const year = Number.parseInt(String(fiscalYear).slice(0, 4), 10);
+  if (!Number.isFinite(year)) return 12;
+  const current = now.getUTCFullYear();
+  if (current > year) return 12;
+  if (current < year) return 0;
+  return now.getUTCMonth() + 1;
+}
+// Plan to date from the phasing profile; with no profile the annual plan is spread evenly,
+// which is the assumption a reader makes anyway when no profile was entered.
+function planToDate(b, elapsed) {
+  const rows = Array.isArray(b.phasing) ? b.phasing : [];
+  if (rows.length) {
+    let fixed = 0n; let variable = 0n;
+    for (const row of rows) {
+      if (Number(row.period) > elapsed) continue;
+      fixed += BigInt(S.amountOf(row.fixed || 0));
+      variable += BigInt(S.amountOf(row.variable || 0));
+    }
+    return { fixed, variable, phased: true };
+  }
+  const share = (total) => BigInt(S.amountOf(total || 0)) * BigInt(Math.max(0, Math.min(elapsed, 12))) / 12n;
+  return { fixed: share(b.allocatedFixed), variable: share(b.allocatedVariable), phased: false };
+}
 async function budgetSnapshot(b, session) {
   const expenses = await Expense.find({ budgetId: b._id, status: { $nin: ['draft', 'rejected', 'cancelled'] } }).session(session).lean();
   const payrolls = await Payroll.find({ budgetId: b._id, status: { $in: ['processed', 'disbursed'] } }).session(session).lean();
-  const spent = sum(expenses.filter(e => ['approved', 'processing', 'completed', 'paid'].includes(e.status)), 'amount') + sum(payrolls, 'grossPay');
-  const reserved = sum(expenses.filter(e => !['approved', 'processing', 'completed', 'paid'].includes(e.status)), 'amount');
+  const settled = expenses.filter(e => SPENT_STATUSES.includes(e.status));
+  const open = expenses.filter(e => !SPENT_STATUSES.includes(e.status));
+  const payrollSpent = sum(payrolls, 'grossPay');
+  const spent = sum(settled, 'amount') + payrollSpent;
+  const reserved = sum(open, 'amount');
   const allocated = BigInt(S.amountOf(b.allocated));
   const utilization = allocated ? Number((spent + reserved) * 10000n / allocated) / 100 : 0;
-  return { ...b.toObject(), spent: money.decimal(spent), reserved: money.decimal(reserved), available: signed(allocated - spent - reserved), utilization, status: utilization > 100 ? 'over' : utilization >= (b.alertThreshold || 85) ? 'at-risk' : 'on-track' };
+  // Fixed/variable breakdown of what has been committed, against how the allocation was
+  // planned. Variance is planned minus committed, so a negative figure is an overrun on
+  // that side of the budget even when the budget as a whole still looks healthy.
+  const fixedSpent = sum(settled.filter(isFixed), 'amount') + payrollSpent;
+  const fixedReserved = sum(open.filter(isFixed), 'amount');
+  const variableSpent = sum(settled.filter(e => !isFixed(e)), 'amount');
+  const variableReserved = sum(open.filter(e => !isFixed(e)), 'amount');
+  const planFixed = BigInt(S.amountOf(b.allocatedFixed || 0));
+  const planVariable = BigInt(S.amountOf(b.allocatedVariable || 0));
+  const costBreakdown = {
+    fixed: {
+      allocated: money.decimal(planFixed),
+      spent: money.decimal(fixedSpent),
+      reserved: money.decimal(fixedReserved),
+      committed: money.decimal(fixedSpent + fixedReserved),
+      variance: signed(planFixed - fixedSpent - fixedReserved),
+      utilization: planFixed ? Number((fixedSpent + fixedReserved) * 10000n / planFixed) / 100 : 0,
+    },
+    variable: {
+      allocated: money.decimal(planVariable),
+      spent: money.decimal(variableSpent),
+      reserved: money.decimal(variableReserved),
+      committed: money.decimal(variableSpent + variableReserved),
+      variance: signed(planVariable - variableSpent - variableReserved),
+      utilization: planVariable ? Number((variableSpent + variableReserved) * 10000n / planVariable) / 100 : 0,
+    },
+  };
+  // ── Plan to date ──────────────────────────────────────────────────────────
+  // Timing variance: committed so far against what the plan expected by now. This is what
+  // separates "spending too fast" from "spending as planned", which the annual total hides.
+  const elapsed = elapsedPeriods(b.fiscalYear);
+  const ptd = planToDate(b, elapsed);
+  const committedFixed = fixedSpent + fixedReserved;
+  const committedVariable = variableSpent + variableReserved;
+  const plannedToDate = ptd.fixed + ptd.variable;
+  const committed = spent + reserved;
+  const toDate = {
+    periodsElapsed: elapsed,
+    phased: ptd.phased,
+    planned: money.decimal(plannedToDate),
+    committed: money.decimal(committed),
+    // Negative means ahead of plan (overspending for this point in the year).
+    variance: signed(plannedToDate - committed),
+    variancePct: plannedToDate ? Number((plannedToDate - committed) * 10000n / plannedToDate) / 100 : 0,
+    fixed: { planned: money.decimal(ptd.fixed), committed: money.decimal(committedFixed), variance: signed(ptd.fixed - committedFixed) },
+    variable: { planned: money.decimal(ptd.variable), committed: money.decimal(committedVariable), variance: signed(ptd.variable - committedVariable) },
+  };
+
+  // ── Forecast ──────────────────────────────────────────────────────────────
+  // Year-end outturn projected from the run rate so far. Fixed costs are assumed to continue
+  // at their current monthly rate; the projection is only meaningful once a month has closed,
+  // so before that the forecast is simply the plan.
+  const runRate = elapsed > 0 ? committed / BigInt(elapsed) : 0n;
+  const projected = elapsed > 0 ? runRate * 12n : allocated;
+  const forecast = {
+    runRate: money.decimal(runRate),
+    projected: money.decimal(projected),
+    // Negative means the year is projected to end over budget.
+    variance: signed(allocated - projected),
+    // Months the current run rate can continue before the allocation is exhausted.
+    monthsOfCover: runRate > 0n ? Math.round(Number((allocated - committed) * 100n / runRate)) / 100 : null,
+    confidence: elapsed === 0 ? 'none' : elapsed < 3 ? 'low' : elapsed < 6 ? 'medium' : 'high',
+  };
+
+  // ── Baseline drift ────────────────────────────────────────────────────────
+  // How far the live allocation has moved from the plan that was approved.
+  const baseAllocated = BigInt(S.amountOf(b.baseline?.allocated || 0));
+  const baselineView = baseAllocated > 0n ? {
+    allocated: money.decimal(baseAllocated),
+    drift: signed(allocated - baseAllocated),
+    driftPct: Number((allocated - baseAllocated) * 10000n / baseAllocated) / 100,
+    revision: b.revision || 0,
+    approvedAt: b.baseline?.approvedAt || null,
+    approvedByName: b.baseline?.approvedByName || '',
+  } : null;
+
+  // Tolerance lets a budget absorb a controlled overrun before it counts as breached.
+  const tolerance = allocated * BigInt(Math.round(Number(b.tolerancePct || 0) * 100)) / 10000n;
+  const ceiling = allocated + tolerance;
+  const control = {
+    mode: b.control || 'hard',
+    tolerancePct: Number(b.tolerancePct || 0),
+    ceiling: money.decimal(ceiling),
+    headroom: signed(ceiling - committed),
+    breached: committed > ceiling,
+  };
+
+  return {
+    ...b.toObject(),
+    spent: money.decimal(spent),
+    reserved: money.decimal(reserved),
+    available: signed(allocated - spent - reserved),
+    utilization,
+    costBreakdown,
+    toDate,
+    forecast,
+    baselineView,
+    control,
+    status: utilization > 100 ? 'over' : utilization >= (b.alertThreshold || 85) ? 'at-risk' : 'on-track',
+  };
 }
 async function refreshBudget(budgetId, session) {
   if (!budgetId) return;
@@ -31,7 +163,22 @@ async function refreshBudget(budgetId, session) {
   const budget = await Budget.findByIdAndUpdate(budgetId, { $inc: { __v: 1 } }, { new: true, session });
   if (!budget) fail(422, 'Budget not found');
   const snapshot = await budgetSnapshot(budget, session);
-  if (snapshot.available < 0) fail(409, 'Operation would exceed available budget');
+  // Hard control refuses the operation; soft control lets it through and records the breach,
+  // for budgets where blocking the work would cost more than the overrun. Tolerance is
+  // already folded into `control.headroom`, so a budget with headroom is never refused.
+  if (snapshot.control.headroom < 0) {
+    if (snapshot.control.mode === 'hard') {
+      const err = new Error(snapshot.control.tolerancePct
+        ? `Operation would exceed the available budget plus its ${snapshot.control.tolerancePct}% tolerance`
+        : 'Operation would exceed available budget');
+      err.statusCode = 409;
+      err.details = { allocated: budget.allocated, committed: snapshot.toDate.committed, ceiling: snapshot.control.ceiling, headroom: snapshot.control.headroom };
+      throw err;
+    }
+    if (!budget.breachedAt) budget.breachedAt = new Date();
+  } else if (budget.breachedAt) {
+    budget.breachedAt = null; // Recovered, so a later breach is reported as new.
+  }
   Object.assign(budget, S.pick(snapshot, ['spent', 'reserved', 'available', 'utilization']));
   // Raise an alert the first time utilization crosses each level; `alertedAt` records
   // the highest level already announced so one crossing does not notify repeatedly.
@@ -55,10 +202,20 @@ async function selectBudget(body, departmentId, session) {
   if (body.budgetId) {
     const b = await Budget.findById(id(body.budgetId)).session(session);
     if (!b || String(b.departmentId) !== String(departmentId) || b.status === 'closed') fail(422, 'Budget must be open and belong to the department');
+    // A cost booked to a project must be charged to that project's budget, not to the
+    // department's running budget, or project profitability silently loses the spend.
+    if (body.projectId && b.scope === 'project' && String(b.projectId) !== String(body.projectId)) fail(422, 'Budget belongs to a different project');
     return b._id;
   }
   const year = String(body.fiscalYear || new Date(body.incurredDate || body.periodStart || Date.now()).getUTCFullYear());
-  const budgets = await Budget.find({ departmentId, fiscalYear: year, status: { $nin: ['closed', 'draft'] } }).session(session);
+  // With a project on the cost, its project budget is preferred; departmental budgets are
+  // the fallback so costs that are not project work keep working exactly as before.
+  if (body.projectId) {
+    const projectBudgets = await Budget.find({ scope: 'project', projectId: id(body.projectId), fiscalYear: year, status: { $nin: ['closed', 'draft'] } }).session(session);
+    if (projectBudgets.length > 1) fail(422, 'Choose a specific budget for this project and period');
+    if (projectBudgets.length === 1) return projectBudgets[0]._id;
+  }
+  const budgets = await Budget.find({ departmentId, fiscalYear: year, scope: { $ne: 'project' }, status: { $nin: ['closed', 'draft'] } }).session(session);
   if (budgets.length > 1) fail(422, 'Choose a specific budget for this department and period');
   return budgets[0]?._id || null;
 }
@@ -147,6 +304,14 @@ async function updatePayroll(req) {
     await audit(req, 'payroll_transition', p, before, { status: p.status, paymentId: p.paymentId }, session); return p;
   });
 }
+// Unset means variable: the safer default, since an unclassified cost that is really fixed
+// shows up as an unexplained variable overrun rather than quietly inflating fixed headroom.
+function costType(value) {
+  if (value === undefined || value === null || value === '') return 'variable';
+  const v = String(value).toLowerCase();
+  if (!['fixed', 'variable'].includes(v)) fail(422, 'Cost type must be fixed or variable');
+  return v;
+}
 function documents(body) {
   if (!Array.isArray(body || []) || (body || []).length > 10) fail(422, 'At most ten documents are allowed');
   return (body || []).map(d => {
@@ -167,7 +332,7 @@ async function createExpense(req) {
     }
     await openPeriod(b.financialPeriodId, session);
     const budgetId = await selectBudget(b, department._id, session);
-    const [e] = await Expense.create([{ title: text(b.title, 200), category: text(b.category, 100), amount: money.decimal(amount), departmentId: department._id, department: department.name, budgetId, financialPeriodId: b.financialPeriodId || null, vendor: b.vendor || null, costCenterId: b.costCenterId || null, incurredDate: b.incurredDate ? date(b.incurredDate) : new Date(), documents: documents(b.documents), notes: text(b.notes), submittedBy: actor(req), status: 'submitted', budgetReservedAt: new Date(), statusHistory: [{ from: '', to: 'submitted', action: 'submit', actor: actor(req), actorRole: req.user.role }] }], { session });
+    const [e] = await Expense.create([{ title: text(b.title, 200), category: text(b.category, 100), amount: money.decimal(amount), costType: costType(b.costType), departmentId: department._id, department: department.name, projectId: b.projectId ? id(b.projectId) : null, budgetId, financialPeriodId: b.financialPeriodId || null, vendor: b.vendor || null, costCenterId: b.costCenterId || null, incurredDate: b.incurredDate ? date(b.incurredDate) : new Date(), documents: documents(b.documents), notes: text(b.notes), submittedBy: actor(req), status: 'submitted', budgetReservedAt: new Date(), statusHistory: [{ from: '', to: 'submitted', action: 'submit', actor: actor(req), actorRole: req.user.role }] }], { session });
     await refreshBudget(budgetId, session); await audit(req, 'expense_submitted', e, null, e.toObject(), session); return e;
   });
 }
@@ -176,9 +341,10 @@ async function updateExpense(req) {
     const e = await Expense.findById(id(req.params.id)).session(session);
     if (!e) fail(404, 'Expense not found');
     if (!['draft', 'submitted', 'needs_information'].includes(e.status)) fail(409, 'Reviewed expenses are immutable');
-    if (Object.keys(req.body).some(k => !['title', 'category', 'amount', 'notes', 'documents', 'incurredDate'].includes(k))) fail(422, 'Use lifecycle actions to change financial assignments or status');
+    if (Object.keys(req.body).some(k => !['title', 'category', 'amount', 'notes', 'documents', 'incurredDate', 'costType'].includes(k))) fail(422, 'Use lifecycle actions to change financial assignments or status');
     await openPeriod(e.financialPeriodId, session);
     const before = e.toObject(); Object.assign(e, S.pick(req.body, ['title', 'category', 'notes']));
+    if (req.body.costType !== undefined) e.costType = costType(req.body.costType);
     if (req.body.amount !== undefined) e.amount = money.decimal(positive(req.body.amount));
     if (req.body.documents) e.documents = documents(req.body.documents);
     if (req.body.incurredDate) e.incurredDate = date(req.body.incurredDate);
@@ -245,4 +411,4 @@ async function expenseActionTxn(req) {
     return { request: e, workflow: null, budgetAlert: snapshot?.alert || null };
   });
 }
-module.exports = { createPayroll, updatePayroll, processPayroll, createExpense, updateExpense, expenseAction, budgetSnapshot, refreshBudget, signed };
+module.exports = { createPayroll, updatePayroll, processPayroll, createExpense, updateExpense, expenseAction, budgetSnapshot, refreshBudget, signed, elapsedPeriods, planToDate };

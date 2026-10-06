@@ -262,12 +262,30 @@ async function departmentalPnl(req) {
 // ---- Finance settings the UI mirrors -----------------------------------------
 // The receipt rule and alert levels live on the server; the form reads them so the
 // two can never drift apart.
+const settingsService = require('../../services/finance/settings.service');
+
 const getSettings = handler(async () => ({
   receiptRequiredAbove: require('../../config/financeThresholds').getReceiptThreshold(),
   budgetAlertLevels: require('../../config/financeThresholds').getBudgetAlertLevels(),
   currency: 'INR',
   locale: 'en-IN',
+  // Head-configurable organisation settings (prefixes, thresholds). Readable by the whole
+  // finance team so the UI can show the prefix a new invoice will take; writable by the head.
+  configurable: await settingsService.all(),
 }));
+
+// Finance Head only — the route guard enforces it, and this re-checks because a settings
+// write changes document numbering for everyone.
+const updateSettings = handler(async req => {
+  if (!head(req.user)) fail(403, 'Finance Head permission required');
+  const before = await settingsService.all();
+  const applied = await settingsService.setMany(req.body || {}, actor(req));
+  const Setting = require('../../models/finance/Setting');
+  // One audit row naming only the keys that changed, so the trail stays readable.
+  const row = await Setting.findOne({ key: Object.keys(applied)[0] });
+  await audit(req, 'finance_settings_updated', row, Object.fromEntries(Object.keys(applied).map(k => [k, before[k]])), applied);
+  return { updated: applied, settings: await settingsService.all() };
+});
 
 // ---- Global search ----------------------------------------------------------
 // One query across the records a finance user jumps between.
@@ -334,5 +352,5 @@ module.exports = {
   getGstReturn: handler(gstReturn), getTdsReturn: handler(tdsReturn), gstCsv, tdsCsv, auditCsv,
   createCompliance, updateCompliance,
   getPeriodSummary: handler(periodSummary), periodCsv, getRevenueReport: handler(revenueReport),
-  getCustomerBalances: handler(customerBalances), getAgingSummary: handler(agingSummary), search, getSettings, getDepartmentalPnl: handler(departmentalPnl),
+  getCustomerBalances: handler(customerBalances), getAgingSummary: handler(agingSummary), search, getSettings, updateSettings, getDepartmentalPnl: handler(departmentalPnl),
 };

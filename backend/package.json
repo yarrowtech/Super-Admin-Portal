@@ -20,7 +20,9 @@
     "audit:departments": "node scripts/migrateDepartmentCanonical.js",
     "migrate:departments": "node scripts/migrateDepartmentCanonical.js --apply",
     "audit:financial-periods": "node scripts/seedFinancialPeriods.js",
-    "seed:financial-periods": "node scripts/seedFinancialPeriods.js --apply"
+    "seed:financial-periods": "node scripts/seedFinancialPeriods.js --apply",
+    "audit:negative-invoices": "node scripts/convertNegativeInvoices.js",
+    "migrate:negative-invoices": "node scripts/convertNegativeInvoices.js --apply"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

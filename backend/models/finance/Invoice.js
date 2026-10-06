@@ -66,4 +66,13 @@ invoiceSchema.index({ issueDate: -1, status: 1 });
 invoiceSchema.path('status').enumValues.push('partially_paid');
 invoiceSchema.index({ status: 1, dueDate: 1 });
 
+// Dispute freeze and refund headroom. `disputeId` set means money must not move on this
+// invoice — checked inside the payment transaction, not by middleware, so it cannot race.
+invoiceSchema.add({
+  disputeId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceDispute', default: null, index: true },
+  refundedTotal: { type: Number, default: 0 },
+  // Watermark for overdue escalation, so one overdue invoice is not notified repeatedly.
+  escalatedAt: { type: Date, default: null },
+});
+
 module.exports = mongoose.models['FinanceInvoice'] || mongoose.model('FinanceInvoice', invoiceSchema);

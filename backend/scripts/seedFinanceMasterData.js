@@ -43,6 +43,7 @@ const ACCOUNTS = [
   ['5500', 'Travel', 'expense'],
   ['5600', 'Professional fees', 'expense'],
   ['5700', 'Marketing', 'expense'],
+  ['5800', 'Bad debt written off', 'expense'],
   ['5900', 'Bank charges', 'expense'],
 ];
 

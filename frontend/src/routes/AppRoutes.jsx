@@ -99,6 +99,11 @@ import {
   FinanceDirectoryPage,
   FinanceActivityPage,
   FinanceApprovalsPage,
+  FinanceControlTowerPage,
+  FinanceDisputesPage,
+  FinanceDisputeDetailPage,
+  FinanceRefundsPage,
+  FinanceNonCompliancePage,
   FinanceReviewPage,
   FinanceSettingsPage,
   FinanceSupportPage,
@@ -530,6 +535,11 @@ export default function AppRoutes() {
           <Route path="directory" element={<FinanceDirectoryPage />} />
           <Route path="activity" element={<FinanceActivityPage />} />
           <Route path="approvals" element={<FinanceApprovalsPage />} />
+          <Route path="control-tower" element={<FinanceControlTowerPage />} />
+          <Route path="disputes" element={<FinanceDisputesPage />} />
+          <Route path="disputes/:disputeId" element={<FinanceDisputeDetailPage />} />
+          <Route path="refunds" element={<FinanceRefundsPage />} />
+          <Route path="non-compliance" element={<FinanceNonCompliancePage />} />
           <Route path="review" element={<FinanceReviewPage />} />
           <Route path="settings" element={<FinanceSettingsPage />} />
           <Route path="support" element={<FinanceSupportPage />} />

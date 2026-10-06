@@ -10,6 +10,7 @@ const Account = require('../../models/finance/Account');
 const Journal = require('../../models/finance/JournalEntry');
 const { BankTransaction, TaxRule } = require('../../models/finance/FinanceOperations');
 const money = require('./money');
+const settings = require('./settings.service');
 const fail = (statusCode, message) => { throw Object.assign(new Error(message), { statusCode }); };
 const head = user => ['finance_manager', 'admin', 'super_admin'].includes(user?.role);
 const actor = req => req.user?.id || req.user?._id;
@@ -68,6 +69,10 @@ async function journal(req, source, lines, session, entryDate = new Date(), memo
     '1200': ['TDS receivable', 'asset'], '2400': ['GST output payable', 'liability'],
     '2500': ['TDS payable', 'liability'], '2510': ['Provident fund payable', 'liability'],
     '2520': ['Professional tax payable', 'liability'],
+    // A written-off dispute is a cost of doing business, not an operating expense; keeping
+    // it separate means bad debt is reportable without unpicking account 5000.
+    // 5800 — 5200 is already Rent in the seeded chart of accounts.
+    '5800': ['Bad debt written off', 'expense'],
   };
   const resolved = [];
   let debit = 0n; let credit = 0n;
@@ -119,7 +124,10 @@ async function createInvoice(req) {
     const dueDate = b.dueDate ? date(b.dueDate) : null;
     if (dueDate && dueDate < new Date(issueDate.toISOString().slice(0, 10))) fail(422, 'Due date cannot precede issue date');
     await openPeriod(b.financialPeriodId, session);
-    const inv = new Invoice({ ...payload, ...amounts, invoiceNumber: text(b.invoiceNumber, 100) || `INV-${crypto.randomUUID()}`, currency: 'INR', issueDate, dueDate, amountPaid: 0, balanceDue: amounts.receivable, status: 'draft', createdBy: actor(req) });
+    // Sequential per the configured prefix (§A), allocated atomically; an explicit
+    // invoiceNumber in the request still wins, for imports and migrations.
+    const invoiceNumber = text(b.invoiceNumber, 100) || await settings.nextNumber('invoice', session, issueDate);
+    const inv = new Invoice({ ...payload, ...amounts, invoiceNumber, currency: 'INR', issueDate, dueDate, amountPaid: 0, balanceDue: amounts.receivable, status: 'draft', createdBy: actor(req) });
     if (b.status === 'sent') await finalize(req, inv, session);
     await inv.save({ session });
     await audit(req, 'invoice_created', inv, null, inv.toObject(), session);
@@ -198,6 +206,10 @@ async function createPayment(req) {
       const inv = await Invoice.findById(invoiceId).session(session);
       if (!inv || (req.projectId && String(inv.projectId) !== String(req.projectId))) fail(404, 'Invoice not found');
       if (['draft', 'void'].includes(inv.status) || inv.invoiceType !== 'customer') fail(409, 'Only issued customer invoices can receive payments');
+      // Dispute freeze (§F): a contested invoice takes no money until the dispute is
+      // resolved. Checked here, inside the transaction that reads the invoice, so a
+      // dispute raised concurrently cannot slip past between check and write.
+      if (inv.disputeId) fail(409, 'Invoice is under dispute; resolve the dispute before recording payment');
       await openPeriod(inv.financialPeriodId, session);
       const owner = String(inv.client || inv.clientName);
       if (customer && owner !== customer) fail(422, 'All allocations must belong to the same customer'); customer = owner; name = inv.clientName;

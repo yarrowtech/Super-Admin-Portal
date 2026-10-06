@@ -161,7 +161,7 @@ Location: /employee
 
 Location: /finance/dashboard
 
-Verification basis for this section (1 October 2026, payroll rows revised 6 October 2026): `npm run verify:finance-portal` logs in as a real finance head and a real finance employee over HTTP and exercises the endpoint table in that script — all returned 200, with a finance employee refused a head-only chart-of-accounts write (403) and an unauthenticated request refused (401). Automated suites: 45 finance tests pass (`backend/__tests__/finance*.test.js`, `vendorLedger.test.js`, `e2e.financeLawWorkflow.test.js`); the whole backend suite is 98 of 99, the one failure being the pre-existing HR issue in note 5 below.
+Verification basis for this section (1 October 2026, payroll rows revised 6 October 2026): `npm run verify:finance-portal` logs in as a real finance head and a real finance employee over HTTP and exercises the endpoint table in that script — all returned 200, with a finance employee refused a head-only chart-of-accounts write (403) and an unauthenticated request refused (401). Automated suites, re-run 6 October 2026 after the Control Tower / Risk & Recovery build: **88 finance tests pass** (`backend/__tests__/finance*.test.js`, `vendorLedger.test.js`, `e2e.financeLawWorkflow.test.js`) — up from 45, with 43 added across `financeDispute`, `financeRefund`, `financeNonCompliance` and `financeControlTower`. The whole backend suite is **142 of 143**, the one failure being the pre-existing, unowned HR issue in review note 5 of this document, which also fails in isolation and predates all finance work.
 
 The payroll probe and the salary-profile 403 check were removed with the feature; the access-control gate now probes a head-only account write instead.
 
@@ -182,21 +182,26 @@ Working is ticked where an endpoint returned a correct authenticated response AN
 | 8.11 | Documents | [x] | [ ] | [ ] | Personal records via `/api/employee/documents` 200, not a finance route. Untested here |
 | 8.12 | Team | [x] | [ ] | [ ] | `/team` 200. Shared collab module; no finance-specific test |
 | 8.13 | Messages | [x] | [ ] | [ ] | `/chat/threads` 200. Shared collab module; no finance-specific test |
-| 8.14 | Reports | [x] | [x] | [ ] | `/reports/trial-balance`, `/reports/departmental-pnl` 200; ledger-consistency test |
-| 8.15 | Compliance | [x] | [x] | [ ] | `tax rules: effective dates, overlap, immutability and head-only configuration` |
+| 8.14 | Reports | [x] | [x] | [ ] | `/reports/trial-balance`, `/reports/departmental-pnl` 200; ledger-consistency test. Project P&L / contribution margin and a cash flow statement added 6 Oct 2026; tax-liability reports retired (see note 6) |
+| 8.15 | Compliance | [x] | [x] | [ ] | `tax rules: effective dates, overlap, immutability and head-only configuration`. Tax-rule configuration retained; tax *reporting* removed |
 | 8.16 | Vendor and client directory | [x] | [x] | [ ] | 9 vendor-ledger tests incl. concurrent-overspend and duplicate-reference rollback |
 | 8.17 | Activity | [x] | [x] | [ ] | `/audit-logs` 200; audit entries asserted across the financial tests |
 | 8.18 | Approvals | [x] | [x] | [ ] | `queue: head sees the whole team…`; `submitting an invoice notifies the head…` |
-| 8.19 | Settings | [x] | [ ] | [ ] | `/settings` 200 (server-owned finance rules). Page itself untested |
+| 8.19 | Settings | [x] | [x] | [ ] | `/settings` 200; `PUT /settings` is head-only and validates every key. Drives document prefixes and Control Tower thresholds |
 | 8.20 | Support | [x] | [ ] | [ ] | Static page; no endpoint and no test |
+| 8.21 | Disputes and refunds | [x] | [x] | [ ] | `financeDispute.test.js` (10), `financeRefund.test.js` (10). Raising a dispute freezes payment on the subject; refunds are capped at the unrefunded receipt and re-checked at processing |
+| 8.22 | Non-compliance tracking | [x] | [x] | [ ] | `financeNonCompliance.test.js` (11), incl. escalation into a payment-freezing dispute and the department-scoped justification guard |
+| 8.23 | Finance Control Tower | [x] | [x] | [ ] | `financeControlTower.test.js` (12), incl. the card/drill-down agreement invariant and graceful degradation when one aggregation fails |
 
 Known gaps in this portal, carried forward rather than hidden:
 
-1. Two invoices hold negative amounts (`INV-202601-4584`, `INV-202601-8248`, −1000 each). `node scripts/auditFinanceAmounts.js` lists them. They need a business decision — void, or raise a credit note — not an automated fix.
+1. Two invoices hold negative amounts (`INV-202601-4584`, `INV-202601-8248`, −1000 each). A converter now exists: `npm run audit:negative-invoices` reports what it would change (dry run, confirmed to find exactly these two), and `npm run migrate:negative-invoices` converts each into a credit note, voids the invoice at zero and posts a balanced correcting entry. Idempotent via `sourceKey`. **Not yet run against any database** — take a backup first; this remains a business decision.
 2. The GST/TDS seed rates are the common defaults. Verify against current statute before filing. (PF and Professional Tax, and the `FINANCE_PF_RATE_BP` / `FINANCE_PF_WAGE_CEILING` / `FINANCE_PT_DISABLED` settings, went with payroll on 6 October 2026 — see row 8.7.)
 3. Income-tax TDS on salary no longer applies; it went with payroll on 6 October 2026. TDS on vendor/customer invoices is unaffected and still driven by the configured tax rules.
-4. External filing integrations (GSTN, TRACES) are not connected and are labelled as such in the UI.
-5. Rows 8.9–8.13 and 8.19–8.20 are reachable but rely on shared modules owned outside finance; they need their own tests before anyone ticks Working.
+4. External filing integrations (GSTN, TRACES) are not connected. Tax *reporting* was removed on 6 October 2026 at the owner's direction: `/reports/tax-summary`, `/reports/itr-summary`, `/tax/gst-return`, `/tax/tds-return` and their CSV exports are gone. Tax *rules* (`/tax-rules`) and invoice GST/TDS fields are deliberately kept — `ruleFor()` in `operations.service.js` refuses an invoice whose non-zero GST rate has no active rule, and the invoice-maths tests assert it. No tax calculation or tax reporting was added.
+5. Rows 8.9–8.13 and 8.20 are reachable but rely on shared modules owned outside finance; they need their own tests before anyone ticks Working. (8.19 Settings now has its own head-only write path and validation, so it is ticked.)
+6. The Control Tower's traffic-light thresholds and all document prefixes are stored in `FinanceSetting` and editable by the Finance Head via `PUT /settings`. Defaults are in `services/finance/settings.service.js`; an unknown key is rejected rather than silently stored.
+7. Four design questions were resolved during the 6 October build and are recorded here because they are reversible: bad debt posts to a new account **5800** (5200 was already Rent in the seeded chart); the dispute freeze blocks *incoming payment* on a disputed invoice and *outgoing payment* on a disputed vendor, but does **not** block issuing new invoices to a disputed client; a Project Manager or Department Head may answer a justification for their own department (`POST /justifications/:id/respond` is the only finance route open to a non-finance role); and `missed_deadline` non-compliance is raised manually, not auto-detected from project task dates.
 
 ## 9. Law
 

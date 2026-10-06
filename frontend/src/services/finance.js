@@ -5,6 +5,9 @@ export const financeApi = {
   getDashboard: (token) => apiClient.get('/api/dept/finance/dashboard', token),
   getDepartmentFinancials: (token) => apiClient.get('/api/dept/finance/departments', token, { cache: false }),
   getDepartmentCatalog: (token) => apiClient.get('/api/dept/finance/departments/catalog', token, { cache: false }),
+  // Projects a cost can be booked to. Used by the expense and budget pages to offer a
+  // project dimension alongside the department one.
+  getProjectCatalog: (token) => apiClient.get('/api/dept/finance/projects/catalog', token, { cache: false }),
   getDepartmentFinancialProfile: (token, departmentId) => apiClient.get(`/api/dept/finance/departments/${encodeURIComponent(departmentId)}`, token, { cache: false }),
   getRequests: (token, params = {}) => {
     const query = new URLSearchParams(params).toString();
@@ -56,6 +59,17 @@ export const financeApi = {
   updateBudget: (id, data, token) => apiClient.put(`/api/dept/finance/budgets/${id}`, data, token),
   // Adds to or removes from an allocation; each change is recorded with its reason.
   adjustBudget: (id, data, token) => apiClient.post(`/api/dept/finance/budgets/${id}/adjust`, data, token),
+  // Planned vs committed, split fixed/variable. `groupBy` is 'department' or 'project'.
+  getBudgetVariance: (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/dept/finance/budgets/variance${query ? `?${query}` : ''}`, token);
+  },
+  // Freezes the plan as approved, so later changes report as drift against it rather than
+  // quietly re-planning to match the spend. Head-only.
+  approveBudgetBaseline: (id, data, token) => apiClient.post(`/api/dept/finance/budgets/${id}/baseline`, data, token),
+  // Spreads an annual allocation across 12 periods so variance is measured against the
+  // plan to date. Head-only.
+  setBudgetPhasing: (id, data, token) => apiClient.put(`/api/dept/finance/budgets/${id}/phasing`, data, token),
 
   getCostCenters: (token) => apiClient.get('/api/dept/finance/cost-centers', token),
   createCostCenter: (data, token) => apiClient.post('/api/dept/finance/cost-centers', data, token),
@@ -67,12 +81,14 @@ export const financeApi = {
   getTrialBalance: (token) => apiClient.get('/api/dept/finance/reports/trial-balance', token),
   getBalanceSheet: (token) => apiClient.get('/api/dept/finance/reports/balance-sheet', token),
   getProfitLoss: (token) => apiClient.get('/api/dept/finance/reports/profit-loss', token),
-  getTaxSummary: (token) => apiClient.get('/api/dept/finance/reports/tax-summary', token),
-  getItrSummary: (token) => apiClient.get('/api/dept/finance/reports/itr-summary', token),
 
   getPeriodSummary: (token, year) => apiClient.get(`/api/dept/finance/reports/period-summary?year=${encodeURIComponent(year)}`, token),
   // Revenue and direct costs per department, from posted journal lines.
   getDepartmentalPnl: (token, params = {}) => apiClient.get(`/api/dept/finance/reports/departmental-pnl?${new URLSearchParams(params)}`, token),
+  // Contribution margin per project, and cash in/out by activity — both read posted
+  // journal lines, so they agree with the trial balance by construction.
+  getProjectPnl: (token, params = {}) => apiClient.get(`/api/dept/finance/reports/project-pnl?${new URLSearchParams(params)}`, token),
+  getCashFlow: (token, params = {}) => apiClient.get(`/api/dept/finance/reports/cash-flow?${new URLSearchParams(params)}`, token),
   getRevenueReport: (token, params) => apiClient.get(`/api/dept/finance/reports/revenue?${new URLSearchParams(params)}`, token),
   getCustomerBalances: (token) => apiClient.get('/api/dept/finance/receivables/customers', token),
   // Server-owned finance rules (receipt threshold, budget alert levels) the UI mirrors.
@@ -86,23 +102,62 @@ export const financeApi = {
   getTaxRules: (token, params = {}) => apiClient.get(`/api/dept/finance/tax-rules?${new URLSearchParams(params)}`, token, { cache: false }),
   createTaxRule: (data, token) => apiClient.post('/api/dept/finance/tax-rules', data, token),
   updateTaxRule: (id, data, token) => apiClient.patch(`/api/dept/finance/tax-rules/${id}`, data, token),
-  getGstReturn: (token, params) => apiClient.get(`/api/dept/finance/tax/gst-return?${new URLSearchParams(params)}`, token, { cache: false }),
-  getTdsReturn: (token, params) => apiClient.get(`/api/dept/finance/tax/tds-return?${new URLSearchParams(params)}`, token, { cache: false }),
 
-  // Authenticated file downloads. kind: 'gst' | 'tds' | 'audit' | 'period' | 'report'.
+  // Authenticated file downloads. kind: 'audit' | 'period' | 'report'.
+  // The 'gst' and 'tds' worksheets went with the tax reports on 6 October 2026.
   download: (kind, params, token) => {
     const q = new URLSearchParams(params);
     const paths = {
-      gst: ['/api/dept/finance/tax/gst-return/export', 'gst-worksheet.csv'],
-      tds: ['/api/dept/finance/tax/tds-return/export', 'tds-worksheet.csv'],
       audit: ['/api/dept/finance/audit-logs/export', 'finance-audit-trail.csv'],
       period: ['/api/dept/finance/reports/period-summary/export', `finance-summary-${params.year}.csv`],
       report: ['/api/dept/finance/reports/export', `finance-report.${params.format === 'pdf' ? 'pdf' : 'csv'}`],
     };
+    if (!paths[kind]) throw new Error(`Unknown download kind "${kind}"`);
     const [path, name] = paths[kind];
     return apiClient.download(`${path}?${q}`, token, name);
   },
   downloadDocument: (kind, id, token) => apiClient.download(`/api/dept/finance/documents/${kind}/${id}/download`, token, `${kind}-${id}.pdf`),
+
+  // ── Finance Control Tower ─────────────────────────────────────────────────
+  // Never cached: a traffic light served stale could show money as payable after a
+  // dispute has frozen it.
+  getControlTower: (token) => apiClient.get('/api/dept/finance/control-tower', token, { cache: false }),
+  getControlTowerCard: (token, card, params = {}) =>
+    apiClient.get(`/api/dept/finance/control-tower/${encodeURIComponent(card)}?${new URLSearchParams(params)}`, token, { cache: false }),
+  getSummaryPack: (token) => apiClient.get('/api/dept/finance/control-tower/summary-pack', token, { cache: false }),
+
+  // ── Disputes ──────────────────────────────────────────────────────────────
+  getDisputes: (token, params = {}) => apiClient.get(`/api/dept/finance/disputes?${new URLSearchParams(params)}`, token, { cache: false }),
+  getDispute: (token, id) => apiClient.get(`/api/dept/finance/disputes/${id}`, token, { cache: false }),
+  createDispute: (data, token) => apiClient.post('/api/dept/finance/disputes', data, token),
+  reviewDispute: (id, data, token) => apiClient.patch(`/api/dept/finance/disputes/${id}/review`, data, token),
+  resolveDispute: (id, data, token) => apiClient.post(`/api/dept/finance/disputes/${id}/resolve`, data, token),
+  cancelDispute: (id, data, token) => apiClient.post(`/api/dept/finance/disputes/${id}/cancel`, data, token),
+
+  // ── Refunds ───────────────────────────────────────────────────────────────
+  getRefunds: (token, params = {}) => apiClient.get(`/api/dept/finance/refunds?${new URLSearchParams(params)}`, token, { cache: false }),
+  getRefund: (token, id) => apiClient.get(`/api/dept/finance/refunds/${id}`, token, { cache: false }),
+  createRefund: (data, token) => apiClient.post('/api/dept/finance/refunds', data, token),
+  submitRefund: (id, token) => apiClient.post(`/api/dept/finance/refunds/${id}/submit`, {}, token),
+  decideRefund: (id, data, token) => apiClient.post(`/api/dept/finance/refunds/${id}/decision`, data, token),
+  processRefund: (id, token) => apiClient.post(`/api/dept/finance/refunds/${id}/process`, {}, token),
+
+  // ── Non-compliance ────────────────────────────────────────────────────────
+  getNonCompliances: (token, params = {}) => apiClient.get(`/api/dept/finance/non-compliance?${new URLSearchParams(params)}`, token, { cache: false }),
+  getNonComplianceRecord: (token, id) => apiClient.get(`/api/dept/finance/non-compliance/${id}`, token, { cache: false }),
+  createNonCompliance: (data, token) => apiClient.post('/api/dept/finance/non-compliance', data, token),
+  acknowledgeNonCompliance: (id, data, token) => apiClient.patch(`/api/dept/finance/non-compliance/${id}/acknowledge`, data, token),
+  closeNonCompliance: (id, data, token) => apiClient.post(`/api/dept/finance/non-compliance/${id}/close`, data, token),
+  escalateNonCompliance: (id, data, token) => apiClient.post(`/api/dept/finance/non-compliance/${id}/escalate`, data, token),
+
+  // ── Justifications ("why was this cost incurred?") ────────────────────────
+  getJustifications: (token, params = {}) => apiClient.get(`/api/dept/finance/justifications?${new URLSearchParams(params)}`, token, { cache: false }),
+  askJustification: (data, token) => apiClient.post('/api/dept/finance/justifications', data, token),
+  respondJustification: (id, data, token) => apiClient.post(`/api/dept/finance/justifications/${id}/respond`, data, token),
+  decideJustification: (id, data, token) => apiClient.post(`/api/dept/finance/justifications/${id}/decide`, data, token),
+
+  // Head-configurable settings (document prefixes, traffic-light thresholds).
+  updateSettings: (data, token) => apiClient.put('/api/dept/finance/settings', data, token),
 
   getCompliance: (token) => apiClient.get('/api/dept/finance/compliance', token),
   createCompliance: (data, token) => apiClient.post('/api/dept/finance/compliance', data, token),

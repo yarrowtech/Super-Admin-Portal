@@ -68,4 +68,22 @@ expenseSchema.add({ vendor: { type: mongoose.Schema.Types.ObjectId, ref: 'Financ
 // expense is what makes a fixed-vs-variable budget variance reportable rather than guessed.
 expenseSchema.add({ costType: { type: String, enum: ['fixed', 'variable'], default: 'variable', index: true } });
 
+// Split allocation (§C): one cost shared across several projects or departments, e.g. a
+// cloud bill serving IT and Media. `departmentId`/`projectId` above remain the primary
+// dimension for backward compatibility and for single-allocation costs; when `allocations`
+// is non-empty it is authoritative, and the service enforces that it sums to `amount`.
+expenseSchema.add({
+  allocations: {
+    type: [{
+      departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true },
+      projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null },
+      costCenterId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceCostCenter', default: null },
+      amount: { type: Number, required: true, min: 0 },
+    }],
+    default: [],
+  },
+  disputeId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceDispute', default: null, index: true },
+  nonComplianceId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceNonCompliance', default: null },
+});
+
 module.exports = mongoose.models['FinanceExpense'] || mongoose.model('FinanceExpense', expenseSchema);

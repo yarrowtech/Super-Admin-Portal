@@ -30,6 +30,15 @@ module.exports = async function recordVendorEntry(id, body = {}, user = {}) {
       const vendor = await Vendor.findById(id).session(session);
       if (!vendor) fail(404, 'Vendor not found');
       if (vendor.status !== 'active') fail(409, 'Inactive vendors cannot receive new entries');
+      // Dispute freeze (§F): while a vendor is disputed, no money leaves on their account.
+      // Bills may still be recorded — the freeze is on payment, not on booking what is owed.
+      if (type === 'payment') {
+        const Dispute = require('../../models/finance/Dispute');
+        const active = await Dispute.exists({
+          subjectType: 'vendor_bill', vendor: vendor._id, status: { $in: ['open', 'under_review'] },
+        }).session(session);
+        if (active) fail(409, 'Vendor is under dispute; resolve the dispute before paying');
+      }
       if (vendor.ledger.some(entry => entry.type === type && entry.reference === reference)) fail(409, 'This vendor reference already exists');
       const owed = Number(vendor.balance) || 0;
       if (type === 'payment' && amount > owed) fail(409, 'Payment exceeds the outstanding vendor balance');

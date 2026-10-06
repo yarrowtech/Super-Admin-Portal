@@ -10,7 +10,6 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Modal from '../ui/Modal';
 import VendorLedger from './VendorLedger';
-import TaxFilingPanel from './TaxFilingPanel';
 import InvoiceLineItems from './InvoiceLineItems';
 import { blankLine, previewTotals } from './invoiceTotals';
 import ClientPicker from './ClientPicker';
@@ -3807,18 +3806,14 @@ export const FinanceReportsPage = () => {
       financeApi.getTrialBalance(token),
       financeApi.getBalanceSheet(token),
       financeApi.getProfitLoss(token),
-      financeApi.getTaxSummary(token),
-      financeApi.getItrSummary(token),
     ]);
-    const [reportsRes, trialRes, sheetRes, plRes, taxRes, itrRes] = results.map((r) => (r.status === 'fulfilled' ? unwrap(r.value) : null));
-    const failed = ['Report archive', 'Trial balance', 'Balance sheet', 'Profit & loss', 'Tax summary', 'ITR summary'].filter((_, i) => results[i].status === 'rejected');
+    const [reportsRes, trialRes, sheetRes, plRes] = results.map((r) => (r.status === 'fulfilled' ? unwrap(r.value) : null));
+    const failed = ['Report archive', 'Trial balance', 'Balance sheet', 'Profit & loss'].filter((_, i) => results[i].status === 'rejected');
     return {
       reports: toList(reportsRes || []),
       trialBalance: trialRes || { rows: [], totals: { debit: 0, credit: 0 } },
       balanceSheet: sheetRes || { assets: 0, liabilities: 0, equity: 0 },
       profitLoss: plRes || { revenue: 0, expenses: 0, netIncome: 0 },
-      taxSummary: taxRes || { taxableSales: 0, gstCollected: 0, tdsWithheld: 0 },
-      itrSummary: itrRes || { totalIncome: 0, totalExpenses: 0, taxableIncome: 0, estimatedTax: 0 },
       failed,
     };
   }, [token]);
@@ -3827,8 +3822,6 @@ export const FinanceReportsPage = () => {
   const trialBalance = data.trialBalance || { rows: [], totals: { debit: 0, credit: 0 } };
   const balanceSheet = data.balanceSheet || { assets: 0, liabilities: 0, equity: 0 };
   const profitLoss = data.profitLoss || { revenue: 0, expenses: 0, netIncome: 0 };
-  const taxSummary = data.taxSummary || { taxableSales: 0, gstCollected: 0, tdsWithheld: 0 };
-  const itrSummary = data.itrSummary || { totalIncome: 0, totalExpenses: 0, taxableIncome: 0, estimatedTax: 0 };
   const failedSources = data.failed || [];
 
   const tbRows = trialBalance.rows || [];
@@ -3974,18 +3967,6 @@ export const FinanceReportsPage = () => {
 
                 <section className={card}>
                   <div className={`${inner} space-y-4`}>
-                    <SectionHdr title="Tax" subtitle="From invoices (GST/TDS) and income vs. expenses (ITR)" />
-                    <StatGrid items={[
-                      { label: 'GST collected', value: formatCurrency(taxSummary.gstCollected), subtext: `On taxable sales of ${formatCurrency(taxSummary.taxableSales)}` },
-                      { label: 'TDS withheld', value: formatCurrency(taxSummary.tdsWithheld) },
-                      { label: 'Taxable income', value: formatCurrency(itrSummary.taxableIncome), subtext: `${formatCurrency(itrSummary.totalIncome)} income − ${formatCurrency(itrSummary.totalExpenses)} expenses` },
-                      { label: 'Estimated income tax', value: formatCurrency(itrSummary.estimatedTax), subtext: 'Indicative at a flat 25% — confirm with your CA' },
-                    ]} />
-                  </div>
-                </section>
-
-                <section className={card}>
-                  <div className={`${inner} space-y-4`}>
                     <SectionHdr
                       title="Trial balance"
                       subtitle={`Debit ${formatCurrency(tbDebit)} · Credit ${formatCurrency(tbCredit)}`}
@@ -4048,7 +4029,6 @@ const COMPLIANCE_ORDER = { overdue: 0, due_soon: 1, pending: 2, filed: 3 };
 
 export const FinanceCompliancePage = () => {
   const { token, user } = useAuth();
-  const isFinanceHead = useIsFinanceHead();
   const [statusFilter, setStatusFilter] = useStatusParam();
   const { loading, error, data, refetch } = useAsync(async () => ({ compliance: toList(unwrap(await financeApi.getCompliance(token))) }), [token]);
   const compliance = useMemo(() => data.compliance || [], [data.compliance]);
@@ -4125,7 +4105,6 @@ export const FinanceCompliancePage = () => {
           ]}
         />
 
-        <TaxFilingPanel token={token} isHead={isFinanceHead} canExportAudit={isFinanceHead || user?.role === 'ceo'} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
           <section className={card}>
@@ -4505,6 +4484,17 @@ export const FinanceActivityPage = () => {
   const closeAction = useCallback(() => setActingRequest(null), [setActingRequest]);
   const commentRequired = actingRequest && EXPENSE_ACTIONS_NEEDING_COMMENT.includes(actingRequest.action.id);
 
+  // Every financial change with who made it and when. Head and CEO only — this moved here
+  // when the tax filing panel that used to host it was retired.
+  const exportAudit = useCallback(async () => {
+    setActionError('');
+    try {
+      await financeApi.download('audit', { from: '2020-01-01', to: new Date().toISOString().slice(0, 10) }, token);
+    } catch (err) {
+      setActionError(err.message || 'Could not export the audit trail');
+    }
+  }, [token]);
+
   // Typing updates the box immediately; the request refetch waits for a pause.
   const [searchInput, setSearchInput] = useState('');
   useEffect(() => {
@@ -4663,7 +4653,19 @@ export const FinanceActivityPage = () => {
         {tab === 'audit' && (
           <section className={card}>
             <div className={inner}>
-              <SectionHdr title="Audit Logs" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{auditLogs.length} rows</p>} />
+              <SectionHdr
+                title="Audit Logs"
+                action={(
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{auditLogs.length} rows</p>
+                    {(isFinanceHead || role === 'ceo') && (
+                      <Button type="button" size="sm" variant="secondary" onClick={exportAudit}>
+                        <span className="material-symbols-outlined mr-1 text-[16px]">download</span>Export CSV
+                      </Button>
+                    )}
+                  </div>
+                )}
+              />
               {loading ? <SkeletonBlock /> : auditLogs.length === 0 ? <EmptyState icon="policy" title="No audit activity yet" /> : (
                 <div className="space-y-3">
                   {auditLogs.map((row) => (

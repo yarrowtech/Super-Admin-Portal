@@ -143,6 +143,7 @@ export const portalMenuConfig = {
   // control (Budgets, Accounting, Approval Rules) → personal workspace.
   finance: [
     { section: 'Overview', label: 'Dashboard', icon: 'dashboard', path: '/finance/dashboard', description: 'Financial control center' },
+    { section: 'Overview', label: 'Control Tower', icon: 'inventory', path: '/finance/dashboard/control-tower', description: 'Budget, payment, dispute and compliance status at a glance' },
     { section: 'Overview', label: 'Reports',   icon: 'bar_chart', path: '/finance/dashboard/reports', description: 'Financial reports' },
     // Same page, per role: the head's approval inbox / the employee's sent items.
     { section: 'Overview', label: 'Review Queue', icon: 'fact_check', path: '/finance/dashboard/review', description: 'Approve or return what the team submitted', roles: FINANCE_HEAD_ROLES },
@@ -189,9 +190,13 @@ export const portalMenuConfig = {
     },
     // Finance Head only (previously the Administration section).
     { section: 'Planning & Control', label: 'Approval Rules', icon: 'rule', path: '/finance/dashboard/approvals', description: 'Approval workflows', roles: FINANCE_HEAD_ROLES },
+    // Contested money and breaches of what was agreed.
+    { section: 'Risk & Recovery', label: 'Disputes',        icon: 'gavel',        path: '/finance/dashboard/disputes',        description: 'Contested invoices and bills; freezes payment until resolved' },
+    { section: 'Risk & Recovery', label: 'Refunds',         icon: 'undo',         path: '/finance/dashboard/refunds',         description: 'Money returned against a receipt' },
+    { section: 'Risk & Recovery', label: 'Non-Compliance',  icon: 'report',       path: '/finance/dashboard/non-compliance',  description: 'Missed deadlines, overruns, quality and scope breaches' },
     { section: 'My Workspace', label: 'Tasks',     icon: 'task',        path: '/finance/dashboard/tasks',     description: 'Workflow tasks and reminders' },
     { section: 'My Workspace', label: 'Leave',     icon: 'event_note',  path: '/finance/dashboard/leave',     description: 'Leave requests and status' },
-    { section: 'My Workspace', label: 'Documents', icon: 'folder_open', path: '/finance/dashboard/documents', description: 'Payslips and documents' },
+    { section: 'My Workspace', label: 'Documents', icon: 'folder_open', path: '/finance/dashboard/documents', description: 'Personal documents' },
     { section: 'My Workspace', label: 'Team',      icon: 'group',       path: '/finance/dashboard/team',      description: 'Finance department directory', roles: FINANCE_DEPT_ROLES },
     { section: 'My Workspace', label: 'Messages',  icon: 'forum',       path: '/finance/dashboard/messages',  description: 'Finance team messages', roles: FINANCE_DEPT_ROLES },
   ],

@@ -45,4 +45,11 @@ paymentSchema.index({ projectId: 1, reference: 1 }, { unique: true, sparse: true
 
 paymentSchema.add({ amountMinor: Number, allocations: [{ invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceInvoice' }, amountMinor: { type: Number, min: 1, validate: Number.isSafeInteger } }] });
 
+// Dispute freeze, and how much of this receipt has already been refunded — a refund can
+// never exceed `amount - refundedTotal`.
+paymentSchema.add({
+  disputeId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceDispute', default: null, index: true },
+  refundedTotal: { type: Number, default: 0 },
+});
+
 module.exports = mongoose.models['FinancePayment'] || mongoose.model('FinancePayment', paymentSchema);

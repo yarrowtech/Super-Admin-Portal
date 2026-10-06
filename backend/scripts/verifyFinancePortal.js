@@ -56,6 +56,16 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'checklist-probe-secret';
     ['x.1', 'Search', `${F}/search?q=test`, 'head'],
     ['x.2', 'Settings', `${F}/settings`, 'emp'],
     ['x.3', 'Receivables aging', `${F}/receivables/aging`, 'head'],
+    // Risk & Recovery and the Control Tower (added 6 October 2026).
+    ['8.21', 'Disputes', `${F}/disputes`, 'head'],
+    ['8.21b', 'Refunds', `${F}/refunds`, 'head'],
+    ['8.22', 'Non-compliance', `${F}/non-compliance`, 'head'],
+    ['8.22b', 'Justifications', `${F}/justifications`, 'head'],
+    ['8.23', 'Control Tower', `${F}/control-tower`, 'head'],
+    ['8.23b', 'Control Tower drill-down', `${F}/control-tower/open_disputes`, 'head'],
+    ['8.23c', 'Control Tower summary pack', `${F}/control-tower/summary-pack`, 'head'],
+    ['8.14c', 'Reports (project P&L)', `${F}/reports/project-pnl`, 'head'],
+    ['8.14d', 'Reports (cash flow)', `${F}/reports/cash-flow`, 'head'],
     // Leave and Documents are personal records: the finance pages call the shared
     // employee API, not a finance route. Probed as the employee who owns them.
     ['8.10', 'Leave (employee API)', '/api/dept/employee/leave', 'emp'],

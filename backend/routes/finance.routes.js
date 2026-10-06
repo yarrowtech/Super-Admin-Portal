@@ -15,11 +15,11 @@ const modularFinanceRoutes = require('../modules/finance/finance.routes');
 router.use(authenticate);
 router.use(authorize(ROLES.FINANCE_MANAGER, ROLES.FINANCE_EMPLOYEE, ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.CEO, ROLES.HR));
 router.use(authorizePortalAccess('finance'));
-router.use(cacheGetResponses('finance', { tags: ['finance', 'dashboard', 'analytics'], skip: (req) => /salary|payroll|financial-summary|invoices|payments|bank-transactions|expenses|budgets|reports|receivables|tax|audit-logs/.test(req.path) }));
+router.use(cacheGetResponses('finance', { tags: ['finance', 'dashboard', 'analytics'], skip: (req) => /financial-summary|invoices|payments|bank-transactions|expenses|budgets|reports|receivables|tax|audit-logs/.test(req.path) }));
 router.use(invalidateCacheAfterMutation('finance'));
 router.use('/module', modularFinanceRoutes);
 
-// CEO and HR can view finance but never change it (HR keeps only the payroll sync below).
+// CEO and HR can view finance but never change it.
 const canWriteFinance = (req, res, next) => {
   const role = String(req.user?.role || '').toLowerCase();
   const readonly = new Set([ROLES.CEO, ROLES.HR]);
@@ -35,12 +35,6 @@ const canControlFinance = (req, res, next) => {
   return res.status(403).json({ success: false, error: 'Finance Head permission required' });
 };
 
-const canSyncPayroll = (req, res, next) => {
-  const role = String(req.user?.role || '').toLowerCase();
-  if (role === ROLES.CEO) return res.status(403).json({ success: false, error: 'Read-only role for finance operations' });
-  return next();
-};
-
 // Maker-checker: finance employees prepare and submit; the finance head approves or returns.
 const headOnlyStatus = financeController.guardHeadOnlyStatus;
 const notUnderReview = financeController.guardNotUnderReview;
@@ -50,9 +44,6 @@ router.post('/review/:module/:id/decision', canControlFinance, financeController
 
 router.get('/bank-transactions', financeController.bankList);
 router.post('/bank-transactions/import', canWriteFinance, financeController.bankImport);
-router.get('/salary-profiles/employees', canControlFinance, financeController.salaryEmployees);
-router.get('/salary-profiles', canControlFinance, financeController.getSalaries);
-router.post('/salary-profiles', canControlFinance, financeController.saveSalary);
 
 router.get('/financial-summary', financeController.summary);
 router.get('/reports/export', financeController.reportExport);
@@ -111,11 +102,6 @@ router.get('/cost-centers', financeController.getCostCenters);
 router.post('/cost-centers', canControlFinance, financeController.createCostCenter);
 router.put('/cost-centers/:id', canControlFinance, financeController.updateCostCenter);
 
-// Payroll Processing
-router.get('/payrolls', financeController.getPayrolls);
-router.post('/payrolls', canWriteFinance, headOnlyStatus('payroll'), financeController.createPayroll);
-router.put('/payrolls/:id', canWriteFinance, headOnlyStatus('payroll'), notUnderReview('payroll'), financeController.updatePayroll);
-
 // Financial Reports
 router.get('/reports', financeController.getReports);
 router.post('/reports', canWriteFinance, financeController.createReport);
@@ -163,7 +149,6 @@ router.get('/audit-logs', financeController.getAuditLogs);
 router.get('/approvals', financeController.getApprovalWorkflows);
 router.post('/approvals', canWriteFinance, financeController.createApprovalWorkflow);
 router.patch('/approvals/:id/decision', canControlFinance, financeController.updateApprovalWorkflowDecision);
-router.post('/integrations/hr/payroll-sync', canSyncPayroll, financeController.syncPayrollFromHr);
 router.post('/integrations/law/compliance-link', canWriteFinance, financeController.linkComplianceWithLaw);
 router.get('/integrations/snapshot', financeController.getIntegrationSnapshot);
 

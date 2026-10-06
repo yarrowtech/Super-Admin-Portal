@@ -149,40 +149,6 @@ test('finance: invoice — employee drafts & submits, head returns, employee fix
   assert.equal(inv.balanceDue, 0);
 });
 
-test('finance: payroll — employee submits, head approves (budget charged once), only the head disburses', async () => {
-  const Department = require('../models/department/Department');
-  const dept = await Department.create({ name: 'Operations E2E', code: 'OPSE2E' }).catch(async () => Department.collection.insertOne({ name: 'Operations E2E', code: 'OPSE2E', isSystem: false }).then((r) => ({ _id: r.insertedId })));
-  const deptId = String(dept._id);
-  const budget = expectStatus(await api('POST', `${F}/budgets`, 'finHead', { departmentId: deptId, fiscalYear: String(new Date().getFullYear()), allocated: 500000 }), 201, 'head creates budget').data;
-
-  // Pay comes from a salary profile the head authorizes, never from amounts typed into the run.
-  expectStatus(await api('POST', `${F}/salary-profiles`, 'finEmp', { employee: ids.hr, departmentId: deptId, basePay: 55000, allowances: 5000, deductions: 5000, effectiveFrom: '2020-01-01' }), 403, 'employee sets salary');
-  expectStatus(await api('POST', `${F}/salary-profiles`, 'finHead', { employee: ids.hr, departmentId: deptId, basePay: 55000, allowances: 5000, deductions: 5000, effectiveFrom: '2020-01-01' }), 200, 'head authorizes salary');
-  const now = new Date(); const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-  const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-  const period = { employee: ids.hr, periodStart: `${month}-01`, periodEnd: lastDay };
-  expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', { ...period, status: 'processed' }), 403, 'employee creates processed payroll');
-  const run = expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', period), 201, 'employee drafts payroll').data;
-  assert.equal(run.grossPay, 60000);
-  // 5,000 profile deduction + PF 1,800 (12% of the 15,000 ceiling) + professional tax 200.
-  assert.equal(run.deductions, 7000);
-  assert.equal(run.netPay, 53000);
-  expectStatus(await api('POST', `${F}/payrolls`, 'finEmp', period), 409, 'duplicate payroll for the month');
-
-  expectStatus(await api('POST', `${F}/review/payroll/${run._id}/submit`, 'finEmp'), 200, 'employee submits payroll');
-  const processed = expectStatus(await api('POST', `${F}/review/payroll/${run._id}/decision`, 'finHead', { decision: 'approve' }), 200, 'head approves payroll').data;
-  assert.equal(processed.status, 'processed');
-
-  const budgets = expectStatus(await api('GET', `${F}/budgets`, 'finHead'), 200, 'budgets').data;
-  assert.equal(budgets.find((b) => String(b._id) === String(budget._id)).spent, 60000, 'budget charged gross pay exactly once');
-
-  expectStatus(await api('PUT', `${F}/payrolls/${run._id}`, 'finEmp', { status: 'disbursed' }), 403, 'employee disburses');
-  const paid = expectStatus(await api('PUT', `${F}/payrolls/${run._id}`, 'finHead', { status: 'disbursed' }), 200, 'head disburses').data;
-  assert.equal(paid.status, 'disbursed');
-  assert.ok(paid.paidOn, 'paidOn stamped');
-  expectStatus(await api('PUT', `${F}/payrolls/${run._id}`, 'finHead', { status: 'draft' }), 409, 'payroll cannot move backwards');
-});
-
 test('finance: journal — unbalanced cannot be submitted; approved entry posts and reaches the trial balance', async () => {
   const cash = expectStatus(await api('POST', `${F}/accounts`, 'finHead', { code: '1010', name: 'Current account', type: 'asset', normalBalance: 'debit' }), 201, 'head creates account').data;
   expectStatus(await api('POST', `${F}/accounts`, 'finHead', { code: '1010', name: 'Dup', type: 'asset' }), 409, 'duplicate account code');

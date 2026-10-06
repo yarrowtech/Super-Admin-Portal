@@ -4,7 +4,7 @@ import { financeApi } from '../../services/finance';
 
 const inr = (v) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(v) || 0);
 
-// Searches invoices, clients, vendors and payroll in one request. Debounced so typing
+// Searches invoices, clients and vendors in one request. Debounced so typing
 // does not fire a query per keystroke; results are keyed to the term they belong to, so a
 // slow earlier response can never overwrite a newer one.
 export default function GlobalFinanceSearch({ token }) {

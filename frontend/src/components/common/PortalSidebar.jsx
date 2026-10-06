@@ -128,7 +128,7 @@ const PortalSidebar = ({
   const prefixMatches = (pathname) => currentPath === pathname || currentPath.startsWith(pathname + '/');
 
   // Longest menu pathname matching the current route. Portals nest pages under
-  // their dashboard (e.g. /finance/dashboard/payroll), so a plain prefix match
+  // their dashboard (e.g. /finance/dashboard/expenses), so a plain prefix match
   // would light up Dashboard alongside the real page — only the most specific
   // match wins.
   const bestMatch = useMemo(() => {

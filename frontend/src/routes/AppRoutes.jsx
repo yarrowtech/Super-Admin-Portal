@@ -93,7 +93,6 @@ import {
   FinancePaymentsPage,
   FinanceExpensesPage,
   FinanceBudgetsPage,
-  FinancePayrollPage,
   FinanceAccountingPage,
   FinanceReportsPage,
   FinanceCompliancePage,
@@ -520,7 +519,6 @@ export default function AppRoutes() {
           <Route path="payments" element={<FinancePaymentsPage />} />
           <Route path="expenses" element={<FinanceExpensesPage />} />
           <Route path="budgets" element={<FinanceBudgetsPage />} />
-          <Route path="payroll" element={<FinancePayrollPage />} />
           <Route path="accounting" element={<FinanceAccountingPage />} />
           <Route path="tasks" element={<TaskWorkspacePage portal="finance" icon="task" title="Finance Tasks" description="The finance head assigns and manages finance work items; team members update their own progress." manageRoles={['finance_manager', 'admin', 'super_admin', 'superadmin']} />} />
           <Route path="leave" element={<EmployeeLeavePage />} />

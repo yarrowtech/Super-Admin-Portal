@@ -5,7 +5,6 @@ const Payment = require('../../models/finance/Payment');
 const Expense = require('../../models/finance/Expense');
 const Budget = require('../../models/finance/Budget');
 const CostCenter = require('../../models/finance/CostCenter');
-const Payroll = require('../../models/finance/Payroll');
 const FinancialReport = require('../../models/finance/FinancialReport');
 const FinancialPeriod = require('../../models/finance/FinancialPeriod');
 const ComplianceRecord = require('../../models/finance/Compliance');
@@ -39,12 +38,6 @@ const buildInvoiceNumber = () => {
   const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
   const rand = Math.floor(Math.random() * 9000) + 1000;
   return `INV-${stamp}-${rand}`;
-};
-
-// Include the complete run id to avoid payslip collisions across application processes.
-const buildPayslipNumber = (payroll) => {
-  const d = payroll.periodStart ? new Date(payroll.periodStart) : new Date();
-  return `PS-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}-${String(payroll._id).toUpperCase()}`;
 };
 
 const buildEntryNumber = () => {
@@ -144,39 +137,6 @@ const normalizeBudgetPayload = async (payload = {}) => {
     fiscalYear: payload.fiscalYear || payload.year || String(new Date().getFullYear()),
     allocated: Number(payload.allocated ?? payload.allocatedAmount) || 0,
     spent: Number(payload.spent ?? payload.spentAmount) || 0,
-    notes: payload.notes || ''
-  };
-};
-
-const normalizePayrollPayload = (payload = {}) => {
-  const year = Number(payload.year) || new Date().getFullYear();
-  const monthName = String(payload.month || '').trim();
-  const monthIndex = monthName
-    ? Math.max(
-        ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].findIndex((m) =>
-          monthName.toLowerCase().startsWith(m)
-        ),
-        0
-      )
-    : new Date().getMonth();
-  const periodStart = payload.periodStart || new Date(year, monthIndex, 1);
-  const periodEnd = payload.periodEnd || new Date(year, monthIndex + 1, 0);
-  const grossPay = Number(payload.grossPay ?? payload.baseSalary) || 0;
-  const deductions = Number(payload.deductions) || 0;
-  const allowances = Number(payload.allowances) || 0;
-  const computedGross = grossPay + allowances;
-  const netPay =
-    payload.netPay !== undefined ? Number(payload.netPay) : Math.max(computedGross - deductions, 0);
-
-  return {
-    employee: payload.employee,
-    employeeName: payload.employeeName || payload.name || 'Employee',
-    periodStart,
-    periodEnd,
-    grossPay: computedGross,
-    deductions,
-    netPay,
-    status: payload.status || 'draft',
     notes: payload.notes || ''
   };
 };
@@ -693,7 +653,6 @@ exports.getDashboard = async (req, res) => {
       expenses,
       payments,
       budgets,
-      payrollCount,
       accountCount,
       journalCount,
       pendingApprovals,
@@ -703,7 +662,6 @@ exports.getDashboard = async (req, res) => {
       Expense.find().sort({ createdAt: -1 }).lean(),
       Payment.find().sort({ paymentDate: -1 }).lean(),
       Budget.find().sort({ createdAt: -1 }).lean(),
-      Payroll.countDocuments(),
       Account.countDocuments(),
       JournalEntry.countDocuments(),
       ApprovalWorkflow.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(10).lean(),
@@ -816,7 +774,6 @@ exports.getDashboard = async (req, res) => {
           payments: payments.length,
           pendingExpenses: pendingRequests.length,
           budgets: budgets.length,
-          payrolls: payrollCount,
           accounts: accountCount,
           journalEntries: journalCount,
           totalBudget,
@@ -1595,97 +1552,6 @@ exports.updateCostCenter = async (req, res) => {
 };
 
 /**
- * Payroll
- */
-exports.getPayrolls = async (req, res) => {
-  try {
-    const payrolls = await Payroll.find().sort({ createdAt: -1 });
-    res.status(200).json({ success: true, data: payrolls });
-  } catch (err) {
-    sendError(res, err, 'Failed to fetch payrolls');
-  }
-};
-
-exports.createPayroll = async (req, res) => {
-  try {
-    const payload = normalizePayrollPayload(req.body || {});
-    const { departmentId } = await resolveDepartmentFields(req.body || {});
-    await assertOpenFinancialPeriod(req.body?.financialPeriodId);
-    const payrollAmount = assertPositiveMoney(payload.netPay || payload.grossPay, 'payroll amount');
-    const budgetSnapshot = departmentId ? await assertBudgetAvailable({
-      departmentId,
-      amount: payrollAmount,
-      fiscalYear: req.body?.fiscalYear,
-    }) : null;
-    const payrollId = new mongoose.Types.ObjectId();
-    const payroll = await Payroll.create({
-      _id: payrollId,
-      ...payload,
-      ...(payload.status !== 'draft' ? { payslipNumber: buildPayslipNumber({ ...payload, _id: payrollId }) } : {}),
-      departmentId,
-      budgetId: req.body?.budgetId || budgetSnapshot?.budget?._id || null,
-      financialPeriodId: req.body?.financialPeriodId || null,
-      createdBy: req.user?._id || req.user?.id || null,
-    });
-    if (budgetSnapshot?.budget?._id && ['processed', 'disbursed'].includes(String(payroll.status || '').toLowerCase())) {
-      await Budget.findByIdAndUpdate(budgetSnapshot.budget._id, { $inc: { spent: payrollAmount } });
-    }
-    await logAudit({
-      req,
-      action: 'payroll_processed',
-      resourceType: 'payroll',
-      resourceId: payroll._id,
-      meta: { employeeName: payroll.employeeName, departmentId: payroll.departmentId, budgetId: payroll.budgetId, netPay: payroll.netPay, status: payroll.status },
-      riskFlag: 'medium',
-    });
-    res.status(201).json({ success: true, data: payroll });
-  } catch (err) {
-    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create payroll record', details: err.details || err.message });
-  }
-};
-
-exports.updatePayroll = async (req, res) => {
-  try {
-    await assertOpenFinancialPeriod(req.body?.financialPeriodId);
-    const existing = await Payroll.findById(req.params.id).lean();
-    if (!existing) return res.status(404).json({ success: false, error: 'Payroll record not found' });
-    if (['disbursed'].includes(String(existing.status || '').toLowerCase()) && (req.body?.netPay !== undefined || req.body?.grossPay !== undefined)) {
-      return res.status(409).json({ success: false, error: 'Disbursed payroll cannot be re-amounted' });
-    }
-    // Lifecycle is forward-only: draft → processed → disbursed.
-    const PAYROLL_STAGES = ['draft', 'processed', 'disbursed'];
-    const fromStatus = String(existing.status || 'draft').toLowerCase();
-    const toStatus = req.body?.status !== undefined ? String(req.body.status).toLowerCase() : fromStatus;
-    if (!PAYROLL_STAGES.includes(toStatus)) {
-      return res.status(422).json({ success: false, error: `Invalid payroll status "${req.body.status}"` });
-    }
-    if (PAYROLL_STAGES.indexOf(toStatus) < PAYROLL_STAGES.indexOf(fromStatus)) {
-      return res.status(409).json({ success: false, error: `Payroll cannot move back from ${fromStatus} to ${toStatus}` });
-    }
-    const update = { ...req.body };
-    if (toStatus === 'disbursed' && fromStatus !== 'disbursed' && !update.paidOn) update.paidOn = new Date();
-    if (['processed', 'disbursed'].includes(toStatus) && !existing.payslipNumber) update.payslipNumber = buildPayslipNumber(existing);
-    const payroll = await Payroll.findByIdAndUpdate(req.params.id, update, { new: true });
-    // createPayroll only charges the budget for records created past draft; a draft
-    // advanced here is charged once, on leaving draft.
-    if (fromStatus === 'draft' && toStatus !== 'draft' && payroll.budgetId) {
-      await Budget.findByIdAndUpdate(payroll.budgetId, { $inc: { spent: Number(payroll.netPay || payroll.grossPay) || 0 } });
-    }
-    await logAudit({
-      req,
-      action: 'payroll_updated',
-      resourceType: 'payroll',
-      resourceId: payroll._id,
-      meta: { before: { status: existing.status, netPay: existing.netPay }, after: { status: payroll.status, netPay: payroll.netPay } },
-      riskFlag: 'medium',
-    });
-    res.status(200).json({ success: true, data: payroll });
-  } catch (err) {
-    res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update payroll record', details: err.details || err.message });
-  }
-};
-
-/**
  * Reports
  */
 exports.getReports = async (req, res) => {
@@ -2298,26 +2164,6 @@ exports.updateApprovalWorkflowDecision = async (req, res) => {
   }
 };
 
-exports.syncPayrollFromHr = async (req, res) => {
-  try {
-    const payload = normalizePayrollPayload(req.body || {});
-    const payroll = await Payroll.create({
-      ...payload,
-      notes: payload.notes || 'Synced from HR module',
-    });
-    await logAudit({
-      req,
-      action: 'payroll_synced_from_hr',
-      resourceType: 'payroll',
-      resourceId: payroll._id,
-      meta: { employeeName: payroll.employeeName },
-    });
-    res.status(201).json({ success: true, data: payroll });
-  } catch (err) {
-    sendError(res, err, 'Failed to sync payroll from HR');
-  }
-};
-
 exports.linkComplianceWithLaw = async (req, res) => {
   try {
     const { complianceId, lawReference } = req.body || {};
@@ -2342,8 +2188,7 @@ exports.linkComplianceWithLaw = async (req, res) => {
 
 exports.getIntegrationSnapshot = async (req, res) => {
   try {
-    const [payrollCount, pendingBudgets, pendingCompliance, pendingApprovals, pendingExpenses] = await Promise.all([
-      Payroll.countDocuments(),
+    const [pendingBudgets, pendingCompliance, pendingApprovals, pendingExpenses] = await Promise.all([
       Budget.countDocuments({ status: { $in: ['at-risk', 'over'] } }),
       ComplianceRecord.countDocuments({ status: { $in: ['pending', 'overdue'] } }),
       ApprovalWorkflow.countDocuments({ status: 'pending' }),
@@ -2352,7 +2197,6 @@ exports.getIntegrationSnapshot = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        hrPayrollSync: { totalPayrollRuns: payrollCount },
         adminBudgetApprovals: { flaggedBudgets: pendingBudgets, pendingApprovals },
         lawCompliance: { pendingCompliance },
         itInfraCost: { pendingExpenses },
@@ -2368,7 +2212,7 @@ exports.getIntegrationSnapshot = async (req, res) => {
 
 /**
  * Maker-checker review (finance employee prepares → finance head approves / returns)
- * Covers invoices, payroll runs and journal entries. Approving applies the real change.
+ * Covers invoices and journal entries. Approving applies the real change.
  */
 const REVIEW_MODULES = {
   invoice: {
@@ -2378,19 +2222,6 @@ const REVIEW_MODULES = {
     title: (d) => `${d.invoiceNumber} · ${d.clientName || 'Client'}`,
     amount: (d) => Number(d.total) || 0,
     approve: async (doc) => { doc.status = 'sent'; },
-  },
-  payroll: {
-    Model: Payroll,
-    label: 'Payroll run',
-    isDraft: (d) => d.status === 'draft',
-    title: (d) => `${d.employeeName || 'Employee'} · ${d.periodStart ? new Date(d.periodStart).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : ''}`,
-    amount: (d) => Number(d.netPay || d.grossPay) || 0,
-    // Same effect as processing it on the Payroll page: charged to the department budget once.
-    approve: async (doc) => {
-      doc.status = 'processed';
-      if (!doc.payslipNumber) doc.payslipNumber = buildPayslipNumber(doc);
-      if (doc.budgetId) await Budget.findByIdAndUpdate(doc.budgetId, { $inc: { spent: Number(doc.netPay || doc.grossPay) || 0 } });
-    },
   },
   journal: {
     Model: JournalEntry,
@@ -2414,12 +2245,6 @@ const reviewDetails = (module, d) => {
       items: (d.items || []).slice(0, 20).map((i) => ({ description: i.description || '', quantity: i.quantity, rate: i.rate, amount: i.amount })),
       subtotal: d.subtotal || 0, gstRate: d.gstRate || 0, gstAmount: d.gstAmount || 0, tdsRate: d.tdsRate || 0, tdsAmount: d.tdsAmount || 0,
       discount: d.discount || 0, total: d.total || 0,
-    };
-  }
-  if (module === 'payroll') {
-    return {
-      employeeName: d.employeeName, periodStart: d.periodStart, periodEnd: d.periodEnd,
-      grossPay: d.grossPay || 0, deductions: d.deductions || 0, netPay: d.netPay || 0, budgetLinked: Boolean(d.budgetId),
     };
   }
   return {
@@ -2525,7 +2350,7 @@ exports.guardHeadOnlyStatus = (module) => async (req, res, next) => {
   if (isFinanceHead(req)) return next();
   const status = req.body?.status;
   if (status === undefined || status === 'draft') return next();
-  const hint = module === 'invoice' ? 'Submit the invoice for approval instead' : module === 'payroll' ? 'Submit the payroll run for processing instead' : 'Submit it for review instead';
+  const hint = module === 'invoice' ? 'Submit the invoice for approval instead' : 'Submit it for review instead';
   return res.status(403).json({ success: false, error: `Only the finance head can change this status. ${hint}.` });
 };
 

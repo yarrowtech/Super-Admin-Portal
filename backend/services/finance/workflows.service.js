@@ -2,23 +2,18 @@
 const mongoose = require('mongoose');
 const S = require('./operations.service');
 const { money, fail, transaction, audit, actor, head, id, text, date, positive, journal, openPeriod } = S;
-const Payroll = require('../../models/finance/Payroll');
 const Expense = require('../../models/finance/Expense');
 const Budget = require('../../models/finance/Budget');
 const Payment = require('../../models/finance/Payment');
 const User = require('../../models/auth/User');
 const Department = require('../../models/department/Department');
-const { Salary } = require('../../models/finance/FinanceOperations');
 const { getReceiptThreshold, getBudgetAlertLevels } = require('../../config/financeThresholds');
-const { monthlyDeductions: statutoryDeductions } = require('./statutory');
 const { assertDepartmentAccess } = require('./departmentAccess');
 const notify = require('./notify.service');
 // Snapshot reads tolerate legacy float/negative amounts; writes below stay strict.
 const sum = (rows, field) => rows.reduce((n, row) => n + BigInt(S.amountOf(row[field])), 0n);
 const signed = n => n < 0n ? -money.decimal(-n) : money.decimal(n);
 const SPENT_STATUSES = ['approved', 'processing', 'completed', 'paid'];
-// Payroll is a fixed cost by nature, so it lands on the fixed side of every split below
-// without needing its own classification field.
 const isFixed = e => String(e.costType || 'variable') === 'fixed';
 // Months of a fiscal year that have begun, 1–12. A budget's progress is judged against the
 // plan for the periods that have actually started, not against the whole year.
@@ -48,18 +43,16 @@ function planToDate(b, elapsed) {
 }
 async function budgetSnapshot(b, session) {
   const expenses = await Expense.find({ budgetId: b._id, status: { $nin: ['draft', 'rejected', 'cancelled'] } }).session(session).lean();
-  const payrolls = await Payroll.find({ budgetId: b._id, status: { $in: ['processed', 'disbursed'] } }).session(session).lean();
   const settled = expenses.filter(e => SPENT_STATUSES.includes(e.status));
   const open = expenses.filter(e => !SPENT_STATUSES.includes(e.status));
-  const payrollSpent = sum(payrolls, 'grossPay');
-  const spent = sum(settled, 'amount') + payrollSpent;
+  const spent = sum(settled, 'amount');
   const reserved = sum(open, 'amount');
   const allocated = BigInt(S.amountOf(b.allocated));
   const utilization = allocated ? Number((spent + reserved) * 10000n / allocated) / 100 : 0;
   // Fixed/variable breakdown of what has been committed, against how the allocation was
   // planned. Variance is planned minus committed, so a negative figure is an overrun on
   // that side of the budget even when the budget as a whole still looks healthy.
-  const fixedSpent = sum(settled.filter(isFixed), 'amount') + payrollSpent;
+  const fixedSpent = sum(settled.filter(isFixed), 'amount');
   const fixedReserved = sum(open.filter(isFixed), 'amount');
   const variableSpent = sum(settled.filter(e => !isFixed(e)), 'amount');
   const variableReserved = sum(open.filter(e => !isFixed(e)), 'amount');
@@ -219,91 +212,6 @@ async function selectBudget(body, departmentId, session) {
   if (budgets.length > 1) fail(422, 'Choose a specific budget for this department and period');
   return budgets[0]?._id || null;
 }
-async function createPayroll(req) {
-  return transaction(async session => {
-    const b = req.body || {};
-    const employeeId = id(b.employee);
-    const employee = await User.findOne({ _id: employeeId, isActive: true }).session(session);
-    const salary = await Salary.findOne({ employee: employeeId }).session(session);
-    if (!employee || !salary) fail(422, 'An active employee and an authorized salary profile are required');
-    const start = date(b.periodStart, 'Period start'); const end = date(b.periodEnd, 'Period end');
-    if (end < start || start.toISOString().slice(0, 7) !== end.toISOString().slice(0, 7)) fail(422, 'Payroll must cover a single calendar month');
-    if (start < salary.effectiveFrom) fail(422, 'Salary profile is not effective for this period');
-    const periodKey = start.toISOString().slice(0, 7);
-    // Protect duplicates of historical runs created before periodKey was introduced.
-    const monthStart = new Date(`${periodKey}-01T00:00:00Z`); const nextMonth = new Date(monthStart); nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
-    if (await Payroll.exists({ employee: employeeId, periodStart: { $lt: nextMonth }, periodEnd: { $gte: monthStart } }).session(session)) fail(409, 'Payroll already exists for this employee and month');
-    await openPeriod(b.financialPeriodId, session);
-    const gross = BigInt(salary.baseMinor) + BigInt(salary.allowanceMinor);
-    // PF on basic pay, Professional Tax on gross, plus anything on the salary profile.
-    const statutory = statutoryDeductions({
-      basicMinor: salary.baseMinor,
-      grossMinor: Number(gross),
-      profileDeductionMinor: salary.deductionMinor,
-      month: start.getUTCMonth() + 1,
-    });
-    const deductions = BigInt(statutory.total);
-    if (gross <= deductions) fail(422, 'Net salary must be positive');
-    const budgetId = await selectBudget(b, salary.departmentId, session);
-    const [p] = await Payroll.create([{
-      employee: employeeId, employeeName: `${employee.firstName} ${employee.lastName}`, departmentId: salary.departmentId, budgetId,
-      periodStart: start, periodEnd: end, periodKey,
-      grossPay: money.decimal(gross), deductions: money.decimal(deductions), netPay: money.decimal(gross - deductions),
-      statutory: {
-        pf: money.decimal(BigInt(statutory.pf)),
-        professionalTax: money.decimal(BigInt(statutory.professionalTax)),
-        tds: money.decimal(BigInt(statutory.tds)),
-        other: money.decimal(BigInt(statutory.other)),
-        basis: statutory.basis,
-      },
-      salarySnapshot: salary.toObject(), status: 'draft', financialPeriodId: b.financialPeriodId || null, notes: text(b.notes), createdBy: actor(req),
-    }], { session });
-    await audit(req, 'payroll_draft_created', p, null, { employee: p.employee, periodKey }, session); return p;
-  });
-}
-async function processPayroll(req, p, session) {
-  if (!head(req.user)) fail(403, 'Finance Head permission required');
-  if (!p.employee || !p.salarySnapshot) fail(409, 'Legacy payroll must be reviewed and recreated from an authorized salary profile');
-  await openPeriod(p.financialPeriodId, session);
-  const gross = money.minor(p.grossPay); const net = money.minor(p.netPay); const deduction = money.minor(p.deductions);
-  if (gross !== net + deduction) fail(422, 'Payroll does not balance');
-  p.status = 'processed'; p.payslipNumber = `PS-${p.periodKey}-${p._id}`;
-  // Gross is the cost to the business; what is withheld becomes a payable to the
-  // relevant authority, and only the net is owed to the employee.
-  const pf = money.minor(p.statutory?.pf || 0);
-  const pt = money.minor(p.statutory?.professionalTax || 0);
-  const tds = money.minor(p.statutory?.tds || 0);
-  const otherWithheld = deduction - pf - pt - tds;
-  if (otherWithheld < 0) fail(422, 'Statutory deductions exceed the recorded total');
-  const entry = await journal(req, `payroll-${p._id}`, [
-    ['5100', gross, 0],
-    ['2200', 0, net + otherWithheld],
-    ['2510', 0, pf],
-    ['2520', 0, pt],
-    ['2500', 0, tds],
-  ], session, p.periodEnd, p.payslipNumber, p);
-  p.journalEntryId = entry._id;
-  await p.save({ session }); await refreshBudget(p.budgetId, session);
-}
-async function updatePayroll(req) {
-  return transaction(async session => {
-    if (!head(req.user)) fail(403, 'Finance Head permission required');
-    const p = await Payroll.findById(id(req.params.id)).session(session);
-    if (!p) fail(404, 'Payroll not found');
-    if (Object.keys(req.body).some(k => !['status', 'paidOn', 'notes'].includes(k))) fail(422, 'Salary amounts and employee identity are immutable');
-    const before = { status: p.status };
-    if (req.body.status === 'processed' && p.status === 'draft') await processPayroll(req, p, session);
-    else if (req.body.status === 'disbursed' && p.status === 'processed') {
-      await openPeriod(p.financialPeriodId, session);
-      const paidOn = req.body.paidOn ? date(req.body.paidOn) : new Date();
-      const amount = money.minor(p.netPay);
-      const [payment] = await Payment.create([{ amount: p.netPay, amountMinor: amount, direction: 'out', status: 'completed', reference: `PAYROLL-${p._id}`, paymentDate: paidOn, customerName: p.employeeName, method: 'bank', departmentId: p.departmentId, createdBy: actor(req) }], { session });
-      await journal(req, `payroll-paid-${p._id}`, [['2200', amount, 0], ['1000', 0, amount]], session, paidOn, p.payslipNumber, p);
-      p.paymentId = payment._id; p.status = 'disbursed'; p.paidOn = paidOn; await p.save({ session });
-    } else fail(409, 'Payroll must progress from draft to processed to disbursed');
-    await audit(req, 'payroll_transition', p, before, { status: p.status, paymentId: p.paymentId }, session); return p;
-  });
-}
 // Unset means variable: the safer default, since an unclassified cost that is really fixed
 // shows up as an unexplained variable overrun rather than quietly inflating fixed headroom.
 function costType(value) {
@@ -411,4 +319,4 @@ async function expenseActionTxn(req) {
     return { request: e, workflow: null, budgetAlert: snapshot?.alert || null };
   });
 }
-module.exports = { createPayroll, updatePayroll, processPayroll, createExpense, updateExpense, expenseAction, budgetSnapshot, refreshBudget, signed, elapsedPeriods, planToDate };
+module.exports = { createExpense, updateExpense, expenseAction, budgetSnapshot, refreshBudget, signed, elapsedPeriods, planToDate };

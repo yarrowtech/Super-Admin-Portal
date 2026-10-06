@@ -21,20 +21,6 @@ exports.getTransactions = async (req, res) => {
   }
 };
 
-exports.triggerPayrollFromHr = async (req, res) => {
-  try {
-    const data = await financeService.triggerPayrollFromHr({
-      payload: req.body || {},
-      actor: { id: req.user?.id || req.user?._id, role: req.user?.role },
-      projectId: req.projectId,
-    });
-    res.status(201).json({ success: true, data });
-  } catch (err) {
-    logger.error({ err }, "Finance module triggerPayrollFromHr error");
-    res.status(err.statusCode || 500).json({ success: false, error: "Failed to trigger payroll", details: err.message });
-  }
-};
-
 exports.createContractLinkedInvoice = async (req, res) => {
   try {
     const data = await financeService.createContractLinkedInvoice({

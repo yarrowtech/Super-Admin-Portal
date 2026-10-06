@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// Maker-checker state shared by invoices, payroll runs and journal entries: a finance employee
+// Maker-checker state shared by invoices and journal entries: a finance employee
 // prepares a draft and submits it; the finance head approves (which applies the real status
 // change) or returns it with a reason. `status: 'none'` = never submitted.
 const reviewSchema = new mongoose.Schema(

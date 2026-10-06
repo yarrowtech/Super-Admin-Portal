@@ -5,7 +5,6 @@ const { MongoMemoryReplSet } = require('mongodb-memory-server');
 
 const ctrl = require('../controllers/finance/financeDashboard.controller');
 const Invoice = require('../models/finance/Invoice');
-const Payroll = require('../models/finance/Payroll');
 const Budget = require('../models/finance/Budget');
 const JournalEntry = require('../models/finance/JournalEntry');
 
@@ -101,22 +100,6 @@ test('employees cannot move money-affecting statuses themselves', async () => {
   assert.equal((await call(guard, { user: users.emp, body: { status: 'draft' } })).nextCalled, true);
   assert.equal((await call(guard, { user: users.emp, body: { clientName: 'x' } })).nextCalled, true);
   assert.equal((await call(guard, { user: users.head, body: { status: 'sent' } })).nextCalled, true);
-
-  const payrollGuard = ctrl.guardHeadOnlyStatus('payroll');
-  assert.equal((await call(payrollGuard, { user: users.emp, body: { status: 'processed' } })).res.statusCode, 403);
-  assert.equal((await call(payrollGuard, { user: users.emp, body: { status: 'disbursed' } })).res.statusCode, 403);
-});
-
-test('approving a payroll run processes it and charges the department budget once', async () => {
-  const budget = await Budget.create({ department: 'Ops', fiscalYear: '2026', allocated: 100000, spent: 0 });
-  const run = await Payroll.create({ employee: oid(), employeeName: 'Priya', periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30'), periodKey: '2026-09', grossPay: 50000, deductions: 5000, netPay: 45000, salarySnapshot: { baseMinor: 5000000 }, budgetId: budget._id });
-  const params = { module: 'payroll', id: String(run._id) };
-  await call(ctrl.submitForReview, { user: users.emp, params });
-  const approve = await call(ctrl.decideReview, { user: users.head, params, body: { decision: 'approve' } });
-  assert.equal(approve.res.statusCode, 200);
-  assert.equal((await Payroll.findById(run._id).lean()).status, 'processed');
-  // Payroll cost to the budget is gross pay (net pay plus withheld deductions).
-  assert.equal((await Budget.findById(budget._id).lean()).spent, 50000);
 });
 
 test('unbalanced journal entries cannot be submitted; balanced ones post on approval', async () => {

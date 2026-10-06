@@ -15,7 +15,6 @@ const TARGETS = [
   ['FinancePayment', require('../models/finance/Payment'), ['amount'], 'reference'],
   ['FinanceExpense', require('../models/finance/Expense'), ['amount'], 'title'],
   ['FinanceBudget', require('../models/finance/Budget'), ['allocated', 'spent', 'reserved'], 'department'],
-  ['FinancePayroll', require('../models/finance/Payroll'), ['grossPay', 'deductions', 'netPay'], 'employeeName'],
 ];
 
 (async () => {

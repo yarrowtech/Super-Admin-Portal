@@ -30,7 +30,7 @@ async function send(rows) {
   }
 }
 
-const label = (module) => ({ invoice: 'Invoice', payroll: 'Payroll run', journal: 'Journal entry', expense: 'Expense' }[module] || 'Record');
+const label = (module) => ({ invoice: 'Invoice', journal: 'Journal entry', expense: 'Expense' }[module] || 'Record');
 
 // An employee submitted something for approval -> tell every finance head.
 async function submittedForReview({ module, doc, actor, actorName, title, amount, note }) {

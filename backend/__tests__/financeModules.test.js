@@ -1,6 +1,6 @@
 process.env.NODE_ENV = 'test';
 // Finance module behaviour against a real (in-memory) replica set: tax rules, invoice maths,
-// partial payments, notes, reconciliation, expenses, budgets, payroll and report consistency.
+// partial payments, notes, reconciliation, expenses, budgets and report consistency.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
@@ -159,31 +159,6 @@ test('expenses: documents before verification, separate approver, budget cannot 
   assert.equal(b.utilization, 80); assert.equal(b.status, 'at-risk', 'crossing the 80% threshold flags the budget');
 });
 
-test('payroll: salary profile drives amounts, one run per month, approval charges gross to budget', async () => {
-  const dept = await Department.create({ name: 'Engineering T', code: 'ENGT' });
-  await call(ctrl.createBudget, head, { departmentId: String(dept._id), fiscalYear: '2026', allocated: 100000 });
-  const empUser = (await User.collection.insertOne({ firstName: 'Priya', lastName: 'S', email: 'priya@t.test', isActive: true })).insertedId;
-  assert.equal((await call(ctrl.saveSalary, emp, { employee: String(empUser), departmentId: String(dept._id), basePay: 40000, effectiveFrom: '2026-01-01' })).statusCode, 403);
-  assert.equal((await call(ctrl.saveSalary, head, { employee: String(empUser), departmentId: String(dept._id), basePay: 40000, allowances: 10000, deductions: 6000, effectiveFrom: '2026-01-01' })).statusCode, 200);
-  const period = { employee: String(empUser), periodStart: '2026-08-01', periodEnd: '2026-08-31' };
-  const run = await W.createPayroll(req(emp, period));
-  // PF is 12% of basic capped at the 15,000 wage ceiling (1,800); Professional Tax is
-  // 200 at this gross; plus the 6,000 on the salary profile.
-  assert.equal(run.statutory.pf, 1800);
-  assert.equal(run.statutory.professionalTax, 200);
-  assert.deepEqual([run.grossPay, run.deductions, run.netPay], [50000, 8000, 42000]);
-  await assert.rejects(W.createPayroll(req(emp, period)), { statusCode: 409 });
-  await assert.rejects(W.createPayroll(req(emp, { ...period, periodEnd: '2026-09-15' })), { statusCode: 422 }, 'must be one month');
-  await assert.rejects(W.updatePayroll(req(emp, { status: 'processed' }, { id: String(run._id) })), { statusCode: 403 });
-  const processed = await W.updatePayroll(req(head, { status: 'processed' }, { id: String(run._id) }));
-  assert.equal(processed.payslipNumber, `PS-2026-08-${run._id}`);
-  const budget = await Budget.findOne({ departmentId: dept._id });
-  assert.equal((await W.budgetSnapshot(budget, null)).spent, 50000);
-  const paid = await W.updatePayroll(req(head, { status: 'disbursed', paidOn: '2026-09-01' }, { id: String(run._id) }));
-  assert.equal(paid.status, 'disbursed');
-  await assert.rejects(W.updatePayroll(req(head, { netPay: 1 }, { id: String(run._id) })), { statusCode: 422 });
-});
-
 test('reports agree with each other and with the ledger', async () => {
   const tb = (await call(ctrl.getTrialBalance, head)).body.data;
   assert.equal(tb.balanced, true);
@@ -201,8 +176,6 @@ test('reports agree with each other and with the ledger', async () => {
   const gst1 = (await call(ctrl.getGstReturn, head, {}, {}, { from: '2020-01-01', to: '2099-12-31' })).body.data;
   const ledger2400 = tb.rows.find((r) => r.code === '2400');
   assert.equal(gst1.netOutputTax, Math.round((ledger2400.credit - ledger2400.debit) * 100) / 100, 'GST worksheet ties to GST payable');
-  const payrollHidden = (await call(ctrl.summary, emp)).body.data.payrollPayable;
-  assert.equal(payrollHidden, null, 'payroll totals hidden from employees');
   assert.equal((await call(ctrl.auditCsv, emp, {}, {}, { from: '2020-01-01', to: '2099-01-01' })).statusCode, 403);
   assert.equal((await call(ctrl.auditCsv, head, {}, {}, { from: '2020-01-01', to: '2099-01-01' })).statusCode, 200);
 });

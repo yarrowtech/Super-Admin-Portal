@@ -56,9 +56,6 @@ export const financeApi = {
   createCostCenter: (data, token) => apiClient.post('/api/dept/finance/cost-centers', data, token),
   updateCostCenter: (id, data, token) => apiClient.put(`/api/dept/finance/cost-centers/${id}`, data, token),
 
-  getPayrolls: (token) => apiClient.get('/api/dept/finance/payrolls', token),
-  createPayroll: (data, token) => apiClient.post('/api/dept/finance/payrolls', data, token),
-  updatePayroll: (id, data, token) => apiClient.put(`/api/dept/finance/payrolls/${id}`, data, token),
 
   getReports: (token) => apiClient.get('/api/dept/finance/reports', token),
   createReport: (data, token) => apiClient.post('/api/dept/finance/reports', data, token),

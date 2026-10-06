@@ -14,7 +14,6 @@ router.use(
   authorize(
     ROLES.FINANCE_MANAGER,
     ROLES.FINANCE_EMPLOYEE,
-    ROLES.HR,
     ROLES.ADMIN,
     ROLES.SUPER_ADMIN,
     ROLES.CEO
@@ -24,14 +23,7 @@ router.use(authorizePortalAccess("finance"));
 router.use(attachOptionalProjectContext);
 
 router.get("/overview", requireProjectContext, controller.getOverview);
-const canTriggerPayroll = (req, res, next) => {
-  const role = String(req.user?.role || "").toLowerCase();
-  if (["hr", "finance_manager", "admin", "super_admin"].includes(role)) return next();
-  return res.status(403).json({ success: false, error: "Role cannot trigger payroll" });
-};
-
 router.get("/transactions", requireProjectContext, v.listValidation, validate, controller.getTransactions);
-router.post("/payroll/hr-trigger", requireProjectContext, canTriggerPayroll, v.payrollTriggerValidation, validate, require('../../controllers/finance/financeOperations.controller').createPayroll);
 router.post("/invoices/:invoiceId/link-contract", requireProjectContext, canWriteFinance, v.linkContractValidation, validate, controller.createContractLinkedInvoice);
 
 module.exports = router;

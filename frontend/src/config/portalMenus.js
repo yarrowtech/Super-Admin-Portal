@@ -139,7 +139,7 @@ export const portalMenuConfig = {
     { label: 'Activity',         icon: 'history',                path: '/it/dashboard/activity',        description: 'Audit trails and system event logs' },
   ],
   // `section` groups items under headings, ordered along the money workflow:
-  // bill (Invoices) → collect/pay (Payments) → spend (Expenses, Payroll) →
+  // bill (Invoices) → collect/pay (Payments) → spend (Expenses) →
   // control (Budgets, Accounting, Approval Rules) → personal workspace.
   finance: [
     { section: 'Overview', label: 'Dashboard', icon: 'dashboard', path: '/finance/dashboard', description: 'Financial control center' },
@@ -175,7 +175,6 @@ export const portalMenuConfig = {
       ],
     },
     { section: 'Transactions', label: 'Expenses', icon: 'request_quote', path: '/finance/dashboard/expenses', description: 'Expense management' },
-    { section: 'Transactions', label: 'Payroll',  icon: 'badge',         path: '/finance/dashboard/payroll',  description: 'Payroll processing' },
     { section: 'Planning & Control', label: 'Budgets', icon: 'account_balance_wallet', path: '/finance/dashboard/budgets', description: 'Department budgets' },
     {
       section: 'Planning & Control',

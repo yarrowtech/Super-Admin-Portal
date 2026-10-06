@@ -84,35 +84,6 @@ test('multi-line invoice with mixed GST slabs and a discount posts a balanced jo
   assert.equal(slab5.tax, 475);
 });
 
-test('payroll withholds PF and professional tax to their own payable accounts', async () => {
-  const Department = require('../models/department/Department');
-  const User = require('../models/auth/User');
-  const W = require('../services/finance/workflows.service');
-  const dept = await Department.create({ name: 'Ops Statutory', code: 'OPSSTAT' });
-  const staff = (await User.collection.insertOne({ firstName: 'Ravi', lastName: 'K', email: 'ravi@t.test', isActive: true })).insertedId;
-
-  const salaryRes = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(v) { this.body = v; return this; } };
-  await ctrl.saveSalary(req(head, { employee: String(staff), departmentId: String(dept._id), basePay: 30000, allowances: 5000, deductions: 0, effectiveFrom: '2026-01-01' }), salaryRes);
-  assert.equal(salaryRes.statusCode, 200, JSON.stringify(salaryRes.body));
-
-  const run = await W.createPayroll(req(head, { employee: String(staff), periodStart: '2026-05-01', periodEnd: '2026-05-31' }));
-  // Basic 30,000 is above the 15,000 ceiling, so PF is 12% of 15,000.
-  assert.equal(run.statutory.pf, 1800);
-  assert.equal(run.statutory.professionalTax, 200);
-  assert.equal(run.grossPay, 35000);
-  assert.equal(run.deductions, 2000);
-  assert.equal(run.netPay, 33000);
-
-  const processed = await W.updatePayroll(req(head, { status: 'processed' }, { id: String(run._id) }));
-  const j = await Journal.findById(processed.journalEntryId).populate('lines.account', 'code').lean();
-  const byCode = Object.fromEntries(j.lines.map((l) => [l.account.code, l.debit || -l.credit]));
-  assert.equal(byCode['5100'], 35000, 'gross is the expense to the business');
-  assert.equal(byCode['2200'], -33000, 'only net is owed to the employee');
-  assert.equal(byCode['2510'], -1800, 'PF becomes a payable');
-  assert.equal(byCode['2520'], -200, 'professional tax becomes a payable');
-  assert.equal(j.totalDebit, j.totalCredit);
-});
-
 test('a department head cannot approve another department\'s expense', async () => {
   const Department = require('../models/department/Department');
   const W = require('../services/finance/workflows.service');

@@ -11,7 +11,6 @@ import Select from '../ui/Select';
 import Modal from '../ui/Modal';
 import VendorLedger from './VendorLedger';
 import TaxFilingPanel from './TaxFilingPanel';
-import SalaryProfilePanel from './SalaryProfilePanel';
 import InvoiceLineItems from './InvoiceLineItems';
 import { blankLine, previewTotals } from './invoiceTotals';
 import ClientPicker from './ClientPicker';
@@ -242,7 +241,6 @@ const ReviewBadge = ({ item }) => {
 
 const REVIEW_COPY = {
   invoice: { submit: 'Submit for approval', approveLabel: 'Approve & send', what: 'invoice' },
-  payroll: { submit: 'Submit for processing', approveLabel: 'Approve & process', what: 'payroll run' },
   journal: { submit: 'Submit for posting', approveLabel: 'Approve & post', what: 'journal entry' },
 };
 
@@ -307,7 +305,7 @@ const ReviewDialog = ({ state, onClose, onDone: onDoneProp }) => {
           </div>
         )}
         {mode === 'submit' && <p className="text-sm text-neutral-600 dark:text-neutral-300">The finance head reviews it. Until then it is locked; if it is returned you can edit and resubmit.</p>}
-        {mode === 'approve' && <p className="text-sm text-neutral-600 dark:text-neutral-300">Approving applies it straight away{module === 'payroll' ? ' and charges the department budget' : module === 'journal' ? ' and posts it to the ledger' : ' and marks the invoice as sent'}.</p>}
+        {mode === 'approve' && <p className="text-sm text-neutral-600 dark:text-neutral-300">Approving applies it straight away{module === 'journal' ? ' and posts it to the ledger' : ' and marks the invoice as sent'}.</p>}
         <label className="block">
           <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">
             {mode === 'submit' ? 'Note for the finance head (optional)' : mode === 'return' ? 'What needs to change?' : 'Comment (optional)'}{needsNote && <span className="text-rose-500">*</span>}
@@ -2966,7 +2964,7 @@ export const FinanceBudgetsPage = () => {
         notes: budgetForm.notes,
       }, token);
       setBudgetForm(emptyBudgetForm);
-      setNotice(isProjectScope ? 'Project budget allocated. Costs booked to this project are now checked against it.' : 'Budget allocated. Expenses and payroll for this department are now checked against it.');
+      setNotice(isProjectScope ? 'Project budget allocated. Costs booked to this project are now checked against it.' : 'Budget allocated. Expenses for this department are now checked against it.');
       refetch();
     } catch (err) {
       setFormError(err.message || 'Failed to save budget');
@@ -3273,7 +3271,7 @@ export const FinanceBudgetsPage = () => {
                       </div>
                     );
                   })}
-                  {budgets.length === 0 && <EmptyState icon="account_balance_wallet" title={isProjectScope ? 'No project budgets yet' : 'No department budgets yet'} description={isProjectScope ? 'Allocate a project budget so costs booked to that project are checked against it.' : 'Allocate a budget so department expenses and payroll can be approved against it.'} />}
+                  {budgets.length === 0 && <EmptyState icon="account_balance_wallet" title={isProjectScope ? 'No project budgets yet' : 'No department budgets yet'} description={isProjectScope ? 'Allocate a project budget so costs booked to that project are checked against it.' : 'Allocate a budget so department expenses can be approved against it.'} />}
                 </div>
               )}
 
@@ -3430,313 +3428,6 @@ export const FinanceBudgetsPage = () => {
           </div>
         )}
       </Modal>
-    </main>
-  );
-};
-
-// ════════════════════════════════════════════════════════════════════════════
-// Payroll
-// ════════════════════════════════════════════════════════════════════════════
-
-// draft → processed (approved, budget charged) → disbursed (paid out). Forward-only;
-// the backend rejects moving back a stage.
-const PAYROLL_STEPS = ['Draft', 'Processed', 'Disbursed'];
-const PAYROLL_NEXT = {
-  draft: { status: 'processed', label: 'Process', hint: 'Locks the amounts and charges the department budget.' },
-  processed: { status: 'disbursed', label: 'Disburse', hint: 'Confirms the net pay has been paid out to the employee.' },
-};
-const PAYROLL_FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'processed', label: 'Processed' },
-  { value: 'disbursed', label: 'Disbursed' },
-];
-// Pay comes from the salary profile the finance head authorizes, never from the run form:
-// the run only picks an employee and a month.
-const monthBounds = (monthValue) => {
-  if (!monthValue) return { periodStart: '', periodEnd: '' };
-  const [y, m] = monthValue.split('-').map(Number);
-  return { periodStart: `${monthValue}-01`, periodEnd: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) };
-};
-const emptyPayrollForm = { employee: '', month: new Date().toISOString().slice(0, 7) };
-
-export const FinancePayrollPage = () => {
-  const { token, user } = useAuth();
-  const [statusFilter, setStatusFilter] = useStatusParam();
-  const { loading, error, data, refetch } = useAsync(async () => {
-    const [payrollRes, catalogRes, salaryRes] = await Promise.all([
-      financeApi.getPayrolls(token),
-      financeApi.getDepartmentCatalog(token),
-      // Only the finance head may read salary profiles; employees get the runs list alone.
-      financeApi.getSalaryProfiles(token).catch(() => null),
-    ]);
-    return { payrolls: toList(unwrap(payrollRes)), departmentCatalog: toList(unwrap(catalogRes)), salaries: toList(unwrap(salaryRes)) };
-  }, [token]);
-  const payrolls = useMemo(() => data.payrolls || [], [data.payrolls]);
-  const departments = useMemo(() => (data.departmentCatalog || []).filter((d) => !d.isSystem), [data.departmentCatalog]);
-  const departmentName = (id) => departments.find((d) => String(d._id) === String(id))?.name;
-
-  const statusCounts = useMemo(() => payrolls.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {}), [payrolls]);
-  const sumNet = (status) => payrolls.filter((r) => r.status === status).reduce((sum, r) => sum + Number(r.netPay || 0), 0);
-  const visiblePayrolls = useMemo(() => (statusFilter ? payrolls.filter((r) => r.status === statusFilter) : payrolls), [payrolls, statusFilter]);
-
-  const [form, setForm] = useState(emptyPayrollForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [advancing, setAdvancing] = useState(null);
-  const [savingAdvance, setSavingAdvance] = useState(false);
-  const [actionError, setActionError] = useState('');
-  const closeAdvance = useCallback(() => setAdvancing(null), []);
-  const isHead = useIsFinanceHead();
-  const [reviewing, setReviewing] = useState(null);
-
-  const [payslipId, setPayslipId] = useState(null);
-  const downloadPayslip = async (run) => {
-    setPayslipId(run._id);
-    setActionError('');
-    try { await financeApi.downloadDocument('payslip', run._id, token); }
-    catch (err) { setActionError(err.message || 'Could not download the payslip'); }
-    finally { setPayslipId(null); }
-  };
-
-  const salaries = useMemo(() => data.salaries || [], [data.salaries]);
-  const selectedSalary = salaries.find((s) => String(s.employee?._id || s.employee) === String(form.employee));
-  const paise = (n) => Number(n || 0) / 100;
-  const gross = selectedSalary ? paise(selectedSalary.baseMinor) + paise(selectedSalary.allowanceMinor) : 0;
-  const netPay = selectedSalary ? Math.max(gross - paise(selectedSalary.deductionMinor), 0) : 0;
-  const bounds = monthBounds(form.month);
-  const duplicateRun = Boolean(form.employee && form.month && payrolls.some((r) => String(r.employee) === String(form.employee) && (r.periodKey || String(r.periodStart || '').slice(0, 7)) === form.month));
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.employee || !form.month) { setFormError('Pick an employee with an authorized salary profile and a month.'); return; }
-    if (duplicateRun) { setFormError('This employee already has a payroll run for that month.'); return; }
-    setSubmitting(true);
-    setFormError('');
-    try {
-      await financeApi.createPayroll({ employee: form.employee, ...bounds }, token);
-      const name = selectedSalary?.employee ? `${selectedSalary.employee.firstName} ${selectedSalary.employee.lastName}` : 'Employee';
-      setForm((p) => ({ ...p, employee: '' }));
-      setNotice(`Draft payroll for ${name} created — process it to charge the budget.`);
-      refetch();
-    } catch (err) {
-      setFormError(err.message || 'Failed to create payroll');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const advance = async () => {
-    if (!advancing) return;
-    const next = PAYROLL_NEXT[advancing.status];
-    setSavingAdvance(true);
-    setActionError('');
-    try {
-      await financeApi.updatePayroll(advancing._id, { status: next.status }, token);
-      setNotice(`${advancing.employeeName || 'Payroll'} ${next.status === 'processed' ? 'processed' : 'disbursed'}.`);
-      setAdvancing(null);
-      refetch();
-    } catch (err) {
-      setActionError(err.message || 'Failed to update payroll');
-    } finally {
-      setSavingAdvance(false);
-    }
-  };
-
-  return (
-    <main className="portal-page">
-      <div className="portal-page-inner space-y-4">
-        <Header title="Payroll" subtitle={isHead ? 'Review drafts → process → disburse' : 'Prepare draft runs → submit to the finance head'} icon="badge" user={user} crumbs={['Finance', 'Payroll']} />
-        <RoleStrip module="payroll" />
-        {error && <ErrorState description={error} onRetry={refetch} />}
-        {actionError && <ErrorState title="Action failed" description={actionError} />}
-        {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
-
-        <StatGrid
-          items={[
-            { label: 'Drafts', value: statusCounts.draft || 0, subtext: formatCurrency(sumNet('draft')) + ' to review' },
-            { label: 'Awaiting disbursal', value: formatCurrency(sumNet('processed')), subtext: `${statusCounts.processed || 0} processed` },
-            { label: 'Disbursed', value: formatCurrency(sumNet('disbursed')), subtext: `${statusCounts.disbursed || 0} paid out` },
-            { label: 'Total runs', value: payrolls.length },
-          ]}
-        />
-
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr title="New payroll run" subtitle="One run per employee per month" />
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <Select
-                  label="Employee"
-                  value={form.employee}
-                  onChange={(e) => { setForm((p) => ({ ...p, employee: e.target.value })); setFormError(''); }}
-                  options={[{ value: '', label: salaries.length ? 'Select an employee' : 'No authorized salary profiles' }, ...salaries.map((s) => ({ value: String(s.employee?._id || s.employee), label: s.employee ? `${s.employee.firstName} ${s.employee.lastName}` : 'Employee' }))]}
-                  required
-                />
-                <Input label="Month" type="month" value={form.month} onChange={(e) => { setForm((p) => ({ ...p, month: e.target.value })); setFormError(''); }} error={duplicateRun ? 'Already run for this month.' : undefined} required />
-                {selectedSalary ? (
-                  <dl className="space-y-1.5 rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-900">
-                    {[
-                      ['Base pay', formatCurrency(paise(selectedSalary.baseMinor))],
-                      ['Allowances', `+ ${formatCurrency(paise(selectedSalary.allowanceMinor))}`],
-                      ['Deductions', `− ${formatCurrency(paise(selectedSalary.deductionMinor))}`],
-                      ['Period', bounds.periodStart ? `${fmtDateOnly(bounds.periodStart)} – ${fmtDateOnly(bounds.periodEnd)}` : '—'],
-                    ].map(([label, value]) => (
-                      <div key={label} className="flex justify-between text-neutral-600 dark:text-neutral-400">
-                        <dt>{label}</dt>
-                        <dd>{value}</dd>
-                      </div>
-                    ))}
-                    <div className="flex justify-between border-t border-neutral-200 pt-1.5 text-sm font-bold text-neutral-900 dark:border-neutral-700 dark:text-white">
-                      <dt>Net pay</dt>
-                      <dd>{formatCurrency(netPay)}</dd>
-                    </div>
-                  </dl>
-                ) : (
-                  <p className="rounded-xl bg-neutral-50 p-3 text-xs text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
-                    {isHead ? 'Salary components are configured per employee under Salary profiles; the run then uses those authorized amounts.' : 'Only the finance head can authorize salary components. Pick an employee to prepare their run.'}
-                  </p>
-                )}
-                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting || !form.employee || duplicateRun} fullWidth>{submitting ? 'Saving…' : 'Create draft'}</Button>
-              </form>
-            </div>
-          </section>
-
-          <section className={card}>
-            <div className={`${inner} space-y-4`}>
-              <SectionHdr title="Payroll runs" subtitle={`${visiblePayrolls.length} of ${payrolls.length} shown`} />
-              <StatusFilterBar
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={PAYROLL_FILTERS.map((f) => ({ ...f, count: f.value ? statusCounts[f.value] || 0 : payrolls.length }))}
-              />
-              <DataTable
-                columns={[
-                  {
-                    key: 'employeeName',
-                    header: 'Employee',
-                    render: (r) => (
-                      <div>
-                        <p className="font-semibold text-neutral-900 dark:text-white">{r.employeeName || 'Employee'}</p>
-                        <p className="text-xs text-neutral-500">{departmentName(r.departmentId) || 'No department'}</p>
-                      </div>
-                    ),
-                  },
-                  { key: 'period', header: 'Period', render: (r) => <span className="whitespace-nowrap">{fmtDateOnly(r.periodStart)} – {fmtDateOnly(r.periodEnd)}</span> },
-                  { key: 'grossPay', header: 'Gross', render: (r) => formatCurrency(r.grossPay) },
-                  {
-                    key: 'deductions',
-                    header: 'Deductions',
-                    render: (r) => (
-                      <div>
-                        <p>{formatCurrency(r.deductions)}</p>
-                        {(r.statutory?.pf > 0 || r.statutory?.professionalTax > 0) && (
-                          <p className="text-xs text-neutral-500">
-                            {[
-                              r.statutory.pf > 0 && `PF ${formatCurrency(r.statutory.pf)}`,
-                              r.statutory.professionalTax > 0 && `PT ${formatCurrency(r.statutory.professionalTax)}`,
-                              r.statutory.tds > 0 && `TDS ${formatCurrency(r.statutory.tds)}`,
-                            ].filter(Boolean).join(' · ')}
-                          </p>
-                        )}
-                      </div>
-                    ),
-                  },
-                  { key: 'netPay', header: 'Net pay', render: (r) => <span className="font-semibold">{formatCurrency(r.netPay)}</span> },
-                  {
-                    key: 'status',
-                    header: 'Status',
-                    render: (r) => (
-                      <div>
-                        <Pill value={r.status} label={humanizeStatus(r.status)} />
-                        {r.status === 'draft' && <div className="mt-1"><ReviewBadge item={r} /></div>}
-                        {r.status === 'disbursed' && r.paidOn && <p className="mt-1 text-xs text-neutral-500">Paid {fmtDateOnly(r.paidOn)}</p>}
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'actions',
-                    header: 'Next step',
-                    render: (r) => {
-                      if (r.status === 'draft') {
-                        return (
-                          <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                            <ReviewActions
-                              module="payroll"
-                              item={r}
-                              isHead={isHead}
-                              onOpen={(s) => setReviewing({ ...s, title: `${r.employeeName || 'Employee'} · net ${formatCurrency(r.netPay)}` })}
-                              directApprove={() => setAdvancing(r)}
-                              directLabel="Process"
-                            />
-                          </div>
-                        );
-                      }
-                      // Disbursing moves money out — finance head only.
-                      return (
-                        <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                          {r.status === 'processed' && (isHead
-                            ? <button type="button" onClick={() => setAdvancing(r)} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">Disburse</button>
-                            : <span className="text-xs text-neutral-400">Head disburses</span>)}
-                          {r.status !== 'draft' && (
-                            <button type="button" onClick={() => downloadPayslip(r)} disabled={payslipId === r._id} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline disabled:opacity-50">
-                              {payslipId === r._id ? 'Preparing…' : 'Payslip'}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    },
-                  },
-                ]}
-                rows={visiblePayrolls}
-                rowKey="_id"
-                loading={loading}
-                emptyTitle={statusFilter ? `No ${statusFilter} payroll runs` : 'No payroll runs yet'}
-              />
-            </div>
-          </section>
-        </div>
-
-        {isHead && <SalaryProfilePanel token={token} departments={departments} onSaved={refetch} />}
-      </div>
-
-      <Modal
-        open={Boolean(advancing)}
-        onClose={closeAdvance}
-        title={advancing ? `${PAYROLL_NEXT[advancing.status]?.label} payroll · ${advancing.employeeName || 'Employee'}` : ''}
-        description={advancing ? PAYROLL_NEXT[advancing.status]?.hint : ''}
-        className="sm:max-w-lg"
-        footer={advancing && (
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={closeAdvance}>Cancel</Button>
-            <Button type="button" variant="primary" size="sm" disabled={savingAdvance} onClick={advance}>{savingAdvance ? 'Saving…' : PAYROLL_NEXT[advancing.status]?.label}</Button>
-          </div>
-        )}
-      >
-        {advancing && (
-          <div className="space-y-4">
-            <WorkflowSteps steps={PAYROLL_STEPS} current={PAYROLL_STEPS.findIndex((s) => s.toLowerCase() === advancing.status)} />
-            <dl className="space-y-1.5 text-sm">
-              {[
-                ['Period', `${fmtDateOnly(advancing.periodStart)} – ${fmtDateOnly(advancing.periodEnd)}`],
-                ['Department', departmentName(advancing.departmentId) || 'No department'],
-                ['Gross', formatCurrency(advancing.grossPay)],
-                ['Deductions', formatCurrency(advancing.deductions)],
-                ['Net pay', formatCurrency(advancing.netPay)],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between">
-                  <dt className="text-neutral-500 dark:text-neutral-400">{label}</dt>
-                  <dd className="font-semibold text-neutral-900 dark:text-white">{value}</dd>
-                </div>
-              ))}
-            </dl>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">This can't be undone.</p>
-          </div>
-        )}
-      </Modal>
-      <ReviewDialog key={reviewing ? `${reviewing.item._id}-${reviewing.mode}` : 'none'} state={reviewing} onClose={() => setReviewing(null)} onDone={(msg) => { setReviewing(null); setNotice(msg); refetch(); }} />
     </main>
   );
 };
@@ -5040,7 +4731,6 @@ const APPROVAL_FILTERS = [
 const APPROVAL_ENTITY_LINK = {
   expense: '/finance/dashboard/expenses',
   payment: '/finance/dashboard/payments',
-  payroll: '/finance/dashboard/payroll',
   budget: '/finance/dashboard/budgets',
   invoice: '/finance/dashboard/invoices',
 };
@@ -5095,7 +4785,7 @@ export const FinanceApprovalsPage = () => {
   return (
     <main className="portal-page">
       <div className="portal-page-inner space-y-4">
-        <Header title="Approval Center" subtitle="Budget, payment, payroll and expense approvals" icon="approval" user={user} crumbs={['Finance', 'Approvals']} />
+        <Header title="Approval Center" subtitle="Budget, payment and expense approvals" icon="approval" user={user} crumbs={['Finance', 'Approvals']} />
         {error && <ErrorState description={error} onRetry={refetch} />}
         {actionError && <ErrorState title="Action failed" description={actionError} />}
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
@@ -5209,8 +4899,8 @@ export const FinanceApprovalsPage = () => {
 // Review Queue (head) · My Submissions (employee)
 // ════════════════════════════════════════════════════════════════════════════
 
-const REVIEW_LINK = { invoice: '/finance/dashboard/invoices', payroll: '/finance/dashboard/payroll', journal: '/finance/dashboard/accounting?tab=journals' };
-const REVIEW_ICON = { invoice: 'receipt_long', payroll: 'badge', journal: 'menu_book' };
+const REVIEW_LINK = { invoice: '/finance/dashboard/invoices', journal: '/finance/dashboard/accounting?tab=journals' };
+const REVIEW_ICON = { invoice: 'receipt_long', journal: 'menu_book' };
 const DAY_MS_REVIEW = 24 * 60 * 60 * 1000;
 
 // "3h" / "2d" since a timestamp, plus whether it has waited long enough to flag.
@@ -5248,20 +4938,7 @@ const ReviewDetails = ({ row }) => {
       </div>
     );
   }
-  if (row.module === 'payroll') {
-    return (
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {[['Period', `${fmtDateOnly(d.periodStart)} – ${fmtDateOnly(d.periodEnd)}`], ['Gross', formatCurrency(d.grossPay)], ['Deductions', formatCurrency(d.deductions)], ['Net pay', formatCurrency(d.netPay)]].map(([k, v]) => (
-          <div key={k} className="rounded-lg bg-white p-2 dark:bg-neutral-900">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{k}</p>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-white">{v}</p>
-          </div>
-        ))}
-        <p className="col-span-full text-xs text-neutral-500">{d.budgetLinked ? 'Approving charges this to the department budget.' : 'Not linked to a department budget.'}</p>
-      </div>
-    );
-  }
-  const balanced = Math.abs((d.totalDebit || 0) - (d.totalCredit || 0)) < 0.01;
+  const balanced =Math.abs((d.totalDebit || 0) - (d.totalCredit || 0)) < 0.01;
   return (
     <div className="space-y-1 rounded-lg bg-white p-2.5 font-mono text-xs dark:bg-neutral-900">
       {(d.lines || []).map((l, idx) => (
@@ -5410,7 +5087,7 @@ export const FinanceReviewPage = () => {
             <span className="material-symbols-outlined text-[16px]">{open ? 'expand_less' : 'expand_more'}</span>{open ? 'Hide details' : 'Show details'}
           </button>
           <button type="button" onClick={() => navigate(REVIEW_LINK[r.module])} className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
-            Open in {r.module === 'journal' ? 'Accounting' : r.module === 'payroll' ? 'Payroll' : 'Invoices'}<span className="material-symbols-outlined text-[14px]">open_in_new</span>
+            Open in {r.module === 'journal' ? 'Accounting' : 'Invoices'}<span className="material-symbols-outlined text-[14px]">open_in_new</span>
           </button>
         </div>
         {open && <div className="border-t border-neutral-100 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/40"><ReviewDetails row={r} /></div>}
@@ -5456,7 +5133,6 @@ export const FinanceReviewPage = () => {
               <select value={moduleFilter} onChange={(e) => { setModuleFilter(e.target.value); setSelected(new Set()); }} aria-label="Filter by type" className="ml-auto h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                 <option value="">All types</option>
                 <option value="invoice">Invoices</option>
-                <option value="payroll">Payroll runs</option>
                 <option value="journal">Journal entries</option>
               </select>
               {isHead && (
@@ -5491,8 +5167,8 @@ export const FinanceReviewPage = () => {
                 icon={isHead ? 'task_alt' : 'outbox'}
                 title={status === 'submitted' && isHead ? 'All caught up' : 'Nothing here'}
                 description={isHead
-                  ? 'When your team submits invoices, payroll runs or journal entries, they appear here for approval.'
-                  : 'Draft an invoice, payroll run or journal entry and use “Submit” to send it to the finance head.'}
+                  ? 'When your team submits invoices or journal entries, they appear here for approval.'
+                  : 'Draft an invoice or journal entry and use “Submit” to send it to the finance head.'}
               />
             ) : isHead && layout === 'people' ? (
               <div className="space-y-4">

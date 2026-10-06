@@ -61,13 +61,6 @@ export const financeApi = {
   createCostCenter: (data, token) => apiClient.post('/api/dept/finance/cost-centers', data, token),
   updateCostCenter: (id, data, token) => apiClient.put(`/api/dept/finance/cost-centers/${id}`, data, token),
 
-  getPayrolls: (token, params = {}) => apiClient.get(`/api/dept/finance/payrolls?${new URLSearchParams(params)}`, token),
-  // Salary components: finance-head only; payroll runs derive pay from these.
-  getSalaryProfiles: (token) => apiClient.get('/api/dept/finance/salary-profiles', token, { cache: false }),
-  getSalaryEmployees: (token) => apiClient.get('/api/dept/finance/salary-profiles/employees', token, { cache: false }),
-  saveSalaryProfile: (data, token) => apiClient.post('/api/dept/finance/salary-profiles', data, token),
-  createPayroll: (data, token) => apiClient.post('/api/dept/finance/payrolls', data, token),
-  updatePayroll: (id, data, token) => apiClient.put(`/api/dept/finance/payrolls/${id}`, data, token),
 
   getReports: (token) => apiClient.get('/api/dept/finance/reports', token),
   createReport: (data, token) => apiClient.post('/api/dept/finance/reports', data, token),
@@ -84,7 +77,7 @@ export const financeApi = {
   getCustomerBalances: (token) => apiClient.get('/api/dept/finance/receivables/customers', token),
   // Server-owned finance rules (receipt threshold, budget alert levels) the UI mirrors.
   getSettings: (token) => apiClient.get('/api/dept/finance/settings', token),
-  // One query across invoices, clients, vendors and payroll.
+  // One query across invoices, clients and vendors.
   search: (token, q) => apiClient.get(`/api/dept/finance/search?q=${encodeURIComponent(q)}`, token, { cache: false }),
   getAgingSummary: (token, params = {}) => apiClient.get(`/api/dept/finance/receivables/aging?${new URLSearchParams(params)}`, token),
   getFinancialSummary: (token, params = {}) => apiClient.get(`/api/dept/finance/financial-summary?${new URLSearchParams(params)}`, token),
@@ -140,7 +133,7 @@ export const financeApi = {
   },
   createApproval: (data, token) => apiClient.post('/api/dept/finance/approvals', data, token),
   decideApproval: (id, data, token) => apiClient.patch(`/api/dept/finance/approvals/${id}/decision`, data, token),
-  // Maker-checker review: module = 'invoice' | 'payroll' | 'journal'.
+  // Maker-checker review: module = 'invoice' | 'journal'.
   submitForReview: (module, id, note, token) => apiClient.post(`/api/dept/finance/review/${module}/${id}/submit`, { note }, token),
   decideReview: (module, id, body, token) => apiClient.post(`/api/dept/finance/review/${module}/${id}/decision`, body, token),
   getReviewQueue: (token, params = {}) => {
@@ -148,7 +141,6 @@ export const financeApi = {
     return apiClient.get(`/api/dept/finance/review/queue${query ? `?${query}` : ''}`, token, { cache: false });
   },
   getIntegrationSnapshot: (token) => apiClient.get('/api/dept/finance/integrations/snapshot', token, { cache: false }),
-  syncPayrollFromHr: (data, token) => apiClient.post('/api/dept/finance/integrations/hr/payroll-sync', data, token),
   linkComplianceWithLaw: (data, token) => apiClient.post('/api/dept/finance/integrations/law/compliance-link', data, token),
 
   ...createDepartmentModulesApi('/api/dept/finance'),

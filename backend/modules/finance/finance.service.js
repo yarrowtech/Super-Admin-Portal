@@ -1,4 +1,3 @@
-const Payroll = require("../../models/finance/Payroll");
 const Budget = require("../../models/finance/Budget");
 const Invoice = require("../../models/finance/Invoice");
 const Expense = require("../../models/finance/Expense");
@@ -15,14 +14,13 @@ const withPagination = (query = {}) => {
 
 const getOverview = async (projectId) => {
   const scope = projectId ? { projectId } : {};
-  const [invoiceCount, expenseCount, budgetCount, payrollCount, pendingApprovals] = await Promise.all([
+  const [invoiceCount, expenseCount, budgetCount, pendingApprovals] = await Promise.all([
     Invoice.countDocuments(scope),
     Expense.countDocuments(scope),
     Budget.countDocuments(scope),
-    Payroll.countDocuments(scope),
     ApprovalWorkflow.countDocuments({ ...scope, status: "pending" }),
   ]);
-  return { invoiceCount, expenseCount, budgetCount, payrollCount, pendingApprovals };
+  return { invoiceCount, expenseCount, budgetCount, pendingApprovals };
 };
 
 const listTransactions = async (query = {}, projectId) => {
@@ -93,24 +91,6 @@ const decideExpenseRequest = async ({ workflowId, decision, remarks, actor, proj
   return workflow;
 };
 
-const triggerPayrollFromHr = async ({ payload = {}, actor, projectId }) => {
-  const payroll = await Payroll.create({
-    ...payload,
-    projectId,
-    status: "processed",
-  });
-  await writeAuditTrail({
-    userId: actor.id,
-    role: actor.role,
-    module: "finance",
-    action: "finance_payroll_triggered_from_hr",
-    targetType: "FinancePayroll",
-    targetId: payroll._id,
-    metadata: { employee: payroll.employee, netPay: payroll.netPay },
-  });
-  return payroll;
-};
-
 const createContractLinkedInvoice = async ({ invoiceId, payload = {}, actor, projectId }) => {
   const invoice = await Invoice.findOne({ _id: invoiceId, projectId });
   if (!invoice) {
@@ -145,6 +125,5 @@ module.exports = {
   listTransactions,
   createExpenseRequest,
   decideExpenseRequest,
-  triggerPayrollFromHr,
   createContractLinkedInvoice,
 };

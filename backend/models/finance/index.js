@@ -3,7 +3,6 @@ exports.InvoiceNote = require('./InvoiceNote');
 exports.Expense = require('./Expense');
 exports.Budget = require('./Budget');
 exports.CostCenter = require('./CostCenter');
-exports.Payroll = require('./Payroll');
 exports.Vendor = require('./Vendor');
 exports.Client = require('./Client');
 exports.Payment = require('./Payment');

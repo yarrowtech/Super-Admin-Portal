@@ -11,7 +11,6 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const Invoice = require('../models/finance/Invoice');
 const Expense = require('../models/finance/Expense');
-const Payroll = require('../models/finance/Payroll');
 const Journal = require('../models/finance/JournalEntry');
 const Account = require('../models/finance/Account');
 
@@ -65,21 +64,6 @@ const CODES = {
       key, label: `expense ${e.title}`, date: e.incurredDate || e.createdAt, memo: e.title,
       departmentId: e.departmentId || null, vendor: e.vendor || null,
       lines: [['5000', amount, 0], ['2100', 0, amount]],
-    });
-  }
-
-  // Processed payroll: gross as expense, withholdings and net as payables.
-  for (const p of await Payroll.find({ status: { $in: ['processed', 'disbursed'] } }).lean()) {
-    const key = `payroll-${p._id}`;
-    if (posted.has(key)) continue;
-    const gross = paise(p.grossPay); const net = paise(p.netPay);
-    const pf = paise(p.statutory?.pf); const pt = paise(p.statutory?.professionalTax); const tds = paise(p.statutory?.tds);
-    const other = gross - net - pf - pt - tds;
-    if (gross <= 0 || other < 0) { console.log(`SKIP   payroll ${p.employeeName}: does not balance (gross ${rupees(gross)})`); continue; }
-    planned.push({
-      key, label: `payroll ${p.employeeName} ${p.periodKey || ''}`.trim(), date: p.periodEnd, memo: p.payslipNumber || 'Payroll',
-      departmentId: p.departmentId || null,
-      lines: [['5100', gross, 0], ['2200', 0, net + other], ['2510', 0, pf], ['2520', 0, pt], ['2500', 0, tds]],
     });
   }
 

@@ -6,13 +6,12 @@ const { handler, fail, id, head, actor, text, date, transaction, audit, money } 
 const Invoice = require('../../models/finance/Invoice');
 const Payment = require('../../models/finance/Payment');
 const Expense = require('../../models/finance/Expense');
-const Payroll = require('../../models/finance/Payroll');
 const Budget = require('../../models/finance/Budget');
 const Journal = require('../../models/finance/JournalEntry');
 const User = require('../../models/auth/User');
 const Department = require('../../models/department/Department');
 const Project = require('../../models/common/Project');
-const { Salary, BankTransaction } = require('../../models/finance/FinanceOperations');
+const { BankTransaction } = require('../../models/finance/FinanceOperations');
 const notify = require('../../services/finance/notify.service');
 const paging = q => { const page = Math.max(1, Number.parseInt(q.page, 10) || 1); const limit = Math.min(200, Math.max(1, Number.parseInt(q.limit, 10) || 50)); return { page, limit }; };
 const list = (Model, dateField, extra = () => ({})) => async req => {
@@ -53,12 +52,9 @@ const updatePayment = handler(S.updatePayment);
 const createExpense = handler(W.createExpense, 201);
 const updateExpense = handler(W.updateExpense);
 const updateFinanceRequestAction = handler(W.expenseAction);
-const createPayroll = handler(W.createPayroll, 201);
-const updatePayroll = handler(W.updatePayroll);
 const getInvoices = handler(list(Invoice, 'issueDate'));
 const getPayments = handler(list(Payment, 'paymentDate', req => ({ ...(req.query.direction === 'in' ? { direction: { $ne: 'out' } } : req.query.direction === 'out' ? { direction: 'out' } : {}), ...(req.projectId ? { projectId: req.projectId } : {}) })));
 const getExpenses = handler(list(Expense, 'incurredDate'));
-const getPayrolls = handler(list(Payroll, 'periodStart', req => head(req.user) || req.user.role === 'hr' ? {} : { employee: actor(req) }));
 const deleteInvoice = handler(async req => transaction(async session => { const inv = await Invoice.findById(id(req.params.id)).session(session); if (!inv) fail(404, 'Invoice not found'); if (inv.status !== 'draft') fail(409, 'Only drafts can be removed'); await audit(req, 'invoice_draft_deleted', inv, inv.toObject(), null, session); await inv.deleteOne({ session }); return { deleted: true }; }));
 const deleteExpense = handler(async req => transaction(async session => { const e = await Expense.findById(id(req.params.id)).session(session); if (!e) fail(404, 'Expense not found'); if (e.status !== 'draft') fail(409, 'Use a controlled cancellation for submitted expenses'); await audit(req, 'expense_draft_deleted', e, e.toObject(), null, session); await e.deleteOne({ session }); return { deleted: true }; }));
 const getBudgets = handler(async req => {
@@ -323,19 +319,7 @@ const setBudgetPhasing = handler(async req => transaction(async session => {
   return snapshot;
 }));
 
-const salaryEmployees = handler(async req => { if (!head(req.user)) fail(403, 'Finance Head required'); return User.find({ isActive: true }).select('firstName lastName email department').sort({ firstName: 1 }).limit(1000).lean(); });
-const getSalaries = handler(async req => { if (!head(req.user)) fail(403, 'Finance Head required'); return Salary.find().populate('employee', 'firstName lastName email').limit(1000).lean(); });
-const saveSalary = handler(async req => transaction(async session => {
-  if (!head(req.user)) fail(403, 'Finance Head required'); const b = req.body;
-  const employee = await User.findOne({ _id: id(b.employee), isActive: true }).session(session); if (!employee) fail(422, 'Active employee required');
-  if (!await Department.exists({ _id: id(b.departmentId) }).session(session)) fail(422, 'Department not found');
-  const baseMinor = S.positive(b.basePay); const allowanceMinor = money.minor(b.allowances || 0); const deductionMinor = money.minor(b.deductions || 0);
-  if (BigInt(baseMinor) + BigInt(allowanceMinor) <= BigInt(deductionMinor)) fail(422, 'Net salary must be positive');
-  const before = await Salary.findOne({ employee: employee._id }).session(session).lean();
-  const record = await Salary.findOneAndUpdate({ employee: employee._id }, { baseMinor, allowanceMinor, deductionMinor, departmentId: b.departmentId, effectiveFrom: date(b.effectiveFrom), authorizedBy: actor(req) }, { upsert: true, new: true, runValidators: true, session });
-  await audit(req, 'salary_authorized', record, before, record.toObject(), session); return record;
-}));
-const bankList = handler(async req => { const { page, limit } = paging(req.query); const filter = req.query.unmatched === 'true' ? { payment: null } : {}; const [items, total] = await Promise.all([BankTransaction.find(filter).sort({ date: -1 }).skip((page - 1) * limit).limit(limit).lean(), BankTransaction.countDocuments(filter)]); return { items, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } }; });
+const bankList =handler(async req => { const { page, limit } = paging(req.query); const filter = req.query.unmatched === 'true' ? { payment: null } : {}; const [items, total] = await Promise.all([BankTransaction.find(filter).sort({ date: -1 }).skip((page - 1) * limit).limit(limit).lean(), BankTransaction.countDocuments(filter)]); return { items, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } }; });
 const bankImport = handler(async req => transaction(async session => {
   const rows = req.body.rows; if (!Array.isArray(rows) || !rows.length || rows.length > 500) fail(422, 'Import 1 to 500 bank transactions');
   let imported = 0; let skipped = 0;
@@ -368,7 +352,7 @@ async function decision(req) {
 async function decisionTxn(req) {
   return transaction(async session => {
     if (!head(req.user)) fail(403, 'Finance Head permission required');
-    const Model = { invoice: Invoice, payroll: Payroll, journal: Journal }[req.params.module]; if (!Model) fail(422, 'Unknown review module');
+    const Model = { invoice: Invoice, journal: Journal }[req.params.module]; if (!Model) fail(422, 'Unknown review module');
     const doc = await Model.findById(id(req.params.id)).session(session); if (!doc) fail(404, 'Record not found');
     if (doc.status !== 'draft' || doc.review?.status !== 'submitted') fail(409, 'Record is not awaiting review');
     const decision = req.body.decision; const note = text(req.body.note);
@@ -376,7 +360,6 @@ async function decisionTxn(req) {
     const before = { status: doc.status, review: doc.review.toObject() };
     if (decision === 'approve') {
       if (req.params.module === 'invoice') await S.finalize(req, doc, session);
-      else if (req.params.module === 'payroll') await W.processPayroll(req, doc, session);
       else { await validateJournal(doc, session); doc.status = 'posted'; doc.postedAt = new Date(); }
     }
     Object.assign(doc.review, { status: decision === 'approve' ? 'approved' : 'returned', decidedBy: actor(req), decidedByName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(), decidedAt: new Date(), decisionNote: note });
@@ -409,4 +392,4 @@ const saveJournal = update => handler(async req => transaction(async session => 
   await validateJournal(doc, session); await doc.save({ session }); await audit(req, 'journal_draft_saved', doc, before, doc.toObject(), session); return doc;
 }), update ? 200 : 201);
 const postJournalEntry = handler(async req => transaction(async session => { if (!head(req.user)) fail(403, 'Finance Head required'); const doc = await Journal.findById(id(req.params.id)).session(session); if (!doc) fail(404, 'Journal not found'); if (doc.status !== 'draft') fail(409, 'Journal already posted'); await validateJournal(doc, session); doc.status = 'posted'; doc.postedAt = new Date(); await doc.save({ session }); await audit(req, 'journal_posted', doc, { status: 'draft' }, { status: 'posted' }, session); return doc; }));
-module.exports = { createInvoice, updateInvoice, createInvoiceNote, createPayment, updatePayment, createExpense, updateExpense, updateFinanceRequestAction, createPayroll, updatePayroll, getInvoices, getPayments, getExpenses, getPayrolls, deleteInvoice, deleteExpense, getBudgets, getBudgetVariance, getProjectOptions, createBudget: saveBudget(false), updateBudget: saveBudget(true), adjustBudget, approveBudgetBaseline, setBudgetPhasing, salaryEmployees, getSalaries, saveSalary, bankList, bankImport, decideReview: handler(decision), createJournalEntry: saveJournal(false), updateJournalEntry: saveJournal(true), postJournalEntry, paging };
+module.exports = { createInvoice, updateInvoice, createInvoiceNote, createPayment, updatePayment, createExpense, updateExpense, updateFinanceRequestAction, getInvoices, getPayments, getExpenses, deleteInvoice, deleteExpense, getBudgets, getBudgetVariance, getProjectOptions, createBudget: saveBudget(false), updateBudget: saveBudget(true), adjustBudget, approveBudgetBaseline, setBudgetPhasing, bankList, bankImport, decideReview: handler(decision), createJournalEntry: saveJournal(false), updateJournalEntry: saveJournal(true), postJournalEntry, paging };

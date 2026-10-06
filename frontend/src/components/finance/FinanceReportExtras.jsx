@@ -73,7 +73,7 @@ export default function FinanceReportExtras({ token }) {
           rowKey="department"
           loading={pnl.loading}
           emptyTitle="No posted activity in this range"
-          emptyDescription="Revenue and costs appear here once invoices, expenses or payroll are posted to the ledger."
+          emptyDescription="Revenue and costs appear here once invoices or expenses are posted to the ledger."
           columns={[
             { key: 'department', header: 'Department', render: (r) => <span className="font-semibold">{r.department}</span> },
             { key: 'revenue', header: 'Revenue', render: (r) => money(r.revenue) },

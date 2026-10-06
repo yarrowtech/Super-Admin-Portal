@@ -36,7 +36,6 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'checklist-probe-secret';
     ['8.4', 'Payments', `${F}/payments?direction=in`, 'head'],
     ['8.5', 'Expenses', `${F}/expenses`, 'head'],
     ['8.6', 'Budgets', `${F}/budgets`, 'head'],
-    ['8.7', 'Payroll', `${F}/payrolls`, 'head'],
     ['8.8', 'Accounting (journals)', `${F}/journals`, 'head'],
     ['8.8b', 'Accounting (accounts)', `${F}/accounts`, 'head'],
     ['8.9', 'Tasks', `${F}/tasks`, 'head'],
@@ -74,11 +73,16 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'checklist-probe-secret';
     } catch (e) { results.push({ row, label, status: 'THREW', ok: false, who }); console.log(`  THREW ${row} ${label}: ${e.message}`); }
   }
 
-  // Access control: a finance employee must be refused head-only areas.
+  // Access control: a finance employee must be refused head-only areas. Chart-of-accounts
+  // writes are head-only, so an employee attempting one must be refused before any write.
   const guard = [];
-  for (const [label, path] of [['salary profiles', `${F}/salary-profiles`]]) {
-    const res = await fetch(`${base}${path}`, { headers: { Authorization: `Bearer ${tokens.emp}` } });
-    guard.push({ label, status: res.status, ok: res.status === 403 });
+  {
+    const res = await fetch(`${base}${F}/accounts`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${tokens.emp}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: '9999', name: 'Guard probe', type: 'expense' }),
+    });
+    guard.push({ label: 'create account as employee', status: res.status, ok: res.status === 403 });
   }
   const anon = await fetch(`${base}${F}/invoices`);
   guard.push({ label: 'unauthenticated invoices', status: anon.status, ok: anon.status === 401 });

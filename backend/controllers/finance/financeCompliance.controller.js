@@ -7,7 +7,6 @@ const Journal = require('../../models/finance/JournalEntry');
 const Payment = require('../../models/finance/Payment');
 const Expense = require('../../models/finance/Expense');
 const Client = require('../../models/finance/Client');
-const Payroll = require('../../models/finance/Payroll');
 const Department = require('../../models/department/Department');
 const Vendor = require('../../models/finance/Vendor');
 const AuditLog = require('../../models/finance/AuditLog');
@@ -271,24 +270,20 @@ const getSettings = handler(async () => ({
 }));
 
 // ---- Global search ----------------------------------------------------------
-// One query across the records a finance user jumps between. Payroll rows are
-// restricted to the finance head and HR, matching the payroll read rules elsewhere.
+// One query across the records a finance user jumps between.
 const search = handler(async req => {
   const term = text(req.query.q, 100);
   if (term.length < 2) return { query: term, groups: [] };
   const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-  const canSeePayroll = head(req.user) || req.user.role === 'hr';
-  const [invoices, clients, vendors, payrolls] = await Promise.all([
+  const [invoices, clients, vendors] = await Promise.all([
     Invoice.find({ $or: [{ invoiceNumber: rx }, { clientName: rx }] }).sort({ issueDate: -1 }).limit(6).select('invoiceNumber clientName total balanceDue status issueDate').lean(),
     Client.find({ $or: [{ name: rx }, { contactEmail: rx }] }).limit(6).select('name contactEmail balance').lean(),
     Vendor.find({ $or: [{ name: rx }, { contactEmail: rx }, { taxId: rx }] }).limit(6).select('name contactEmail balance status').lean(),
-    canSeePayroll ? Payroll.find({ employeeName: rx }).sort({ periodStart: -1 }).limit(6).select('employeeName netPay status periodKey periodStart').lean() : [],
   ]);
   const groups = [
     { kind: 'invoice', label: 'Invoices', path: '/finance/dashboard/invoices', items: invoices.map(i => ({ id: i._id, title: i.invoiceNumber, subtitle: i.clientName, amount: i.balanceDue, status: S.invoiceStatus(i), href: `/finance/dashboard/invoices/${i._id}` })) },
     { kind: 'client', label: 'Clients', path: '/finance/dashboard/directory', items: clients.map(c => ({ id: c._id, title: c.name, subtitle: c.contactEmail, amount: c.balance })) },
     { kind: 'vendor', label: 'Vendors', path: '/finance/dashboard/directory', items: vendors.map(v => ({ id: v._id, title: v.name, subtitle: v.contactEmail, amount: v.balance, status: v.status })) },
-    { kind: 'payroll', label: 'Payroll', path: '/finance/dashboard/payroll', items: (payrolls || []).map(p => ({ id: p._id, title: p.employeeName, subtitle: p.periodKey || day(p.periodStart), amount: p.netPay, status: p.status })) },
   ].filter(g => g.items.length);
   return { query: term, groups, total: groups.reduce((n, g) => n + g.items.length, 0) };
 });

@@ -159,6 +159,83 @@ test('expenses: documents before verification, separate approver, budget cannot 
   assert.equal(b.utilization, 80); assert.equal(b.status, 'at-risk', 'crossing the 80% threshold flags the budget');
 });
 
+test('a split expense must account for the whole amount, and posts one debit per allocation', async () => {
+  const Journal = require('../models/finance/JournalEntry');
+  const deptA = await Department.create({ name: 'Split IT', code: 'SPIT' });
+  const deptB = await Department.create({ name: 'Split Media', code: 'SPMD' });
+  const projectA = oid(); const projectB = oid();
+
+  // Verification requires a document on file, so the fixture carries one.
+  const base = { title: 'Shared cloud bill', category: 'Software', amount: 100, departmentId: String(deptA._id), incurredDate: '2026-05-01', documents: [{ label: 'Invoice', url: 'https://files.example/cloud.pdf' }] };
+
+  // Under-allocated: 60 of 100. Silently accepting this would under-charge the budgets.
+  await assert.rejects(
+    W.createExpense(req(head, { ...base, allocations: [{ departmentId: String(deptA._id), amount: 60 }] })),
+    (e) => e.statusCode === 422 && /add up to the expense total/.test(e.message),
+  );
+  // Over-allocated: 120 of 100.
+  await assert.rejects(
+    W.createExpense(req(head, { ...base, allocations: [
+      { departmentId: String(deptA._id), amount: 60 }, { departmentId: String(deptB._id), amount: 60 },
+    ] })),
+    (e) => e.statusCode === 422,
+  );
+  // Rounding must not create free spend: 33.33 x 3 is 99.99, not 100.
+  await assert.rejects(
+    W.createExpense(req(head, { ...base, allocations: [
+      { departmentId: String(deptA._id), amount: 33.33 },
+      { departmentId: String(deptA._id), amount: 33.33 },
+      { departmentId: String(deptB._id), amount: 33.33 },
+    ] })),
+    (e) => e.statusCode === 422,
+  );
+  // An inactive or unknown department in a row is refused.
+  await assert.rejects(
+    W.createExpense(req(head, { ...base, allocations: [
+      { departmentId: String(deptA._id), amount: 50 }, { departmentId: String(oid()), amount: 50 },
+    ] })),
+    (e) => e.statusCode === 422 && /active department/.test(e.message),
+  );
+
+  // An exact split is accepted and stored.
+  const e = await W.createExpense(req(head, { ...base, allocations: [
+    { departmentId: String(deptA._id), projectId: String(projectA), amount: 70 },
+    { departmentId: String(deptB._id), projectId: String(projectB), amount: 30 },
+  ] }));
+  assert.equal(e.allocations.length, 2);
+  assert.equal(e.allocations[0].amount, 70);
+  assert.equal(e.allocations[1].amount, 30);
+
+  // Approval posts one debit per allocation, each carrying its own dimensions, against a
+  // single payable credit — and the entry still balances.
+  await W.expenseAction(req(emp, {}, { id: String(e._id), action: 'verify' }));
+  await W.expenseAction(req(head2, {}, { id: String(e._id), action: 'approve' }));
+  const je = await Journal.findOne({ sourceKey: `expense-${e._id}` }).lean();
+  assert.ok(je, 'an entry was posted');
+  assert.equal(je.totalDebit, je.totalCredit, 'split entry balances');
+  assert.equal(je.totalDebit, 100);
+
+  const debits = je.lines.filter((l) => l.debit > 0);
+  assert.equal(debits.length, 2, 'one debit line per allocation');
+  const byDept = new Map(debits.map((l) => [String(l.departmentId), l]));
+  assert.equal(byDept.get(String(deptA._id)).debit, 70);
+  assert.equal(String(byDept.get(String(deptA._id)).projectId), String(projectA));
+  assert.equal(byDept.get(String(deptB._id)).debit, 30);
+  assert.equal(String(byDept.get(String(deptB._id)).projectId), String(projectB));
+});
+
+test('an unsplit expense still posts a single debit line', async () => {
+  const Journal = require('../models/finance/JournalEntry');
+  const dept = await Department.create({ name: 'No Split', code: 'NOSP' });
+  const e = await W.createExpense(req(head, { title: 'Stamps', category: 'Office', amount: 100, departmentId: String(dept._id), incurredDate: '2026-05-01', documents: [{ label: 'Receipt', url: 'https://files.example/stamps.pdf' }] }));
+  assert.equal(e.allocations.length, 0, 'no allocations means no split');
+  await W.expenseAction(req(emp, {}, { id: String(e._id), action: 'verify' }));
+  await W.expenseAction(req(head2, {}, { id: String(e._id), action: 'approve' }));
+  const je = await Journal.findOne({ sourceKey: `expense-${e._id}` }).lean();
+  assert.equal(je.lines.filter((l) => l.debit > 0).length, 1);
+  assert.equal(je.totalDebit, je.totalCredit);
+});
+
 test('reports agree with each other and with the ledger', async () => {
   const tb = (await call(ctrl.getTrialBalance, head)).body.data;
   assert.equal(tb.balanced, true);

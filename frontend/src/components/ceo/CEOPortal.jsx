@@ -11,6 +11,8 @@ const CEORevenueAnalytics = lazy(() => import('./CEORevenueAnalytics'));
 const CEOProductInsights = lazy(() => import('./CEOProductInsights'));
 const CEOMediaAnalysis = lazy(() => import('./CEOMediaAnalysis'));
 const CEOSalesQueryAnalyticsPage = lazy(() => import('./CEOSalesQueryAnalyticsPage'));
+// Own chunk: this page pulls in Leaflet, which should not weigh down the other views.
+const CEOMarketingAnalytics = lazy(() => import('./marketing/CEOMarketingAnalytics'));
 const CEONotifications = lazy(() => import('./CEONotifications'));
 const CEOLegalApproval = lazy(() => import('./CEOLegalApproval'));
 const ProjectOverviewPage = lazy(() => import('../shared/ProjectOverviewPage'));
@@ -27,6 +29,7 @@ const ceoMobileItems = [
   { key: 'employees', label: 'Employee Analytics', icon: 'groups' },
   { key: 'departmentStats', label: 'Department Insights', icon: 'monitoring' },
   { key: 'mediaAnalysis', label: 'Media Analysis', icon: 'analytics' },
+  { key: 'marketingAnalytics', label: 'Marketing Analytics', icon: 'trending_up' },
   { key: 'salesQueryAnalytics', label: 'Sales Query Analytics', icon: 'query_stats' },
   { key: 'reports', label: 'Reports', icon: 'summarize' },
   { key: 'projectUpdates', label: 'Project Updates', icon: 'update' },
@@ -37,9 +40,14 @@ const ceoMobileItems = [
   { key: 'support', label: 'Support', icon: 'support_agent' },
 ];
 
-const CEOPortal = () => {
+// `initialView` lets a real route deep-link straight to one module (e.g.
+// /ceo/marketing-analytics). Without it the portal behaves exactly as before: the last
+// view is restored from localStorage. Passing it wins over the remembered view, because an
+// explicit URL is a stronger signal than where the user happened to be last time.
+const CEOPortal = ({ initialView = null }) => {
   const { collapsed } = useSidebar();
   const [currentView, setCurrentView] = useState(() => {
+    if (initialView) return initialView;
     try {
       return localStorage.getItem('ceo-portal-current-view') || 'dashboard';
     } catch {
@@ -56,7 +64,7 @@ const CEOPortal = () => {
   const renderContent = () => {
     switch (currentView) {
       case 'dashboard':
-        return <CEODashboard />;
+        return <CEODashboard onNavigate={setCurrentView} />;
       case 'projectOverview':
         return <ProjectOverviewPage portalKey="ceo" portalName="CEO Portal" />;
       case 'revenueAnalytics':
@@ -73,6 +81,8 @@ const CEOPortal = () => {
         return <DepartmentStats />;
       case 'mediaAnalysis':
         return <CEOMediaAnalysis />;
+      case 'marketingAnalytics':
+        return <CEOMarketingAnalytics />;
       case 'salesQueryAnalytics':
         return <CEOSalesQueryAnalyticsPage />;
       case 'projectUpdates':
@@ -86,7 +96,7 @@ const CEOPortal = () => {
       case 'support':
         return <CEOSupportPage />;
       default:
-        return <CEODashboard />;
+        return <CEODashboard onNavigate={setCurrentView} />;
     }
   };
 

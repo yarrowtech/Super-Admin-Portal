@@ -76,21 +76,26 @@ async function journal(req, source, lines, session, entryDate = new Date(), memo
   };
   const resolved = [];
   let debit = 0n; let credit = 0n;
-  for (const [code, dr, cr] of lines) {
+  // A line may be given as [code, debit, credit] or [code, debit, credit, lineDimensions].
+  // The 4th element overrides the entry-level dimensions for that line only, which is how
+  // a cost split across several projects posts as one balanced entry whose debit lines
+  // each carry their own project.
+  for (const [code, dr, cr, lineDimensions] of lines) {
     const [name, type] = codes[code];
     const account = await Account.findOneAndUpdate({ code }, { $setOnInsert: { name, type, normalBalance: ['asset', 'expense'].includes(type) ? 'debit' : 'credit' } }, { upsert: true, new: true, session });
     if (!account.isActive || account.type !== type) fail(409, `Account ${code} must be active and of type ${type}`);
     debit += BigInt(dr); credit += BigInt(cr);
+    const dim = lineDimensions || dimensions;
     // Auto-posted lines carry the source document's dimensions, so departmental
     // reports can read the line without walking back to the entry.
     if (dr || cr) resolved.push({
       account: account._id,
       debit: money.decimal(dr),
       credit: money.decimal(cr),
-      departmentId: dimensions.departmentId || null,
-      projectId: dimensions.projectId || null,
-      client: dimensions.client || null,
-      costCenterId: dimensions.costCenterId || null,
+      departmentId: dim.departmentId || null,
+      projectId: dim.projectId || null,
+      client: dim.client || null,
+      costCenterId: dim.costCenterId || null,
     });
   }
   if (debit !== credit || debit <= 0n) fail(422, 'Journal must balance and have a positive amount');

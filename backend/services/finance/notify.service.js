@@ -93,4 +93,40 @@ async function budgetAlert({ budget, alert }) {
   })));
 }
 
-module.exports = { submittedForReview, reviewDecided, expenseDecided, budgetAlert, FINANCE_HEAD_ROLES };
+// An invoice has gone past due: tell every finance head, and the project's own manager
+// where the invoice carries a project. Collection is the manager's problem as much as
+// finance's, and an escalation only finance sees tends not to get chased.
+async function overdueInvoices({ invoices = [], thresholdDays }) {
+  if (!invoices.length) return 0;
+  const heads = await recipientIds();
+  const currency = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(amount) || 0);
+  const rows = [];
+  for (const invoice of invoices) {
+    const days = Math.floor((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000);
+    const message = `${invoice.invoiceNumber} for ${invoice.clientName || 'a customer'} is ${days} day${days === 1 ? '' : 's'} overdue with ${currency(invoice.balanceDue)} outstanding.`;
+    const metadata = {
+      module: 'invoice',
+      recordId: String(invoice._id),
+      daysOverdue: days,
+      thresholdDays,
+      path: `/finance/dashboard/invoices/${invoice._id}`,
+    };
+    // De-duplicated per recipient: a project manager who is also a finance head gets one
+    // notification, not two.
+    const recipients = new Set(heads.map(String));
+    if (invoice.projectManager) recipients.add(String(invoice.projectManager));
+    for (const id of recipients) {
+      rows.push({
+        manager: id,
+        department: 'Finance',
+        title: 'Overdue invoice needs collection',
+        message,
+        type: 'finance_overdue_invoice',
+        metadata,
+      });
+    }
+  }
+  return send(rows);
+}
+
+module.exports = { submittedForReview, reviewDecided, expenseDecided, budgetAlert, overdueInvoices, FINANCE_HEAD_ROLES };

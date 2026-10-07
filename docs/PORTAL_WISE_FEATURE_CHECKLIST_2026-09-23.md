@@ -67,6 +67,7 @@ Location: /ceo/dashboard
 | 3.5 | Employee analytics | [x] | [ ] | [ ] | ________________ |
 | 3.6 | Department insights | [x] | [ ] | [ ] | ________________ |
 | 3.7 | Media analysis | [x] | [ ] | [ ] | ________________ |
+| 3.7b | Marketing analytics | [x] | [x] | [ ] | **Added 7 October 2026.** Sidebar module + deep-link route `/ceo/marketing-analytics`; interactive India activity map (Leaflet, volume-sized markers, zoom clustering, heat bands), KPI cards, channel donut, state bar chart, campaign table, contact table and detail drawer. Reads an external marketing platform through `backend/integrations/marketingPlatform/*`; credentials stay server-side. 13 tests in `marketingAnalytics.test.js`. **Not yet exercised against a live platform** — see note 8 |
 | 3.8 | Sales query analytics | [x] | [ ] | [ ] | ________________ |
 | 3.9 | Reports | [x] | [ ] | [ ] | ________________ |
 | 3.10 | Project updates | [x] | [ ] | [ ] | ________________ |
@@ -161,7 +162,9 @@ Location: /employee
 
 Location: /finance/dashboard
 
-Verification basis for this section (1 October 2026, payroll rows revised 6 October 2026): `npm run verify:finance-portal` logs in as a real finance head and a real finance employee over HTTP and exercises the endpoint table in that script — all returned 200, with a finance employee refused a head-only chart-of-accounts write (403) and an unauthenticated request refused (401). Automated suites, re-run 6 October 2026 after the Control Tower / Risk & Recovery build: **88 finance tests pass** (`backend/__tests__/finance*.test.js`, `vendorLedger.test.js`, `e2e.financeLawWorkflow.test.js`) — up from 45, with 43 added across `financeDispute`, `financeRefund`, `financeNonCompliance` and `financeControlTower`. The whole backend suite is **142 of 143**, the one failure being the pre-existing, unowned HR issue in review note 5 of this document, which also fails in isolation and predates all finance work.
+Verification basis for this section (1 October 2026, payroll rows revised 6 October 2026): `npm run verify:finance-portal` logs in as a real finance head and a real finance employee over HTTP and exercises the endpoint table in that script — all returned 200, with a finance employee refused a head-only chart-of-accounts write (403) and an unauthenticated request refused (401). **Running the suite:** use `npm test` in `backend/`. It caps Node's test concurrency at 2 because every suite boots its own in-memory MongoDB replica set; past roughly 18 suites a fully parallel run exhausts the machine and tests fail on timeouts rather than on logic. `npm run test:serial` runs them one at a time if a machine is still too small.
+
+Automated suites, re-run 6 October 2026 after the Control Tower / Risk & Recovery build: **88 finance tests pass** (`backend/__tests__/finance*.test.js`, `vendorLedger.test.js`, `e2e.financeLawWorkflow.test.js`) — up from 45, with 43 added across `financeDispute`, `financeRefund`, `financeNonCompliance` and `financeControlTower`. The whole backend suite is **169 of 169 as at 7 October 2026** — the HR project-overview failure carried in review note 5 since 1 October has been fixed and is described there.
 
 The payroll probe and the salary-profile 403 check were removed with the feature; the access-control gate now probes a head-only account write instead.
 
@@ -172,8 +175,8 @@ Working is ticked where an endpoint returned a correct authenticated response AN
 | 8.1 | Overview | [x] | [x] | [ ] | `/dashboard` 200. KPIs from server aggregates; `reports agree with each other and with the ledger` |
 | 8.2 | Department profiles / project overview | [x] | [x] | [ ] | `/departments` 200; departmental P&L test |
 | 8.3 | Invoices and invoice details | [x] | [x] | [ ] | `invoice maths…`, `multi-line invoice with mixed GST slabs…`, `draft to issued to part-paid to credit-noted…` |
-| 8.4 | Payments | [x] | [x] | [ ] | `partial payments, duplicate references, overpayment and reversal`; `bank reconciliation…` |
-| 8.5 | Expenses | [x] | [x] | [ ] | `expenses: documents before verification, separate approver, budget cannot be exceeded` |
+| 8.4 | Payments | [x] | [x] | [ ] | `partial payments, duplicate references, overpayment and reversal`; `bank reconciliation…`; overdue-invoice escalation to the finance head and the project manager runs nightly (`financeOverdueEscalation.test.js`, 10 cases) |
+| 8.5 | Expenses | [x] | [x] | [ ] | `expenses: documents before verification, separate approver, budget cannot be exceeded`; plus `a split expense must account for the whole amount, and posts one debit per allocation` and `an unsplit expense still posts a single debit line` — one cost can be split across departments/projects, and approval posts one debit line per share |
 | 8.6 | Budgets | [x] | [x] | [ ] | Budget utilisation/alert assertions in the expenses test; audited adjustments |
 | 8.7 | Payroll | — | — | — | Removed 6 October 2026. Payroll management (runs, salary profiles, payslips, PF/PT withholding, the HR payroll-sync and hr-trigger endpoints) was deleted from the portal at the owner's direction. No replacement; HR holds no payroll implementation of its own. |
 | 8.8 | Accounting | [x] | [x] | [ ] | `unbalanced journal entries cannot be submitted; balanced ones post on approval` |
@@ -313,11 +316,13 @@ Location: Across authorized portals
 
 4. Law contracts, documents and compliance intentionally use a catch-all route with internal section selection. Missing individual routes are not by themselves defects. Check head/member permissions.
 
-5. Automated tests and portal checklist scripts exist in backend/__tests__ and backend/scripts. Updated 1 October 2026: the suite now runs at 95 of 96 passing. The one failure is `project overview pages count only accessible persisted projects and never double-skip` in `hrIntegrity.test.js`, which also fails in isolation and predates the finance work — it belongs to section 4 (HR) and is unowned. Portals other than Finance remain unverified for this document.
+5. Automated tests and portal checklist scripts exist in backend/__tests__ and backend/scripts. **Updated 7 October 2026: the suite runs at 169 of 169 — fully green.** The long-standing failure, `project overview pages count only accessible persisted projects and never double-skip` in `hrIntegrity.test.js`, was an access-control defect, not a broken test: `projectOverviewScope` treated *any* user with no per-project assignment records as unrestricted, so an individual contributor could list every project in the company. Oversight roles genuinely need that fallback (without it every project lookup 404s for department heads), so the fix gates it on `ROLE_HIERARCHY >= 50`: heads, managers, HR, CEO and admins keep full visibility, while IT/Finance/Law employees, media sales/marketing and freelancers now see only the projects they manage or are a team member of. Verified across all 16 roles — none matches nothing, so no role lost access. A new test, `an unassigned oversight role still sees every project; an unassigned contributor does not`, pins the distinction. Portals other than Finance remain otherwise unverified for this document.
 
 6. Finance, employee, routing and menu files contain local modifications. Reconfirm behavior against the exact build submitted for approval.
 
 7. EFNBMMS, EdifyEight and Policy API integrations require verification against configured external services.
+
+8. **CEO > Marketing Analytics (row 3.7b) has no live data source yet.** Marketing work happens in a separate platform; this module only reads from it. With `MARKETING_PLATFORM_BASE_URL` and a credential unset (the current state), the API returns `MARKETING_PLATFORM_NOT_CONFIGURED` and the page shows a "platform not connected" state rather than any placeholder figures. The adapter at `backend/integrations/marketingPlatform/mapper.js` reads each field under several plausible upstream names so a vendor's own naming does not require a frontend change, and endpoint paths are environment-overridable — but the integration has been verified only against tests, never against a live platform, so the first real connection may still need a path or field-alias adjustment. Credentials are server-side only: no platform URL or token appears in the frontend source or the built bundle (audited).
 
 ## Evidence references
 

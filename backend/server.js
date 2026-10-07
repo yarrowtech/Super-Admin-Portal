@@ -5,6 +5,10 @@ const { server } = require("./app");
 const mongoose = require("mongoose");
 const logService = require("./services/log.service");
 const { closeRedis } = require("./infrastructure/cache/redisClient");
+const {
+  startOverdueEscalationJob,
+  stopOverdueEscalationJob,
+} = require("./jobs/overdueInvoiceEscalation.job");
 
 const PORT = env.PORT;
 
@@ -17,6 +21,9 @@ try {
 
 const httpServer = server.listen(PORT, () => {
   logger.info({ port: PORT }, "Server running");
+  // Scheduled background work. Started after the server is listening so a scheduling
+  // failure can never stop the API from coming up.
+  startOverdueEscalationJob();
   logService.fireAndForget({
     level: "info",
     event: "SERVER_STARTED",
@@ -33,6 +40,9 @@ const httpServer = server.listen(PORT, () => {
 
 const shutdown = async (signal) => {
   logger.warn({ signal }, "Graceful shutdown started");
+  // Stop the scheduler before closing connections, so a tick cannot fire against a
+  // database that is already going away.
+  stopOverdueEscalationJob();
   const forceExitTimer = setTimeout(() => {
     process.exit(1);
   }, 10000);

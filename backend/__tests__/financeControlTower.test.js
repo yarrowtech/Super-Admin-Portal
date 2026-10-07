@@ -110,9 +110,11 @@ test('a breached budget drives budget_health red; a threshold crossing drives am
   let res = await call(ctrl.getControlTower, { user: users.head });
   assert.equal(cardFor(res.body.data, 'budget_health').status, 'amber', JSON.stringify(cardFor(res.body.data, 'budget_health')));
 
-  // Red: an explicitly breached budget.
+  // Red: an explicitly breached budget. A different fiscal year, because Budget has a
+  // unique index on (departmentId, fiscalYear, costCenterId, financialPeriodId) and both
+  // fixtures leave the last two null — reusing '2026' here raced that index.
   await Budget.create({
-    department: 'Finance', departmentId: finDeptId, fiscalYear: '2026', allocated: 500,
+    department: 'Finance', departmentId: finDeptId, fiscalYear: '2027', allocated: 500,
     status: 'active', scope: 'project', projectId: oid(), breachedAt: new Date(),
   });
   res = await call(ctrl.getControlTower, { user: users.head });

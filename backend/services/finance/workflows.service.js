@@ -228,6 +228,37 @@ function documents(body) {
     return { label: text(d.label, 120), url };
   });
 }
+// One cost shared across several projects or departments (§C). The split must account for
+// the whole amount exactly: a partial split would silently under-charge the budgets it
+// names, which is worse than no split at all. Minor units throughout, so 33.33 x 3 against
+// 100.00 fails rather than rounding into a penny of free spend.
+async function allocationsFor(body, amountMinor, fallbackDepartmentId, session) {
+  const rows = body.allocations;
+  if (!Array.isArray(rows) || !rows.length) return [];
+  if (rows.length > 50) fail(422, 'An expense can be split across at most 50 allocations');
+
+  let total = 0n;
+  const out = [];
+  for (const row of rows) {
+    const share = positive(row?.amount);
+    const departmentId = row?.departmentId ? id(row.departmentId) : fallbackDepartmentId;
+    if (!await Department.exists({ _id: departmentId, isActive: true }).session(session)) {
+      fail(422, 'Each allocation needs an active department');
+    }
+    total += BigInt(share);
+    out.push({
+      departmentId,
+      projectId: row?.projectId ? id(row.projectId) : null,
+      costCenterId: row?.costCenterId ? id(row.costCenterId) : null,
+      amount: money.decimal(share),
+    });
+  }
+  if (total !== BigInt(amountMinor)) {
+    fail(422, `Allocations must add up to the expense total (${money.decimal(total)} allocated of ${money.decimal(amountMinor)})`);
+  }
+  return out;
+}
+
 async function createExpense(req) {
   return transaction(async session => {
     const b = req.body || {}; const amount = positive(b.amount);
@@ -239,8 +270,9 @@ async function createExpense(req) {
       fail(422, `A supporting document is required for claims of ₹${threshold.toLocaleString('en-IN')} or more`);
     }
     await openPeriod(b.financialPeriodId, session);
+    const allocations = await allocationsFor(b, amount, department._id, session);
     const budgetId = await selectBudget(b, department._id, session);
-    const [e] = await Expense.create([{ title: text(b.title, 200), category: text(b.category, 100), amount: money.decimal(amount), costType: costType(b.costType), departmentId: department._id, department: department.name, projectId: b.projectId ? id(b.projectId) : null, budgetId, financialPeriodId: b.financialPeriodId || null, vendor: b.vendor || null, costCenterId: b.costCenterId || null, incurredDate: b.incurredDate ? date(b.incurredDate) : new Date(), documents: documents(b.documents), notes: text(b.notes), submittedBy: actor(req), status: 'submitted', budgetReservedAt: new Date(), statusHistory: [{ from: '', to: 'submitted', action: 'submit', actor: actor(req), actorRole: req.user.role }] }], { session });
+    const [e] = await Expense.create([{ title: text(b.title, 200), category: text(b.category, 100), amount: money.decimal(amount), costType: costType(b.costType), departmentId: department._id, department: department.name, projectId: b.projectId ? id(b.projectId) : null, allocations, budgetId, financialPeriodId: b.financialPeriodId || null, vendor: b.vendor || null, costCenterId: b.costCenterId || null, incurredDate: b.incurredDate ? date(b.incurredDate) : new Date(), documents: documents(b.documents), notes: text(b.notes), submittedBy: actor(req), status: 'submitted', budgetReservedAt: new Date(), statusHistory: [{ from: '', to: 'submitted', action: 'submit', actor: actor(req), actorRole: req.user.role }] }], { session });
     await refreshBudget(budgetId, session); await audit(req, 'expense_submitted', e, null, e.toObject(), session); return e;
   });
 }
@@ -307,7 +339,18 @@ async function expenseActionTxn(req) {
     e.statusHistory.push({ from: e.status, to: rule[1], action, comment, actor: actor(req), actorRole: req.user.role }); e.status = rule[1];
     if (action === 'verify') e.verifiedBy = actor(req);
     if (action === 'request_information') e.requestedInfo = comment;
-    if (action === 'approve') { e.approvedBy = actor(req); const j = await journal(req, `expense-${e._id}`, [['5000', amount, 0], ['2100', 0, amount]], session, e.incurredDate, e.title, e); e.journalEntryId = j._id; }
+    if (action === 'approve') {
+      e.approvedBy = actor(req);
+      // A split cost debits once per allocation, each line carrying its own department and
+      // project, against a single payable credit. Unsplit costs keep the original shape.
+      const debits = e.allocations?.length
+        ? e.allocations.map(a => ['5000', money.minor(a.amount), 0, {
+          departmentId: a.departmentId, projectId: a.projectId, costCenterId: a.costCenterId,
+        }])
+        : [['5000', amount, 0]];
+      const j = await journal(req, `expense-${e._id}`, [...debits, ['2100', 0, amount]], session, e.incurredDate, e.title, e);
+      e.journalEntryId = j._id;
+    }
     if (action === 'complete') {
       const [p] = await Payment.create([{ amount: e.amount, amountMinor: amount, direction: 'out', status: 'completed', method: 'bank', reference: `EXPENSE-${e._id}`, customerName: e.title, requestId: e._id, vendor: e.vendor, departmentId: e.departmentId, paymentDate: new Date(), createdBy: actor(req) }], { session });
       await journal(req, `expense-paid-${e._id}`, [['2100', amount, 0], ['1000', 0, amount]], session, p.paymentDate, e.title, e);

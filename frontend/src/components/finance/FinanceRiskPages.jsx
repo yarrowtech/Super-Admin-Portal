@@ -24,6 +24,12 @@ const FINANCE_HEAD_ROLES = ['finance_manager', 'admin', 'super_admin', 'superadm
 const isHeadRole = (role) => FINANCE_HEAD_ROLES.includes(String(role || '').toLowerCase());
 
 const money = (v) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(v) || 0);
+// Right-aligned, tabular figures so a column of amounts can be compared vertically; the
+// shared DataTable applies no per-column alignment, so the cell carries it.
+const MoneyCell = ({ value }) => (
+  <span className="block text-right font-semibold tabular-nums">{money(value)}</span>
+);
+const moneyHeader = (label) => <span className="block text-right">{label}</span>;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const unwrap = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
 const toList = (v) => (Array.isArray(v) ? v : Array.isArray(v?.items) ? v.items : []);
@@ -109,25 +115,25 @@ const DRILL_COLUMNS = {
     { key: 'department', header: 'Department', render: (r) => r.department || '—' },
     { key: 'fiscalYear', header: 'Year' },
     { key: 'scope', header: 'Scope' },
-    { key: 'allocated', header: 'Allocated', render: (r) => money(r.allocated) },
+    { key: 'allocated', header: moneyHeader('Allocated'), render: (r) => <MoneyCell value={r.allocated} /> },
     { key: 'breachedAt', header: 'Breached', render: (r) => (r.breachedAt ? fmtDate(r.breachedAt) : '—') },
   ],
   payment_delays: [
     { key: 'invoiceNumber', header: 'Invoice', render: (r) => <span className="font-semibold">{r.invoiceNumber}</span> },
     { key: 'clientName', header: 'Customer' },
     { key: 'dueDate', header: 'Due', render: (r) => fmtDate(r.dueDate) },
-    { key: 'balanceDue', header: 'Outstanding', render: (r) => money(r.balanceDue) },
+    { key: 'balanceDue', header: moneyHeader('Outstanding'), render: (r) => <MoneyCell value={r.balanceDue} /> },
   ],
   overdue_invoices: [
     { key: 'invoiceNumber', header: 'Invoice', render: (r) => <span className="font-semibold">{r.invoiceNumber}</span> },
     { key: 'clientName', header: 'Customer' },
     { key: 'dueDate', header: 'Due', render: (r) => fmtDate(r.dueDate) },
-    { key: 'balanceDue', header: 'Outstanding', render: (r) => money(r.balanceDue) },
+    { key: 'balanceDue', header: moneyHeader('Outstanding'), render: (r) => <MoneyCell value={r.balanceDue} /> },
   ],
   open_disputes: [
     { key: 'disputeNumber', header: 'Dispute', render: (r) => <span className="font-semibold">{r.disputeNumber}</span> },
     { key: 'subjectType', header: 'Against' },
-    { key: 'amountDisputed', header: 'Amount', render: (r) => money(r.amountDisputed) },
+    { key: 'amountDisputed', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amountDisputed} /> },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     { key: 'createdAt', header: 'Raised', render: (r) => fmtDate(r.createdAt) },
   ],
@@ -135,7 +141,7 @@ const DRILL_COLUMNS = {
     { key: 'ticketNumber', header: 'Ticket', render: (r) => <span className="font-semibold">{r.ticketNumber}</span> },
     { key: 'kind', header: 'Kind', render: (r) => String(r.kind || '').replace(/_/g, ' ') },
     { key: 'severity', header: 'Severity', render: (r) => <StatusBadge status={r.severity} /> },
-    { key: 'financialImpact', header: 'Impact', render: (r) => money(r.financialImpact) },
+    { key: 'financialImpact', header: moneyHeader('Impact'), render: (r) => <MoneyCell value={r.financialImpact} /> },
     { key: 'createdAt', header: 'Raised', render: (r) => fmtDate(r.createdAt) },
   ],
 };
@@ -329,7 +335,7 @@ export const FinanceDisputesPage = () => {
                   { key: 'disputeNumber', header: 'Dispute', render: (r) => <span className="font-semibold">{r.disputeNumber}</span> },
                   { key: 'subjectType', header: 'Subject', render: (r) => String(r.subjectType || '').replace(/_/g, ' ') },
                   { key: 'raisedAgainst', header: 'Against' },
-                  { key: 'amountDisputed', header: 'Amount', render: (r) => money(r.amountDisputed) },
+                  { key: 'amountDisputed', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amountDisputed} /> },
                   { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
                   { key: 'resolution', header: 'Resolution', render: (r) => (r.resolution ? String(r.resolution).replace(/_/g, ' ') : '—') },
                   { key: 'createdAt', header: 'Raised', render: (r) => fmtDate(r.createdAt) },
@@ -605,7 +611,7 @@ export const FinanceRefundsPage = () => {
                 emptyTitle={statusFilter ? `No ${statusFilter} refunds` : 'No refunds yet'}
                 columns={[
                   { key: 'refundNumber', header: 'Refund', render: (r) => <span className="font-semibold">{r.refundNumber}</span> },
-                  { key: 'amount', header: 'Amount', render: (r) => money(r.amount) },
+                  { key: 'amount', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amount} /> },
                   { key: 'method', header: 'Method' },
                   { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
                   { key: 'createdAt', header: 'Raised', render: (r) => fmtDate(r.createdAt) },

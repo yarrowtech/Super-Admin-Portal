@@ -5,6 +5,7 @@ const ceoController = require('../controllers/ceo/ceoDashboard.controller');
 const departmentStatsController = require('../controllers/ceo/departmentStats.controller');
 const ceoChatController = require('../controllers/ceo/ceoChat.controller');
 const ceoSalesAnalyticsController = require('../controllers/ceo/ceoSalesAnalytics.controller');
+const marketingAnalyticsController = require('../controllers/ceo/marketingAnalytics.controller');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
@@ -26,6 +27,16 @@ router.get('/departments-analytics', ceoController.getDepartmentAnalytics);
 router.get('/projects-analytics', ceoController.getProjectAnalytics);
 router.get('/notifications-analytics', ceoController.getNotificationAnalytics);
 router.get('/sales-query-analytics', ceoSalesAnalyticsController.getSalesQueryAnalytics);
+
+// ── Marketing Analytics ─────────────────────────────────────────────────────
+// Reads from the external marketing platform through our own integration layer, so the
+// platform's credentials stay server-side and the browser only ever sees aggregates.
+// `status` is listed before the parameterised contact route so it is not swallowed by it.
+router.get('/marketing-analytics', marketingAnalyticsController.getMarketingAnalytics);
+router.get('/marketing-analytics/status', marketingAnalyticsController.getMarketingStatus);
+router.get('/marketing-analytics/projects', marketingAnalyticsController.getMarketingProjects);
+router.get('/marketing-analytics/contacts', marketingAnalyticsController.getMarketingContacts);
+router.get('/marketing-analytics/contacts/:contactId', marketingAnalyticsController.getMarketingContact);
 // Alias analytics endpoints for standardized API contract
 router.get('/employees', ceoController.getEmployeeAnalytics);
 router.get('/departments', ceoController.getDepartmentAnalytics);

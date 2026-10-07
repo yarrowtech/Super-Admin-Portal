@@ -165,3 +165,30 @@ test('project overview pages count only accessible persisted projects and never 
   assert.equal(denied.pagination.total, 0);
   assert.deepEqual(denied.items, []);
 });
+
+test('an unassigned oversight role still sees every project; an unassigned contributor does not', async () => {
+  const Project = require('../models/common/Project');
+  const { PROJECT_REGISTRY } = require('../utils/projectAccess');
+  const router = require('../routes/projectOverview.routes');
+  await Project.init();
+  // listProjects only ever returns projects whose name or code is in the canonical
+  // registry (projectFilter), and this suite shares one database across tests — so rather
+  // than assume a count, take what an admin can see as the ground truth for "all projects".
+  const admin = await router.listProjects({}, { _id: new mongoose.Types.ObjectId(), role: 'admin' });
+  const allProjects = admin.pagination.total;
+  assert.ok(allProjects > 0, 'fixtures from the previous test are present');
+  const stranger = new mongoose.Types.ObjectId();
+
+  // A department head oversees the whole department, so no assignment records means
+  // unrestricted. Removing this would 404 every project lookup for Law/IT/HR/Finance heads.
+  for (const role of ['it_manager', 'law_head', 'finance_manager', 'media_head', 'hr']) {
+    const seen = await router.listProjects({}, { _id: stranger, role });
+    assert.equal(seen.pagination.total, allProjects, `${role} should see all projects`);
+  }
+
+  // An individual contributor sees only what they actually work on — here, nothing.
+  for (const role of ['it_employee', 'finance_employee', 'law_employee', 'media_sales']) {
+    const seen = await router.listProjects({}, { _id: stranger, role });
+    assert.equal(seen.pagination.total, 0, `${role} should not see projects they have no part in`);
+  }
+});

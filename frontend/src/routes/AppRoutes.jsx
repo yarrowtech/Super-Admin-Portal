@@ -1033,6 +1033,21 @@ export default function AppRoutes() {
           }
         />
 
+        {/* Deep link straight to the Marketing Analytics module. The CEO portal renders
+            its modules as internal views rather than nested routes, so this mounts the
+            same portal shell with that view pre-selected — the sidebar, guards and layout
+            behave identically to arriving via /ceo/dashboard. */}
+        <Route
+          path="/ceo/marketing-analytics"
+          element={
+            <PortalRoute portal={PORTALS.CEO}>
+              <PrivateRoute roles={allow('ceo')}>
+                <CEOPortalLayout initialView="marketingAnalytics" />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+
         {/* ── Legal Document Management — Admin ── */}
         <Route
           path="/admin/legal-docs"

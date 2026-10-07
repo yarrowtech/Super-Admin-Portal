@@ -101,15 +101,32 @@ const TabBar = ({ tabs, active, onChange }) => (
   </div>
 );
 
+// A left edge in the status colour, so four otherwise-identical tiles can be told apart at
+// a glance (§13). Colour is confined to a 3px rule and the value: tinting whole cards
+// would make the row shout. `tone` is optional — the seven existing callers that omit it
+// render exactly as before.
+const STAT_TONES = {
+  positive: { bar: 'bg-emerald-500', value: 'text-emerald-700 dark:text-emerald-300' },
+  warning: { bar: 'bg-amber-500', value: 'text-amber-700 dark:text-amber-300' },
+  critical: { bar: 'bg-rose-500', value: 'text-rose-700 dark:text-rose-300' },
+  info: { bar: 'bg-blue-500', value: 'text-neutral-900 dark:text-white' },
+};
+
 const StatGrid = ({ items }) => (
   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-    {items.map((item) => (
-      <div key={item.label} className={statBox}>
-        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{item.label}</p>
-        <p className="mt-2 text-2xl font-black tracking-tight text-neutral-900 dark:text-white">{item.value ?? '—'}</p>
-        {item.subtext && <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{item.subtext}</p>}
-      </div>
-    ))}
+    {items.map((item) => {
+      const tone = STAT_TONES[item.tone];
+      return (
+        <div key={item.label} className={`${statBox} ${tone ? 'relative overflow-hidden pl-5' : ''}`}>
+          {tone && <span className={`absolute inset-y-0 left-0 w-[3px] ${tone.bar}`} aria-hidden="true" />}
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{item.label}</p>
+          <p className={`mt-2 text-2xl font-black tracking-tight tabular-nums ${tone ? tone.value : 'text-neutral-900 dark:text-white'}`}>
+            {item.value ?? '—'}
+          </p>
+          {item.subtext && <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{item.subtext}</p>}
+        </div>
+      );
+    })}
   </div>
 );
 
@@ -434,6 +451,21 @@ const ReviewActions = ({ module, item, isHead, onOpen, directApprove, directLabe
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value || 0));
+
+// A money cell for tables. Two things make a column of figures comparable at a glance:
+// right alignment, so the units line up, and `tabular-nums`, which forces every digit to
+// the same width — without it a column of ₹1,18,765.48 / ₹31,17,005.00 drifts because
+// proportional fonts render "1" narrower than "8". The shared DataTable applies no
+// per-column alignment, so each render function owns it.
+// Right-aligned header label, so a money column's heading sits over its digits.
+const moneyHeader = (label) => <span className="block text-right">{label}</span>;
+const MoneyCell = ({ value, tone = '' }) => (
+  <span className={`block text-right font-semibold tabular-nums ${tone}`}>{formatCurrency(value)}</span>
+);
+// For a numeric but non-currency column (counts, percentages).
+const NumCell = ({ children, tone = '' }) => (
+  <span className={`block text-right tabular-nums ${tone}`}>{children}</span>
+);
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -947,6 +979,10 @@ export const FinanceOverviewPage = () => {
                     context={item.context}
                     tone={item.tone}
                     priority={item.priority}
+                    // The restrained tile: no decorative blob, hairline border, no hover
+                    // lift. On a finance dashboard the figure should carry the card, not
+                    // the ornament behind it.
+                    variant="minimal"
                   />
                 );
                 return item.drillDown ? (
@@ -1362,7 +1398,7 @@ export const FinanceDepartmentProfilesPage = () => {
                 { title: 'Reserved', value: profile.reserved, icon: 'pending_actions', subtitle: `${profile.pendingRequests || 0} requests` },
                 { title: 'Remaining', value: profile.remaining, icon: 'savings', subtitle: profile.status || 'healthy' },
               ].map((item) => (
-                <KPICard key={item.title} title={item.title} value={formatCurrency(item.value)} icon={item.icon} subtitle={item.subtitle} trend={item.title === 'Remaining' && Number(item.value) < 0 ? { direction: 'down', value: 'Over' } : undefined} />
+                <KPICard key={item.title} title={item.title} value={formatCurrency(item.value)} icon={item.icon} subtitle={item.subtitle} variant="minimal" trend={item.title === 'Remaining' && Number(item.value) < 0 ? { direction: 'down', value: 'Over' } : undefined} />
               ))}
             </section>
 
@@ -1721,8 +1757,8 @@ export const FinanceInvoicesPage = () => {
                       );
                     },
                   },
-                  { key: 'total', header: 'Total', render: (r) => formatCurrency(getInvoiceTotal(r)) },
-                  { key: 'balanceDue', header: 'Balance', render: (r) => <span className="font-semibold">{formatCurrency(invoiceStage(r) === 'paid' ? 0 : invoiceBalance(r))}</span> },
+                  { key: 'total', header: moneyHeader('Total'), render: (r) => <MoneyCell value={getInvoiceTotal(r)} /> },
+                  { key: 'balanceDue', header: moneyHeader('Balance'), render: (r) => <MoneyCell value={invoiceStage(r) === 'paid' ? 0 : invoiceBalance(r)} /> },
                   {
                     key: 'actions',
                     header: 'Next step',
@@ -2179,10 +2215,14 @@ export const FinancePaymentsPage = () => {
 
         <StatGrid
           items={[
-            { label: 'Receivable', value: formatCurrency(payableInvoices.reduce((sum, inv) => sum + invoiceBalance(inv), 0)), subtext: `${payableInvoices.length} open invoice${payableInvoices.length === 1 ? '' : 's'}` },
-            { label: 'To reconcile', value: formatCurrency(sumBy('recorded')), subtext: `${statusCounts.recorded || 0} awaiting bank match` },
-            { label: 'Reconciled', value: formatCurrency(sumBy('reconciled')), subtext: `${statusCounts.reconciled || 0} confirmed` },
-            { label: 'Failed', value: statusCounts.failed || 0, subtext: 'Bounced or reversed' },
+            // Receivable is a fact, not a verdict, so it stays neutral-informational.
+            // The other three carry the state of the reconciliation work.
+            { label: 'Receivable', tone: 'info', value: formatCurrency(payableInvoices.reduce((sum, inv) => sum + invoiceBalance(inv), 0)), subtext: `${payableInvoices.length} open invoice${payableInvoices.length === 1 ? '' : 's'}` },
+            { label: 'To reconcile', tone: 'warning', value: formatCurrency(sumBy('recorded')), subtext: `${statusCounts.recorded || 0} awaiting bank match` },
+            { label: 'Reconciled', tone: 'positive', value: formatCurrency(sumBy('reconciled')), subtext: `${statusCounts.reconciled || 0} confirmed` },
+            // Only amber/red when there is actually something wrong; zero failures is a
+            // good state and should not be painted as a problem.
+            { label: 'Failed', tone: (statusCounts.failed || 0) > 0 ? 'critical' : undefined, value: statusCounts.failed || 0, subtext: 'Bounced or reversed' },
           ]}
         />
 
@@ -2292,7 +2332,7 @@ export const FinancePaymentsPage = () => {
                     },
                   },
                   { key: 'method', header: 'Method', render: (r) => <span className="capitalize">{r.method}</span> },
-                  { key: 'amount', header: 'Amount', render: (r) => <span className="font-semibold">{formatCurrency(r.amount)}</span> },
+                  { key: 'amount', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amount} /> },
                   {
                     key: 'status',
                     header: 'Status',
@@ -2409,7 +2449,7 @@ export const FinanceExpensesPage = () => {
   const needsAction = expenses.filter((row) => financeExpenseRequestActions(row, isFinanceHead).length > 0).length;
 
   // New expenses always enter the workflow as "submitted"; the backend ignores any other status.
-  const emptyExpenseForm = { title: '', category: '', amount: '', departmentId: '', costType: 'variable', projectId: '', docLabel: '', docUrl: '' };
+  const emptyExpenseForm = { title: '', category: '', amount: '', departmentId: '', costType: 'variable', projectId: '', docLabel: '', docUrl: '', allocations: [] };
   const docUrlError = form => (form.docUrl && !/^https?:\/\//i.test(form.docUrl.trim()) ? 'Paste a full link starting with https://' : '');
 
   // Expense report: per-category totals over every expense, fetched on demand so the CSV
@@ -2463,6 +2503,14 @@ export const FinanceExpensesPage = () => {
   // The threshold comes from the server so the form and the workflow agree.
   const receiptThreshold = Number(data.settings?.receiptRequiredAbove ?? 500);
   const receiptRequired = (Number(form.amount) || 0) >= receiptThreshold;
+  // Minor units, matching the server's check: 33.33 x 3 against 100.00 must read as 1 paisa
+  // short, not as zero after float rounding.
+  const minor = (v) => Math.round((Number(v) || 0) * 100);
+  const allocationRemainder = form.allocations.length
+    ? minor(form.amount) - form.allocations.reduce((n, r) => n + minor(r.amount), 0)
+    : 0;
+  const allocationsIncomplete = form.allocations.length > 0
+    && (allocationRemainder !== 0 || form.allocations.some((r) => !r.departmentId || minor(r.amount) <= 0));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -2481,7 +2529,12 @@ export const FinanceExpensesPage = () => {
       const documents = form.docUrl.trim() ? [{ label: form.docLabel.trim() || 'Receipt', url: form.docUrl.trim() }] : [];
       // costType decides which side of the budget this lands on; projectId, when set, charges
       // the project's own budget instead of the department's running budget.
-      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, departmentId: form.departmentId, costType: form.costType, ...(form.projectId ? { projectId: form.projectId } : {}), documents }, token);
+      // Allocations are sent only when the cost is actually split; the server treats an
+      // empty array as "charge the whole amount to the department above".
+      const allocations = form.allocations
+        .filter((r) => r.departmentId && Number(r.amount) > 0)
+        .map((r) => ({ departmentId: r.departmentId, ...(r.projectId ? { projectId: r.projectId } : {}), amount: Number(r.amount) }));
+      await financeApi.createExpense({ title: form.title, category: form.category, amount: Number(form.amount) || 0, departmentId: form.departmentId, costType: form.costType, ...(form.projectId ? { projectId: form.projectId } : {}), ...(allocations.length ? { allocations } : {}), documents }, token);
       setForm(emptyExpenseForm);
       setNotice('Expense submitted for verification.');
       refetch();
@@ -2566,6 +2619,81 @@ export const FinanceExpensesPage = () => {
                   options={[{ value: '', label: 'Not project work' }, ...(data.projectCatalog || []).map((p) => ({ value: p._id, label: p.code ? `${p.name} (${p.code})` : p.name }))]}
                   helperText="With a project set, the project's budget is charged instead of the department's."
                 />
+
+                {/* Split allocation: one cost shared across departments or projects. The
+                    server requires the rows to add up to the total exactly, so the running
+                    remainder is shown here and submit is blocked until it reaches zero. */}
+                <div className="rounded-xl border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                      <span className="material-symbols-outlined text-[18px] text-neutral-400">call_split</span>
+                      Split across departments / projects
+                    </p>
+                    <Button
+                      type="button" size="sm" variant="secondary"
+                      onClick={() => setForm((p) => ({
+                        ...p,
+                        allocations: [...p.allocations, { departmentId: p.departmentId || '', projectId: '', amount: '' }],
+                      }))}
+                    >
+                      Add a share
+                    </Button>
+                  </div>
+                  {form.allocations.length === 0 ? (
+                    <p className="text-xs text-neutral-500">
+                      Leave empty to charge the whole amount to the department and project above.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.allocations.map((row, i) => (
+                        <div key={i} className="grid gap-2 sm:grid-cols-[1fr_1fr_7rem_2.5rem]">
+                          <Select
+                            aria-label={`Share ${i + 1} department`}
+                            value={row.departmentId}
+                            onChange={(e) => setForm((p) => ({
+                              ...p,
+                              allocations: p.allocations.map((r, k) => (k === i ? { ...r, departmentId: e.target.value } : r)),
+                            }))}
+                            options={[{ value: '', label: 'Department…' }, ...(departmentCatalog || []).map((d) => ({ value: d._id, label: d.name }))]}
+                          />
+                          <Select
+                            aria-label={`Share ${i + 1} project`}
+                            value={row.projectId}
+                            onChange={(e) => setForm((p) => ({
+                              ...p,
+                              allocations: p.allocations.map((r, k) => (k === i ? { ...r, projectId: e.target.value } : r)),
+                            }))}
+                            options={[{ value: '', label: 'No project' }, ...(data.projectCatalog || []).map((pr) => ({ value: pr._id, label: pr.name }))]}
+                          />
+                          <Input
+                            type="number" min="0" step="0.01" placeholder="0.00"
+                            aria-label={`Share ${i + 1} amount`}
+                            value={row.amount}
+                            onChange={(e) => setForm((p) => ({
+                              ...p,
+                              allocations: p.allocations.map((r, k) => (k === i ? { ...r, amount: e.target.value } : r)),
+                            }))}
+                          />
+                          <Button
+                            type="button" size="sm" variant="secondary"
+                            aria-label={`Remove share ${i + 1}`}
+                            onClick={() => setForm((p) => ({ ...p, allocations: p.allocations.filter((_, k) => k !== i) }))}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                      <p className={`text-xs font-semibold ${allocationRemainder === 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                        {allocationRemainder === 0
+                          ? 'Allocated in full.'
+                          : allocationRemainder > 0
+                            ? `${formatCurrency(allocationRemainder / 100)} still to allocate.`
+                            : `${formatCurrency(-allocationRemainder / 100)} over-allocated.`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className={`rounded-xl border border-dashed p-3 ${receiptRequired && !form.docUrl.trim() ? 'border-amber-400 bg-amber-50/60 dark:border-amber-500 dark:bg-amber-500/10' : 'border-neutral-300 dark:border-neutral-700'}`}>
                   <p className="mb-2 flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
                     <span className="material-symbols-outlined text-[18px] text-neutral-400">attach_file</span>
@@ -2586,7 +2714,7 @@ export const FinanceExpensesPage = () => {
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">Checked against the department's budget on submission.</p>
                 {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting || (receiptRequired && !form.docUrl.trim())} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || (receiptRequired && !form.docUrl.trim()) || allocationsIncomplete} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
               </form>
             </div>
           </section>
@@ -2658,7 +2786,7 @@ export const FinanceExpensesPage = () => {
                       </div>
                     ),
                   },
-                  { key: 'amount', header: 'Amount', render: (r) => <span className="font-semibold">{formatCurrency(r.amount)}</span> },
+                  { key: 'amount', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amount} /> },
                   { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} label={humanizeStatus(r.status)} /> },
                   {
                     key: 'actions',
@@ -3699,7 +3827,7 @@ export const FinanceAccountingPage = () => {
                         </div>
                       ),
                     },
-                    { key: 'totalDebit', header: 'Amount', render: (r) => <span className="font-semibold">{formatCurrency(r.totalDebit)}</span> },
+                    { key: 'totalDebit', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.totalDebit} /> },
                     {
                       key: 'status',
                       header: 'Status',
@@ -4367,7 +4495,7 @@ export const FinanceDirectoryPage = () => {
                     },
                     { key: 'paymentTerms', header: 'Terms', render: (r) => r.paymentTerms || '—' },
                     { key: 'status', header: 'Status', render: (r) => <Pill value={r.status || 'active'} label={humanizeStatus(r.status || 'active')} /> },
-                    { key: 'balance', header: 'Payable', render: (r) => formatCurrency(r.balance) },
+                    { key: 'balance', header: moneyHeader('Payable'), render: (r) => <MoneyCell value={r.balance} /> },
                   ]}
                   rows={vendors}
                   rowKey="_id"

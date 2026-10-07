@@ -10,7 +10,7 @@
     "start": "node server.js",
     "dev": "node ./node_modules/nodemon/bin/nodemon.js server.js",
     "dev:nodemon": "node ./node_modules/nodemon/bin/nodemon.js server.js",
-    "test": "node --test __tests__/*.test.js",
+    "test": "node --test --test-concurrency=2 __tests__/*.test.js",
     "db:final-seed": "node scripts/final_seed_users.js",
     "test:hr-integrity": "node --test __tests__/hrIntegrity.test.js",
     "verify:finance-portal": "node scripts/verifyFinancePortal.js",
@@ -22,7 +22,8 @@
     "audit:financial-periods": "node scripts/seedFinancialPeriods.js",
     "seed:financial-periods": "node scripts/seedFinancialPeriods.js --apply",
     "audit:negative-invoices": "node scripts/convertNegativeInvoices.js",
-    "migrate:negative-invoices": "node scripts/convertNegativeInvoices.js --apply"
+    "migrate:negative-invoices": "node scripts/convertNegativeInvoices.js --apply",
+    "test:serial": "node --test --test-concurrency=1 __tests__/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import PortalHeader from '../common/PortalHeader';
 import {
   getPendingDocuments,
   getLegalDocumentById,
@@ -234,7 +235,7 @@ const DocPreviewPanel = ({ doc, versions, onApprove, onRejectClick, onDownloadPd
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 const CEOLegalApproval = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -324,19 +325,39 @@ const CEOLegalApproval = () => {
   };
 
   return (
-    <div className="flex overflow-hidden bg-white dark:bg-neutral-900" style={{ height: 'calc(100vh - 0px)' }}>
+    <main className="portal-page">
+      <div className="portal-page-inner space-y-4">
+        {/* Page-level so the fixed overlay always resolves against the viewport, never
+            a sized or transformed ancestor. */}
+        {toast && (
+          <div className={`fixed top-4 right-4 z-100 flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-white shadow-xl transition-all ${
+            toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+          }`} role="status">
+            <span className="material-symbols-outlined text-base">
+              {toast.type === 'success' ? 'check_circle' : toast.type === 'error' ? 'error' : 'info'}
+            </span>
+            {toast.msg}
+          </div>
+        )}
 
-      {/* ── Toast ── */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-white shadow-xl transition-all ${
-          toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
-        }`}>
-          <span className="material-symbols-outlined text-base">
-            {toast.type === 'success' ? 'check_circle' : toast.type === 'error' ? 'error' : 'info'}
-          </span>
-          {toast.msg}
-        </div>
-      )}
+        <PortalHeader
+          title="Legal Approval"
+          subtitle="Documents awaiting executive approval, with version history and audit trail"
+          icon="gavel"
+          user={user}
+          showSearch={false}
+          showNotifications
+          showThemeToggle
+        />
+
+        {/* Two-pane queue/detail workspace: a reviewer works a list, so the queue stays
+            visible beside the document rather than being navigated away from. The height
+            is bounded by the viewport minus the header so the panes scroll internally
+            instead of fighting the portal's own scroll container. */}
+        <div
+          className="flex overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+          style={{ height: 'min(calc(100vh - 13rem), 48rem)' }}
+        >
 
       {/* ── LEFT: Queue Panel ── */}
       <div className="w-80 shrink-0 flex flex-col border-r border-neutral-200 dark:border-neutral-700">
@@ -347,7 +368,9 @@ const CEOLegalApproval = () => {
               <span className="material-symbols-outlined text-white text-lg">gavel</span>
             </div>
             <div>
-              <h1 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Legal Approval Queue</h1>
+              {/* h2, not h1: PortalHeader now owns the page heading, and two h1s on one
+                  page is wrong for screen readers and for the document outline. */}
+              <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Approval Queue</h2>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 {docs.length} pending review{docs.length !== 1 ? 's' : ''}
               </p>
@@ -477,16 +500,19 @@ const CEOLegalApproval = () => {
         )}
       </div>
 
-      {/* ── Reject Modal ── */}
-      {showRejectModal && (
-        <RejectModal
-          doc={selectedDoc}
-          loading={actionLoading === 'reject'}
-          onReject={handleReject}
-          onCancel={() => setShowRejectModal(false)}
-        />
-      )}
-    </div>
+        </div>
+
+        {/* ── Reject Modal ── */}
+        {showRejectModal && (
+          <RejectModal
+            doc={selectedDoc}
+            loading={actionLoading === 'reject'}
+            onReject={handleReject}
+            onCancel={() => setShowRejectModal(false)}
+          />
+        )}
+      </div>
+    </main>
   );
 };
 

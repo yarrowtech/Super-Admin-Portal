@@ -43,6 +43,49 @@ export const marketingAnalyticsApi = {
   // Whether the integration is configured, so the page can explain itself before it tries
   // to load data. Returns no secret, only whether one is present.
   getStatus: (token) => apiClient.get(`${BASE}/status`, token, { cache: false }),
+
+  // ── Spreadsheet import (CSV / XLSX / XLS) ─────────────────────────────────
+  // Parsing happens on the server: the xlsx reader is ~400 KB, and shipping it to the
+  // browser to read a file the server must validate anyway would be paying twice.
+
+  // Non-destructive. Reads the file, detects the School/Email/Location columns, validates
+  // every row and resolves locations — writes nothing — so the user can re-map columns and
+  // re-analyse as often as they like before committing.
+  analyzeImport: (token, file, mapping) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (mapping) form.append('mapping', JSON.stringify(mapping));
+    return apiClient.upload(`${BASE}/import/analyze`, form, token);
+  },
+
+  // Commits into the given project. The project is required server-side: an import with no
+  // project would show up under every project's analytics.
+  commitImport: (token, file, mapping, projectId) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (mapping) form.append('mapping', JSON.stringify(mapping));
+    form.append('projectId', projectId);
+    return apiClient.upload(`${BASE}/import`, form, token);
+  },
+
+  // Aggregated imported points for the map: one entry per city, counts only. Carries no
+  // contact details, which is what makes it safe to render in a marker.
+  getImportedPoints: (token, projectId) =>
+    apiClient.get(`${BASE}/import/points?projectId=${encodeURIComponent(projectId)}`, token, { cache: false }),
+
+  // The records behind one marker — the authorised detail view, fetched only on an explicit
+  // click. This is the one imported-data response that carries contact details, which is
+  // exactly why it is separate from the map payload.
+  getLocationRecords: (token, projectId, city, { page = 1, limit = 25 } = {}) =>
+    apiClient.get(
+      `${BASE}/import/records${toQuery({ projectId }, { city, page, limit })}`,
+      token, { cache: false }
+    ),
+
+  // Records with no resolvable location, so an unmapped count is inspectable rather than
+  // just a number the user has to trust.
+  getUnmappedRecords: (token, projectId, { page = 1, limit = 25 } = {}) =>
+    apiClient.get(`${BASE}/import/unmapped${toQuery({ projectId }, { page, limit })}`, token, { cache: false }),
 };
 
 export default marketingAnalyticsApi;

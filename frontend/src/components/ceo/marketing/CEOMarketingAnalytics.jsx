@@ -22,6 +22,9 @@ import { normalizeMarketingData } from './normalizeMarketingData';
 // The map is the heaviest dependency on the page (Leaflet + tiles), so it loads in its own
 // chunk rather than in the CEO portal's main bundle.
 const IndiaMarketingMap = lazy(() => import('./IndiaMarketingMap'));
+// Likewise the import workflow: most visits never open it, so its drawer, tables and
+// upload handling stay out of the page's chunk until the button is pressed.
+const MarketingImportDrawer = lazy(() => import('./MarketingImportDrawer'));
 
 const card = 'rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950';
 
@@ -113,6 +116,19 @@ const CEOMarketingAnalytics = () => {
   const [showFilters, setShowFilters] = useState(true);
   const [drawerContact, setDrawerContact] = useState(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
+
+  // Spreadsheet-imported records, kept separate from the platform response so the two
+  // sources stay distinguishable on the map and in the "Imported Data" badge.
+  const [importOpen, setImportOpen] = useState(false);
+  const [imported, setImported] = useState(null);
+  // Bumped after a successful import so the points refetch without a page reload (§20).
+  const [importKey, setImportKey] = useState(0);
+  // The View Details drawer (§34). `city` null means closed; 'unmapped' is the §32 variant
+  // showing records no marker could represent.
+  const [detail, setDetail] = useState(null);
+  const [detailRows, setDetailRows] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailPage, setDetailPage] = useState(1);
 
   // Whether the integration is configured at all. Asked first, so a deployment without
   // credentials gets an explanation rather than a failed data call.
@@ -220,6 +236,60 @@ const CEOMarketingAnalytics = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, applied, page, searchTerm]);
 
+  // Imported points for the selected project. Keyed on the project rather than on the full
+  // filter set, because an import carries no campaign, channel or date — filtering it by
+  // those would silently hide every imported record. A failure is swallowed: imported data
+  // is additive, and an error here must not take down the platform dashboard beside it.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      // "All Projects" is a filter, not a project (§2): the server expands it to the set
+      // the caller is authorised to see, so it is a real query rather than a reason to
+      // show nothing.
+      const projectId = applied.projectId || ALL;
+      try {
+        const res = await marketingAnalyticsApi.getImportedPoints(token, projectId);
+        if (alive) setImported(unwrap(res));
+      } catch {
+        if (alive) setImported(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [token, applied.projectId, importKey]);
+
+  // Records for the open detail drawer. Paged on the server (§34): a city can hold
+  // thousands of rows, and the drawer is for inspection, not bulk export.
+  useEffect(() => {
+    if (!detail) return undefined;
+    let alive = true;
+    (async () => {
+      setDetailLoading(true);
+      try {
+        const res = detail.city === 'unmapped'
+          ? await marketingAnalyticsApi.getUnmappedRecords(token, applied.projectId, { page: detailPage })
+          : await marketingAnalyticsApi.getLocationRecords(token, applied.projectId, detail.city, { page: detailPage });
+        if (alive) setDetailRows(unwrap(res));
+      } catch (err) {
+        if (alive) setDetailRows({ error: err?.message || 'Could not load these records' });
+      } finally {
+        if (alive) setDetailLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [token, applied.projectId, detail, detailPage]);
+
+  const openDetail = useCallback((point) => {
+    setDetail({ city: point.location, state: point.state, point });
+    setDetailRows(null);
+    setDetailPage(1);
+  }, []);
+
+  const openUnmapped = useCallback(() => {
+    setDetail({ city: 'unmapped' });
+    setDetailRows(null);
+    setDetailPage(1);
+  }, []);
+
   const openContact = async (row) => {
     if (!row?.id) return;
     setDrawerLoading(true);
@@ -276,6 +346,93 @@ const CEOMarketingAnalytics = () => {
   const money = (value) => (value === null || value === undefined
     ? NOT_REPORTED
     : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value));
+
+  // ── Map points: platform + imported (§10, §11) ────────────────────────────
+  // One map, two sources (§10 forbids a second map). Imported records are folded into the
+  // same point list the platform produces, merged by city so a city present in both shows
+  // as one bubble rather than two stacked at the same coordinate.
+  //
+  // `activities` is the map's weight, so imported records contribute to bubble size and to
+  // heatmap intensity on the same scale as platform activity. `schools` and `records` ride
+  // along for the marker's own labelling. Nothing per-contact is carried — the endpoint
+  // does not return it.
+  const mapPoints = useMemo(() => {
+    const platform = data?.map?.points || [];
+    const importedPoints = imported?.points || [];
+    if (!importedPoints.length) return platform;
+
+    const byCity = new Map();
+    for (const point of platform) {
+      byCity.set(`${point.location}|${point.state || ''}`.toLowerCase(), { ...point });
+    }
+    for (const row of importedPoints) {
+      const key = `${row.location}|${row.state || ''}`.toLowerCase();
+      const existing = byCity.get(key);
+      if (existing) {
+        existing.activities = (existing.activities || existing.leads || 0) + row.records;
+        existing.importedRecords = row.records;
+        existing.importedSchools = row.schools;
+      } else {
+        byCity.set(key, {
+          location: row.location,
+          state: row.state,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          // An imported point has no platform metrics; its record count is its only volume,
+          // and leaving leads/conversions at 0 is accurate rather than a guess.
+          activities: row.records,
+          leads: 0,
+          engagement: 0,
+          conversions: 0,
+          conversionRate: 0,
+          campaigns: 0,
+          channelCount: 0,
+          channels: {},
+          spend: null,
+          importedRecords: row.records,
+          importedSchools: row.schools,
+          importedOnly: true,
+        });
+      }
+    }
+    return [...byCity.values()].sort((a, b) => (b.activities || 0) - (a.activities || 0));
+  }, [data, imported]);
+
+  // Records neither source could place. Both are honest about their own gaps, so they add.
+  const unplacedTotal = (data?.map?.unplaced || 0) + (imported?.unresolved || 0);
+  const hasImported = Boolean(imported?.total);
+
+  // ── Map summary (§28) ─────────────────────────────────────────────────────
+  // Every figure is counted from the two payloads already on screen; none is estimated.
+  // Shown above the map so the user can read the shape of the data before interacting.
+  const mapSummary = useMemo(() => {
+    const placed = mapPoints.length;
+    const importedTotal = imported?.total || 0;
+    const platformRecords = data?.summary?.activities || 0;
+    const records = platformRecords + importedTotal;
+    if (!records && !placed) return null;
+    const mappable = records - unplacedTotal;
+    const rows = [
+      { label: 'Locations', value: fmt(placed) },
+      { label: 'Records', value: compact(records) },
+    ];
+    if (imported?.schools) rows.push({ label: 'Schools', value: fmt(imported.schools) });
+    if (records > 0) {
+      rows.push({
+        label: 'Mapped',
+        value: `${Math.round((mappable / records) * 1000) / 10}%`,
+        tone: 'good',
+      });
+      if (unplacedTotal > 0) {
+        rows.push({
+          label: 'Unmapped',
+          value: `${Math.round((unplacedTotal / records) * 1000) / 10}%`,
+          tone: 'warn',
+        });
+      }
+    }
+    return rows;
+  }, [mapPoints, imported, data, unplacedTotal]);
 
   // ── Executive insights (§7) ───────────────────────────────────────────────
   // Each headline is computed from the response the charts already use, and is emitted
@@ -424,6 +581,12 @@ const CEOMarketingAnalytics = () => {
                     <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin' : ''}`}>refresh</span>
                   </Button>
                 )}
+                {/* Secondary to Load (§29): importing is a deliberate, occasional action,
+                    so it sits beside the primary trigger without competing with it. */}
+                <Button type="button" variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
+                  <span className="material-symbols-outlined mr-1 text-[16px]">upload_file</span>
+                  Import Marketing Data
+                </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setShowFilters((v) => !v)}
                   aria-expanded={showFilters} aria-controls="marketing-filter-panel">
                   <span className="material-symbols-outlined mr-1 text-[16px]">tune</span>
@@ -452,6 +615,17 @@ const CEOMarketingAnalytics = () => {
               <span>{fmtDate(applied.startDate)} – {fmtDate(applied.endDate)}</span>
               {lastUpdated && (
                 <span>Last updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+              )}
+              {/* §21 — a subtle badge, so it is clear the map is showing more than the
+                  platform's own data without the fact dominating the control bar. */}
+              {hasImported && (
+                <span
+                  className="flex items-center gap-1.5 rounded-full bg-orange-50 px-2 py-0.5 font-bold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                  title={`${fmt(imported.total)} imported record${imported.total === 1 ? '' : 's'} in this project, ${fmt(imported.total - imported.unresolved)} placed on the map.`}
+                >
+                  <span className="material-symbols-outlined text-[13px]">upload_file</span>
+                  Imported data · {fmt(imported.total)} record{imported.total === 1 ? '' : 's'}
+                </span>
               )}
             </div>
 
@@ -534,25 +708,37 @@ const CEOMarketingAnalytics = () => {
         {/* A real but empty India map, so the page reads as ready rather than broken —
             and deliberately no markers, because inventing points would be worse than
             showing none. */}
+        {/* Imported records need no platform load to be shown — they are in our own
+            database — so an import made before pressing Load still appears here, and the
+            "choose a project" overlay only covers a map that genuinely has nothing on it. */}
         {!hasLoaded && !loading && !error && (
           <SectionCard
             title="India Marketing Activity"
             icon="public"
-            description="Select a project above and load its data to plot marketing activity across India."
+            description={hasImported
+              ? 'Showing imported records. Load marketing data to add activity from the marketing platform.'
+              : 'Select a project above and load its data to plot marketing activity across India.'}
           >
             <div className="relative">
               <Suspense fallback={<Skeleton className="h-130" />}>
-                <IndiaMarketingMap points={[]} unplaced={0} />
+                <IndiaMarketingMap
+                  points={mapPoints}
+                  unplaced={unplacedTotal}
+                  selectedLocation={selectedLocation?.location || ''}
+                  onSelectLocation={hasImported ? setSelectedLocation : undefined}
+                />
               </Suspense>
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="rounded-xl bg-white/92 px-5 py-4 text-center shadow-lg dark:bg-neutral-900/92">
-                  <span className="material-symbols-outlined text-3xl text-neutral-400">travel_explore</span>
-                  <p className="mt-1 text-sm font-bold text-neutral-800 dark:text-neutral-100">No project selected</p>
-                  <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                    Choose a project to see where its marketing is running.
-                  </p>
+              {!hasImported && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="rounded-xl bg-white/92 px-5 py-4 text-center shadow-lg dark:bg-neutral-900/92">
+                    <span className="material-symbols-outlined text-3xl text-neutral-400">travel_explore</span>
+                    <p className="mt-1 text-sm font-bold text-neutral-800 dark:text-neutral-100">No project selected</p>
+                    <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                      Choose a project to see where its marketing is running.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </SectionCard>
         )}
@@ -560,16 +746,31 @@ const CEOMarketingAnalytics = () => {
         {/* ── No data (§18) ───────────────────────────────────────────── */}
         {/* Names the project and the remedy, and keeps a real (empty) map on screen
             rather than replacing it with a bare message. */}
+        {/* Imported data is independent of the platform, so a project with imported records
+            and no platform activity still gets a real, populated map rather than an empty
+            one behind an "no activity" message. */}
         {!loading && !error && summary && summary.leads === 0 && (
-          <SectionCard title="India Marketing Activity" icon="public">
-            <EmptyState
-              icon="query_stats"
-              title="No marketing activity"
-              description={`No marketing activity is available for ${activeProjectName} during the selected period. Try changing the date range or the marketing channel.`}
-            />
-            <div className="mt-3 opacity-60">
+          <SectionCard
+            title="India Marketing Activity"
+            icon="public"
+            description={hasImported ? 'Showing imported records. The marketing platform reported no activity for this period.' : undefined}
+          >
+            {!hasImported && (
+              <EmptyState
+                icon="query_stats"
+                title="No marketing activity"
+                description={`No marketing activity is available for ${activeProjectName} during the selected period. Try changing the date range or the marketing channel.`}
+              />
+            )}
+            <div className={hasImported ? '' : 'mt-3 opacity-60'}>
               <Suspense fallback={<Skeleton className="h-130" />}>
-                <IndiaMarketingMap points={[]} unplaced={0} height={320} />
+                <IndiaMarketingMap
+                  points={mapPoints}
+                  unplaced={unplacedTotal}
+                  selectedLocation={selectedLocation?.location || ''}
+                  onSelectLocation={hasImported ? setSelectedLocation : undefined}
+                  height={hasImported ? 520 : 320}
+                />
               </Suspense>
             </div>
           </SectionCard>
@@ -638,13 +839,32 @@ const CEOMarketingAnalytics = () => {
                   ) : null
                 }
               >
+                {/* §28 — a compact read of the data before the user touches the map. */}
+                {mapSummary && (
+                  <dl className="mb-3 flex flex-wrap gap-x-6 gap-y-2">
+                    {mapSummary.map((row) => (
+                      <div key={row.label}>
+                        <dt className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{row.label}</dt>
+                        <dd className={`text-base font-black tabular-nums ${
+                          row.tone === 'good' ? 'text-emerald-700 dark:text-emerald-300'
+                            : row.tone === 'warn' ? 'text-amber-700 dark:text-amber-300'
+                              : 'text-neutral-900 dark:text-white'
+                        }`}>
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
                 <Suspense fallback={<Skeleton className="h-130" />}>
                   <IndiaMarketingMap
-                    points={data.map.points}
-                    unplaced={data.map.unplaced}
+                    points={mapPoints}
+                    unplaced={unplacedTotal}
                     selectedState={applied.state === ALL ? '' : applied.state}
                     selectedLocation={selectedLocation?.location || ''}
                     onSelectLocation={setSelectedLocation}
+                    onViewDetails={openDetail}
+                    onViewUnmapped={hasImported ? openUnmapped : undefined}
                   />
                 </Suspense>
               </SectionCard>
@@ -665,13 +885,20 @@ const CEOMarketingAnalytics = () => {
                   >
                     <dl className="space-y-2">
                       {[
-                        ['Activities', compact(selectedLocation.activities)],
-                        ['Leads', fmt(selectedLocation.leads)],
-                        ['Conversions', fmt(selectedLocation.conversions)],
-                        ['Conversion rate', `${selectedLocation.conversionRate}%`],
-                        ['Campaigns', fmt(selectedLocation.campaigns)],
-                        ['Channels', fmt(selectedLocation.channelCount)],
-                        ['Spend', money(selectedLocation.spend)],
+                        // Platform metrics are omitted entirely for an imported-only
+                        // location: it has none, and a column of zeroes would read as a
+                        // failed campaign rather than a different data source.
+                        ...(selectedLocation.importedOnly ? [] : [
+                          ['Activities', compact(selectedLocation.activities)],
+                          ['Leads', fmt(selectedLocation.leads)],
+                          ['Conversions', fmt(selectedLocation.conversions)],
+                          ['Conversion rate', `${selectedLocation.conversionRate}%`],
+                          ['Campaigns', fmt(selectedLocation.campaigns)],
+                          ['Channels', fmt(selectedLocation.channelCount)],
+                          ['Spend', money(selectedLocation.spend)],
+                        ]),
+                        ...(selectedLocation.importedSchools ? [['Schools (imported)', fmt(selectedLocation.importedSchools)]] : []),
+                        ...(selectedLocation.importedRecords ? [['Records (imported)', fmt(selectedLocation.importedRecords)]] : []),
                       ].map(([label, value]) => (
                         <div key={label} className="flex items-baseline justify-between gap-3 border-b border-neutral-100 pb-1.5 last:border-0 dark:border-neutral-800">
                           <dt className="text-xs text-neutral-500 dark:text-neutral-400">{label}</dt>
@@ -694,7 +921,16 @@ const CEOMarketingAnalytics = () => {
                       </div>
                     )}
 
-                    <Button type="button" size="sm" variant="primary" className="mt-3 w-full"
+                    {/* §35 — straight into the records behind this location. Offered only
+                        where there are imported records to show. */}
+                    {selectedLocation.importedRecords > 0 && (
+                      <Button type="button" size="sm" variant="primary" className="mt-3 w-full"
+                        onClick={() => openDetail(selectedLocation)}>
+                        <span className="material-symbols-outlined mr-1 text-[16px]">table_rows</span>
+                        View {fmt(selectedLocation.importedRecords)} record{selectedLocation.importedRecords === 1 ? '' : 's'}
+                      </Button>
+                    )}
+                    <Button type="button" size="sm" variant="secondary" className="mt-2 w-full"
                       onClick={() => applyFilterSet({ ...applied, city: selectedLocation.location })}>
                       Filter dashboard to {selectedLocation.location}
                     </Button>
@@ -973,6 +1209,108 @@ const CEOMarketingAnalytics = () => {
             </>
           )}
         </Drawer>
+
+        {/* ── Location / unmapped records drawer (§34, §32) ────────────── */}
+        {/* The authorised detail view. Reached by an explicit click on a marker or on the
+            unmapped pill — never part of an aggregate payload, which is what keeps contact
+            details off the map while still making them available to a CEO who asks. */}
+        <Drawer
+          open={Boolean(detail)}
+          title={detail?.city === 'unmapped' ? 'Records without a location' : `${detail?.city || ''} — imported records`}
+          onClose={() => { setDetail(null); setDetailRows(null); }}
+          className="max-w-3xl p-5"
+        >
+          {detail && (
+            <>
+              <p className="-mt-1 mb-4 text-xs text-neutral-500 dark:text-neutral-400">
+                {detail.city === 'unmapped'
+                  ? 'These records were imported and are counted in every total, but their location could not be resolved to coordinates, so they cannot be placed on the map. Correct the location in the source file and re-import to place them.'
+                  : `${[detail.state, activeProjectName].filter(Boolean).join(' · ')}`}
+              </p>
+
+              {detail.city !== 'unmapped' && detail.point && (
+                <dl className="mb-4 flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-neutral-50 px-3 py-2.5 dark:bg-neutral-900">
+                  {[
+                    ['Records', fmt(detail.point.importedRecords || 0)],
+                    ['Schools', fmt(detail.point.importedSchools || 0)],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{label}</dt>
+                      <dd className="text-base font-black tabular-nums text-neutral-900 dark:text-white">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+
+              {detailLoading && !detailRows ? (
+                <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+              ) : detailRows?.error ? (
+                <ErrorState description={detailRows.error} />
+              ) : (
+                <>
+                  <DataTable
+                    rows={detailRows?.items || []}
+                    rowKey="id"
+                    loading={detailLoading}
+                    emptyTitle="No records"
+                    columns={[
+                      { key: 'school', header: 'School', render: (r) => <span className="font-semibold">{r.school}</span> },
+                      { key: 'email', header: 'Email', render: (r) => <span className="font-mono text-xs">{r.email || '—'}</span> },
+                      { key: 'location', header: 'Location (as imported)' },
+                      ...(detail.city === 'unmapped' ? [] : [{
+                        key: 'state', header: 'State', render: (r) => r.state || '—',
+                      }]),
+                      { key: 'sourceFile', header: 'Source file', render: (r) => <span className="text-xs text-neutral-500">{r.sourceFile || '—'}</span> },
+                      { key: 'createdAt', header: 'Imported', render: (r) => fmtDate(r.createdAt) },
+                    ]}
+                  />
+                  {detailRows?.pagination && detailRows.pagination.totalPages > 1 && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-neutral-500">
+                        Page {detailRows.pagination.page} of {detailRows.pagination.totalPages} · {fmt(detailRows.pagination.total)} records
+                      </p>
+                      <div className="flex gap-2">
+                        <Button type="button" size="sm" variant="secondary" disabled={detailPage <= 1}
+                          onClick={() => setDetailPage((p) => p - 1)}>Previous</Button>
+                        <Button type="button" size="sm" variant="secondary"
+                          disabled={detailPage >= detailRows.pagination.totalPages}
+                          onClick={() => setDetailPage((p) => p + 1)}>Next</Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </Drawer>
+
+        {/* ── Import workflow (§2) ─────────────────────────────────────── */}
+        {/* Mounted only while open, so the lazy chunk is fetched on first use and the
+            drawer's state starts clean on every visit. */}
+        {importOpen && (
+          <Suspense fallback={null}>
+            <MarketingImportDrawer
+              open
+              onClose={() => setImportOpen(false)}
+              projectId={filters.projectId}
+              // Real projects only — "All Projects" is not a destination an import can
+              // belong to, so it is not offered as one.
+              projects={projectOptions.filter((o) => o.value !== ALL).map((o) => ({ id: o.value, label: o.label }))}
+              onImported={(res) => {
+                // Follow the data: the drawer may have imported into a project other than
+                // the one on screen, and showing the import on a different project's map
+                // would be wrong. Switching the selection is what makes the new records
+                // visible rather than silently filtered out.
+                const target = res?.projectId;
+                if (target && target !== applied.projectId) {
+                  setFilters((f) => ({ ...f, projectId: target }));
+                  setApplied((a) => ({ ...a, projectId: target }));
+                }
+                setImportKey((k) => k + 1);
+              }}
+            />
+          </Suspense>
+        )}
       </div>
     </main>
   );

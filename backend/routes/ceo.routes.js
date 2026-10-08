@@ -6,6 +6,8 @@ const departmentStatsController = require('../controllers/ceo/departmentStats.co
 const ceoChatController = require('../controllers/ceo/ceoChat.controller');
 const ceoSalesAnalyticsController = require('../controllers/ceo/ceoSalesAnalytics.controller');
 const marketingAnalyticsController = require('../controllers/ceo/marketingAnalytics.controller');
+const marketingImportController = require('../controllers/ceo/marketingImport.controller');
+const { uploadSpreadsheet } = require('../middlewares/upload.middleware');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
 const { ROLES } = require('../config/roles');
@@ -37,6 +39,18 @@ router.get('/marketing-analytics/status', marketingAnalyticsController.getMarket
 router.get('/marketing-analytics/projects', marketingAnalyticsController.getMarketingProjects);
 router.get('/marketing-analytics/contacts', marketingAnalyticsController.getMarketingContacts);
 router.get('/marketing-analytics/contacts/:contactId', marketingAnalyticsController.getMarketingContact);
+
+// ── Marketing data import (CSV / XLSX / XLS) ────────────────────────────────
+// Analyse is non-destructive: it parses, detects columns, validates and resolves
+// locations so the user can review before anything is written. Commit persists into the
+// selected project. Imported map points are aggregated counts only — no contact details.
+router.post('/marketing-analytics/import/analyze', uploadSpreadsheet('file'), marketingImportController.analyzeMarketingImport);
+router.post('/marketing-analytics/import', uploadSpreadsheet('file'), marketingImportController.commitMarketingImport);
+router.get('/marketing-analytics/import/points', marketingImportController.getImportedMarketingPoints);
+// Detail views: the records behind a marker, and the records no marker could show. Both are
+// authorised, paginated and scoped to the caller's projects — the map itself gets counts only.
+router.get('/marketing-analytics/import/records', marketingImportController.getImportedLocationRecords);
+router.get('/marketing-analytics/import/unmapped', marketingImportController.getUnmappedImportedRecords);
 // Alias analytics endpoints for standardized API contract
 router.get('/employees', ceoController.getEmployeeAnalytics);
 router.get('/departments', ceoController.getDepartmentAnalytics);

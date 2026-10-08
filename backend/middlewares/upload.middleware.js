@@ -81,10 +81,41 @@ const csvOnlyUpload = multer({
 });
 const uploadCsv = (fieldName = 'file') => runUpload(csvOnlyUpload.single(fieldName));
 
+// Spreadsheet import (CSV / XLSX / XLS). Same inconsistent-mimetype problem as CSV above,
+// and worse for Excel: .xls often arrives as application/vnd.ms-excel or
+// application/octet-stream depending on the OS, so the extension is the reliable signal
+// and the mimetype set is a convenience. Memory storage because the parser reads the
+// buffer directly — nothing is written to disk.
+const SPREADSHEET_MIME_TYPES = new Set([
+  'text/csv',
+  'application/csv',
+  'text/plain',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/octet-stream',
+]);
+const SPREADSHEET_EXTENSIONS = ['.csv', '.xlsx', '.xls'];
+const spreadsheetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    const hasExt = SPREADSHEET_EXTENSIONS.some((ext) => name.endsWith(ext));
+    if (!hasExt && !SPREADSHEET_MIME_TYPES.has(file.mimetype)) {
+      const err = new Error('Only CSV, XLSX or XLS files are allowed');
+      err.statusCode = 400;
+      return cb(err);
+    }
+    return cb(null, true);
+  },
+});
+const uploadSpreadsheet = (fieldName = 'file') => runUpload(spreadsheetUpload.single(fieldName));
+
 module.exports = {
   uploadSingle,
   uploadMany,
   uploadFields,
   uploadJpegImages,
-  uploadCsv
+  uploadCsv,
+  uploadSpreadsheet
 };

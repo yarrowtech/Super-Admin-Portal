@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Circle, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { Circle, CircleMarker, MapContainer, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 // The hero visualisation: where marketing is happening across India.
@@ -36,13 +36,20 @@ const radiusFor = (value, max) => {
 
 const fmt = (n) => new Intl.NumberFormat('en-IN').format(Number(n) || 0);
 
+// A point's volume, used for radius, heat band and cluster weighting. Activities when the
+// platform reported them, otherwise leads — and for an imported-only point, activities is
+// its record count, so imported data sizes on the same scale as platform activity.
+const weightOf = (p) => p.activities || p.leads || 0;
+
 // Frames the view on the data actually returned, so a project active only in Maharashtra
 // zooms to Maharashtra while a national campaign shows the whole country (§14). Re-fits
 // whenever the point set changes identity — a new project or new filters — but not on every
 // render, so the user's own panning is left alone in between.
-const FitToData = ({ points }) => {
+const FitToData = ({ points, nonce = 0 }) => {
   const map = useMap();
-  const signature = points.map((p) => `${p.latitude},${p.longitude}`).sort().join('|');
+  // The nonce is part of the signature, so Fit All reframes the same data on demand while
+  // ordinary re-renders still leave the user's panning alone.
+  const signature = `${nonce}|${points.map((p) => `${p.latitude},${p.longitude}`).sort().join('|')}`;
   const lastSignature = useRef(null);
   useEffect(() => {
     if (lastSignature.current === signature) return;
@@ -69,19 +76,33 @@ const clusterPoints = (points, zoom) => {
     const key = `${Math.round(point.latitude * precision)}|${Math.round(point.longitude * precision)}`;
     const cell = cells.get(key);
     if (!cell) {
-      cells.set(key, { ...point, cluster: 1, members: [point.location] });
+      cells.set(key, { ...point, cluster: 1, members: [point.location], topWeight: weightOf(point) });
     } else {
-      // Weighted centroid, so a merged bubble sits where the activity actually is.
-      const total = cell.leads + point.leads;
-      cell.latitude = (cell.latitude * cell.leads + point.latitude * point.leads) / total;
-      cell.longitude = (cell.longitude * cell.leads + point.longitude * point.leads) / total;
-      cell.leads = total;
+      // Weighted centroid, so a merged bubble sits where the activity actually is. Weight
+      // by the point's overall volume rather than by leads alone: an imported-only point
+      // has no leads, and weighting by leads would make the divisor zero and put the whole
+      // bubble at NaN — i.e. silently off the map.
+      const cellWeight = weightOf(cell);
+      const pointWeight = weightOf(point);
+      const total = cellWeight + pointWeight;
+      if (total > 0) {
+        cell.latitude = (cell.latitude * cellWeight + point.latitude * pointWeight) / total;
+        cell.longitude = (cell.longitude * cellWeight + point.longitude * pointWeight) / total;
+      }
+      cell.leads += point.leads;
       cell.engagement += point.engagement;
       cell.conversions += point.conversions;
+      cell.activities = (cell.activities || 0) + (point.activities || 0);
+      // Imported counts add like any other, so a merged bubble reports the combined roll-up
+      // rather than only its first member's.
+      if (point.importedRecords) cell.importedRecords = (cell.importedRecords || 0) + point.importedRecords;
+      if (point.importedSchools) cell.importedSchools = (cell.importedSchools || 0) + point.importedSchools;
+      // A cluster is imported-only only if every member is.
+      cell.importedOnly = Boolean(cell.importedOnly && point.importedOnly);
       cell.cluster += 1;
       cell.members.push(point.location);
-      // The bubble is labelled by its largest member.
-      if (point.leads > (cell.topLeads || 0)) { cell.location = point.location; cell.topLeads = point.leads; }
+      // The bubble is labelled by its largest member, by the same measure that sizes it.
+      if (pointWeight > (cell.topWeight || 0)) { cell.location = point.location; cell.topWeight = pointWeight; }
     }
   }
   return [...cells.values()];
@@ -92,19 +113,27 @@ const clusterPoints = (points, zoom) => {
 // city, so a true per-pixel heat kernel would add a dependency for a few dozen points. The
 // layering — a wide faint halo under a tighter brighter core — reads as concentration and,
 // unlike a canvas heat layer, scales correctly as the user zooms.
+// Radius bounds in metres. The previous ceiling let the outermost ring reach ~450 km, so a
+// single busy city covered a large part of the country and swamped every neighbour — the
+// map became one red blob rather than a density picture. 90 km keeps a city's glow at
+// roughly city-region scale, which is the honest footprint for a city-level aggregate.
+const HEAT_MIN_M = 18000;
+const HEAT_MAX_M = 90000;
+
 const HeatLayer = ({ points, max }) => (
   <>
     {points.map((point) => {
-      const intensity = max > 0 ? (point.activities || point.leads) / max : 0;
-      // Radius in metres, so the blur grows with real distance, not screen pixels.
-      const base = 60000 + Math.sqrt(intensity) * 220000;
+      const intensity = max > 0 ? weightOf(point) / max : 0;
+      // Square root, so a city with 100x the volume reads as clearly hotter without its
+      // radius growing 100-fold.
+      const base = HEAT_MIN_M + Math.sqrt(intensity) * (HEAT_MAX_M - HEAT_MIN_M);
       return [
-        { r: base * 1.6, o: 0.10 },
-        { r: base, o: 0.18 },
-        { r: base * 0.55, o: 0.28 },
+        { r: base, o: 0.12 },
+        { r: base * 0.62, o: 0.20 },
+        { r: base * 0.32, o: 0.30 },
       ].map((ring, i) => (
         <Circle
-          key={`${point.location}-${i}`}
+          key={`${point.location}-${point.latitude}-${i}`}
           center={[point.latitude, point.longitude]}
           radius={ring.r}
           pathOptions={{
@@ -128,16 +157,26 @@ const ZoomWatcher = ({ onZoom }) => {
   return null;
 };
 
-const IndiaMarketingMap = ({ points = [], unplaced = 0, onSelectLocation, selectedState = '', selectedLocation = '', height = 520 }) => {
+const IndiaMarketingMap = ({
+  points = [], unplaced = 0, onSelectLocation, onViewDetails, onViewUnmapped,
+  selectedState = '', selectedLocation = '', height = 520,
+}) => {
   const [zoom, setZoom] = React.useState(5);
+  // Bumped by Fit All to re-run the fit on demand, without which FitToData would ignore a
+  // request to reframe data whose signature has not changed.
+  const [fitNonce, setFitNonce] = React.useState(0);
   // 'points' | 'heatmap' (§13). Points answer "which cities", heatmap answers "where is it
   // concentrated" — both are useful, so the user chooses.
   const [mode, setMode] = React.useState('points');
 
   // A state filter dims rather than removes other markers, so the user keeps the national
   // context while focusing one state.
-  const visible = useMemo(() => points.filter((p) => p.latitude !== null && p.longitude !== null), [points]);
-  const weightOf = (p) => p.activities || p.leads;
+  // Non-finite coordinates are dropped rather than passed to Leaflet, which would place
+  // them at an arbitrary point or throw.
+  const visible = useMemo(
+    () => points.filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)),
+    [points]
+  );
   const max = useMemo(() => visible.reduce((n, p) => Math.max(n, weightOf(p)), 0), [visible]);
   const clustered = useMemo(() => clusterPoints(visible, zoom), [visible, zoom]);
 
@@ -157,7 +196,7 @@ const IndiaMarketingMap = ({ points = [], unplaced = 0, onSelectLocation, select
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
-        <FitToData points={visible} />
+        <FitToData points={visible} nonce={fitNonce} />
         <ZoomWatcher onZoom={setZoom} />
 
         {mode === 'heatmap' && <HeatLayer points={visible} max={max} />}
@@ -188,15 +227,58 @@ const IndiaMarketingMap = ({ points = [], unplaced = 0, onSelectLocation, select
                     {point.cluster > 1 && <span className="font-normal"> +{point.cluster - 1} more</span>}
                   </p>
                   {point.state && <p className="mb-1 text-neutral-500">{point.state}</p>}
+                  {/* Aggregate counts only. No school name, email, phone or address
+                      reaches this tooltip — the backend does not send them, so there is
+                      nothing here that could identify a person (§10). */}
                   <dl className="space-y-0.5">
-                    <div className="flex justify-between gap-4"><dt>Activities</dt><dd className="font-semibold">{fmt(point.activities || point.leads)}</dd></div>
-                    <div className="flex justify-between gap-4"><dt>Leads</dt><dd className="font-semibold">{fmt(point.leads)}</dd></div>
-                    <div className="flex justify-between gap-4"><dt>Engaged</dt><dd className="font-semibold">{fmt(point.engagement)}</dd></div>
-                    <div className="flex justify-between gap-4"><dt>Conversions</dt><dd className="font-semibold">{fmt(point.conversions)}</dd></div>
+                    {/* An imported-only point has no platform metrics; showing four zeroes
+                        would read as "nothing happened here" rather than "different source". */}
+                    {!point.importedOnly && (
+                      <>
+                        <div className="flex justify-between gap-4"><dt>Activities</dt><dd className="font-semibold">{fmt(point.activities || point.leads)}</dd></div>
+                        <div className="flex justify-between gap-4"><dt>Leads</dt><dd className="font-semibold">{fmt(point.leads)}</dd></div>
+                        <div className="flex justify-between gap-4"><dt>Engaged</dt><dd className="font-semibold">{fmt(point.engagement)}</dd></div>
+                        <div className="flex justify-between gap-4"><dt>Conversions</dt><dd className="font-semibold">{fmt(point.conversions)}</dd></div>
+                      </>
+                    )}
+                    {point.importedSchools > 0 && (
+                      <div className="flex justify-between gap-4"><dt>Schools</dt><dd className="font-semibold">{fmt(point.importedSchools)}</dd></div>
+                    )}
+                    {point.importedRecords > 0 && (
+                      <div className="flex justify-between gap-4">
+                        <dt>{point.importedOnly ? 'Records' : 'Imported'}</dt>
+                        <dd className="font-semibold">{fmt(point.importedRecords)}</dd>
+                      </div>
+                    )}
                   </dl>
                   <p className="mt-1 text-[10px] text-neutral-500">Click for the breakdown</p>
                 </div>
               </Tooltip>
+
+              {/* Click card (§33). A Popup rather than the Tooltip above, because a tooltip
+                  closes on pointer-out and so cannot hold a button. Counts and a way in to
+                  the records — deliberately no email, phone or address. */}
+              {onViewDetails && point.importedRecords > 0 && (
+                <Popup closeButton={false} autoPan={false}>
+                  <div className="min-w-40 text-xs">
+                    <p className="text-sm font-bold">{point.location}</p>
+                    {point.state && <p className="text-neutral-500">{point.state}</p>}
+                    <dl className="mt-1.5 space-y-0.5">
+                      <div className="flex justify-between gap-4"><dt>Records</dt><dd className="font-semibold">{fmt(point.importedRecords)}</dd></div>
+                      {point.importedSchools > 0 && (
+                        <div className="flex justify-between gap-4"><dt>Schools</dt><dd className="font-semibold">{fmt(point.importedSchools)}</dd></div>
+                      )}
+                    </dl>
+                    <button
+                      type="button"
+                      onClick={() => onViewDetails(point)}
+                      className="mt-2 w-full rounded-md bg-neutral-900 px-2 py-1.5 text-[11px] font-bold text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </Popup>
+              )}
             </CircleMarker>
           );
         })}
@@ -257,17 +339,41 @@ const IndiaMarketingMap = ({ points = [], unplaced = 0, onSelectLocation, select
         )}
       </div>
 
-      {mode === 'points' && zoom < 7 && visible.length > clustered.length && (
-        <div className="pointer-events-none absolute right-3 top-3 z-500 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-600 shadow-md dark:bg-neutral-900/95 dark:text-neutral-300">
-          {clustered.length} of {visible.length} locations — zoom in to separate
-        </div>
-      )}
+      {/* Top-right controls: a compact status pill plus Fit All (§29, §31). Kept to one
+          short line each, so they inform without competing with the map. */}
+      <div className="absolute right-3 top-3 z-500 flex items-center gap-2">
+        {mode === 'points' && visible.length > clustered.length && (
+          <span className="rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-600 shadow-md dark:bg-neutral-900/95 dark:text-neutral-300">
+            {fmt(visible.length)} locations · {fmt(clustered.length)} visible
+          </span>
+        )}
+        {visible.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setFitNonce((n) => n + 1)}
+            className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-600 shadow-md transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900/95 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            <span className="material-symbols-outlined text-[14px]">fit_screen</span>
+            Fit All
+          </button>
+        )}
+      </div>
 
-      {/* Honesty about what the map cannot show: records with no resolvable location are
-          still in the totals and the table, but cannot be plotted. */}
+      {/* What the map cannot show (§32): an amber pill that leads to the records rather
+          than a wall of text over the map. The records are still in every total. */}
       {unplaced > 0 && (
-        <div className="pointer-events-none absolute bottom-3 right-3 z-500 rounded-lg bg-amber-50/95 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 shadow-md dark:bg-amber-900/80 dark:text-amber-100">
-          {fmt(unplaced)} record{unplaced === 1 ? '' : 's'} without a mappable location
+        <div className="absolute bottom-3 right-3 z-500 flex items-center gap-2 rounded-lg bg-amber-50/95 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 shadow-md dark:bg-amber-900/85 dark:text-amber-100">
+          <span className="material-symbols-outlined text-[14px]">warning</span>
+          <span>{fmt(unplaced)} without location</span>
+          {onViewUnmapped && (
+            <button
+              type="button"
+              onClick={onViewUnmapped}
+              className="font-bold underline underline-offset-2 hover:no-underline"
+            >
+              View
+            </button>
+          )}
         </div>
       )}
     </div>

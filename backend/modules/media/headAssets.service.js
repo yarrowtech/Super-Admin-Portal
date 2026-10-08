@@ -8,7 +8,7 @@ const name = user => user ? [user.firstName, user.lastName].filter(Boolean).join
 
 async function getHeadAssets(query = {}) {
   const page = Math.max(1, Number(query.page) || 1), limit = Math.min(100, Math.max(1, Number(query.limit) || 24));
-  const filter = { section: query.section || { $in: SECTIONS } };
+  const filter = { deletedAt: null, section: query.section || { $in: SECTIONS } };
   if (query.projectId) filter.projectId = new mongoose.Types.ObjectId(query.projectId);
   if (query.userId) {
     const userId = new mongoose.Types.ObjectId(query.userId);
@@ -22,12 +22,12 @@ async function getHeadAssets(query = {}) {
   if (query.attention === 'stale') filter.$and = [...(filter.$and || []), { updatedAt: { $lt: staleBefore }, approvalStatus: { $nin: ['approved', 'rejected'] } }];
   const [projects, creatorIds, editorIds, rawItems, total, counts, summaryRows] = await Promise.all([
     Project.find({}).select('name projectCode teamMembers projectManager').sort({ name: 1 }).lean(),
-    Media.distinct('createdBy', { section: { $in: SECTIONS } }),
-    Media.distinct('updatedBy', { section: { $in: SECTIONS } }),
+    Media.distinct('createdBy', { deletedAt: null, section: { $in: SECTIONS } }),
+    Media.distinct('updatedBy', { deletedAt: null, section: { $in: SECTIONS } }),
     Media.find(filter).sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit)
       .populate('createdBy updatedBy', 'firstName lastName role').lean(),
     Media.countDocuments(filter),
-    Media.aggregate([{ $match: { section: { $in: SECTIONS }, ...(query.projectId ? { projectId: new mongoose.Types.ObjectId(query.projectId) } : {}) } },
+    Media.aggregate([{ $match: { deletedAt: null, section: { $in: SECTIONS }, ...(query.projectId ? { projectId: new mongoose.Types.ObjectId(query.projectId) } : {}) } },
       { $project: { contributors: { $setUnion: [['$createdBy'], ['$updatedBy']] } } },
       { $unwind: '$contributors' },
       { $group: { _id: '$contributors', count: { $sum: 1 } } }]),

@@ -15,8 +15,8 @@ const MediaProjectList = ({ projects = [], onSelect, onRefresh }) => {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/60">
         <span className="material-symbols-outlined text-[32px] text-neutral-400">folder_off</span>
-        <p className="mt-2 text-sm font-semibold text-neutral-500">No projects assigned to this account.</p>
-        <p className="mt-2 text-sm text-neutral-500">Ask Media Head to allocate projects to your signed-in account.</p>
+        <p className="mt-2 text-sm font-semibold text-neutral-500">No projects found in the global catalogue.</p>
+        <p className="mt-2 text-sm text-neutral-500">Refresh the catalogue or ask an administrator to add a project.</p>
         {onRefresh ? <button type="button" onClick={onRefresh} className="mt-4 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold">Refresh projects</button> : null}
       </div>
     );
@@ -30,10 +30,12 @@ const MediaProjectList = ({ projects = [], onSelect, onRefresh }) => {
           <button
             key={project.value}
             type="button"
+            disabled={project.accessGranted === false}
+            title={project.accessGranted === false ? "Ask Media Head to allocate this project to your account." : "Open project workspace"}
             onClick={() =>
               onSelect ? onSelect(project) : navigate(`/media/dashboard/projects/${slugMap.get(project.value) || project.value}`)
             }
-            className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)]/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]/40 dark:border-neutral-800 dark:bg-neutral-900"
+            className="group flex flex-col disabled:cursor-default rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)]/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]/40 dark:border-neutral-800 dark:bg-neutral-900"
           >
             <div className="h-1.5 w-full rounded-full" style={{ background: accent }} />
             <div className="mt-3 flex items-start gap-3">
@@ -77,11 +79,12 @@ const MediaProjectList = ({ projects = [], onSelect, onRefresh }) => {
               </div>
             ) : null}
 
+            <p className="mt-3 text-xs font-semibold text-teal-700">{project.accessGranted === false ? "Not allocated - ask Media Head for access" : project.assigned ? "Allocated to you" : "Workspace access available"}</p>
             <div className="mt-4 flex items-center justify-between">
               <StatusBadge tone={statusToTone(project.status)} label={project.status || 'Active'} />
               <span className="inline-flex items-center gap-1 text-[12px] font-bold transition group-hover:gap-1.5" style={{ color: accent }}>
-                View plan
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                {project.accessGranted === false ? 'Allocation required' : 'View plan'}
+                <span className="material-symbols-outlined text-[16px]">{project.accessGranted === false ? 'lock' : 'arrow_forward'}</span>
               </span>
             </div>
           </button>

@@ -38,6 +38,7 @@ export default function MediaHeadAssets() {
         <PortalHeader title="Digital Asset Management" subtitle="Review creative work by contributor and allocated project" icon="perm_media" />
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
           <span className="text-neutral-500">{query.isFetching ? 'Updating?' : `Last refreshed ${query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString() : '?'}`} ? Refreshes every 30 seconds</span>
+          <Link to="/media/dashboard/assets" className="rounded-xl border border-teal-200 px-4 py-2 font-semibold text-teal-700">Project Digital Libraries</Link>
           <Link to="/media/head/approvals" className="rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white">Review approvals</Link>
         </div>
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-6" aria-label="Monitoring totals">

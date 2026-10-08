@@ -31,15 +31,17 @@ router.use(authorize(
   ROLES.SUPER_ADMIN
 ));
 router.use(authorizePortalAccess('media'));
-router.use((req, res, next) => req.path === '/head/assets' ? next() : attachOptionalProjectContext(req, res, next));
+router.use((req, res, next) => (req.path === '/head/assets' || req.path.startsWith('/library')) ? next() : attachOptionalProjectContext(req, res, next));
 router.use((req, res, next) => {
   if (req.log?.child) {
     req.log = req.log.child({ module: 'media', portal: 'media' });
   }
   next();
 });
-router.use(cacheGetResponses('media', { tags: ['media', 'projects', 'dashboard'], skip: req => req.path === '/projects' || req.path === '/head/assets' || req.path.startsWith('/head/projects') }));
+router.use(cacheGetResponses('media', { tags: ['media', 'projects', 'dashboard'], skip: req => req.path.startsWith('/library') || req.path === '/projects' || req.path === '/head/assets' || req.path.startsWith('/head/projects') }));
 router.use(invalidateCacheAfterMutation('media'));
+
+router.use('/library', require('./library.routes'));
 
 router.get('/dashboard', controller.getDashboard);
 router.get('/overview', controller.getOverview);

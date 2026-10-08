@@ -10,7 +10,7 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
 
   useEffect(() => {
     setOpen(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   const handleLogout = () => {
     logout();

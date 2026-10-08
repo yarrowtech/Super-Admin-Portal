@@ -1,0 +1,16 @@
+const CATEGORIES = [
+  { key: 'brand', label: 'Brand Foundation', description: 'Master project identity', section: 'brand', subcategories: ['Primary Logo', 'Secondary Logo', 'Logo Variations', 'Favicon', 'Brand Colors', 'Color Palette', 'Typography', 'Fonts', 'Icons', 'Brand Guidelines', 'Brand Templates', 'Brand Photography', 'Brand References'] },
+  { key: 'creative', label: 'Creative Assets', description: 'Images, videos, graphics and source files', section: 'asset', subcategories: ['Images', 'Photos', 'Graphics', 'Illustrations', 'Banners', 'Posters', 'Advertisements', 'Infographics', 'Videos', 'Motion Graphics', 'Animations', 'Design Files', 'Source Files', 'Templates'] },
+  { key: 'marketing', label: 'Marketing Content', description: 'Promotional and sales material', section: 'marketing', subcategories: ['Advertisements', 'Brochures', 'Flyers', 'Presentations', 'Landing Pages', 'Email Marketing', 'Email Templates', 'Marketing Copy', 'Promotional Material', 'Lead Generation Material', 'Sales Material'] },
+  { key: 'social', label: 'Social Media', description: 'Platform content, captions and publishing calendar', section: 'social', subcategories: ['Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'X / Twitter'], contentTypes: ['Post', 'Reel', 'Story', 'Caption', 'Video', 'Thumbnail', 'Document', 'Article', 'Description', 'Media'] },
+  { key: 'content', label: 'Content Library', description: 'Articles, website copy and customer stories', section: 'content', subcategories: ['Blog', 'Articles', 'Website Content', 'Case Studies', 'Testimonials', 'Customer Stories', 'Press Releases', 'SEO Content', 'Product Content', 'Marketing Copy', 'Website Copy'] },
+  { key: 'campaigns', label: 'Campaigns', description: 'Campaigns and their related digital material', section: 'campaign', subcategories: ['Marketing Campaigns', 'Lead Generation', 'Brand Awareness', 'Product Launch'] },
+  { key: 'documents', label: 'Documents', description: 'Briefs, plans, research and references', section: 'document', subcategories: ['Creative Briefs', 'Marketing Plans', 'Campaign Briefs', 'Strategy Documents', 'Reports', 'Presentations', 'Research', 'Meeting Documents', 'Reference Documents', 'Internal Documents'] },
+  { key: 'archive', label: 'Archive', description: 'Retained historical and deprecated material', subcategories: [] },
+];
+// Classify legacy records without rewriting their identities or stored files.
+const KIND_EXPRESSION = { $ifNull: ['$libraryKind', { $switch: { branches: [
+  { case: { $or: [{ $eq: ['$section', 'brand'] }, { $regexMatch: { input: { $concat: [{ $ifNull: ['$category', ''] }, ' ', { $ifNull: ['$assetType', ''] }, ' ', { $ifNull: ['$metadata.assetType', ''] }] }, regex: /logo|brand|font|typography/i } }] }, then: 'brand' },
+  ...[['campaign', 'campaigns'], ['social', 'social'], ['content', 'content'], ['document', 'documents'], ['marketing', 'marketing'], ['report', 'documents'], ['case-study', 'content'], ['testimonial', 'content'], ['seo', 'content'], ['website', 'content'], ['advertisement', 'marketing']].map(([section, kind]) => ({ case: { $eq: ['$section', section] }, then: kind })),
+], default: 'creative' } }] };
+module.exports = { CATEGORIES, KIND_EXPRESSION };

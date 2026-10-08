@@ -126,7 +126,7 @@ const exactTextFilter = (value) => {
 };
 
 const buildFilter = (query = {}, projectId) => {
-  const filter = {};
+  const filter = { deletedAt: null };
 
   if (projectId) filter.projectId = projectId;
   if (query.section) filter.section = exactTextFilter(query.section);
@@ -396,8 +396,9 @@ const listProjects = async (query = {}, user = null) => {
   // media_marketing users only see projects a media_head has allocated them to
   // (via teamMembers/projectManager) — everyone else on the media roster
   // (media_head, ceo, admin, super_admin) keeps full visibility.
+  const catalogue = String(query.catalogue || '') === 'true';
   const role = String(user?.role || '').toLowerCase();
-  if (role && !MEDIA_FULL_PROJECT_ACCESS_ROLES.includes(role) && user?._id) {
+  if (!catalogue && role && !MEDIA_FULL_PROJECT_ACCESS_ROLES.includes(role) && user?._id) {
     clauses.push({ $or: [{ 'teamMembers.employee': user._id }, { projectManager: user._id }] });
   }
 
@@ -409,7 +410,12 @@ const listProjects = async (query = {}, user = null) => {
   ]);
 
   return {
-    items,
+    items: catalogue ? items.map(project => {
+      const assigned = project.teamMembers.some(member => String(member.employee) === String(user?._id || user?.id)) || String(project.projectManager) === String(user?._id || user?.id);
+      return { _id: project._id, name: project.name, projectCode: project.projectCode, description: project.description,
+        status: project.status, logo: project.logo, themeColor: project.themeColor, assigned,
+        accessGranted: assigned || MEDIA_FULL_PROJECT_ACCESS_ROLES.includes(role) };
+    }) : items,
     pagination: {
       page,
       limit,
@@ -1231,6 +1237,7 @@ const createMediaRecord = async (payload = {}, actorId, projectId, defaults = {}
           number: 1,
           label: 'v1.0',
           note: 'Initial version',
+          snapshot: { storageUrl: payload.storageUrl, storageKey: payload.storageKey, storageProvider: payload.storageProvider, thumbnailUrl: payload.thumbnailUrl, mimeType: payload.mimeType, title: payload.title },
           changedBy: actorId,
           changedAt: new Date(),
         },
@@ -1278,26 +1285,23 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) 
   }
 
   const update = normalizeMediaPayload(payload, existing);
-  const previousStorageKey = existing.storageKey;
-  const previousMimeType = existing.mimeType;
-  const replacedCloudinaryAsset =
-    existing.storageProvider === 'cloudinary' &&
-    previousStorageKey &&
-    update.storageProvider === 'cloudinary' &&
-    update.storageKey &&
-    update.storageKey !== previousStorageKey;
-  const shouldBumpVersion = Boolean(payload.versionNote || payload.changeSummary || payload.bumpVersion);
+  const shouldBumpVersion = Boolean(payload.versionNote || payload.changeSummary || payload.bumpVersion || update.storageUrl !== existing.storageUrl);
 
   if (shouldBumpVersion) {
     const nextMinor = Number(existing.version?.minor || 0) + 1;
     const nextMajor = Number(existing.version?.major || 1);
     const nextVersion = `v${nextMajor}.${nextMinor}`;
     existing.version = existing.version || {};
+    const previousVersionLabel = existing.version.current;
     existing.version.current = nextVersion;
     existing.version.major = nextMajor;
     existing.version.minor = nextMinor;
     existing.version.history = Array.isArray(existing.version.history) ? existing.version.history : [];
+    if (!existing.version.history.length) existing.version.history.push({ number: 1, label: previousVersionLabel || 'v1.0', note: 'Preserved existing file', changedBy: existing.updatedBy || existing.createdBy, changedAt: existing.updatedAt, snapshot: { storageUrl: existing.storageUrl, storageKey: existing.storageKey, storageProvider: existing.storageProvider, thumbnailUrl: existing.thumbnailUrl, mimeType: existing.mimeType, title: existing.title } });
+    const lastVersion = existing.version.history[existing.version.history.length - 1];
+    if (lastVersion && !lastVersion.snapshot) lastVersion.snapshot = { storageUrl: existing.storageUrl, storageKey: existing.storageKey, storageProvider: existing.storageProvider, thumbnailUrl: existing.thumbnailUrl, mimeType: existing.mimeType, title: existing.title };
     existing.version.history.push({
+      snapshot: { storageUrl: update.storageUrl, storageKey: update.storageKey, storageProvider: update.storageProvider, thumbnailUrl: update.thumbnailUrl, mimeType: update.mimeType, title: update.title },
       number: existing.version.history.length + 1,
       label: nextVersion,
       note: String(payload.versionNote || payload.changeSummary || 'Version updated'),
@@ -1318,13 +1322,7 @@ const updateMediaRecord = async (id, payload = {}, actorId, projectId, section) 
   }
   await existing.save();
 
-  if (replacedCloudinaryAsset) {
-    try {
-      await deleteCloudinaryAsset(previousStorageKey, previousMimeType);
-    } catch (err) {
-      logger.warn({ err, storageKey: previousStorageKey }, 'Failed to delete replaced Cloudinary file for media record');
-    }
-  }
+  // Previous files remain available through version snapshots.
 
   await writeAuditTrail({
     userId: actorId,

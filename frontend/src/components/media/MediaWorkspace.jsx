@@ -49,7 +49,7 @@ const MODULE_FOR_SECTION = {
 
 const META = {
   dashboard: ['Media Command Center', 'Executive overview of media production, approvals, and delivery', 'campaign'],
-  projects: ['Projects', 'Click a project to open its full media & marketing plan', 'folder_copy'],
+  projects: ['Projects', 'All global projects. Open allocated projects to view their media and marketing plan.', 'folder_copy'],
   assets: ['Digital Asset Management', 'Searchable, versioned asset vault', 'perm_media'],
   brand: ['Brand Management', 'Guidelines, templates, and compliance tracking', 'palette'],
   content: ['Content Studio', 'Blogs, copy, web content, and editorial workflow', 'edit_note'],
@@ -267,8 +267,10 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           name,
           description,
           status: String(project?.status || 'active').trim() || 'active',
-          accessGranted: true,
-          assigned: false,
+          accessGranted: project.accessGranted !== false,
+          assigned: Boolean(project.assigned),
+          logo: project.logo,
+          themeColor: project.themeColor,
           label: name,
           value,
         };
@@ -318,8 +320,17 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   ] = useQueries({
     queries: [
       {
-        queryKey: QK.media.projects({ limit: 200, userId: String(user?._id || user?.id || "") }),
-        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }, { forceRefresh: true }),
+        queryKey: QK.media.projects({ limit: 200, catalogue: isProjectHub, userId: String(user?._id || user?.id || "") }),
+        queryFn: async () => {
+          const params = { limit: 200, ...(isProjectHub && { catalogue: true }) };
+          const first = await departmentApi.getMediaProjects(token, params, { forceRefresh: true });
+          const items = [...(first.data?.items || [])];
+          for (let page = 2; page <= (first.data?.pagination?.totalPages || 1); page++) {
+            const next = await departmentApi.getMediaProjects(token, { ...params, page }, { forceRefresh: true });
+            items.push(...(next.data?.items || []));
+          }
+          return { ...first, data: { ...first.data, items } };
+        },
         enabled,
         // Allocations can change while Marketing is open in another tab.
         staleTime: 0,

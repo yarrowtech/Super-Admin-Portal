@@ -28,6 +28,13 @@ export const departmentApi = {
   getMediaHeadDeadlines: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/head/deadlines', params), token, options),
   getMediaHeadProjectDetail: (token, projectId, options = {}) => apiClient.get(`/api/dept/media/head/projects/${projectId}`, token, options),
   getMediaHeadAssets: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/head/assets', params), token, { forceRefresh: true }),
+  getMediaLibraryOverview: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/library/overview', params), token, { forceRefresh: true }),
+  getMediaLibraryItems: (token, params = {}) => apiClient.get(buildUrl('/api/dept/media/library/items', params), token, { forceRefresh: true }),
+  getMediaLibraryItem: (token, id) => apiClient.get(`/api/dept/media/library/items/${id}`, token, { forceRefresh: true }),
+  createMediaLibraryItem: (token, body) => apiClient.post('/api/dept/media/library/items', body, token),
+  updateMediaLibraryItem: (token, id, body) => apiClient.put(`/api/dept/media/library/items/${id}`, body, token),
+  mediaLibraryAction: (token, id, body) => apiClient.post(`/api/dept/media/library/items/${id}/actions`, body, token),
+  submitMediaLibraryItem: (token, id) => apiClient.post(`/api/dept/media/library/items/${id}/approval-request`, {}, token),
   getMediaProjects: (token, params = {}, options = {}) => apiClient.get(buildUrl('/api/dept/media/projects', params), token, options),
   getMediaMarketingUsers: (token, options = {}) => apiClient.get('/api/dept/media/head/marketing-users', token, options),
   assignMediaProjectMember: (token, projectId, employeeId, role) =>

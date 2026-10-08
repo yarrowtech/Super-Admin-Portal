@@ -20,6 +20,11 @@ test('Media uses all global projects, including MATEBID and new names, while sta
     const staff = await service.listProjects({}, { role: 'media_marketing', _id: employee });
     assert.equal(staff.pagination.total, 1); assert.equal(String(staff.items[0]._id), String(custom._id));
     assert.equal(await service.hasMediaProjectAccess({ role: 'media_marketing', _id: employee }, matebid._id), false);
+    const catalogue = await service.listProjects({ catalogue: 'true' }, { role: 'media_marketing', _id: employee });
+    assert.equal(catalogue.pagination.total, 2);
+    assert.equal(catalogue.items.find(item => String(item._id) === String(matebid._id)).accessGranted, false);
+    assert.equal(catalogue.items.find(item => String(item._id) === String(custom._id)).accessGranted, true);
+    assert.ok(catalogue.items.every(item => !('teamMembers' in item) && !('budget' in item)));
     const otherAccount = new mongoose.Types.ObjectId();
     const unassigned = { role: 'media_marketing', _id: otherAccount };
     assert.equal((await service.listProjects({}, unassigned)).pagination.total, 0);

@@ -1,5 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+test('bulk uploads retain the selected creative module for every file', async () => {
+  const { uploadAssetBatch } = await import('../../frontend/src/components/media/bulkAssetUpload.js');
+  for (const moduleType of ['asset', 'brand', 'content', 'design', 'video', 'social']) {
+    const payloads = [];
+    await uploadAssetBatch({ entries: ['first', 'second'].map(id => ({ id, title: id, file: { type: 'image/png', size: 10 } })), projectId: 'project', moduleType, category: '', description: '',
+      uploadFile: async () => ({ data: { url: 'https://fixture.invalid/file' } }),
+      createAsset: async payload => { payloads.push(payload); return { data: { id: payload.title } }; }, onChange: () => {}, onCreated: () => {},
+    });
+    assert.equal(payloads.length, 2);
+    assert.ok(payloads.every(payload => payload.moduleType === moduleType && payload.section === moduleType));
+  }
+});
 test('bulk assets continue after a failure and retry creation without uploading successful files again', async () => {
   const { uploadAssetBatch } = await import('../../frontend/src/components/media/bulkAssetUpload.js');
   const entries = ['one', 'two', 'three'].map(id => ({ id, title: id, status: 'queued', file: { name: `${id}.png`, type: 'image/png', size: 10 } }));

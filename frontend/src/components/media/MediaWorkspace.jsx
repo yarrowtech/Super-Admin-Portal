@@ -1214,10 +1214,22 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                     <p className="text-sm font-black text-slate-950 dark:text-neutral-100">File & Evidence</p>
                   </div>
                   <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-teal-400 hover:bg-teal-50/50 dark:border-neutral-700 dark:bg-neutral-950/70 dark:hover:border-teal-700 dark:hover:bg-teal-500/10">
-                    <span className={labelClass}>Upload File</span>
+                    <span className={labelClass}>{editor.mode === 'create' ? 'Upload Files (select one or more)' : 'Replace File'}</span>
                     <input
                       type="file"
-                      onChange={(e) => setDraft((prev) => ({ ...prev, file: e.target.files?.[0] || null }))}
+                      multiple={editor.mode === 'create'}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (editor.mode === 'create' && files.length > 1) {
+                          const metadata = {};
+                          (DOMAIN_FIELDS[editor.section] || []).filter(field => !field.top).forEach(field => {
+                            const value = draft.domainFields?.[field.key];
+                            if (value !== undefined && value !== '') metadata[field.key] = field.type === 'number' ? Number(value) : value;
+                          });
+                          setBulkUploadProject({ id: effectiveProjectId, section: editor.section, name: projectOptions.find(project => project.value === effectiveProjectId)?.name, files, title: draft.title, category: draft.category, description: draft.description, metadata });
+                          closeEditor();
+                        } else setDraft(prev => ({ ...prev, file: files[0] || null }));
+                      }}
                       className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-teal-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-teal-700 dark:text-neutral-300"
                     />
                     {draft.file ? (
@@ -1363,7 +1375,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           showNotifications
           showThemeToggle
         >
-          {activeSection === 'assets' && <Button variant="secondary" disabled={actionBusy || !effectiveProjectId} onClick={() => setBulkUploadProject({ id: effectiveProjectId, name: projectOptions.find(project => String(project.value) === String(effectiveProjectId))?.name })} icon={<span className="material-symbols-outlined text-[18px]">upload_file</span>}>Bulk upload</Button>}
+          {activeSectionAction && CREATIVE_SECTION_IDS.has(activeSection) && <Button variant="secondary" disabled={actionBusy || !effectiveProjectId} onClick={() => setBulkUploadProject({ id: effectiveProjectId, section: activeSection, name: projectOptions.find(project => String(project.value) === String(effectiveProjectId))?.name })} icon={<span className="material-symbols-outlined text-[18px]">upload_file</span>}>Bulk upload</Button>}
           {activeSectionAction && CREATIVE_SECTION_IDS.has(activeSection) ? (
             <Button
               variant="accent"
@@ -1378,7 +1390,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
         {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100 dark:border-neutral-800 dark:bg-neutral-900" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : renderSection()}
         {renderEditorModal()}
-        {bulkUploadProject && <BulkAssetUploadModal token={token} projectId={bulkUploadProject.id} projectName={bulkUploadProject.name} onClose={() => setBulkUploadProject(null)} onCreated={asset => upsertLocalRecord('assets', asset)} onFinished={refreshData} />}
+        {bulkUploadProject && <BulkAssetUploadModal initialTitle={bulkUploadProject.title} initialFiles={bulkUploadProject.files} initialCategory={bulkUploadProject.category} initialDescription={bulkUploadProject.description} initialMetadata={bulkUploadProject.metadata} token={token} moduleType={MODULE_FOR_SECTION[bulkUploadProject.section]} label={SECTION_ACTIONS[bulkUploadProject.section].label} createFn={SECTION_ACTIONS[bulkUploadProject.section].createFn} projectId={bulkUploadProject.id} projectName={bulkUploadProject.name} onClose={() => setBulkUploadProject(null)} onCreated={asset => upsertLocalRecord(bulkUploadProject.section, asset)} onFinished={refreshData} />}
         {renderFilePreview()}
       </div>
     </main>

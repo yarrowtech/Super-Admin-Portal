@@ -1,5 +1,5 @@
 // Keep successful uploads when asset creation fails so Retry does not upload the file again.
-export async function uploadAssetBatch({ entries, projectId, category, description, uploadFile, createAsset, onChange, onCreated }) {
+export async function uploadAssetBatch({ entries, projectId, moduleType = 'asset', metadata = {}, category, description, uploadFile, createAsset, onChange, onCreated }) {
   if (!projectId) throw new Error('Select a project before uploading assets.');
   const results = [];
   for (const entry of entries) {
@@ -17,7 +17,7 @@ export async function uploadAssetBatch({ entries, projectId, category, descripti
       const file = current.uploaded;
       const response = await createAsset({
         title: current.title.trim(), description: description.trim(), category: category.trim(),
-        projectId, section: 'asset', moduleType: 'asset', metadata: {},
+        projectId, section: moduleType, moduleType, metadata,
         storageUrl: file.url, storageKey: file.storageKey,
         storageProvider: file.storageProvider || 'cloudinary', thumbnailUrl: file.thumbnailUrl || '',
         mimeType: file.mimeType || current.file.type, fileSizeBytes: file.fileSizeBytes || current.file.size,

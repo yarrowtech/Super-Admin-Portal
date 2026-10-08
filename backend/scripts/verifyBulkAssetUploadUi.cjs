@@ -33,7 +33,7 @@ const puppeteer = require('puppeteer');
       if (url.pathname === '/api/auth/me') data = { user: { _id: 'fixture-user', name: 'Fixture Media', role: 'media_marketing', portalAccess: ['media'] } };
       else if (url.pathname.endsWith('/projects')) data = { items: [{ _id: projectId, name: 'EEC-B2B', projectCode: 'EEC_B2B' }] };
       else if (url.pathname.endsWith('/upload')) { uploads++; assert.equal(url.searchParams.get('projectId'), projectId); data = { url: `https://fixture.invalid/file-${uploads}`, storageKey: `file-${uploads}`, storageProvider: 'cloudinary', mimeType: 'image/png', fileSizeBytes: 5 }; }
-      else if (url.pathname.endsWith('/assets') && request.method() === 'POST') {
+      else if (['/assets', '/content', '/brand-assets', '/design', '/video', '/social'].some(endpoint => url.pathname.endsWith(endpoint)) && request.method() === 'POST') {
         const payload = JSON.parse(request.postData()); assert.equal(payload.projectId, projectId); creationAttempts++;
         if (creationAttempts === 2) return request.respond({ status: 400, headers, body: JSON.stringify({ success: false, error: 'Fixture creation failed' }) });
         data = { ...payload, _id: `asset-${creationAttempts}`, status: 'Pending', createdAt: new Date().toISOString() }; assets.push(data);
@@ -43,23 +43,42 @@ const puppeteer = require('puppeteer');
     await page.goto(`${origin}/media/dashboard/assets`, { waitUntil: 'networkidle0' });
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent.trim().endsWith('Bulk upload') && !b.disabled));
     await page.$$eval('button', buttons => buttons.find(b => b.textContent.trim().endsWith('Bulk upload')).click());
-    await page.waitForSelector('[aria-label="Files for bulk asset upload"]');
-    await page.$eval('[aria-label="Files for bulk asset upload"]', input => {
+    await page.waitForSelector('[aria-label="Files for bulk upload"]');
+    await page.$eval('[aria-label="Files for bulk upload"]', input => {
       const transfer = new DataTransfer(); transfer.items.add(new File(['first'], 'first.png', { type: 'image/png', lastModified: 1 })); transfer.items.add(new File(['brief'], 'second.pdf', { type: 'application/pdf', lastModified: 1 }));
       input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await page.waitForSelector('[aria-label="Title for second.pdf"]');
-    await page.$$eval('[role=dialog] button', buttons => buttons.find(b => b.textContent === 'Upload 2 assets').click());
+    await page.$$eval('[role=dialog] button', buttons => buttons.find(b => b.textContent === 'Upload 2 files').click());
     await page.waitForFunction(() => document.querySelector('[role=dialog]')?.textContent.includes('Fixture creation failed'));
     assert.equal(uploads, 2); assert.equal(assets.length, 1);
     await page.$$eval('[role=dialog] button', buttons => buttons.find(b => b.textContent === 'Retry unfinished files').click());
-    await page.waitForFunction(() => document.querySelector('[role=dialog]')?.textContent.includes('2 of 2 assets created'));
+    await page.waitForFunction(() => document.querySelector('[role=dialog]')?.textContent.includes('2 of 2 records created'));
     assert.equal(uploads, 2); assert.equal(assets.length, 2); assert.equal(creationAttempts, 3);
     await page.setViewport({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.$$eval('[role=dialog] button', buttons => buttons.find(b => b.textContent === 'Done').click());
     await page.waitForFunction(() => !document.querySelector('[role=dialog]'));
+    for (const [section, moduleType] of [['assets', 'asset'], ['brand', 'brand'], ['content', 'content'], ['design', 'design'], ['video', 'video'], ['social', 'social']]) {
+      await page.goto(`${origin}/media/dashboard/${section}`, { waitUntil: 'networkidle0' });
+      await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent.trim().endsWith('Bulk upload') && !b.disabled));
+      await page.$$eval('button', buttons => buttons.find(b => /Create (asset|brand asset|content|design item|video item|social post)$/.test(b.textContent.trim())).click());
+      await page.waitForSelector('input[type=file]');
+      assert.equal(await page.$eval('input[type=file]', input => input.multiple), true, 'Create form must allow multiple selection');
+      await page.$eval('input[type=file]', input => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File(['one'], 'one.png', { type: 'image/png' }));
+        transfer.items.add(new File(['two'], 'two.png', { type: 'image/png' }));
+        input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await page.waitForSelector('[aria-label="Title for two.png"]');
+      const before = assets.length;
+      await page.$$eval('[role=dialog] button', buttons => buttons.find(b => b.textContent === 'Upload 2 files').click());
+      await page.waitForFunction(() => document.querySelector('[role=dialog]')?.textContent.includes('2 of 2 records created'));
+      assert.equal(assets.length, before + 2);
+      assert.ok(assets.slice(before).every(asset => asset.moduleType === moduleType && asset.section === moduleType));
+    }
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: true, checks: ['DAM bulk action', 'multiple file selection', 'project scope', 'partial failure', 'retry without repeat upload', 'mobile width', 'close after completion', 'no runtime errors'] }));
+    console.log(JSON.stringify({ passed: true, checks: ['bulk upload in all six creative sections', 'multiple file selection', 'project scope', 'partial failure', 'retry without repeat upload', 'mobile width', 'close after completion', 'no runtime errors'] }));
   } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

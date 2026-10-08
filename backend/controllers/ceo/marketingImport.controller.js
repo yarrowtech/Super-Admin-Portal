@@ -82,7 +82,7 @@ const scopeFor = async (req) => {
 
 // Aggregated imported points for the map. Counts only — no contact details (§19, §40).
 exports.getImportedMarketingPoints = handle(async (req) =>
-  service.getImportedMapPoints(await scopeFor(req)));
+  service.getImportedMapPoints(await scopeFor(req), req.query));
 
 // The records behind one marker (§34). The authorised detail view, reached by an explicit
 // click — not part of any aggregate payload.
@@ -91,7 +91,7 @@ exports.getImportedLocationRecords = handle(async (req) =>
     projectIds: await scopeFor(req),
     city: req.query?.city,
     page: req.query?.page,
-    limit: req.query?.limit,
+    limit: req.query?.limit, status: req.query?.status, marketingStage: req.query?.marketingStage, department: req.query?.department, search: req.query?.search, sort: req.query?.sort,
   }));
 
 // Records the map cannot place (§32), so an unresolved location is inspectable and
@@ -100,13 +100,20 @@ exports.getUnmappedImportedRecords = handle(async (req) =>
   service.getUnmappedRecords({
     projectIds: await scopeFor(req),
     page: req.query?.page,
-    limit: req.query?.limit,
+    limit: req.query?.limit, status: req.query?.status, marketingStage: req.query?.marketingStage, department: req.query?.department, search: req.query?.search, sort: req.query?.sort,
   }));
 
 exports.searchImportedRecords = handle(async (req) => service.searchImportedRecords({
-  projectIds: await scopeFor(req), search: req.query?.search,
+  projectIds: await scopeFor(req), search: req.query?.search, marketingStage: req.query?.marketingStage,
 }));
 
 exports.getImportedRecord = handle(async (req) => service.getImportedRecord({
   projectIds: await scopeFor(req), recordId: req.params.recordId,
+}));
+
+exports.getMarketingJourneyConfig = handle(async (req) => service.getMarketingJourneyConfig(req.user));
+exports.updateMarketingStatus = handle(async (req) => service.updateMarketingStatus({
+  projectIds: await scopeFor(req), recordId: req.params.recordId, actor: req.user,
+  stage: req.body?.stage, expectedVersion: req.body?.expectedVersion,
+  scheduledAt: req.body?.scheduledAt, note: req.body?.note,
 }));

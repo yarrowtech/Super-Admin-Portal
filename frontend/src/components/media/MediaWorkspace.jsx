@@ -18,6 +18,7 @@ import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
 import ProjectSwitcher from './ProjectSwitcher';
 import CreativeToolbar from './CreativeToolbar';
 import CreativeStatsGrid from './CreativeStatsGrid';
+import BulkAssetUploadModal from './BulkAssetUploadModal';
 
 const MEDIA_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'campaign' },
@@ -233,6 +234,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [selectedIds, setSelectedIds] = useState([]);
   const [assetViewMode, setAssetViewMode] = useState('grid');
   const [filePreview, setFilePreview] = useState(null);
+  const [bulkUploadProject, setBulkUploadProject] = useState(null);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewError, setPreviewError] = useState(false);
   const [editor, setEditor] = useState({ open: false, mode: 'create', section: 'assets', record: null });
@@ -1361,6 +1363,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           showNotifications
           showThemeToggle
         >
+          {activeSection === 'assets' && <Button variant="secondary" disabled={actionBusy || !effectiveProjectId} onClick={() => setBulkUploadProject({ id: effectiveProjectId, name: projectOptions.find(project => String(project.value) === String(effectiveProjectId))?.name })} icon={<span className="material-symbols-outlined text-[18px]">upload_file</span>}>Bulk upload</Button>}
           {activeSectionAction && CREATIVE_SECTION_IDS.has(activeSection) ? (
             <Button
               variant="accent"
@@ -1375,6 +1378,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
         {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100 dark:border-neutral-800 dark:bg-neutral-900" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : renderSection()}
         {renderEditorModal()}
+        {bulkUploadProject && <BulkAssetUploadModal token={token} projectId={bulkUploadProject.id} projectName={bulkUploadProject.name} onClose={() => setBulkUploadProject(null)} onCreated={asset => upsertLocalRecord('assets', asset)} onFinished={refreshData} />}
         {renderFilePreview()}
       </div>
     </main>

@@ -1,20 +1,20 @@
 import { divIcon } from 'leaflet';
 
 export const PIN_BANDS = [
-  { at: 0.66, label: 'High', fill: '#e11d48' },
-  { at: 0.33, label: 'Medium', fill: '#d97706' },
-  { at: 0, label: 'Low', fill: '#2563eb' },
+  { at: 0.66, label: 'High', fill: '#334155' },
+  { at: 0.33, label: 'Medium', fill: '#64748b' },
+  { at: 0, label: 'Low', fill: '#94a3b8' },
 ];
 export const bandFor = (value, max) => PIN_BANDS.find((band) => (max > 0 ? value / max : 0) >= band.at) || PIN_BANDS[2];
 
-export const createPinIcon = ({ band, selected = false, badge = '' }) => divIcon({
+export const createPinIcon = ({ band, selected = false, badge = '', stageTone = null }) => divIcon({
   className: 'marketing-pin-wrap', iconSize: [44, 48], iconAnchor: [22, 40], tooltipAnchor: [0, -36],
   html: `<div class="marketing-pin${selected ? ' is-selected' : ''}">
     ${selected ? '<span class="marketing-pin__halo"></span>' : ''}
     <svg width="28" height="36" viewBox="0 0 28 36" aria-hidden="true">
       <path d="M14 34C11 29 2 21 2 14a12 12 0 1 1 24 0c0 7-9 15-12 20Z" fill="${selected ? '#15803d' : band.fill}" stroke="white" stroke-width="2"/>
       <circle cx="14" cy="14" r="4" fill="white"/>
-    </svg>${badge ? `<span class="marketing-pin__badge">${badge}</span>` : ''}
+    </svg>${stageTone ? `<span class="marketing-pin__stage" data-tone="${stageTone}"></span>` : ''}${badge ? `<span class="marketing-pin__badge">${badge}</span>` : ''}
   </div>`,
 });
 
@@ -38,7 +38,7 @@ export const PIN_STYLES = `
 .marketing-map .marketing-cluster.is-expanding { animation: marketing-cluster-expand 850ms ease both; }
 .marketing-map .marketing-pin.is-revealing { animation: marketing-pin-drop 420ms cubic-bezier(.2,.7,.3,1) backwards; animation-delay: var(--pin-delay, 0ms); }
 .marketing-map .marketing-has-selection .marketing-pin:not(.is-selected) { opacity: .55; }
-.marketing-map .marketing-data-loading .leaflet-marker-pane { opacity: 0; pointer-events: none; }
+.marketing-map .marketing-data-loading .leaflet-marker-pane { opacity: .65; }
 .marketing-map .leaflet-marker-pane { transition: opacity 250ms ease; }
 .marketing-map .leaflet-control-attribution { font-size: 10px; color: #525252; background: #fffffff0; padding: 1px 5px; }
 @keyframes marketing-pin-drop { 0% { opacity: 0; transform: translateY(-16px) scale(.7); } 75% { opacity: 1; transform: scale(1.05); } 100% { transform: none; } }

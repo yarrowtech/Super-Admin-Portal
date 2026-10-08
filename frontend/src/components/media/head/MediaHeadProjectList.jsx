@@ -19,9 +19,9 @@ const buildProjectOptions = (projectItems = []) =>
       if (!value) return null;
 
       const canonicalProject = findCanonicalProject(project);
-      const code = canonicalProject?.code || project?.projectCode || project?.code || '';
-      const name = canonicalProject?.name || project?.name || project?.projectCode || 'Untitled project';
-      const description = canonicalProject?.description || project?.description || 'Project workspace';
+      const code = project?.projectCode || project?.code || canonicalProject?.code || '';
+      const name = project?.name || project?.projectCode || canonicalProject?.name || 'Untitled project';
+      const description = project?.description || canonicalProject?.description || 'Project workspace';
 
       return {
         code,
@@ -43,11 +43,21 @@ const MediaHeadProjectList = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
 
-  const projectQuery = { limit: 100, catalogVersion: 'matebid-v1' };
-  const { data, isLoading } = useQuery({
+  const projectQuery = { limit: 100, catalogVersion: 'global-projects-v2' };
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: QK.mediaHead.projects(projectQuery),
-    queryFn: () => departmentApi.getMediaHeadProjects(token, projectQuery),
+    queryFn: async () => {
+      const response = await departmentApi.getMediaHeadProjects(token, { ...projectQuery, page: 1 }, { cache: false });
+      const items = [...arr(response?.data?.items)];
+      for (let page = 2; page <= (response?.data?.pagination?.totalPages || 1); page++) {
+        const next = await departmentApi.getMediaHeadProjects(token, { ...projectQuery, page }, { cache: false });
+        items.push(...arr(next?.data?.items));
+      }
+      return { ...response, data: { ...response.data, items } };
+    },
     enabled: Boolean(token),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const projectOptions = useMemo(() => buildProjectOptions(arr(data?.data?.items)), [data]);
@@ -57,7 +67,7 @@ const MediaHeadProjectList = () => {
       <div className="portal-page-inner portal-page-inner--media">
         <PortalHeader title="Projects" subtitle="Click a project to open its full media & marketing plan" icon="folder_copy" />
 
-        {isLoading ? (
+        {isError ? <div role="alert" className="rounded-xl border border-rose-200 p-4 text-rose-700"><p>{error?.message || 'Unable to load projects.'}</p><button type="button" className="mt-2 font-semibold underline" onClick={() => refetch()}>Retry</button></div> : isLoading ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-40 animate-pulse rounded-[1.75rem] bg-neutral-100 dark:bg-neutral-800" />

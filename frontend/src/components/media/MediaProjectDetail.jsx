@@ -463,7 +463,7 @@ const buildSeedPlan = (project = {}, canonical = null) => {
     goals: { ...DEFAULT_STRATEGY.goals, ...(PROJECT_STRATEGIES[key]?.goals || {}) },
     planning: { ...DEFAULT_STRATEGY.planning, ...(PROJECT_STRATEGIES[key]?.planning || {}) },
   };
-  const name = canonical?.name || project?.name || project?.projectCode || 'Project';
+  const name = project?.name || project?.projectCode || canonical?.name || 'Project';
   const description = project?.description || canonical?.description || '';
   const matebidPlan = key === 'MATEBID' ? MATEBID_PLAN : null;
 
@@ -858,8 +858,8 @@ const MediaProjectDetail = () => {
   }, [token, projectSlug]);
 
   const canonical = useMemo(() => (project ? findCanonicalProject(project) : null), [project]);
-  const projectName = canonical?.name || project?.name || project?.projectCode || 'Project';
-  const projectDescription = canonical?.description || project?.description || 'Media & marketing summary';
+  const projectName = project?.name || project?.projectCode || canonical?.name || 'Project';
+  const projectDescription = project?.description || canonical?.description || 'Media & marketing summary';
   const activeAccent = HEX_RE.test(project?.themeColor || '') ? project.themeColor : DEFAULT_ACCENT;
   const themeVars = useMemo(() => buildThemeVars(activeAccent, theme === 'dark'), [activeAccent, theme]);
 

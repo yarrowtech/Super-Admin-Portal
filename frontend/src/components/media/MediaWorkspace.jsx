@@ -258,10 +258,9 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         if (!value) return null;
 
         const canonicalProject = findCanonicalProject(project);
-        if (!canonicalProject) return null;
-        const code = canonicalProject?.code || project?.projectCode || project?.code || '';
-        const name = canonicalProject?.name || project?.name || project?.projectCode || 'Untitled project';
-        const description = canonicalProject?.description || project?.description || 'Project workspace';
+        const code = project?.projectCode || project?.code || canonicalProject?.code || '';
+        const name = project?.name || project?.projectCode || canonicalProject?.name || 'Untitled project';
+        const description = project?.description || canonicalProject?.description || 'Project workspace';
 
         return {
           code,
@@ -319,13 +318,14 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   ] = useQueries({
     queries: [
       {
-        queryKey: QK.media.projects({ limit: 200 }),
-        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }),
+        queryKey: QK.media.projects({ limit: 200, userId: String(user?._id || user?.id || "") }),
+        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }, { forceRefresh: true }),
         enabled,
-        // Project allocation is changed externally by Media Head (assign/revoke) —
-        // this list must always reflect the latest allocation on mount, not the
-        // shared default 90s staleTime other media queries use (forceRefresh also
-        // bypasses the apiClient's own sessionStorage HTTP cache layer).
+        // Allocations can change while Marketing is open in another tab.
+        staleTime: 0,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: 'always',
+        refetchInterval: 30000,
       },
       { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled: enableWorkspaceData },
@@ -950,7 +950,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
         {!effectiveProjectId ? (
           <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
-            Select a project before creating a new {String(config?.label || 'record').toLowerCase()}.
+            {projectOptions.length ? `Select a project before creating a new ${String(config?.label || 'record').toLowerCase()}.` : 'No projects assigned to this account. Ask Media Head to allocate a project before uploading files.'}
+            {!projectOptions.length ? <button type="button" onClick={() => projectsQuery.refetch()} className="ml-3 underline">Refresh projects</button> : null}
           </section>
         ) : null}
 
@@ -1028,7 +1029,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
-  const renderProjectHub = () => <MediaProjectList projects={projectOptions} />;
+  const renderProjectHub = () => <MediaProjectList projects={projectOptions} onRefresh={() => projectsQuery.refetch()} />;
 
   const renderSection = () => {
     if (activeSection === 'projects') return renderProjectHub();

@@ -6,6 +6,7 @@ import MobilePortalNav from '../../common/MobilePortalNav';
 import { mediaModulesApi } from '../../../services/departmentModules';
 import { DepartmentTeamPage, DepartmentMessagesPage } from '../../shared/DepartmentCollabPages';
 
+const MediaHeadAssets = lazy(() => import('./MediaHeadAssets'));
 const MediaHeadDashboard = lazy(() => import('./MediaHeadDashboard'));
 const MediaHeadProjectList = lazy(() => import('./MediaHeadProjectList'));
 const MediaHeadProjectOverview = lazy(() => import('./MediaHeadProjectOverview'));
@@ -31,6 +32,7 @@ const MEDIA_THEME = {
 const mediaHeadMobileItems = [
   { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { key: 'projects', label: 'Projects', icon: 'folder_copy' },
+  { key: 'assets', label: 'Digital Asset Management', icon: 'perm_media' },
   { key: 'overview', label: 'Overview', icon: 'table_view' },
   { key: 'team-analytics', label: 'Team Analytics', icon: 'insights' },
   { key: 'deadlines', label: 'Deadlines', icon: 'event_upcoming' },
@@ -63,6 +65,8 @@ const MediaHeadPortal = () => {
         return <MediaHeadDashboard onNavigate={setCurrentView} />;
       case 'projects':
         return <MediaHeadProjectList />;
+      case 'assets':
+        return <MediaHeadAssets />;
       case 'overview':
         return <MediaHeadProjectOverview />;
       case 'team-analytics':

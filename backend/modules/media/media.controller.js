@@ -533,3 +533,10 @@ exports.getMarketingUserWork = async (req, res) => {
     handleError(res, err, 'Failed to load Media Marketing user work analytics', 'Media module getMarketingUserWork error');
   }
 };
+
+exports.getHeadAssets = async (req, res) => {
+  try {
+    const { getHeadAssets } = require('./headAssets.service');
+    res.json({ success: true, data: await getHeadAssets(req.query || {}) });
+  } catch (err) { handleError(res, err, 'Failed to load asset management', 'Media Head assets error'); }
+};

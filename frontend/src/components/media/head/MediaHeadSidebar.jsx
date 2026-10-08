@@ -30,6 +30,7 @@ const menuGroups = [
   {
     label: 'Control',
     items: [
+      { key: 'assets', label: 'Digital Asset Management', icon: 'perm_media' },
       { key: 'approvals', label: 'Approvals', icon: 'fact_check' },
       { key: 'activity', label: 'Activity', icon: 'history' },
     ],

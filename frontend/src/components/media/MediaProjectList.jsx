@@ -7,7 +7,7 @@ import StatusBadge from '../common/StatusBadge';
 const ACCENTS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#f43f5e', '#06b6d4'];
 const HEX_RE = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i;
 
-const MediaProjectList = ({ projects = [], onSelect }) => {
+const MediaProjectList = ({ projects = [], onSelect, onRefresh }) => {
   const navigate = useNavigate();
   const slugMap = useMemo(() => buildProjectSlugMap(projects), [projects]);
 
@@ -15,7 +15,9 @@ const MediaProjectList = ({ projects = [], onSelect }) => {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/60">
         <span className="material-symbols-outlined text-[32px] text-neutral-400">folder_off</span>
-        <p className="mt-2 text-sm font-semibold text-neutral-500">No approved projects found.</p>
+        <p className="mt-2 text-sm font-semibold text-neutral-500">No projects assigned to this account.</p>
+        <p className="mt-2 text-sm text-neutral-500">Ask Media Head to allocate projects to your signed-in account.</p>
+        {onRefresh ? <button type="button" onClick={onRefresh} className="mt-4 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold">Refresh projects</button> : null}
       </div>
     );
   }

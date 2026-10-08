@@ -36,10 +36,9 @@ const buildProjectOptions = (projects = []) =>
       if (!value) return null;
 
       const canonicalProject = findCanonicalProject(project);
-      if (!canonicalProject) return null;
-      const code = canonicalProject?.code || project?.projectCode || project?.code || '';
-      const name = canonicalProject?.name || project?.name || project?.projectCode || 'Untitled project';
-      const description = canonicalProject?.description || project?.description || 'Project workspace';
+      const code = project?.projectCode || project?.code || canonicalProject?.code || '';
+      const name = project?.name || project?.projectCode || canonicalProject?.name || 'Untitled project';
+      const description = project?.description || canonicalProject?.description || 'Project workspace';
 
       return {
         code,
@@ -116,13 +115,14 @@ const MediaDashboard = ({ selectedProjectId, onSectionChange }) => {
   ] = useQueries({
     queries: [
       {
-        queryKey: QK.media.projects({ limit: 200 }),
-        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }),
+        queryKey: QK.media.projects({ limit: 200, userId: String(user?._id || user?.id || "") }),
+        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }, { forceRefresh: true }),
         enabled,
-        // Project allocation is changed externally by Media Head — always
-        // reflect the latest allocation on mount instead of the shared 90s
-        // default staleTime other media queries use (forceRefresh also bypasses
-        // the apiClient's own sessionStorage HTTP cache layer).
+        // Allocations can change while Marketing is open in another tab.
+        staleTime: 0,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: 'always',
+        refetchInterval: 30000,
       },
       { queryKey: QK.media.dashboard(projectParams), queryFn: () => departmentApi.getMediaDashboard(token, projectParams), enabled },
       { queryKey: QK.media.assets(projectParams), queryFn: () => departmentApi.getMediaAssets(token, projectParams), enabled },

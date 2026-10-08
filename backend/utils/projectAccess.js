@@ -8,13 +8,14 @@ const WORKSPACE_BRANDS = Object.freeze([
   { id: 'MATEBID', code: 'MATEBID', name: 'MATEBID', projectCodes: ['MATEBID'] },
   { id: 'BETTERPASS', code: 'BETTERPASS', name: 'THE BETTER PASS', projectCodes: ['BETTERPASS'] },
   { id: 'EDIFYEIGHT', code: 'EDIFYEIGHT', name: 'EDIFYEIGHT', projectCodes: ['EEC'] },
-  { id: 'YARROWTECH', code: 'YARROWTECH', name: 'YARROWTECH', projectCodes: ['EEC_B2B', 'EFNBMMS', 'ESPORTSM', 'ERMS', 'EHC', 'SMARTFARMING'] },
+  { id: 'YARROWTECH', code: 'YARROWTECH', name: 'YARROWTECH', projectCodes: ['YARROWTECH', 'EEC_B2B', 'EFNBMMS', 'ESPORTSM', 'ERMS', 'EHC', 'SMARTFARMING'] },
   { id: 'HIREME', code: 'HIREME', name: 'HIREME', projectCodes: [] },
   { id: 'ARTBLOCK', code: 'ARTBLOCK', name: 'ARTBLOCK', projectCodes: [] },
   { id: 'GREENBAR', code: 'GREENBAR', name: 'GREENBAR', projectCodes: [] },
 ]);
 
 const CANONICAL_PROJECT_NAMES = Object.freeze([
+  'YARROWTECH',
   'MATEBID',
   'EdifyEight',
   'EHC',
@@ -25,6 +26,15 @@ const CANONICAL_PROJECT_NAMES = Object.freeze([
 ]);
 
 const PROJECT_REGISTRY = [
+  {
+    code: 'YARROWTECH',
+    name: 'YARROWTECH',
+    description: 'Yarrowtech company project workspace.',
+    launchUrl: '',
+    aliases: ['YARROW TECH'],
+    brandCode: 'YARROWTECH',
+    projectType: 'internal_project',
+  },
   {
     code: 'MATEBID',
     name: 'MATEBID',

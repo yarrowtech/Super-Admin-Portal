@@ -11,7 +11,6 @@ const { deleteCachePrefix, getCache, setCache } = require('../../services/cache.
 const { createApprovalRequest, decideApprovalRequest } = require('../../services/approvalEngine.service');
 const { writeAuditTrail } = require('../../services/auditTrail.service');
 const { notifyApprovalPending } = require('../../services/notificationTrigger.service');
-const { PROJECT_REGISTRY } = require('../../utils/projectAccess');
 
 // Roles empowered to decide any pending media approval step regardless of
 // which role the step itself is assigned to — kept in sync with
@@ -112,24 +111,9 @@ const withPagination = (query = {}) => {
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const buildAllowedProjectFilter = () => {
-  const projectTokens = PROJECT_REGISTRY.flatMap((project) => [
-    project.code,
-    project.name,
-    ...(Array.isArray(project.aliases) ? project.aliases : []),
-  ])
-    .map((token) => String(token || '').trim())
-    .filter(Boolean);
-
-  const tokenMatches = projectTokens.map((token) => new RegExp(`^${escapeRegex(token)}$`, 'i'));
-
-  return {
-    $or: [
-      { name: { $in: tokenMatches } },
-      { projectCode: { $in: tokenMatches } },
-    ],
-  };
-};
+// The global Project collection is the catalogue for every portal. Media-specific
+// team permissions and workflows are enforced separately, never by a name allowlist.
+const buildAllowedProjectFilter = () => ({});
 
 const toNumber = (value) => {
   const parsed = Number(value);

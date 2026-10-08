@@ -1,4 +1,5 @@
 const express = require('express');
+const { query } = require('express-validator');
 const { authenticate, authorize, authorizePortalAccess } = require('../../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../../middlewares/cacheInvalidation.middleware');
 const { validate } = require('../../middlewares/validate.middleware');
@@ -30,19 +31,27 @@ router.use(authorize(
   ROLES.SUPER_ADMIN
 ));
 router.use(authorizePortalAccess('media'));
-router.use(attachOptionalProjectContext);
+router.use((req, res, next) => req.path === '/head/assets' ? next() : attachOptionalProjectContext(req, res, next));
 router.use((req, res, next) => {
   if (req.log?.child) {
     req.log = req.log.child({ module: 'media', portal: 'media' });
   }
   next();
 });
-router.use(cacheGetResponses('media', { tags: ['media', 'projects', 'dashboard'] }));
+router.use(cacheGetResponses('media', { tags: ['media', 'projects', 'dashboard'], skip: req => req.path === '/projects' || req.path === '/head/assets' || req.path.startsWith('/head/projects') }));
 router.use(invalidateCacheAfterMutation('media'));
 
 router.get('/dashboard', controller.getDashboard);
 router.get('/overview', controller.getOverview);
 router.get('/projects', v.listValidation, validate, controller.getProjects);
+
+router.get('/head/assets', canViewMediaHead, v.listValidation,
+  query('projectId').optional().isMongoId(),
+  query('userId').optional().isMongoId(),
+  query('approvalStatus').optional().isIn(['pending', 'approved', 'rejected', 'draft']),
+  query('attention').optional().isIn(['missing-file', 'stale']),
+  query('section').optional().isIn(['asset', 'brand', 'content', 'design', 'video', 'social']),
+  validate, controller.getHeadAssets);
 
 router.get('/head/dashboard', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadDashboard);
 router.get('/head/overview', canViewMediaHead, v.mediaHeadListValidation, validate, controller.getMediaHeadDashboard);

@@ -102,3 +102,11 @@ exports.getUnmappedImportedRecords = handle(async (req) =>
     page: req.query?.page,
     limit: req.query?.limit,
   }));
+
+exports.searchImportedRecords = handle(async (req) => service.searchImportedRecords({
+  projectIds: await scopeFor(req), search: req.query?.search,
+}));
+
+exports.getImportedRecord = handle(async (req) => service.getImportedRecord({
+  projectIds: await scopeFor(req), recordId: req.params.recordId,
+}));

@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend,
   Pie, PieChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis,
@@ -19,9 +20,9 @@ import { useAuth } from '../../../context/AuthContext';
 import { marketingAnalyticsApi } from '../../../services/marketingAnalytics';
 import { normalizeMarketingData } from './normalizeMarketingData';
 
-// The map is the heaviest dependency on the page (Leaflet + tiles), so it loads in its own
-// chunk rather than in the CEO portal's main bundle.
-const IndiaMarketingMap = lazy(() => import('./IndiaMarketingMap'));
+// This page carries no map: Leaflet and its tiles are not loaded here at all. Geography is
+// summarised in numbers and explored on /ceo/marketing-map, which means a CEO reading
+// channel and campaign analytics never pays for the mapping library.
 // Likewise the import workflow: most visits never open it, so its drawer, tables and
 // upload handling stay out of the page's chunk until the button is pressed.
 const MarketingImportDrawer = lazy(() => import('./MarketingImportDrawer'));
@@ -84,6 +85,7 @@ const toOptions = (values = [], allLabel) => [
 
 const CEOMarketingAnalytics = () => {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
 
   const [filters, setFilters] = useState(emptyFilters);
   // `applied` is what the API is called with; `filters` is what the form holds. Keeping
@@ -106,7 +108,6 @@ const CEOMarketingAnalytics = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [contacts, setContacts] = useState(null);
-  const [selectedLocation, setSelectedLocation] = useState(null);
   // The activity rollup is already capped server-side, so searching and paging it in the
   // browser costs nothing and avoids a request per keystroke.
   const [activitySearch, setActivitySearch] = useState('');
@@ -129,7 +130,6 @@ const CEOMarketingAnalytics = () => {
   const [detailRows, setDetailRows] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailPage, setDetailPage] = useState(1);
-
   // Whether the integration is configured at all. Asked first, so a deployment without
   // credentials gets an explanation rather than a failed data call.
   useEffect(() => {
@@ -176,7 +176,6 @@ const CEOMarketingAnalytics = () => {
   const applyFilterSet = useCallback((next) => {
     setFilters(next);
     setApplied(next);
-    setSelectedLocation(null);
     if (hasLoaded) { setLoading(true); setReloadKey((k) => k + 1); }
   }, [hasLoaded]);
 
@@ -278,11 +277,16 @@ const CEOMarketingAnalytics = () => {
     return () => { alive = false; };
   }, [token, applied.projectId, detail, detailPage]);
 
-  const openDetail = useCallback((point) => {
-    setDetail({ city: point.location, state: point.state, point });
-    setDetailRows(null);
-    setDetailPage(1);
-  }, []);
+  // Per-location records are reached from the map page, where a location is selected.
+  // This page keeps only the unmapped-records view, which belongs to the import rather than
+  // to the geography.
+
+  // The geography lives on its own full-screen route. The applied project carries across in
+  // the URL so the map opens on what is already on screen rather than resetting.
+  const openGeographicMap = useCallback(() => {
+    const projectId = applied.projectId;
+    navigate(`/ceo/marketing-map${projectId && projectId !== ALL ? `?projectId=${encodeURIComponent(projectId)}` : ''}`);
+  }, [navigate, applied.projectId]);
 
   const openUnmapped = useCallback(() => {
     setDetail({ city: 'unmapped' });
@@ -347,15 +351,15 @@ const CEOMarketingAnalytics = () => {
     ? NOT_REPORTED
     : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value));
 
-  // ── Map points: platform + imported (§10, §11) ────────────────────────────
-  // One map, two sources (§10 forbids a second map). Imported records are folded into the
-  // same point list the platform produces, merged by city so a city present in both shows
-  // as one bubble rather than two stacked at the same coordinate.
+  // ── Map points: platform + imported ───────────────────────────────────────
+  // One map, two sources. Imported records are folded into the same point list the platform
+  // produces, merged by city so a city present in both is one pin rather than two stacked
+  // at the same coordinate.
   //
-  // `activities` is the map's weight, so imported records contribute to bubble size and to
-  // heatmap intensity on the same scale as platform activity. `schools` and `records` ride
-  // along for the marker's own labelling. Nothing per-contact is carried — the endpoint
-  // does not return it.
+  // `activities` is the point's weight, which selects its colour band — never its size, so
+  // imported and platform activity are comparable without either being able to grow large
+  // enough to obscure the other. `schools` and `records` ride along for the hover card.
+  // Nothing per-contact is carried; the endpoint does not return it.
   const mapPoints = useMemo(() => {
     const platform = data?.map?.points || [];
     const importedPoints = imported?.points || [];
@@ -401,6 +405,35 @@ const CEOMarketingAnalytics = () => {
   // Records neither source could place. Both are honest about their own gaps, so they add.
   const unplacedTotal = (data?.map?.unplaced || 0) + (imported?.unresolved || 0);
   const hasImported = Boolean(imported?.total);
+
+  // The busiest imported locations, with each one's share of the placed total. Capped at 10:
+  // this is a dashboard summary, and the full list is a click away on the map page.
+  const importedTop = useMemo(() => {
+    const rows = mapPoints.filter((p) => p.importedRecords > 0);
+    const total = rows.reduce((n, p) => n + p.importedRecords, 0);
+    return rows
+      .slice()
+      .sort((a, b) => b.importedRecords - a.importedRecords)
+      .slice(0, 10)
+      .map((p) => ({ ...p, share: total > 0 ? Math.round((p.importedRecords / total) * 1000) / 10 : 0 }));
+  }, [mapPoints]);
+
+  // Records per state. Locations whose state could not be resolved are left out rather than
+  // bucketed as "Unknown" — a made-up bucket competing with real states would distort the
+  // comparison this list exists to support.
+  const importedStates = useMemo(() => {
+    const byState = new Map();
+    for (const point of mapPoints) {
+      if (!point.importedRecords || !point.state) continue;
+      byState.set(point.state, (byState.get(point.state) || 0) + point.importedRecords);
+    }
+    const rows = [...byState.entries()].map(([state, records]) => ({ state, records }));
+    const top = rows.reduce((n, r) => Math.max(n, r.records), 0);
+    return rows
+      .sort((a, b) => b.records - a.records)
+      .slice(0, 8)
+      .map((r) => ({ ...r, share: top > 0 ? Math.round((r.records / top) * 100) : 0 }));
+  }, [mapPoints]);
 
   // ── Map summary (§28) ─────────────────────────────────────────────────────
   // Every figure is counted from the two payloads already on screen; none is estimated.
@@ -521,7 +554,7 @@ const CEOMarketingAnalytics = () => {
       <div className="portal-page-inner space-y-4">
         <PortalHeader
           title="Marketing Analytics"
-          subtitle={`${activeProjectName} · ${fmtDate(applied.startDate)} – ${fmtDate(applied.endDate)}`}
+          subtitle={`${activeProjectName} · ${fmtDate(applied.startDate)} — ${fmtDate(applied.endDate)}`}
           icon="trending_up"
           user={user}
           showSearch={false}
@@ -552,7 +585,6 @@ const CEOMarketingAnalytics = () => {
                     if (projectId !== applied.projectId) {
                       setData(null);
                       setContacts(null);
-                      setSelectedLocation(null);
                       setError(null);
                       setLastUpdated(null);
                       setActivitySearch('');
@@ -587,6 +619,13 @@ const CEOMarketingAnalytics = () => {
                   <span className="material-symbols-outlined mr-1 text-[16px]">upload_file</span>
                   Import Marketing Data
                 </Button>
+                {/* Always available, including before any data is loaded: the map reads
+                    imported records straight from our own database, so there is nothing to
+                    wait for. */}
+                <Button type="button" variant="secondary" size="sm" onClick={openGeographicMap}>
+                  <span className="material-symbols-outlined mr-1 text-[16px]">map</span>
+                  Geographic Map
+                </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setShowFilters((v) => !v)}
                   aria-expanded={showFilters} aria-controls="marketing-filter-panel">
                   <span className="material-symbols-outlined mr-1 text-[16px]">tune</span>
@@ -612,7 +651,7 @@ const CEOMarketingAnalytics = () => {
                 </span>
               )}
               {hasLoaded && <span>{activeProjectName}</span>}
-              <span>{fmtDate(applied.startDate)} – {fmtDate(applied.endDate)}</span>
+              <span>{fmtDate(applied.startDate)} — {fmtDate(applied.endDate)}</span>
               {lastUpdated && (
                 <span>Last updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
               )}
@@ -636,13 +675,20 @@ const CEOMarketingAnalytics = () => {
               </p>
             )}
 
-            {/* Non-blocking warning, placed where it is relevant rather than over the page. */}
+            {/* The platform connection is optional, so this is a note rather than a warning
+                — and it is downgraded further once imported records are on screen, where an
+                amber banner would imply the dashboard below it is broken when it is not. */}
             {status && !status.configured && (
-              <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                <span className="material-symbols-outlined text-[15px]">warning</span>
+              <p className={`mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+                hasImported
+                  ? 'bg-neutral-50 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400'
+                  : 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
+              }`}>
+                <span className="material-symbols-outlined text-[15px]">{hasImported ? 'info' : 'warning'}</span>
                 <span>
-                  Marketing data source is not configured. Configure the server connection to load live
-                  marketing data — the dashboard below stays available.
+                  {hasImported
+                    ? 'The external marketing platform is not connected, so campaign and channel analytics are unavailable. Imported records are shown below and are unaffected.'
+                    : 'Marketing data source is not configured. Configure the server connection to load live marketing data, or import CSV/Excel records for a project.'}
                 </span>
               </p>
             )}
@@ -704,75 +750,147 @@ const CEOMarketingAnalytics = () => {
 
         {loading && !data && <LoadingState />}
 
-        {/* ── Initial state (§15) ──────────────────────────────────────── */}
-        {/* A real but empty India map, so the page reads as ready rather than broken —
-            and deliberately no markers, because inventing points would be worse than
-            showing none. */}
-        {/* Imported records need no platform load to be shown — they are in our own
-            database — so an import made before pressing Load still appears here, and the
-            "choose a project" overlay only covers a map that genuinely has nothing on it. */}
-        {!hasLoaded && !loading && !error && (
-          <SectionCard
-            title="India Marketing Activity"
-            icon="public"
-            description={hasImported
-              ? 'Showing imported records. Load marketing data to add activity from the marketing platform.'
-              : 'Select a project above and load its data to plot marketing activity across India.'}
-          >
-            <div className="relative">
-              <Suspense fallback={<Skeleton className="h-130" />}>
-                <IndiaMarketingMap
-                  points={mapPoints}
-                  unplaced={unplacedTotal}
-                  selectedLocation={selectedLocation?.location || ''}
-                  onSelectLocation={hasImported ? setSelectedLocation : undefined}
-                />
-              </Suspense>
-              {!hasImported && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-xl bg-white/92 px-5 py-4 text-center shadow-lg dark:bg-neutral-900/92">
-                    <span className="material-symbols-outlined text-3xl text-neutral-400">travel_explore</span>
-                    <p className="mt-1 text-sm font-bold text-neutral-800 dark:text-neutral-100">No project selected</p>
-                    <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                      Choose a project to see where its marketing is running.
-                    </p>
-                  </div>
-                </div>
-              )}
+        {/* ── Imported data ───────────────────────────────────────────── */}
+        {/* Imported records live in our own database, so they are shown whenever they
+            exist — with no platform connection, no project load and no date window. The
+            dashboard used to gate every section on platform activity, which meant a project
+            with 11,996 imported records rendered as "No project selected". */}
+        {hasImported && !loading && (
+          <>
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+              {[
+                { title: 'Imported Records', value: compact(imported.total), icon: 'database', context: 'in this project' },
+                { title: 'Locations', value: fmt(mapPoints.length), icon: 'location_on', context: 'placed on the map' },
+                { title: 'Schools', value: fmt(imported.schools || 0), icon: 'school', context: 'distinct institutions' },
+                {
+                  title: 'Mapped',
+                  value: imported.total ? `${Math.round(((imported.total - imported.unresolved) / imported.total) * 1000) / 10}%` : '—',
+                  icon: 'where_to_vote',
+                  context: imported.unresolved ? `${fmt(imported.unresolved)} unresolved` : 'all records placed',
+                },
+              ].map((kpi) => <KPICard key={kpi.title} {...kpi} />)}
             </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
+              <SectionCard
+                title="Imported Locations"
+                icon="public"
+                description={`${activeProjectName} · ${fmt(mapPoints.length)} location${mapPoints.length === 1 ? '' : 's'}`}
+                action={
+                  <Button type="button" size="sm" variant="primary" onClick={openGeographicMap}>
+                    <span className="material-symbols-outlined mr-1 text-[16px]">map</span>
+                    Open Geographic Map
+                  </Button>
+                }
+              >
+                {/* A ranked list rather than a map: comparing two places by volume is
+                    exactly what a map is worst at, and the map has its own page. */}
+                <DataTable
+                  rows={importedTop}
+                  rowKey={(r) => `${r.location}-${r.state}`}
+                  emptyTitle="No locations could be placed"
+                  columns={[
+                    { key: 'location', header: 'Location', render: (r) => <span className="font-semibold">{r.location}</span> },
+                    { key: 'state', header: 'State', render: (r) => r.state || '—' },
+                    { key: 'importedSchools', header: 'Schools', render: (r) => fmt(r.importedSchools || 0) },
+                    { key: 'importedRecords', header: 'Records', render: (r) => fmt(r.importedRecords || 0) },
+                    {
+                      key: 'share',
+                      header: 'Share',
+                      render: (r) => (
+                        <span className="flex items-center gap-2">
+                          <span className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                            <span className="block h-full rounded-full bg-blue-500" style={{ width: `${r.share}%` }} />
+                          </span>
+                          <span className="tabular-nums text-xs text-neutral-500">{r.share}%</span>
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+                {mapPoints.length > importedTop.length && (
+                  <p className="mt-2 text-[11px] text-neutral-500">
+                    Showing the {importedTop.length} busiest of {fmt(mapPoints.length)} locations. Open the geographic
+                    map to see them all.
+                  </p>
+                )}
+
+                {unplacedTotal > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
+                    <p className="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                      <span className="material-symbols-outlined text-[15px]">warning</span>
+                      {fmt(unplacedTotal)} record{unplacedTotal === 1 ? '' : 's'} without a mappable location
+                    </p>
+                    <Button type="button" size="sm" variant="secondary" onClick={openUnmapped}>View unmapped</Button>
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard title="Coverage by State" icon="map" description="Imported records per state">
+                {importedStates.length ? (
+                  <ul className="space-y-2">
+                    {importedStates.map((row) => (
+                      <li key={row.state} className="flex items-center gap-3 text-sm">
+                        <span className="w-24 shrink-0 truncate font-semibold text-neutral-700 dark:text-neutral-200">
+                          {row.state}
+                        </span>
+                        <span className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                          <span className="block h-full rounded-full bg-blue-500" style={{ width: `${row.share}%` }} />
+                        </span>
+                        <span className="w-14 shrink-0 text-right text-xs tabular-nums text-neutral-500">{fmt(row.records)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-neutral-500">
+                    The imported locations carry no state information, so coverage cannot be broken down.
+                  </p>
+                )}
+              </SectionCard>
+            </div>
+          </>
+        )}
+
+        {/* ── Initial state ───────────────────────────────────────────── */}
+        {/* Only when there is genuinely nothing: no platform load AND no imported records. */}
+        {!hasLoaded && !hasImported && !loading && !error && (
+          <SectionCard
+            title="Marketing Analytics"
+            icon="query_stats"
+            description="Select a project above and load its data to see channel, campaign and location analytics."
+          >
+            <EmptyState
+              icon="travel_explore"
+              title="No project selected"
+              description="Choose a project and select Load Marketing Data. You can also import CSV or Excel records for a project at any time."
+            />
           </SectionCard>
         )}
 
-        {/* ── No data (§18) ───────────────────────────────────────────── */}
-        {/* Names the project and the remedy, and keeps a real (empty) map on screen
-            rather than replacing it with a bare message. */}
-        {/* Imported data is independent of the platform, so a project with imported records
-            and no platform activity still gets a real, populated map rather than an empty
-            one behind an "no activity" message. */}
+        {/* ── No data ─────────────────────────────────────────────────── */}
+        {/* Names the project and the remedy. Imported records are independent of the
+            platform, so they are called out separately — a project can have none of the
+            platform's activity and still have geography worth opening the map for. */}
+        {/* Only when the platform genuinely has nothing to add. With imported records on
+            screen above, this is a note about the platform, not an empty page. */}
         {!loading && !error && summary && summary.leads === 0 && (
-          <SectionCard
-            title="India Marketing Activity"
-            icon="public"
-            description={hasImported ? 'Showing imported records. The marketing platform reported no activity for this period.' : undefined}
-          >
-            {!hasImported && (
+          <SectionCard title="Marketing Platform" icon="query_stats">
+            {hasImported ? (
+              <p className="flex items-start gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+                <span className="material-symbols-outlined text-[15px] text-neutral-400">info</span>
+                <span>
+                  The marketing platform reported no campaign activity for {activeProjectName} between{' '}
+                  {fmtDate(applied.startDate)} and {fmtDate(applied.endDate)}. The imported records above are
+                  unaffected — they come from the project database, not the platform.
+                </span>
+              </p>
+            ) : (
               <EmptyState
                 icon="query_stats"
                 title="No marketing activity"
                 description={`No marketing activity is available for ${activeProjectName} during the selected period. Try changing the date range or the marketing channel.`}
               />
             )}
-            <div className={hasImported ? '' : 'mt-3 opacity-60'}>
-              <Suspense fallback={<Skeleton className="h-130" />}>
-                <IndiaMarketingMap
-                  points={mapPoints}
-                  unplaced={unplacedTotal}
-                  selectedLocation={selectedLocation?.location || ''}
-                  onSelectLocation={hasImported ? setSelectedLocation : undefined}
-                  height={hasImported ? 520 : 320}
-                />
-              </Suspense>
-            </div>
           </SectionCard>
         )}
 
@@ -820,151 +938,96 @@ const CEOMarketingAnalytics = () => {
               </SectionCard>
             )}
 
-            {/* ── Map + insight panel (§5, §7) ───────────────── */}
-            {/* The map keeps the width it needs to be read, and the column beside it
-                answers "so what" — a selected location's metrics when one is chosen,
-                otherwise the computed headlines. On narrow screens the panel stacks under
-                the map rather than squeezing it. */}
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
-              <SectionCard
-                title="Marketing Activity by Location"
-                icon="public"
-                description="Bubble size and colour show activity volume. Click a location for its breakdown."
-                action={
-                  applied.state !== ALL ? (
-                    <Button type="button" size="sm" variant="secondary"
-                      onClick={() => applyFilterSet({ ...applied, state: ALL })}>
-                      Clear {applied.state}
+            {/* ── Geography + insights ───────────────────────────────── */}
+            {/* No map on this page. Geography is summarised in numbers here and explored on
+                its own full-screen route, where pins have the room to be individually
+                selectable — a map squeezed into a dashboard card could do neither job well. */}
+            {/* Platform geography. Rendered only when there are no imported records: with
+                imports present the "Imported Locations" card above already covers the same
+                ground, and two location tables on one page is noise. */}
+            <div className={`grid grid-cols-1 gap-4 ${hasImported ? '' : 'xl:grid-cols-[minmax(0,1fr)_21rem]'}`}>
+              {!hasImported && (
+                <SectionCard
+                  title="Geographic Activity"
+                  icon="public"
+                  description={`${activeProjectName}${applied.state !== ALL ? ` · ${applied.state}` : ''}${applied.city !== ALL ? ` · ${applied.city}` : ''}`}
+                  action={
+                    <Button type="button" size="sm" variant="primary" onClick={openGeographicMap}>
+                      <span className="material-symbols-outlined mr-1 text-[16px]">map</span>
+                      Open Geographic Map
                     </Button>
-                  ) : null
-                }
-              >
-                {/* §28 — a compact read of the data before the user touches the map. */}
-                {mapSummary && (
-                  <dl className="mb-3 flex flex-wrap gap-x-6 gap-y-2">
-                    {mapSummary.map((row) => (
-                      <div key={row.label}>
-                        <dt className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{row.label}</dt>
-                        <dd className={`text-base font-black tabular-nums ${
-                          row.tone === 'good' ? 'text-emerald-700 dark:text-emerald-300'
-                            : row.tone === 'warn' ? 'text-amber-700 dark:text-amber-300'
-                              : 'text-neutral-900 dark:text-white'
-                        }`}>
-                          {row.value}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                )}
-                <Suspense fallback={<Skeleton className="h-130" />}>
-                  <IndiaMarketingMap
-                    points={mapPoints}
-                    unplaced={unplacedTotal}
-                    selectedState={applied.state === ALL ? '' : applied.state}
-                    selectedLocation={selectedLocation?.location || ''}
-                    onSelectLocation={setSelectedLocation}
-                    onViewDetails={openDetail}
-                    onViewUnmapped={hasImported ? openUnmapped : undefined}
-                  />
-                </Suspense>
-              </SectionCard>
-
-              <div className="space-y-4">
-                {/* Selected-location metrics (§5/§6). Replaces the insights panel while a
-                    location is chosen, because that is what the user just asked about. */}
-                {selectedLocation ? (
-                  <SectionCard
-                    title={selectedLocation.location}
-                    icon="place"
-                    description={selectedLocation.state || undefined}
-                    action={
-                      <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedLocation(null)} aria-label="Clear selected location">
-                        <span className="material-symbols-outlined text-[18px]">close</span>
-                      </Button>
-                    }
-                  >
-                    <dl className="space-y-2">
-                      {[
-                        // Platform metrics are omitted entirely for an imported-only
-                        // location: it has none, and a column of zeroes would read as a
-                        // failed campaign rather than a different data source.
-                        ...(selectedLocation.importedOnly ? [] : [
-                          ['Activities', compact(selectedLocation.activities)],
-                          ['Leads', fmt(selectedLocation.leads)],
-                          ['Conversions', fmt(selectedLocation.conversions)],
-                          ['Conversion rate', `${selectedLocation.conversionRate}%`],
-                          ['Campaigns', fmt(selectedLocation.campaigns)],
-                          ['Channels', fmt(selectedLocation.channelCount)],
-                          ['Spend', money(selectedLocation.spend)],
-                        ]),
-                        ...(selectedLocation.importedSchools ? [['Schools (imported)', fmt(selectedLocation.importedSchools)]] : []),
-                        ...(selectedLocation.importedRecords ? [['Records (imported)', fmt(selectedLocation.importedRecords)]] : []),
-                      ].map(([label, value]) => (
-                        <div key={label} className="flex items-baseline justify-between gap-3 border-b border-neutral-100 pb-1.5 last:border-0 dark:border-neutral-800">
-                          <dt className="text-xs text-neutral-500 dark:text-neutral-400">{label}</dt>
-                          <dd className="text-sm font-bold text-neutral-900 dark:text-white">{value}</dd>
+                  }
+                >
+                  {mapSummary && (
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:flex sm:flex-wrap sm:gap-x-8">
+                      {mapSummary.map((row) => (
+                        <div key={row.label}>
+                          <dt className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{row.label}</dt>
+                          <dd className={`text-xl font-black tabular-nums ${
+                            row.tone === 'good' ? 'text-emerald-700 dark:text-emerald-300'
+                              : row.tone === 'warn' ? 'text-amber-700 dark:text-amber-300'
+                                : 'text-neutral-900 dark:text-white'
+                          }`}>
+                            {row.value}
+                          </dd>
                         </div>
                       ))}
                     </dl>
+                  )}
 
-                    {Object.keys(selectedLocation.channels || {}).length > 0 && (
-                      <div className="mt-3">
-                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">By channel</p>
-                        <ul className="space-y-1">
-                          {Object.entries(selectedLocation.channels).sort((a, b) => b[1] - a[1]).map(([channel, count]) => (
-                            <li key={channel} className="flex items-center justify-between gap-2 text-xs">
-                              <span className="text-neutral-600 dark:text-neutral-300">{channel}</span>
-                              <span className="font-bold text-neutral-900 dark:text-white">{fmt(count)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* §35 — straight into the records behind this location. Offered only
-                        where there are imported records to show. */}
-                    {selectedLocation.importedRecords > 0 && (
-                      <Button type="button" size="sm" variant="primary" className="mt-3 w-full"
-                        onClick={() => openDetail(selectedLocation)}>
-                        <span className="material-symbols-outlined mr-1 text-[16px]">table_rows</span>
-                        View {fmt(selectedLocation.importedRecords)} record{selectedLocation.importedRecords === 1 ? '' : 's'}
-                      </Button>
-                    )}
-                    <Button type="button" size="sm" variant="secondary" className="mt-2 w-full"
-                      onClick={() => applyFilterSet({ ...applied, city: selectedLocation.location })}>
-                      Filter dashboard to {selectedLocation.location}
-                    </Button>
-                  </SectionCard>
-                ) : (
-                  /* §7 — headlines computed from the same response the charts use. Each one
-                     is stated only when the data supports it; nothing is inferred. */
-                  <SectionCard title="Marketing Insights" icon="lightbulb" description="Computed from the current selection">
-                    {insights.length ? (
-                      <ul className="space-y-3">
-                        {insights.map((insight) => (
-                          <li key={insight.label}>
-                            <p className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide ${insight.tone}`}>
-                              <span className="material-symbols-outlined text-[14px]">{insight.icon}</span>
-                              {insight.label}
-                            </p>
-                            <p className="mt-0.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">{insight.body}</p>
+                  {/* Top locations as a ranked list: comparing two places by volume is
+                      exactly what a map is worst at, and the map has its own page. */}
+                  {mapPoints.length > 0 && (
+                    <ul className="mt-4 space-y-1.5 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+                      {mapPoints.slice(0, 5).map((point) => {
+                        const volume = point.activities || point.leads || 0;
+                        const top = mapPoints[0].activities || mapPoints[0].leads || 1;
+                        return (
+                          <li key={`${point.location}-${point.state}`} className="flex items-center gap-3 text-sm">
+                            <span className="w-28 shrink-0 truncate font-semibold text-neutral-700 dark:text-neutral-200">
+                              {point.location}
+                            </span>
+                            <span className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                              <span className="block h-full rounded-full bg-blue-500"
+                                style={{ width: `${Math.max(3, Math.round((volume / top) * 100))}%` }} />
+                            </span>
+                            <span className="w-16 shrink-0 text-right text-xs tabular-nums text-neutral-500">{fmt(volume)}</span>
                           </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                        Not enough activity in this selection to draw a reliable conclusion.
-                      </p>
-                    )}
-                    {data.map.unplaced > 0 && (
-                      <p className="mt-3 border-t border-neutral-100 pt-2 text-[11px] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-                        {fmt(data.map.unplaced)} record{data.map.unplaced === 1 ? '' : 's'} could not be placed on the map and are
-                        excluded from location figures, but are counted in the totals above.
-                      </p>
-                    )}
-                  </SectionCard>
+                        );
+                      })}
+                    </ul>
+                  )}
+
+                  {unplacedTotal > 0 && (
+                    <p className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                      <span className="material-symbols-outlined text-[15px]">warning</span>
+                      {fmt(unplacedTotal)} record{unplacedTotal === 1 ? '' : 's'} without a mappable location
+                    </p>
+                  )}
+                </SectionCard>
+              )}
+
+              {/* Headlines computed from the same response the charts use. Each is stated
+                  only when the data supports it; nothing is inferred. */}
+              <SectionCard title="Marketing Insights" icon="lightbulb" description="Computed from the current selection">
+                {insights.length ? (
+                  <ul className="space-y-3">
+                    {insights.map((insight) => (
+                      <li key={insight.label}>
+                        <p className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide ${insight.tone}`}>
+                          <span className="material-symbols-outlined text-[14px]">{insight.icon}</span>
+                          {insight.label}
+                        </p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">{insight.body}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Not enough activity in this selection to draw a reliable conclusion.
+                  </p>
                 )}
-              </div>
+              </SectionCard>
             </div>
 
             {/* ── Channel + state analytics (§11, §13) ───────────────── */}

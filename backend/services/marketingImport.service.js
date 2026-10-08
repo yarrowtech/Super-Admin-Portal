@@ -416,7 +416,8 @@ async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
 
   const [items, total] = await Promise.all([
     MarketingImport.find(match)
-      .select('school email locationRaw sourceFile createdAt')
+      .select('school email locationRaw sourceFile createdAt projectId')
+      .populate('projectId', 'name')
       .sort({ _id: 1 })
       .skip((safePage - 1) * safeLimit)
       .limit(safeLimit)
@@ -433,6 +434,9 @@ async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
       // corrected at source and re-imported.
       location: r.locationRaw,
       sourceFile: r.sourceFile || '',
+      projectName: r.projectId?.name || '',
+      missingLocationReason: r.locationRaw?.trim() ? 'Location could not be resolved to coordinates' : 'Location is missing from the source record',
+      status: 'Unmapped',
       createdAt: r.createdAt,
     })),
     pagination: { page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)) },
@@ -441,6 +445,45 @@ async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
 
 module.exports = {
   analyzeFile, commitImport, getImportedMapPoints, getLocationRecords, getUnmappedRecords,
+  searchImportedRecords, getImportedRecord,
   // exported for tests
   detectColumns, resolveLocation, validateRows, parseWorkbook, resolveMapping,
 };
+
+const recordScope = (projectIds) => (Array.isArray(projectIds) ? projectIds : [projectIds])
+  .filter((id) => id && mongoose.isValidObjectId(id))
+  .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+const recordDetail = (row) => ({
+  id: String(row._id), school: row.school, email: row.email || '',
+  location: row.locationRaw || '', city: row.city || '', state: row.state || '',
+  latitude: row.latitude ?? null, longitude: row.longitude ?? null,
+  projectName: row.projectId?.name || '', department: row.department || '',
+  sourceFile: row.sourceFile || '', pincode: row.pincode || '', createdAt: row.createdAt,
+  mapped: Number.isFinite(row.latitude) && Number.isFinite(row.longitude),
+  status: Number.isFinite(row.latitude) && Number.isFinite(row.longitude) ? 'Mapped' : 'Unmapped',
+  missingLocationReason: row.locationRaw?.trim() ? 'Location could not be resolved to coordinates' : 'Location is missing from the source record',
+});
+
+async function searchImportedRecords({ projectIds, search } = {}) {
+  const ids = recordScope(projectIds);
+  const term = String(search || '').trim().slice(0, 120);
+  if (!ids.length || term.length < 2) return { items: [] };
+  const literal = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = { projectId: { $in: ids }, $or: ['school', 'locationRaw', 'city'].map((key) => ({ [key]: { $regex: literal, $options: 'i' } })) };
+  const rows = await MarketingImport.find(match)
+    .select('school locationRaw city state latitude longitude projectId')
+    .populate('projectId', 'name').sort({ school: 1, _id: 1 }).limit(12).lean();
+  // Search exposes names and geography only; contact details are loaded after selection.
+  return { items: rows.map((row) => { const { email: _email, ...item } = recordDetail(row); return item; }) };
+}
+
+async function getImportedRecord({ projectIds, recordId } = {}) {
+  const ids = recordScope(projectIds);
+  if (!ids.length) fail(422, 'Select a project to view its records.');
+  if (!mongoose.isValidObjectId(recordId)) fail(422, 'A valid record is required.');
+  const row = await MarketingImport.findOne({ _id: recordId, projectId: { $in: ids } })
+    .populate('projectId', 'name').lean();
+  if (!row) fail(404, 'This record is not available in the selected project.');
+  return recordDetail(row);
+}

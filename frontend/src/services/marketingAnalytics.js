@@ -26,7 +26,7 @@ export const marketingAnalyticsApi = {
   // One call returns KPIs, map points, channels, states, campaigns, trend, facets and the
   // first page of contacts — the whole dashboard in a single round trip.
   getAnalytics: (token, filters = {}, options = {}) =>
-    apiClient.get(`${BASE}${toQuery(filters, options)}`, token, { cache: false }),
+    apiClient.get(`${BASE}${toQuery(filters, { page: options.page, limit: options.limit })}`, token, { cache: false, signal: options.signal }),
 
   // Contacts alone, for paging and search, so changing the page does not recompute charts.
   getContacts: (token, filters = {}, { page = 1, limit = 25, search = '' } = {}) =>
@@ -70,22 +70,28 @@ export const marketingAnalyticsApi = {
 
   // Aggregated imported points for the map: one entry per city, counts only. Carries no
   // contact details, which is what makes it safe to render in a marker.
-  getImportedPoints: (token, projectId) =>
-    apiClient.get(`${BASE}/import/points?projectId=${encodeURIComponent(projectId)}`, token, { cache: false }),
+  getImportedPoints: (token, projectId, { signal } = {}) =>
+    apiClient.get(`${BASE}/import/points?projectId=${encodeURIComponent(projectId)}`, token, { cache: false, signal }),
 
   // The records behind one marker — the authorised detail view, fetched only on an explicit
   // click. This is the one imported-data response that carries contact details, which is
   // exactly why it is separate from the map payload.
-  getLocationRecords: (token, projectId, city, { page = 1, limit = 25 } = {}) =>
+  getLocationRecords: (token, projectId, city, { page = 1, limit = 25, signal } = {}) =>
     apiClient.get(
       `${BASE}/import/records${toQuery({ projectId }, { city, page, limit })}`,
-      token, { cache: false }
+      token, { cache: false, signal }
     ),
 
   // Records with no resolvable location, so an unmapped count is inspectable rather than
   // just a number the user has to trust.
-  getUnmappedRecords: (token, projectId, { page = 1, limit = 25 } = {}) =>
-    apiClient.get(`${BASE}/import/unmapped${toQuery({ projectId }, { page, limit })}`, token, { cache: false }),
+  getUnmappedRecords: (token, projectId, { page = 1, limit = 25, signal } = {}) =>
+    apiClient.get(`${BASE}/import/unmapped${toQuery({ projectId }, { page, limit })}`, token, { cache: false, signal }),
+
+  searchImportedRecords: (token, projectId, search, { signal } = {}) =>
+    apiClient.get(`${BASE}/import/search${toQuery({ projectId }, { search })}`, token, { signal }),
+
+  getImportedRecord: (token, projectId, recordId, { signal } = {}) =>
+    apiClient.get(`${BASE}/import/records/${encodeURIComponent(recordId)}${toQuery({ projectId })}`, token, { signal }),
 };
 
 export default marketingAnalyticsApi;

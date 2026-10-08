@@ -86,6 +86,7 @@ import {
   ITReportsPage,
   ITSettingsPage,
   ITSupportCenterPage,
+  CEOMarketingMapPage,
   FinanceOverviewPage,
   FinanceDepartmentProfilesPage,
   FinanceInvoicesPage,
@@ -1043,6 +1044,20 @@ export default function AppRoutes() {
             <PortalRoute portal={PORTALS.CEO}>
               <PrivateRoute roles={allow('ceo')}>
                 <CEOPortalLayout initialView="marketingAnalytics" />
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+
+        {/* The full-screen geographic map. Deliberately outside CEOPortalLayout: the map
+            takes the whole viewport and its controls float over it, so the portal chrome
+            would only compete for the space. The same portal and role guards still apply. */}
+        <Route
+          path="/ceo/marketing-map"
+          element={
+            <PortalRoute portal={PORTALS.CEO}>
+              <PrivateRoute roles={allow('ceo')}>
+                <CEOMarketingMapPage />
               </PrivateRoute>
             </PortalRoute>
           }

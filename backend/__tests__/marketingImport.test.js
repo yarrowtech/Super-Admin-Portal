@@ -346,6 +346,25 @@ test('import persists into a project, dedupes a re-import, and the map payload c
     assert.equal(unmapped.items[0].school, 'Lost School');
     // The raw value is returned so it can be corrected at source and re-imported.
     assert.equal(unmapped.items[0].location, 'Atlantis');
+    assert.equal(unmapped.items[0].projectName, 'Project Alpha');
+    assert.equal(unmapped.items[0].status, 'Unmapped');
+    assert.equal(unmapped.items[0].missingLocationReason, 'Location could not be resolved to coordinates');
+
+    const search = await service.searchImportedRecords({ projectIds: [String(project._id)], search: 'school' });
+    assert.equal(search.items.length, 4);
+    assert.ok(search.items.every((row) => !('email' in row)));
+    assert.ok(search.items.every((row) => row.projectName === 'Project Alpha'));
+    assert.equal((await service.searchImportedRecords({ projectIds: [], search: 'school' })).items.length, 0);
+    assert.equal((await service.searchImportedRecords({ projectIds: [String(project._id)], search: '.*' })).items.length, 0);
+    const record = await service.getImportedRecord({ projectIds: [String(project._id)], recordId: records.items[0].id });
+    assert.equal(record.school, 'ABC School');
+    assert.equal(record.email, 'abc@example.com');
+    assert.equal(record.mapped, true);
+    await assert.rejects(service.getImportedRecord({ projectIds: [String(other._id)], recordId: record.id }), (error) => error.statusCode === 404);
+    await assert.rejects(service.getImportedRecord({ projectIds: [], recordId: record.id }), (error) => error.statusCode === 422);
+    const lostRecord = await service.getImportedRecord({ projectIds: [String(project._id)], recordId: unmapped.items[0].id });
+    assert.equal(lostRecord.mapped, false);
+    assert.equal(lostRecord.status, 'Unmapped');
   } finally {
     await mongoose.disconnect();
     await mongod.stop();

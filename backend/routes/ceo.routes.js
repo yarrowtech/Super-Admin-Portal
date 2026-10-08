@@ -50,6 +50,8 @@ router.get('/marketing-analytics/import/points', marketingImportController.getIm
 // Detail views: the records behind a marker, and the records no marker could show. Both are
 // authorised, paginated and scoped to the caller's projects — the map itself gets counts only.
 router.get('/marketing-analytics/import/records', marketingImportController.getImportedLocationRecords);
+router.get('/marketing-analytics/import/search', marketingImportController.searchImportedRecords);
+router.get('/marketing-analytics/import/records/:recordId', marketingImportController.getImportedRecord);
 router.get('/marketing-analytics/import/unmapped', marketingImportController.getUnmappedImportedRecords);
 // Alias analytics endpoints for standardized API contract
 router.get('/employees', ceoController.getEmployeeAnalytics);

@@ -133,6 +133,11 @@ export const ITReportsPage         = lazy(() => import('../components/it/ITWorks
 export const ITSettingsPage        = lazy(() => import('../components/it/ITSettingsPage'));
 export const ITSupportCenterPage   = lazy(() => import('../components/admin/AdminSupportCenter'));
 
+// ── CEO portal ───────────────────────────────────────────────────────────────
+// The geographic map is its own route rather than a view inside the CEO portal shell: it
+// uses the whole viewport, so the portal's sidebar and header would only shrink it.
+export const CEOMarketingMapPage   = lazy(() => import('../components/ceo/marketing/CEOMarketingMapPage'));
+
 // ── Finance portal ───────────────────────────────────────────────────────────
 export const FinanceOverviewPage        = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceOverviewPage })));
 export const FinanceDepartmentProfilesPage = lazy(() => import('../components/finance/FinanceWorkspacePages').then(m => ({ default: m.FinanceDepartmentProfilesPage })));

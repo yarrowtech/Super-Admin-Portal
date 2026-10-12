@@ -25,6 +25,9 @@ const ITPortal = () => {
   return (
     <AppLayout
       sidebar={<ITSidebar supportBadge={supportBadge} />}
+      // Themed by portal, not role: it_employee also reaches the Employee portal, so
+      // without this the IT pages would render in the Employee accent for them.
+      theme="it"
       title="IT Portal"
       subtitle="Executive technology control center"
       mobileIcon="memory"

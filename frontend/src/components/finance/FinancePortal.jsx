@@ -30,6 +30,9 @@ const FinancePortal = () => {
   return (
     <AppLayout
       sidebar={<FinanceSidebar />}
+      // Themed by portal, not role: finance_employee also reaches the Employee portal, so
+      // without this the same Finance pages would render in the Employee accent for them.
+      theme="finance"
       title="Finance Portal"
       subtitle={isFinanceHead ? 'Financial control layer' : 'Finance operations queue'}
       mobileIcon="account_balance"

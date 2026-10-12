@@ -11,9 +11,62 @@ const MobilePortalNavContent = ({ title = 'Portal', subtitle = '', icon = 'dashb
   const drawerRef = useRef(null);
   const triggerRef = useRef(null);
 
+  // No effect is needed to close the drawer on navigation: the exported wrapper keys this
+  // component on `location.key`, which React Router regenerates for every navigation —
+  // including a search-only change such as ?status=draft — so a route change remounts it
+  // closed. Each nav item also closes it on click, which covers navigating to the page
+  // you are already on (same key, no remount).
+
+  // The drawer is a real modal dialog (role="dialog" aria-modal="true"), so it owes the
+  // same behaviour as the shared ui/Modal: Escape closes it, Tab stays inside it, focus
+  // returns to the trigger on close, and the page behind it does not scroll. Without the
+  // trap, Tab walks into the page underneath while the overlay still covers it.
   useEffect(() => {
-    setOpen(false);
-  }, [location.pathname, location.search]);
+    if (!open) return undefined;
+    const trigger = triggerRef.current;
+    // Captured now, so the cleanup checks the node this effect actually ran against
+    // rather than whatever the ref points at after a re-render.
+    const drawer = drawerRef.current;
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    const focusables = () => Array.from(drawer?.querySelectorAll(focusableSelector) || [])
+      .filter((node) => node.offsetParent !== null);
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const nodes = focusables();
+      if (!nodes.length) return;
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    // Move focus into the drawer so the first Tab lands on a nav item, not the page behind.
+    const timer = window.setTimeout(() => { focusables()[0]?.focus?.(); }, 0);
+    document.addEventListener('keydown', handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      // Only pull focus back if it is still inside the drawer; a nav click has already
+      // moved focus (and unmounted this effect), and stealing it back would fight routing.
+      if (drawer?.contains(document.activeElement)) trigger?.focus?.();
+    };
+  }, [open]);
 
   const handleLogout = () => {
     logout();
@@ -77,10 +130,13 @@ const MobilePortalNavContent = ({ title = 'Portal', subtitle = '', icon = 'dashb
             {subtitle || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'Workspace'}
           </p>
         </div>
+        {/* Accent-only: `--portal-accent` is redefined per portal and per theme in
+            index.css, so this icon follows the active portal rather than hardcoding
+            Finance's green into HR, Law and every other portal's mobile header. */}
         <button
           type="button"
           onClick={handleLogout}
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--portal-accent)] transition-colors hover:bg-[var(--portal-accent-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--portal-accent)] transition-colors hover:bg-[var(--portal-accent-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30"
           aria-label="Logout"
         >
           <span className="material-symbols-outlined">logout</span>
@@ -90,7 +146,10 @@ const MobilePortalNavContent = ({ title = 'Portal', subtitle = '', icon = 'dashb
       {open && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label={`${title} navigation`}>
           <button type="button" className="absolute inset-0 bg-black/50 transition-opacity duration-300" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />
-          <aside ref={drawerRef} className="relative flex h-full w-[min(22rem,88vw)] flex-col border-r border-neutral-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafb_100%)] shadow-2xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900">
+          {/* The light gradient is a background-IMAGE, while `dark:bg-neutral-900` is a
+              background-COLOR — different properties, so the gradient would keep painting
+              over the dark surface. `dark:bg-none` drops the image so the dark colour shows. */}
+          <aside ref={drawerRef} className="relative flex h-full w-[min(22rem,88vw)] flex-col border-r border-neutral-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafb_100%)] shadow-2xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900 dark:bg-none">
             <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
               <button type="button" onClick={() => setOpen(false)} aria-label="Close navigation" className="mb-3 flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800">
                 <span className="material-symbols-outlined" aria-hidden="true">close</span>

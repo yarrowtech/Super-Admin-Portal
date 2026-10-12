@@ -49,10 +49,15 @@ const AppLayout = ({
   contentClassName = '',
   showHeader = true,
   showMobileNav = true,
+  theme,
 }) => {
   const { collapsed } = useSidebar();
   const resolvedRole = String(user?.role || '').toLowerCase();
-  const roleForTheme = ROLE_THEME[resolvedRole] || 'employee';
+  // A portal passes `theme` so its chrome is themed by the portal being viewed, not by the
+  // viewer's role. That matters where one role reaches two portals: finance_employee opens
+  // both Finance and Employee, and ROLE_THEME alone would paint the Finance portal in the
+  // Employee accent for the employee while the finance head saw the Finance accent.
+  const roleForTheme = theme || ROLE_THEME[resolvedRole] || 'employee';
 
   return (
     <div

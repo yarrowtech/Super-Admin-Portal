@@ -24,6 +24,17 @@ export const cachePolicyFor = (queryKey) => {
   if (matchesAny(seg, ['approval', 'activity', 'attention', 'deadline'])) return CACHE_POLICIES.operational;
   if (matchesAny(seg, ['permission', 'role'])) return CACHE_POLICIES.permissions;
   if (matchesAny(seg, ['settings', 'config', 'workflow', 'holiday', 'department'])) return CACHE_POLICIES.reference;
+  // Finance risk surfaces. The server refuses to cache these at all (see the `skip` list in
+  // backend/routes/finance.routes.js: "a freeze state served stale could show money as
+  // payable after it has been frozen"), so the client must not reintroduce staleness the
+  // backend deliberately prevents. `realtime` = always refetch, but still de-duplicates
+  // concurrent requests and keeps the previous rows visible while refetching.
+  if (segments[0] === 'finance' && matchesAny(seg, ['dispute', 'refund', 'non-compliance', 'control-tower', 'justification'])) {
+    return CACHE_POLICIES.realtime;
+  }
+  // Approval queues: a stale row invites a duplicate approval or an action on a record
+  // somebody else already decided.
+  if (segments[0] === 'finance' && matchesAny(seg, ['review', 'approval'])) return CACHE_POLICIES.operational;
   // Ledger-bearing finance lists: an invoice balance, a payment's reconciliation state or
   // an expense's approval stage changes as a direct result of what the user just did, and
   // showing money as outstanding after it has been settled is worse than a refetch. These

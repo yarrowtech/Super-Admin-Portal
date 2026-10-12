@@ -24,8 +24,9 @@ import SectionCard from '../ui/SectionCard';
 import Skeleton from '../ui/Skeleton';
 import TableSkeleton from '../ui/TableSkeleton';
 import { statusToTone } from '../../utils/statusTone';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../utils/queryKeys';
+import { useFinanceAsync as useAsync } from './useFinanceAsync';
 import { financeApi } from '../../services/finance';
 import { useAuth } from '../../context/AuthContext';
 
@@ -276,9 +277,14 @@ const REVIEW_COPY = {
 const ReviewDialog = ({ state, onClose, onDone: onDoneProp }) => {
   const { token } = useAuth();
   const queryClient = useQueryClient();
-  // Keep the sidebar count in step with every submit / decision.
+  // A submit or decision moves a record between workflow states, which changes the
+  // sidebar count, the review queue, the originating list (invoices / journals) and the
+  // dashboard KPIs. Now that those pages are cached, invalidating only the badge would
+  // leave the rest serving pre-decision rows, so the whole `finance` root is invalidated.
+  // `refetchType: 'active'` refetches just the mounted queries and marks the rest stale,
+  // so this costs one request rather than re-fetching every finance page at once.
   const onDone = (msg) => {
-    queryClient.invalidateQueries({ queryKey: ['finance', 'review-count'] });
+    queryClient.invalidateQueries({ queryKey: QK.finance.root(), refetchType: 'active' });
     onDoneProp(msg);
   };
   const [note, setNote] = useState('');
@@ -645,61 +651,6 @@ const PAYMENT_FILTERS = [
   { value: 'failed', label: 'Failed' },
 ];
 
-// `loading` is derived: true until the result for the current request key arrives, so the
-// effect never sets state synchronously and stale data stays visible while refetching.
-//
-// Pass `cacheKey` (a QK.finance.* tuple) to route the load through React Query, so the
-// result is shared with the rest of the app, survives navigating away and back, and picks
-// up the per-root policy in utils/queryPolicies.js. Without it the hook keeps its original
-// local-state behaviour, which is what the ad-hoc one-off loads still want.
-const useAsync = (loader, deps = [], cacheKey = null) => {
-  const [state, setState] = useState({ key: null, error: '', data: {} });
-  const [reloadKey, setReloadKey] = useState(0);
-  const key = JSON.stringify([...deps.map((d) => (typeof d === 'object' ? String(d) : d)), reloadKey]);
-  // Keep the latest loader in a ref so the cached branch never closes over a stale one
-  // while still keeping a stable queryFn identity.
-  const loaderRef = useRef(loader);
-  loaderRef.current = loader;
-
-  const cached = useQuery({
-    queryKey: cacheKey ? [...cacheKey, key] : ['__finance_disabled__'],
-    queryFn: () => loaderRef.current(),
-    enabled: Boolean(cacheKey),
-    // Show the previous page's rows while the next request is in flight, matching the
-    // uncached branch's "stale data stays visible" behaviour instead of flashing empty.
-    placeholderData: (prev) => prev,
-  });
-
-  useEffect(() => {
-    if (cacheKey) return undefined;
-    let alive = true;
-    const run = async () => {
-      try {
-        const raw = await loaderRef.current();
-        if (alive) setState({ key, error: '', data: raw });
-      } catch (err) {
-        if (alive) setState((prev) => ({ key, error: err.message || 'Failed to load data', data: prev.data || {} }));
-      }
-    };
-    run();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, Boolean(cacheKey)]);
-
-  const localRefetch = useCallback(() => setReloadKey((k) => k + 1), []);
-
-  if (cacheKey) {
-    return {
-      loading: cached.isPending || cached.isLoading,
-      error: cached.isError ? (cached.error?.message || 'Failed to load data') : '',
-      data: cached.data ?? {},
-      refetch: cached.refetch,
-    };
-  }
-  return { loading: state.key !== key, error: state.key === key ? state.error : '', data: state.data, refetch: localRefetch };
-};
 
 // A skeleton should trace the layout it stands in for, so the page doesn't jump when
 // data lands. `variant` picks the shape: KPI tiles, compact list rows, or a table.
@@ -1397,7 +1348,7 @@ export const FinanceDepartmentProfilesPage = () => {
       selectedDepartment: selected,
       profile: unwrap(profileRes),
     };
-  }, [token, requestedDepartment]);
+  }, [token, requestedDepartment], QK.finance.departments());
 
   const departments = data.departments || [];
   const selectedDepartment = data.selectedDepartment || requestedDepartment;
@@ -1899,7 +1850,7 @@ export const FinanceInvoiceDetailPage = () => {
     const invoices = toList(unwrap(invoicesRes));
     const payments = toList(unwrap(paymentsRes)).filter((p) => String(p.invoice?._id || p.invoice || '') === String(invoiceId));
     return { invoice: invoices.find((inv) => inv._id === invoiceId) || null, notes: toList(unwrap(notesRes)), payments };
-  }, [token, invoiceId]);
+  }, [token, invoiceId], QK.finance.invoice(invoiceId));
 
   const invoice = data.invoice;
   const notes = data.notes || [];
@@ -3075,7 +3026,7 @@ export const FinanceBudgetsPage = () => {
       projectCatalog: toList(unwrap(projectsRes)),
       variance: unwrap(varianceRes) || null,
     };
-  }, [token, scope]);
+  }, [token, scope], QK.finance.budgets());
   const isProjectScope = scope === 'project';
   const budgets = useMemo(() => data.budgets || [], [data.budgets]);
   const costCenters = data.costCenters || [];
@@ -3683,7 +3634,7 @@ export const FinanceAccountingPage = () => {
   const { loading, error, data, refetch } = useAsync(async () => {
     const [accountsRes, journalsRes] = await Promise.all([financeApi.getAccounts(token), financeApi.getJournalEntries(token)]);
     return { accounts: toList(unwrap(accountsRes)), journalEntries: toList(unwrap(journalsRes)) };
-  }, [token]);
+  }, [token], QK.finance.accounting());
   const accounts = useMemo(() => data.accounts || [], [data.accounts]);
   const journalEntries = useMemo(() => data.journalEntries || [], [data.journalEntries]);
   const accountLabel = (acct) => (acct && typeof acct === 'object' ? `${acct.code} · ${acct.name}` : accounts.find((a) => a._id === acct)?.name || '—');
@@ -4114,7 +4065,7 @@ export const FinanceReportsPage = () => {
       profitLoss: plRes || { revenue: 0, expenses: 0, netIncome: 0 },
       failed,
     };
-  }, [token]);
+  }, [token], QK.finance.reports());
 
   const reports = data.reports || [];
   const trialBalance = data.trialBalance || { rows: [], totals: { debit: 0, credit: 0 } };
@@ -4320,7 +4271,7 @@ const COMPLIANCE_ORDER = { overdue: 0, due_soon: 1, pending: 2, filed: 3 };
 export const FinanceCompliancePage = () => {
   const { token, user } = useAuth();
   const [statusFilter, setStatusFilter] = useStatusParam();
-  const { loading, error, data, refetch } = useAsync(async () => ({ compliance: toList(unwrap(await financeApi.getCompliance(token))) }), [token]);
+  const { loading, error, data, refetch } = useAsync(async () => ({ compliance: toList(unwrap(await financeApi.getCompliance(token))) }), [token], QK.finance.compliance());
   const compliance = useMemo(() => data.compliance || [], [data.compliance]);
 
   const stageCounts = useMemo(() => compliance.reduce((acc, r) => { const s = complianceStage(r); acc[s] = (acc[s] || 0) + 1; return acc; }, {}), [compliance]);
@@ -4536,7 +4487,7 @@ export const FinanceDirectoryPage = () => {
   const { loading, error, data, refetch } = useAsync(async () => {
     const [vendorsRes, clientsRes, invoicesRes] = await Promise.all([financeApi.getVendors(token), financeApi.getClients(token), financeApi.getInvoices(token)]);
     return { vendors: toList(unwrap(vendorsRes)), clients: toList(unwrap(clientsRes)), invoices: toList(unwrap(invoicesRes)) };
-  }, [token]);
+  }, [token], QK.finance.directory());
   const normName = (v) => String(v || '').trim().toLowerCase();
   const [search, setSearch] = useState('');
   const matches = (row) => !search.trim() || `${row.name} ${row.contactEmail || ''}`.toLowerCase().includes(search.trim().toLowerCase());
@@ -4799,7 +4750,7 @@ export const FinanceActivityPage = () => {
       auditLogs: toList(unwrap(auditRes)),
       departmentCatalog: toList(unwrap(catalogRes)),
     };
-  }, [token, filters.search, filters.department, filters.status, filters.requestType, filters.priority]);
+  }, [token, filters.search, filters.department, filters.status, filters.requestType, filters.priority], QK.finance.activity());
   const requests = data.requests || [];
   const transactions = data.transactions || [];
   const auditLogs = data.auditLogs || [];
@@ -5050,7 +5001,7 @@ export const FinanceApprovalsPage = () => {
     ]);
     const payload = unwrap(listRes);
     return { approvals: toList(payload), total: payload?.pagination?.total, counts: { pending, approved, rejected, all: pending + approved + rejected } };
-  }, [token, statusFilter]);
+  }, [token, statusFilter], QK.finance.approvals());
   const approvals = data.approvals || [];
   const counts = data.counts || {};
 
@@ -5263,7 +5214,7 @@ export const FinanceReviewPage = () => {
   const { loading, error, data, refetch } = useAsync(async () => {
     const all = await financeApi.getReviewQueue(token, { status: 'all' });
     return { rows: unwrap(all)?.rows || [] };
-  }, [token]);
+  }, [token], QK.finance.review());
   const rows = useMemo(() => data.rows || [], [data.rows]);
   const keyOf = (r) => `${r.module}:${r.id}`;
 

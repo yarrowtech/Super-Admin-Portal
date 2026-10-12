@@ -2,7 +2,7 @@
 //
 // Kept in its own module rather than appended to FinanceWorkspacePages.jsx, which is
 // already ~5k lines; these four pages share their own helpers and nothing else needs them.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import PortalHeader from '../common/PortalHeader';
 import Button from '../common/Button';
@@ -16,6 +16,8 @@ import SectionCard from '../ui/SectionCard';
 import StatusBadge from '../common/StatusBadge';
 import { financeApi } from '../../services/finance';
 import { useAuth } from '../../context/AuthContext';
+import { QK } from '../../utils/queryKeys';
+import { useFinanceAsync as useAsync } from './useFinanceAsync';
 
 // Shared app-wide card surface + elevation (see index.css `.app-card`), matching
 // the other portals; static cards opt out of its hover lift.
@@ -38,27 +40,6 @@ const toList = (v) => (Array.isArray(v) ? v : Array.isArray(v?.items) ? v.items 
 
 // Same contract as the workspace file's hook: `loading` is derived from whether the stored
 // result belongs to the current request, so stale data stays visible while refetching.
-const useAsync = (loader, deps = []) => {
-  const [state, setState] = useState({ key: null, error: '', data: {} });
-  const [reloadKey, setReloadKey] = useState(0);
-  const key = JSON.stringify([...deps.map((d) => (typeof d === 'object' ? String(d) : d)), reloadKey]);
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const raw = await loader();
-        if (alive) setState({ key, error: '', data: raw });
-      } catch (err) {
-        if (alive) setState((prev) => ({ key, error: err.message || 'Failed to load data', data: prev.data || {} }));
-      }
-    })();
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  const refetch = useCallback(() => setReloadKey((k) => k + 1), []);
-  return { loading: state.key !== key, error: state.key === key ? state.error : '', data: state.data, refetch };
-};
-
 const SkeletonBlock = () => (
   <div className="animate-pulse space-y-3">
     {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 rounded-2xl bg-neutral-100 dark:bg-neutral-800" />)}
@@ -155,13 +136,15 @@ export const FinanceControlTowerPage = () => {
 
   const { loading, error, data, refetch } = useAsync(
     async () => unwrap(await financeApi.getControlTower(token)),
-    [token]
+    [token],
+    QK.finance.controlTower(),
   );
   const cards = data?.cards || [];
 
   const drill = useAsync(
     async () => (open ? unwrap(await financeApi.getControlTowerCard(token, open.key, { limit: 50 })) : null),
-    [token, open?.key]
+    [token, open?.key],
+    QK.finance.controlTower({ card: open?.key || 'none' }),
   );
 
   const showPack = async () => {
@@ -272,7 +255,8 @@ export const FinanceDisputesPage = () => {
 
   const { loading, error: loadError, data, refetch } = useAsync(
     async () => unwrap(await financeApi.getDisputes(token, statusFilter ? { status: statusFilter } : {})),
-    [token, statusFilter]
+    [token, statusFilter],
+    QK.finance.disputes(),
   );
   const items = toList(data?.items);
 
@@ -434,7 +418,8 @@ export const FinanceDisputeDetailPage = () => {
 
   const { loading, error: loadError, data, refetch } = useAsync(
     async () => unwrap(await financeApi.getDispute(token, disputeId)),
-    [token, disputeId]
+    [token, disputeId],
+    QK.finance.dispute(disputeId),
   );
   const dispute = data?.dispute;
   const active = dispute && ['open', 'under_review'].includes(dispute.status);
@@ -546,7 +531,8 @@ export const FinanceRefundsPage = () => {
 
   const { loading, error: loadError, data, refetch } = useAsync(
     async () => unwrap(await financeApi.getRefunds(token, statusFilter ? { status: statusFilter } : {})),
-    [token, statusFilter]
+    [token, statusFilter],
+    QK.finance.refunds(),
   );
   const items = toList(data?.items);
 
@@ -687,7 +673,8 @@ export const FinanceNonCompliancePage = () => {
 
   const { loading, error: loadError, data, refetch } = useAsync(
     async () => unwrap(await financeApi.getNonCompliances(token, statusFilter ? { status: statusFilter } : {})),
-    [token, statusFilter]
+    [token, statusFilter],
+    QK.finance.nonCompliance(),
   );
   const items = toList(data?.items);
 

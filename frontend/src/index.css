@@ -319,14 +319,33 @@ button {
   min-height: 100vh;
 }
 
+/* Ambient page wash. Derived from the portal's own `--portal-accent` via color-mix, so
+   every portal gets a tint that matches its identity instead of the admin blue/green this
+   rule used to hardcode. Portals that want a bespoke wash still override it below (Law
+   does), and `--portal-wash-*` lets a portal retint without restating the geometry. */
 .portal-shell::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /* Deliberately pre-multiplied rgba() rather than color-mix(): the minifier collapses
+     `color-mix(in oklab, var(--x) 12%, transparent)` to a bare `var(--x)`, which renders
+     the wash at FULL accent opacity instead of a 12% tint. Each portal below sets its own
+     pair, so the wash matches the portal's accent and dark mode just uses weaker alphas. */
+  --portal-wash-near: rgba(79, 70, 229, 0.12);
+  --portal-wash-far: rgba(79, 70, 229, 0.08);
   background:
-    radial-gradient(500px 220px at 10% 0%, rgba(19, 91, 236, 0.08), transparent 65%),
-    radial-gradient(600px 260px at 100% 20%, rgba(16, 185, 129, 0.08), transparent 65%);
+    radial-gradient(500px 220px at 10% 0%, var(--portal-wash-near), transparent 65%),
+    radial-gradient(600px 260px at 100% 20%, var(--portal-wash-far), transparent 65%);
+}
+
+/* Dark mode: the same wash at a much lower strength. At light-mode opacity an accent
+   tint reads as a coloured haze over the dark surfaces instead of a subtle depth cue. */
+/* Dark mode: same hues, weaker. At light-mode alpha an accent tint reads as a coloured
+   haze over the dark surfaces rather than a subtle depth cue. Set per portal below. */
+.dark .portal-shell::before {
+  --portal-wash-near: rgba(79, 70, 229, 0.07);
+  --portal-wash-far: rgba(79, 70, 229, 0.05);
 }
 
 .portal-content {
@@ -359,47 +378,47 @@ button {
   }
 }
 
-.portal-shell[data-role='admin']::before {
-  background:
-    radial-gradient(560px 240px at 8% 0%, rgba(19, 91, 236, 0.12), transparent 65%),
-    radial-gradient(620px 260px at 100% 18%, rgba(34, 197, 94, 0.1), transparent 65%);
-}
-
-.portal-shell[data-role='hr']::before {
-  background:
-    radial-gradient(560px 240px at 8% 0%, rgba(14, 165, 233, 0.12), transparent 65%),
-    radial-gradient(620px 260px at 100% 18%, rgba(236, 72, 153, 0.1), transparent 65%);
-}
-
-.portal-shell[data-role='employee']::before {
-  background:
-    radial-gradient(560px 240px at 8% 0%, rgba(99, 102, 241, 0.12), transparent 65%),
-    radial-gradient(620px 260px at 100% 18%, rgba(14, 165, 233, 0.1), transparent 65%);
-}
+/* admin / hr / employee keep their historical two-tone wash (a secondary hue in the far
+   corner); those pairs are declared with each portal's accent further down. */
 
 .portal-shell[data-role='admin'] {
   --portal-accent: #4f46e5;
   --portal-accent-soft: rgba(79, 70, 229, 0.14);
+
+  --portal-wash-near: rgba(79, 70, 229, 0.12);
+  --portal-wash-far: rgba(34, 197, 94, 0.08);
 }
 
 .portal-shell[data-role='hr'] {
   --portal-accent: #0284c7;
   --portal-accent-soft: rgba(2, 132, 199, 0.16);
+
+  --portal-wash-near: rgba(2, 132, 199, 0.12);
+  --portal-wash-far: rgba(236, 72, 153, 0.08);
 }
 
 .portal-shell[data-role='employee'] {
   --portal-accent: #059669;
   --portal-accent-soft: rgba(5, 150, 105, 0.16);
+
+  --portal-wash-near: rgba(5, 150, 105, 0.12);
+  --portal-wash-far: rgba(14, 165, 233, 0.08);
 }
 
 .portal-shell[data-role='manager'] {
   --portal-accent: #ea580c;
   --portal-accent-soft: rgba(234, 88, 12, 0.16);
+
+  --portal-wash-near: rgba(234, 88, 12, 0.12);
+  --portal-wash-far: rgba(234, 88, 12, 0.08);
 }
 
 .portal-shell[data-role='ceo'] {
   --portal-accent: #b45309;
   --portal-accent-soft: rgba(180, 83, 9, 0.16);
+
+  --portal-wash-near: rgba(180, 83, 9, 0.12);
+  --portal-wash-far: rgba(180, 83, 9, 0.08);
 }
 
 .portal-shell[data-role='law'] {
@@ -412,6 +431,9 @@ button {
   --surface-3: #eef2f6;
   --surface-border: rgba(31, 41, 55, 0.1);
   --surface-border-hover: rgba(143, 29, 44, 0.28);
+
+  --portal-wash-near: rgba(143, 29, 44, 0.12);
+  --portal-wash-far: rgba(143, 29, 44, 0.08);
 }
 
 .portal-shell[data-role='law']::before {
@@ -498,21 +520,83 @@ button {
 .portal-shell[data-role='outsourcing'] {
   --portal-accent: #0891b2;
   --portal-accent-soft: rgba(8, 145, 178, 0.16);
+
+  --portal-wash-near: rgba(8, 145, 178, 0.12);
+  --portal-wash-far: rgba(8, 145, 178, 0.08);
 }
 
 .portal-shell[data-role='finance'] {
   --portal-accent: #16a34a;
   --portal-accent-soft: rgba(22, 163, 74, 0.16);
+
+  --portal-wash-near: rgba(22, 163, 74, 0.12);
+  --portal-wash-far: rgba(22, 163, 74, 0.08);
 }
 
 .portal-shell[data-role='it'] {
   --portal-accent: #0284c7;
   --portal-accent-soft: rgba(2, 132, 199, 0.16);
+
+  --portal-wash-near: rgba(2, 132, 199, 0.12);
+  --portal-wash-far: rgba(2, 132, 199, 0.08);
 }
 
 .portal-shell[data-role='media'] {
   --portal-accent: #7c3aed;
   --portal-accent-soft: rgba(124, 58, 237, 0.16);
+
+  --portal-wash-near: rgba(124, 58, 237, 0.12);
+  --portal-wash-far: rgba(124, 58, 237, 0.08);
+}
+
+/* ── Dark-mode page wash ──────────────────────────────────────────
+   Same hues as each portal above, at a lower alpha. These must come AFTER the light
+   per-portal blocks: `.dark .portal-shell` and `.portal-shell[data-role=X]` have equal
+   specificity, so a light block placed later would otherwise keep its light alpha in dark
+   mode. Law is absent on purpose — it fully overrides its own ::before further down. */
+.dark .portal-shell[data-role='admin'] {
+  --portal-wash-near: rgba(79, 70, 229, 0.07);
+  --portal-wash-far: rgba(34, 197, 94, 0.05);
+}
+
+.dark .portal-shell[data-role='hr'] {
+  --portal-wash-near: rgba(2, 132, 199, 0.07);
+  --portal-wash-far: rgba(236, 72, 153, 0.05);
+}
+
+.dark .portal-shell[data-role='employee'] {
+  --portal-wash-near: rgba(5, 150, 105, 0.07);
+  --portal-wash-far: rgba(14, 165, 233, 0.05);
+}
+
+.dark .portal-shell[data-role='manager'] {
+  --portal-wash-near: rgba(234, 88, 12, 0.07);
+  --portal-wash-far: rgba(234, 88, 12, 0.05);
+}
+
+.dark .portal-shell[data-role='ceo'] {
+  --portal-wash-near: rgba(180, 83, 9, 0.07);
+  --portal-wash-far: rgba(180, 83, 9, 0.05);
+}
+
+.dark .portal-shell[data-role='outsourcing'] {
+  --portal-wash-near: rgba(8, 145, 178, 0.07);
+  --portal-wash-far: rgba(8, 145, 178, 0.05);
+}
+
+.dark .portal-shell[data-role='finance'] {
+  --portal-wash-near: rgba(22, 163, 74, 0.07);
+  --portal-wash-far: rgba(22, 163, 74, 0.05);
+}
+
+.dark .portal-shell[data-role='it'] {
+  --portal-wash-near: rgba(2, 132, 199, 0.07);
+  --portal-wash-far: rgba(2, 132, 199, 0.05);
+}
+
+.dark .portal-shell[data-role='media'] {
+  --portal-wash-near: rgba(124, 58, 237, 0.07);
+  --portal-wash-far: rgba(124, 58, 237, 0.05);
 }
 
 .dot-spinner {

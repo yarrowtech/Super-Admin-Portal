@@ -221,6 +221,34 @@ async function cancelDispute(req) {
 
 // ── Refunds ─────────────────────────────────────────────────────────────────
 
+// Revalidate the receipt, its invoice allocation and available headroom inside every
+// refund transaction. Approval does not bypass a later dispute, reversal or period close.
+async function refundHeadroom(payment, invoice, session) {
+  if (payment.direction === 'out') fail(422, 'Only incoming receipts can be refunded');
+  if (!['recorded', 'reconciled', 'completed'].includes(payment.status)) {
+    fail(409, 'Only received payments can be refunded');
+  }
+  if (['draft', 'void'].includes(invoice.status)) fail(409, 'Only issued invoices can be refunded');
+  if (invoice.disputeId) fail(409, 'Invoice is under dispute; resolve the dispute before refunding');
+  if (payment.disputeId) fail(409, 'Payment is under dispute; resolve the dispute before refunding');
+  await openPeriod(invoice.financialPeriodId, session);
+  await openPeriod(payment.financialPeriodId, session);
+
+  const allocations = payment.allocations || [];
+  const allocated = allocations.length
+    ? allocations.filter(a => String(a.invoice) === String(invoice._id))
+      .reduce((sum, a) => sum + BigInt(a.amountMinor), 0n)
+    : String(payment.invoice || '') === String(invoice._id) ? BigInt(money.minor(payment.amount)) : 0n;
+  if (!allocated) fail(422, 'Payment must be allocated to the selected invoice');
+  let refundedAgainstInvoice = 0n;
+  const refunds = await Refund.find({ payment: payment._id, invoice: invoice._id, status: 'processed' })
+    .select('amount').session(session).lean();
+  for (const refund of refunds) refundedAgainstInvoice += BigInt(money.minor(refund.amount));
+  const receiptRemaining = BigInt(money.minor(payment.amount)) - BigInt(money.minor(payment.refundedTotal || 0));
+  const allocationRemaining = allocated - refundedAgainstInvoice;
+  return receiptRemaining < allocationRemaining ? receiptRemaining : allocationRemaining;
+}
+
 // A refund traces to the receipt it reverses, not just to the invoice, so the amount can
 // never exceed what was actually received and not yet returned.
 async function createRefund(req) {
@@ -232,19 +260,18 @@ async function createRefund(req) {
     if (!reference) fail(422, 'A unique refund reference is required');
     if (!['bank', 'cash', 'online', 'adjustment'].includes(b.method || 'bank')) fail(422, 'Invalid refund method');
 
-    const payment = await Payment.findById(id(b.payment)).session(session);
+    // Lock the receipt so concurrent attempts for the same reference serialize even
+    // while an index is being provisioned or a migrated database lacks that index.
+    const payment = await Payment.findOneAndUpdate({ _id: id(b.payment) }, { $inc: { __v: 1 } }, { new: true, session });
     if (!payment) fail(404, 'Payment not found');
-    if (payment.direction === 'out') fail(422, 'Only incoming receipts can be refunded');
+    if (await Refund.exists({ payment: payment._id, reference }).session(session)) {
+      fail(409, 'A refund with this reference already exists for the payment');
+    }
     const invoice = await Invoice.findById(id(b.invoice)).session(session);
     if (!invoice) fail(404, 'Invoice not found');
-    if (invoice.disputeId) fail(409, 'Invoice is under dispute; resolve the dispute before refunding');
-    if (payment.disputeId) fail(409, 'Payment is under dispute; resolve the dispute before refunding');
-    await openPeriod(invoice.financialPeriodId, session);
-    await openPeriod(payment.financialPeriodId, session);
-
     const amount = positive(b.amount);
-    const headroom = BigInt(money.minor(payment.amount)) - BigInt(money.minor(payment.refundedTotal || 0));
-    if (BigInt(amount) > headroom) fail(409, 'Refund exceeds the unrefunded balance of this payment');
+    const headroom = await refundHeadroom(payment, invoice, session);
+    if (BigInt(amount) > headroom) fail(409, 'Refund exceeds the unrefunded balance allocated to this invoice');
 
     const refundNumber = await settings.nextNumber('refund', session);
     let created;
@@ -285,12 +312,9 @@ async function processRefund(req) {
     const payment = await Payment.findById(r.payment).session(session);
     const invoice = await Invoice.findById(r.invoice).session(session);
     if (!payment || !invoice) fail(404, 'Refund is missing its payment or invoice');
-    await openPeriod(invoice.financialPeriodId, session);
-
     const amount = money.minor(r.amount);
-    // Re-check headroom at processing time: another refund may have been processed since.
-    const headroom = BigInt(money.minor(payment.amount)) - BigInt(money.minor(payment.refundedTotal || 0));
-    if (BigInt(amount) > headroom) fail(409, 'Refund exceeds the unrefunded balance of this payment');
+    const headroom = await refundHeadroom(payment, invoice, session);
+    if (BigInt(amount) > headroom) fail(409, 'Refund exceeds the unrefunded balance allocated to this invoice');
 
     const before = { status: r.status };
     // Mirror of the receipt: cash leaves, the revenue recognised on it is reversed.

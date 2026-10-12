@@ -249,6 +249,7 @@ async function updatePayment(req) {
       if (bank.direction !== 'in' || bank.amountMinor !== money.minor(p.amount)) fail(422, 'Bank transaction direction and amount must match');
       bank.payment = p._id; bank.matchedBy = actor(req); bank.matchedAt = new Date(); await bank.save({ session }); p.status = 'reconciled';
     } else if (['failed', 'cancelled'].includes(b.status)) {
+      if (money.minor(p.refundedTotal || 0) > 0) fail(409, 'A refunded receipt cannot be reversed in full');
       if (!text(b.failureReason)) fail(422, 'A reversal reason is required');
       const allocations = p.allocations?.length ? p.allocations : p.invoice ? [{ invoice: p.invoice, amountMinor: money.minor(p.amount) }] : [];
       let allocated = 0n;

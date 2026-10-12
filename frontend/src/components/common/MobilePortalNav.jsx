@@ -1,16 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', items = [] }) => {
+const MobilePortalNavContent = ({ title = 'Portal', subtitle = '', icon = 'dashboard', items = [] }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [open, setOpen] = useState(false);
 
+  const drawerRef = useRef(null);
+  const triggerRef = useRef(null);
+
   useEffect(() => {
-    setOpen(false);
-  }, [location.pathname]);
+    if (!open) return undefined;
+    const drawer = drawerRef.current;
+    const trigger = triggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusable = () => [...drawer.querySelectorAll('a[href], button:not([disabled])')];
+    focusable()[0]?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+      } else if (event.key === 'Tab') {
+        const controls = focusable();
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (trigger?.isConnected) trigger.focus();
+    };
+  }, [open]);
 
   const handleLogout = () => {
     logout();
@@ -34,7 +64,7 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
 
     if (item.path) {
       return (
-        <NavLink key={item.key || item.path} to={item.path} className={className}>
+        <NavLink key={item.key || item.path} to={item.path} className={className} onClick={() => setOpen(false)}>
           {content}
         </NavLink>
       );
@@ -62,6 +92,8 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
           type="button"
           onClick={() => setOpen(true)}
           className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)]/30 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          ref={triggerRef}
+          aria-expanded={open}
           aria-label="Open navigation"
         >
           <span className="material-symbols-outlined">menu</span>
@@ -83,10 +115,14 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label={`${title} navigation`}>
           <button type="button" className="absolute inset-0 bg-black/50 transition-opacity duration-300" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />
-          <aside className="relative flex h-full w-[min(22rem,88vw)] flex-col border-r border-neutral-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafb_100%)] shadow-2xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900">
+          <aside ref={drawerRef} className="relative flex h-full w-[min(22rem,88vw)] flex-col border-r border-neutral-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafb_100%)] shadow-2xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900">
             <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close navigation" className="mb-3 flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800">
+                <span className="material-symbols-outlined" aria-hidden="true">close</span>
+                Close
+              </button>
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--portal-accent)] text-white">
                   <span className="material-symbols-outlined">{icon}</span>
@@ -115,6 +151,12 @@ const MobilePortalNav = ({ title = 'Portal', subtitle = '', icon = 'dashboard', 
       )}
     </>
   );
+};
+
+// Route changes remount the drawer closed, including status filters on the same page.
+const MobilePortalNav = (props) => {
+  const location = useLocation();
+  return <MobilePortalNavContent key={location.key} {...props} />;
 };
 
 export default MobilePortalNav;

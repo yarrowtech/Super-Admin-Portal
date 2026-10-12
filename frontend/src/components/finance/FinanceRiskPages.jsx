@@ -17,7 +17,9 @@ import StatusBadge from '../common/StatusBadge';
 import { financeApi } from '../../services/finance';
 import { useAuth } from '../../context/AuthContext';
 
-const card = 'rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950';
+// Shared app-wide card surface + elevation (see index.css `.app-card`), matching
+// the other portals; static cards opt out of its hover lift.
+const card = 'app-card hover:translate-y-0';
 const inner = 'p-5 lg:p-6';
 
 const FINANCE_HEAD_ROLES = ['finance_manager', 'admin', 'super_admin', 'superadmin'];

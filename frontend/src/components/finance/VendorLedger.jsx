@@ -30,7 +30,7 @@ export default function VendorLedger({ vendors, token, user, onSaved }) {
     finally { setSaving(false); }
   };
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-950">
+    <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
       <h2 className="text-lg font-bold">Vendor account</h2>
       <p className="mb-4 text-sm text-neutral-500">Record supplier bills and payments, then review the account history. Payments are recorded by the Finance Head.</p>
       <Select label="Vendor" value={vendorId} disabled={saving} onChange={event => { setVendorId(event.target.value); setForm(empty()); setError(''); setMessage(''); }} options={[{ value: '', label: 'Select vendor' }, ...vendors.map(item => ({ value: item._id, label: item.name }))]} />

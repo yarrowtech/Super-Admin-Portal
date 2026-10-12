@@ -46,6 +46,7 @@ const setup = async ({ received = 1000 } = {}) => {
     departmentId: deptId, createdBy: empId,
   });
   const payment = await Payment.create({
+    invoice: invoice._id, allocations: [{ invoice: invoice._id, amountMinor: Math.round(received * 100) }],
     customerName: 'Acme', direction: 'in', status: 'completed', amount: received,
     method: 'bank', paymentDate: new Date(), reference: `PAY-${Math.random()}`, createdBy: empId,
   });
@@ -237,4 +238,84 @@ test('an outgoing payment cannot be refunded', async () => {
     body: { invoice: String(invoice._id), payment: String(outgoing._id), amount: 100, reason: 'r', reference: 'RF-5' },
   });
   assert.equal(res.statusCode, 422, JSON.stringify(res.body));
+});
+
+
+test('concurrent duplicate refund requests create one draft and one audit record', async () => {
+  const { invoice, payment } = await setup();
+  const body = { invoice: String(invoice._id), payment: String(payment._id), amount: 100, reason: 'Retry', reference: 'RF-CONCURRENT' };
+  const results = await Promise.all([1, 2].map(() => call(ctrl.createRefund, { user: users.emp, body })));
+  assert.deepEqual(results.map(r => r.statusCode).sort(), [201, 409]);
+  assert.equal(await Refund.countDocuments({ payment: payment._id }), 1);
+  const Audit = require('../models/finance/AuditLog');
+  assert.equal(await Audit.countDocuments({ action: 'refund_created' }), 1);
+});
+
+test('refund creation requires a received payment allocated to the selected invoice', async () => {
+  const a = await setup(); const b = await setup();
+  const body = { invoice: String(b.invoice._id), payment: String(a.payment._id), amount: 100, reason: 'Wrong invoice', reference: 'RF-UNRELATED' };
+  const unrelated = await call(ctrl.createRefund, { user: users.emp, body });
+  assert.equal(unrelated.statusCode, 422, JSON.stringify(unrelated.body));
+  await Payment.findByIdAndUpdate(a.payment._id, { status: 'failed' });
+  const failed = await call(ctrl.createRefund, { user: users.emp, body: { ...body, invoice: String(a.invoice._id) } });
+  assert.equal(failed.statusCode, 409, JSON.stringify(failed.body));
+  assert.equal(await Refund.countDocuments(), 0);
+});
+
+test('a multi-invoice receipt cannot refund more than its selected invoice allocation', async () => {
+  const a = await setup(); const b = await setup();
+  await Payment.findByIdAndUpdate(a.payment._id, { allocations: [
+    { invoice: a.invoice._id, amountMinor: 30000 }, { invoice: b.invoice._id, amountMinor: 70000 },
+  ] });
+  const body = { invoice: String(a.invoice._id), payment: String(a.payment._id), reason: 'Partial', reference: 'RF-ALLOCATION' };
+  assert.equal((await call(ctrl.createRefund, { user: users.emp, body: { ...body, amount: 301 } })).statusCode, 409);
+  const refundId = await approved(a.invoice, a.payment, 200);
+  assert.equal((await call(ctrl.processRefund, { user: users.head, params: { id: refundId } })).statusCode, 200);
+  assert.equal((await call(ctrl.createRefund, { user: users.emp, body: { ...body, amount: 101 } })).statusCode, 409);
+  assert.equal((await call(ctrl.createRefund, { user: users.emp, body: { ...body, amount: 100 } })).statusCode, 201);
+});
+
+test('processing rechecks disputes and both financial periods after approval', async () => {
+  const { invoice, payment } = await setup(); const refundId = await approved(invoice, payment, 100);
+  const params = { id: refundId };
+  for (const Model of [Invoice, Payment]) {
+    const subjectId = Model === Invoice ? invoice._id : payment._id;
+    await Model.findByIdAndUpdate(subjectId, { disputeId: oid() });
+    const res = await call(ctrl.processRefund, { user: users.head, params });
+    assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+    assert.match(res.body.error, /under dispute/i);
+    await Model.findByIdAndUpdate(subjectId, { disputeId: null });
+  }
+  const Period = require('../models/finance/FinancialPeriod');
+  const period = await Period.create({ fiscalYear: '2026', label: 'Closed month', periodType: 'month', startDate: '2026-10-01', endDate: '2026-10-31', isClosed: true });
+  await Payment.findByIdAndUpdate(payment._id, { financialPeriodId: period._id });
+  const closed = await call(ctrl.processRefund, { user: users.head, params });
+  assert.equal(closed.statusCode, 409, JSON.stringify(closed.body));
+  assert.match(closed.body.error, /closed/i);
+  assert.equal((await Refund.findById(refundId)).status, 'approved');
+  assert.equal((await Payment.findById(payment._id)).refundedTotal, 0);
+  assert.equal((await Invoice.findById(invoice._id)).refundedTotal, 0);
+  assert.equal(await JournalEntry.countDocuments({ sourceKey: `refund-${refundId}` }), 0);
+});
+
+test('concurrent approved refunds cannot together exceed the receipt', async () => {
+  const { invoice, payment } = await setup();
+  const ids = [await approved(invoice, payment, 700), await approved(invoice, payment, 700)];
+  const results = await Promise.all(ids.map(id => call(ctrl.processRefund, { user: users.head, params: { id } })));
+  assert.deepEqual(results.map(r => r.statusCode).sort(), [200, 409]);
+  assert.equal((await Payment.findById(payment._id)).refundedTotal, 700);
+  assert.equal(await Refund.countDocuments({ status: 'processed' }), 1);
+  assert.equal(await JournalEntry.countDocuments({ sourceKey: { $in: ids.map(id => `refund-${id}`) } }), 1);
+});
+
+test('a processed refund prevents a second full reversal of its receipt', async () => {
+  const { invoice, payment } = await setup();
+  await Payment.findByIdAndUpdate(payment._id, { status: 'recorded' });
+  const refundId = await approved(invoice, payment, 100);
+  assert.equal((await call(ctrl.processRefund, { user: users.head, params: { id: refundId } })).statusCode, 200);
+  const operations = require('../controllers/finance/financeOperations.controller');
+  const res = await call(operations.updatePayment, { user: users.head, params: { id: String(payment._id) }, body: { status: 'failed', failureReason: 'Attempted full reversal' } });
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal((await Payment.findById(payment._id)).status, 'recorded');
+  assert.equal(await JournalEntry.countDocuments({ sourceKey: `reversal-${payment._id}` }), 0);
 });

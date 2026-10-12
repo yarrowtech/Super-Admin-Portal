@@ -23,6 +23,7 @@ const headId = oid();
 const users = {
   head: { _id: headId, id: headId, role: 'finance_manager', firstName: 'Fin', lastName: 'Head' },
   itManager: { _id: oid(), id: oid(), role: 'it_manager', firstName: 'IT', lastName: 'Lead' },
+  employee: { _id: oid(), id: oid(), role: 'finance_employee', firstName: 'Fin', lastName: 'Emp' },
   stranger: { _id: oid(), id: oid(), role: 'media_head', firstName: 'No', lastName: 'Dept' },
 };
 
@@ -224,6 +225,25 @@ test("a department-scoped role sees only its own department's rows", async () =>
   // A role whose department does not exist must be denied, not shown everything.
   const denied = await call(ctrl.getControlTower, { user: users.stranger });
   assert.equal(denied.statusCode, 403, JSON.stringify(denied.body));
+
+  // Finance's own employee owns no department in ROLE_DEPARTMENT, but finance is the
+  // cross-departmental control function: they prepare records for every department, so
+  // the tower must show all of them rather than 403. Acting is still head-only, which
+  // the review/approval guards enforce separately.
+  const empView = await call(ctrl.getControlTower, { user: users.employee });
+  assert.equal(empView.statusCode, 200, JSON.stringify(empView.body));
+  assert.equal(cardFor(empView.body.data, 'payment_delays').metrics.total, 2, 'the finance employee sees every department');
+});
+
+test('the control tower drill-down and summary pack apply the same access rule', async () => {
+  await overdueInvoice(100);
+
+  for (const [who, expected] of [['head', 200], ['employee', 200], ['stranger', 403]]) {
+    const drill = await call(ctrl.getControlTowerCard, { user: users[who], params: { card: 'payment_delays' } });
+    assert.equal(drill.statusCode, expected, `${who} drill-down: ${JSON.stringify(drill.body)}`);
+    const pack = await call(ctrl.getSummaryPack, { user: users[who] });
+    assert.equal(pack.statusCode, expected, `${who} summary pack: ${JSON.stringify(pack.body)}`);
+  }
 });
 
 test('the summary pack names what needs attention and lists open justifications', async () => {

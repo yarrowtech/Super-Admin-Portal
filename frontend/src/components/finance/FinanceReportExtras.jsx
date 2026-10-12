@@ -6,7 +6,9 @@ import Select from '../ui/Select';
 import DataTable from '../ui/DataTable';
 import ErrorState from '../ui/ErrorState';
 
-const card = 'rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 lg:p-6';
+// Shared app-wide padded card (see index.css `.app-card-pad`), matching the other
+// portals; static cards opt out of its hover lift.
+const card = 'app-card-pad hover:translate-y-0';
 const money = (v) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(v) || 0);
 const signedCls = (v) => (Number(v) < 0 ? 'text-rose-600 dark:text-rose-300' : '');
 const thisYear = new Date().getFullYear();

@@ -24,6 +24,11 @@ export const cachePolicyFor = (queryKey) => {
   if (matchesAny(seg, ['approval', 'activity', 'attention', 'deadline'])) return CACHE_POLICIES.operational;
   if (matchesAny(seg, ['permission', 'role'])) return CACHE_POLICIES.permissions;
   if (matchesAny(seg, ['settings', 'config', 'workflow', 'holiday', 'department'])) return CACHE_POLICIES.reference;
+  // Ledger-bearing finance lists: an invoice balance, a payment's reconciliation state or
+  // an expense's approval stage changes as a direct result of what the user just did, and
+  // showing money as outstanding after it has been settled is worse than a refetch. These
+  // would otherwise fall through to `default` (90s), so they are pinned to `operational`.
+  if (segments[0] === 'finance' && matchesAny(seg, ['invoice', 'payment', 'expense', 'budget'])) return CACHE_POLICIES.operational;
   if (matchesAny(seg, ['report', 'analytic', 'stat', 'revenue'])) return CACHE_POLICIES.analytics;
   if (matchesAny(seg, ['dashboard', 'kpi', 'metric', 'overview'])) return CACHE_POLICIES.dashboards;
   if (segments.some(part => ['auth', 'profile', 'session', 'me'].includes(part))) return CACHE_POLICIES.auth;

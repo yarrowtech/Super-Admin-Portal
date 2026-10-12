@@ -21,16 +21,25 @@ import StatusBadge from '../common/StatusBadge';
 import AttentionPanel from '../common/AttentionPanel';
 import QuickActions from '../common/QuickActions';
 import SectionCard from '../ui/SectionCard';
+import Skeleton from '../ui/Skeleton';
+import TableSkeleton from '../ui/TableSkeleton';
 import { statusToTone } from '../../utils/statusTone';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { QK } from '../../utils/queryKeys';
 import { financeApi } from '../../services/finance';
 import { useAuth } from '../../context/AuthContext';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 
-const card = 'rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950';
+// Card/inset surfaces match the app-wide convention used by the other portals:
+// `app-card` (index.css) carries the shared --erp-shadow-soft elevation, and in
+// dark mode neutral-900 is the card surface while neutral-950 is the inset one.
+// Using the shared class keeps a Finance card at the same depth and elevation as
+// an HR, Law or Media card instead of a shade darker and a touch flatter.
+// `app-card` adds a hover lift, so static cards opt out via `hover:translate-y-0`.
+const card = 'app-card hover:translate-y-0';
 const inner = 'p-5 lg:p-6';
-const statBox = 'rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900';
+const statBox = 'rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950';
 const input = 'w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900';
 
 const tone = {
@@ -638,15 +647,35 @@ const PAYMENT_FILTERS = [
 
 // `loading` is derived: true until the result for the current request key arrives, so the
 // effect never sets state synchronously and stale data stays visible while refetching.
-const useAsync = (loader, deps = []) => {
+//
+// Pass `cacheKey` (a QK.finance.* tuple) to route the load through React Query, so the
+// result is shared with the rest of the app, survives navigating away and back, and picks
+// up the per-root policy in utils/queryPolicies.js. Without it the hook keeps its original
+// local-state behaviour, which is what the ad-hoc one-off loads still want.
+const useAsync = (loader, deps = [], cacheKey = null) => {
   const [state, setState] = useState({ key: null, error: '', data: {} });
   const [reloadKey, setReloadKey] = useState(0);
   const key = JSON.stringify([...deps.map((d) => (typeof d === 'object' ? String(d) : d)), reloadKey]);
+  // Keep the latest loader in a ref so the cached branch never closes over a stale one
+  // while still keeping a stable queryFn identity.
+  const loaderRef = useRef(loader);
+  loaderRef.current = loader;
+
+  const cached = useQuery({
+    queryKey: cacheKey ? [...cacheKey, key] : ['__finance_disabled__'],
+    queryFn: () => loaderRef.current(),
+    enabled: Boolean(cacheKey),
+    // Show the previous page's rows while the next request is in flight, matching the
+    // uncached branch's "stale data stays visible" behaviour instead of flashing empty.
+    placeholderData: (prev) => prev,
+  });
+
   useEffect(() => {
+    if (cacheKey) return undefined;
     let alive = true;
     const run = async () => {
       try {
-        const raw = await loader();
+        const raw = await loaderRef.current();
         if (alive) setState({ key, error: '', data: raw });
       } catch (err) {
         if (alive) setState((prev) => ({ key, error: err.message || 'Failed to load data', data: prev.data || {} }));
@@ -657,18 +686,71 @@ const useAsync = (loader, deps = []) => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  const refetch = useCallback(() => setReloadKey((k) => k + 1), []);
-  return { loading: state.key !== key, error: state.key === key ? state.error : '', data: state.data, refetch };
+  }, [key, Boolean(cacheKey)]);
+
+  const localRefetch = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  if (cacheKey) {
+    return {
+      loading: cached.isPending || cached.isLoading,
+      error: cached.isError ? (cached.error?.message || 'Failed to load data') : '',
+      data: cached.data ?? {},
+      refetch: cached.refetch,
+    };
+  }
+  return { loading: state.key !== key, error: state.key === key ? state.error : '', data: state.data, refetch: localRefetch };
 };
 
-const SkeletonBlock = () => (
-  <div className="animate-pulse space-y-3">
-    {Array.from({ length: 4 }).map((_, i) => (
-      <div key={i} className="h-20 rounded-2xl bg-neutral-100 dark:bg-neutral-800" />
-    ))}
-  </div>
-);
+// A skeleton should trace the layout it stands in for, so the page doesn't jump when
+// data lands. `variant` picks the shape: KPI tiles, compact list rows, or a table.
+// Defaults to the original four tall blocks for callers that genuinely show tall cards.
+const SkeletonBlock = ({ variant = 'card', rows = 4, columns = 5 }) => {
+  if (variant === 'table') return <TableSkeleton columns={columns} rows={rows} />;
+
+  if (variant === 'kpi') {
+    return (
+      <section className="portal-kpi-grid" aria-hidden="true">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="rounded-2xl border border-neutral-200 p-5 dark:border-neutral-800">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-5 w-32" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
+    );
+  }
+
+  // Compact rows, matching the `space-y-3` + `p-3` bordered list items used for
+  // transactions, audit entries and approval cards.
+  if (variant === 'list') {
+    return (
+      <div className="space-y-3" aria-hidden="true">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-3 w-64" />
+            </div>
+            <Skeleton className="h-4 w-20 shrink-0" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-20 rounded-2xl" />
+      ))}
+    </div>
+  );
+};
 
 // Overview-only KPI classification. dashboard.kpis[] carries no explicit importance
 // flag, so priority/polarity are assigned by domain judgement (see task notes).
@@ -733,7 +815,7 @@ export const FinanceOverviewPage = () => {
         aging: agingRes.status === 'rejected' ? (agingRes.reason?.message || 'Failed to load receivables aging') : null,
       },
     };
-  }, [token]);
+  }, [token], QK.finance.dashboard());
 
   const dashboard = data.dashboard || {};
   const invoices = useMemo(() => data.invoices || [], [data.invoices]);
@@ -965,7 +1047,7 @@ export const FinanceOverviewPage = () => {
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
 
         {loading ? (
-          <SkeletonBlock />
+          <SkeletonBlock variant="kpi" rows={8} />
         ) : (
           <>
             <section className="portal-kpi-grid">
@@ -1389,7 +1471,7 @@ export const FinanceDepartmentProfilesPage = () => {
         />
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">{error}</div>}
 
-        {loading ? <SkeletonBlock /> : (
+        {loading ? <SkeletonBlock variant="kpi" rows={4} /> : (
           <>
             <section className="portal-kpi-grid">
               {[
@@ -1403,30 +1485,27 @@ export const FinanceDepartmentProfilesPage = () => {
             </section>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.4fr]">
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr title="All Departments" subtitle="Click to drill into financial profile" />
-                  <div className="space-y-2">
-                    {departments.map((row) => (
-                      <button
-                        key={row.departmentId || row.code}
-                        type="button"
-                        onClick={() => setDepartment(row.departmentId || row.code)}
-                        className={`w-full rounded-xl border p-3 text-left transition ${row.departmentId === selectedDepartment || row.code === selectedDepartment ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-neutral-200 bg-neutral-50 hover:border-emerald-300 dark:border-neutral-800 dark:bg-neutral-900'}`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{row.department}</p>
-                          <Pill value={row.status} />
-                        </div>
-                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white dark:bg-neutral-950">
-                          <div className={`h-full rounded-full ${row.utilization >= 100 ? 'bg-rose-500' : row.utilization >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(Math.max(Number(row.utilization || 0), 3), 100)}%` }} />
-                        </div>
-                        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{formatCurrency(row.spent)} spent - {formatCurrency(row.remaining)} remaining</p>
-                      </button>
-                    ))}
-                  </div>
+              <SectionCard title="All Departments" description="Click to drill into financial profile">
+                <div className="space-y-2">
+                  {departments.map((row) => (
+                    <button
+                      key={row.departmentId || row.code}
+                      type="button"
+                      onClick={() => setDepartment(row.departmentId || row.code)}
+                      className={`w-full rounded-xl border p-3 text-left transition ${row.departmentId === selectedDepartment || row.code === selectedDepartment ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-neutral-200 bg-neutral-50 hover:border-emerald-300 dark:border-neutral-800 dark:bg-neutral-900'}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-black text-neutral-900 dark:text-neutral-100">{row.department}</p>
+                        <Pill value={row.status} />
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white dark:bg-neutral-950">
+                        <div className={`h-full rounded-full ${row.utilization >= 100 ? 'bg-rose-500' : row.utilization >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(Math.max(Number(row.utilization || 0), 3), 100)}%` }} />
+                      </div>
+                      <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{formatCurrency(row.spent)} spent - {formatCurrency(row.remaining)} remaining</p>
+                    </button>
+                  ))}
                 </div>
-              </section>
+              </SectionCard>
 
               <section className={card}>
                 <div className={inner}>
@@ -1483,7 +1562,7 @@ export const FinanceInvoicesPage = () => {
     ]);
     const list = unwrap(invoicesRes);
     return { invoices: toList(list), pagination: list?.pagination, counts: list?.counts || {}, totals: list?.totals || {}, notes: toList(unwrap(notesRes)), departmentCatalog: toList(unwrap(catalogRes)), taxRules: toList(unwrap(rulesRes)), clients: toList(unwrap(clientsRes)) };
-  }, [token, page, statusFilter, query]);
+  }, [token, page, statusFilter, query], QK.finance.invoices());
 
   const invoices = useMemo(() => data.invoices || [], [data.invoices]);
   const notes = data.notes || [];
@@ -1627,178 +1706,173 @@ export const FinanceInvoicesPage = () => {
         />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr
-                title={editingId ? 'Edit draft invoice' : 'New invoice'}
-                subtitle={editingId ? 'Only drafts can be edited' : 'Saved as a draft for verification'}
-                action={editingId && <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>}
+          <SectionCard
+            title={editingId ? 'Edit draft invoice' : 'New invoice'}
+            description={editingId ? 'Only drafts can be edited' : 'Saved as a draft for verification'}
+            action={editingId && <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>}
+          >
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <ClientPicker
+                clients={clients}
+                value={form.clientName}
+                clientId={form.client}
+                onPick={(picked) => setForm((p) => ({ ...p, ...picked, clientEmail: picked.clientEmail || p.clientEmail }))}
+                required
               />
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <ClientPicker
-                  clients={clients}
-                  value={form.clientName}
-                  clientId={form.client}
-                  onPick={(picked) => setForm((p) => ({ ...p, ...picked, clientEmail: picked.clientEmail || p.clientEmail }))}
-                  required
-                />
-                <Input label="Client email" type="email" placeholder="billing@client.com" value={form.clientEmail} onChange={(e) => setForm((p) => ({ ...p, clientEmail: e.target.value }))} />
+              <Input label="Client email" type="email" placeholder="billing@client.com" value={form.clientEmail} onChange={(e) => setForm((p) => ({ ...p, clientEmail: e.target.value }))} />
 
-                <InvoiceLineItems
-                  lines={form.items}
-                  onChange={(items) => setForm((p) => ({ ...p, items }))}
-                  gstOptions={rateOptions('gst', 0)}
-                  totals={totals}
-                  disabled={submitting}
-                />
+              <InvoiceLineItems
+                lines={form.items}
+                onChange={(items) => setForm((p) => ({ ...p, items }))}
+                gstOptions={rateOptions('gst', 0)}
+                totals={totals}
+                disabled={submitting}
+              />
 
-                <div className="grid grid-cols-3 gap-2">
-                  <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
-                  <Select label="TDS" value={String(form.tdsRate)} onChange={(e) => setForm((p) => ({ ...p, tdsRate: e.target.value }))} options={rateOptions('tds', form.tdsRate)} />
-                  <Input label="Discount" type="number" min="0" step="0.01" value={form.discount} onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))} />
-                </div>
-                {!taxRules.some((r) => r.kind === 'gst') && (
-                  <p className="text-xs text-neutral-500">No GST rules are active today. The Finance Head can add them under Compliance → Tax rules.</p>
-                )}
-                <Select
-                  label="Department"
-                  value={form.departmentId}
-                  onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
-                  options={[{ value: '', label: 'No department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
-                />
+              <div className="grid grid-cols-3 gap-2">
+                <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
+                <Select label="TDS" value={String(form.tdsRate)} onChange={(e) => setForm((p) => ({ ...p, tdsRate: e.target.value }))} options={rateOptions('tds', form.tdsRate)} />
+                <Input label="Discount" type="number" min="0" step="0.01" value={form.discount} onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))} />
+              </div>
+              {!taxRules.some((r) => r.kind === 'gst') && (
+                <p className="text-xs text-neutral-500">No GST rules are active today. The Finance Head can add them under Compliance → Tax rules.</p>
+              )}
+              <Select
+                label="Department"
+                value={form.departmentId}
+                onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
+                options={[{ value: '', label: 'No department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+              />
 
-                <dl className="space-y-1.5 rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-900">
-                  {[
-                    ['Subtotal', formatCurrency(totals.subtotal)],
-                    ['Discount', `− ${formatCurrency(totals.discount)}`],
-                    ['Taxable value', formatCurrency(totals.taxable)],
-                    ['GST', `+ ${formatCurrency(totals.tax)}`],
-                    ['Invoice total', formatCurrency(totals.total)],
-                    [`TDS withheld by customer (${form.tdsRate || 0}%)`, `− ${formatCurrency(totals.tds)}`],
-                  ].map(([label, value]) => (
-                    <div key={label} className="flex justify-between text-neutral-600 dark:text-neutral-400">
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                  <div className="flex justify-between border-t border-neutral-200 pt-1.5 text-sm font-bold text-neutral-900 dark:border-neutral-700 dark:text-white">
-                    <dt>Receivable from customer</dt>
-                    <dd className={totals.total <= 0 ? 'text-rose-600 dark:text-rose-300' : ''}>{formatCurrency(totals.receivable)}</dd>
+              <dl className="space-y-1.5 rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-900">
+                {[
+                  ['Subtotal', formatCurrency(totals.subtotal)],
+                  ['Discount', `− ${formatCurrency(totals.discount)}`],
+                  ['Taxable value', formatCurrency(totals.taxable)],
+                  ['GST', `+ ${formatCurrency(totals.tax)}`],
+                  ['Invoice total', formatCurrency(totals.total)],
+                  [`TDS withheld by customer (${form.tdsRate || 0}%)`, `− ${formatCurrency(totals.tds)}`],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between text-neutral-600 dark:text-neutral-400">
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
                   </div>
-                </dl>
-
-                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting || totals.total <= 0} fullWidth>
-                  {submitting ? 'Saving…' : editingId ? 'Update draft' : 'Save as draft'}
-                </Button>
-              </form>
-
-              <div className="mt-6 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-                <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Latest credit / debit notes</h3>
-                <div className="mt-3 space-y-2">
-                  {notes.slice(0, 5).map((note) => (
-                    <div key={note._id} className="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-700">
-                      <div className="flex items-center justify-between text-neutral-600 dark:text-neutral-300">
-                        <span className="font-semibold capitalize">{note.type} note</span>
-                        <span>{formatCurrency(note.amount)}</span>
-                      </div>
-                      <p className="text-neutral-500">{note.reason || 'No reason provided'}</p>
-                    </div>
-                  ))}
-                  {notes.length === 0 && <p className="text-xs text-neutral-500 dark:text-neutral-400">No notes yet. Add them from an invoice's detail page.</p>}
+                ))}
+                <div className="flex justify-between border-t border-neutral-200 pt-1.5 text-sm font-bold text-neutral-900 dark:border-neutral-700 dark:text-white">
+                  <dt>Receivable from customer</dt>
+                  <dd className={totals.total <= 0 ? 'text-rose-600 dark:text-rose-300' : ''}>{formatCurrency(totals.receivable)}</dd>
                 </div>
+              </dl>
+
+              {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
+              <Button type="submit" variant="primary" size="sm" disabled={submitting || totals.total <= 0} fullWidth>
+                {submitting ? 'Saving…' : editingId ? 'Update draft' : 'Save as draft'}
+              </Button>
+            </form>
+
+            <div className="mt-6 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+              <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Latest credit / debit notes</h3>
+              <div className="mt-3 space-y-2">
+                {notes.slice(0, 5).map((note) => (
+                  <div key={note._id} className="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-700">
+                    <div className="flex items-center justify-between text-neutral-600 dark:text-neutral-300">
+                      <span className="font-semibold capitalize">{note.type} note</span>
+                      <span>{formatCurrency(note.amount)}</span>
+                    </div>
+                    <p className="text-neutral-500">{note.reason || 'No reason provided'}</p>
+                  </div>
+                ))}
+                {notes.length === 0 && <p className="text-xs text-neutral-500 dark:text-neutral-400">No notes yet. Add them from an invoice's detail page.</p>}
               </div>
             </div>
-          </section>
+          </SectionCard>
 
-          <section className={card}>
-            <div className={`${inner} space-y-4`}>
-              <SectionHdr
-                title="Invoices"
-                subtitle={`${visibleInvoices.length} of ${invoices.length} shown`}
-                action={(
+          <SectionCard
+            title="Invoices"
+            description={`${visibleInvoices.length} of ${invoices.length} shown`}
+            action={(
                   <div className="w-full sm:w-56">
                     <Input placeholder="Search number or client" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search invoices" />
                   </div>
                 )}
-              />
-              <StatusFilterBar
-                value={statusFilter}
-                onChange={(v) => { setStatusFilter(v); setPage(1); }}
-                options={INVOICE_FILTERS.map((f) => ({ ...f, count: f.value ? stageCounts[f.value] || 0 : stageCounts.all ?? invoices.length }))}
-              />
-              <DataTable
-                columns={[
-                  {
-                    key: 'invoiceNumber',
-                    header: 'Invoice',
-                    render: (r) => (
-                      <div>
-                        <p className="font-semibold text-neutral-900 dark:text-white">{r.invoiceNumber}</p>
-                        <p className="text-xs text-neutral-500">{r.clientName || '—'}</p>
+            bodyClassName="space-y-4"
+          >
+            <StatusFilterBar
+              value={statusFilter}
+              onChange={(v) => { setStatusFilter(v); setPage(1); }}
+              options={INVOICE_FILTERS.map((f) => ({ ...f, count: f.value ? stageCounts[f.value] || 0 : stageCounts.all ?? invoices.length }))}
+            />
+            <DataTable
+              columns={[
+                {
+                  key: 'invoiceNumber',
+                  header: 'Invoice',
+                  render: (r) => (
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">{r.invoiceNumber}</p>
+                      <p className="text-xs text-neutral-500">{r.clientName || '—'}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'dueDate',
+                  header: 'Due',
+                  render: (r) => <span className={invoiceStage(r) === 'overdue' ? 'font-semibold text-rose-600 dark:text-rose-300' : ''}>{fmtDateOnly(r.dueDate)}</span>,
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (r) => {
+                    const stage = invoiceStage(r);
+                    return (
+                      <div className="flex flex-col items-start gap-1">
+                        <Pill value={stage} label={INVOICE_STAGE_LABEL[stage]} />
+                        {stage === 'draft' && <ReviewBadge item={r} />}
                       </div>
-                    ),
+                    );
                   },
-                  {
-                    key: 'dueDate',
-                    header: 'Due',
-                    render: (r) => <span className={invoiceStage(r) === 'overdue' ? 'font-semibold text-rose-600 dark:text-rose-300' : ''}>{fmtDateOnly(r.dueDate)}</span>,
+                },
+                { key: 'total', header: moneyHeader('Total'), render: (r) => <MoneyCell value={getInvoiceTotal(r)} /> },
+                { key: 'balanceDue', header: moneyHeader('Balance'), render: (r) => <MoneyCell value={invoiceStage(r) === 'paid' ? 0 : invoiceBalance(r)} /> },
+                {
+                  key: 'actions',
+                  header: 'Next step',
+                  render: (r) => {
+                    const stage = invoiceStage(r);
+                    return (
+                      <div className="flex justify-end gap-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {stage === 'draft' && (
+                          <>
+                            {(isHead || !isAwaitingHead(r)) && (
+                              <button type="button" onClick={() => startEdit(r)} className="text-xs font-semibold text-neutral-500 hover:underline">Edit</button>
+                            )}
+                            <ReviewActions
+                              module="invoice"
+                              item={r}
+                              isHead={isHead}
+                              onOpen={(s) => setReviewing({ ...s, title: `${r.invoiceNumber} · ${r.clientName || 'Client'} · ${formatCurrency(getInvoiceTotal(r))}` })}
+                              directApprove={approvingId === r._id ? undefined : () => approve(r)}
+                              directLabel="Approve"
+                            />
+                          </>
+                        )}
+                        {isPayableInvoice(r) && (
+                          <button type="button" onClick={() => setPayingInvoice(r)} className="text-xs font-semibold text-primary hover:underline">Record payment</button>
+                        )}
+                        {stage === 'paid' && <span className="text-xs text-neutral-400">Settled</span>}
+                      </div>
+                    );
                   },
-                  {
-                    key: 'status',
-                    header: 'Status',
-                    render: (r) => {
-                      const stage = invoiceStage(r);
-                      return (
-                        <div className="flex flex-col items-start gap-1">
-                          <Pill value={stage} label={INVOICE_STAGE_LABEL[stage]} />
-                          {stage === 'draft' && <ReviewBadge item={r} />}
-                        </div>
-                      );
-                    },
-                  },
-                  { key: 'total', header: moneyHeader('Total'), render: (r) => <MoneyCell value={getInvoiceTotal(r)} /> },
-                  { key: 'balanceDue', header: moneyHeader('Balance'), render: (r) => <MoneyCell value={invoiceStage(r) === 'paid' ? 0 : invoiceBalance(r)} /> },
-                  {
-                    key: 'actions',
-                    header: 'Next step',
-                    render: (r) => {
-                      const stage = invoiceStage(r);
-                      return (
-                        <div className="flex justify-end gap-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          {stage === 'draft' && (
-                            <>
-                              {(isHead || !isAwaitingHead(r)) && (
-                                <button type="button" onClick={() => startEdit(r)} className="text-xs font-semibold text-neutral-500 hover:underline">Edit</button>
-                              )}
-                              <ReviewActions
-                                module="invoice"
-                                item={r}
-                                isHead={isHead}
-                                onOpen={(s) => setReviewing({ ...s, title: `${r.invoiceNumber} · ${r.clientName || 'Client'} · ${formatCurrency(getInvoiceTotal(r))}` })}
-                                directApprove={approvingId === r._id ? undefined : () => approve(r)}
-                                directLabel="Approve"
-                              />
-                            </>
-                          )}
-                          {isPayableInvoice(r) && (
-                            <button type="button" onClick={() => setPayingInvoice(r)} className="text-xs font-semibold text-primary hover:underline">Record payment</button>
-                          )}
-                          {stage === 'paid' && <span className="text-xs text-neutral-400">Settled</span>}
-                        </div>
-                      );
-                    },
-                  },
-                ]}
-                rows={visibleInvoices}
-                rowKey="_id"
-                loading={loading}
-                emptyTitle={query ? `No invoices match "${query}"` : statusFilter ? `No ${INVOICE_STAGE_LABEL[statusFilter]?.toLowerCase() || statusFilter} invoices` : 'No invoices yet'}
-                onRowClick={(r) => navigate(`/finance/dashboard/invoices/${r._id}`)}
-              />
-              <Pager pagination={pagination} onPage={setPage} disabled={loading} />
-            </div>
-          </section>
+                },
+              ]}
+              rows={visibleInvoices}
+              rowKey="_id"
+              loading={loading}
+              emptyTitle={query ? `No invoices match "${query}"` : statusFilter ? `No ${INVOICE_STAGE_LABEL[statusFilter]?.toLowerCase() || statusFilter} invoices` : 'No invoices yet'}
+              onRowClick={(r) => navigate(`/finance/dashboard/invoices/${r._id}`)}
+            />
+            <Pager pagination={pagination} onPage={setPage} disabled={loading} />
+          </SectionCard>
         </div>
       </div>
 
@@ -1965,98 +2039,89 @@ export const FinanceInvoiceDetailPage = () => {
 
             <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="space-y-4">
-                <section className={card}>
-                  <div className={inner}>
-                    <SectionHdr title="Payments received" subtitle={`${payments.length} recorded`} />
-                    {payments.length === 0 ? (
-                      <p className="text-sm text-neutral-500 dark:text-neutral-400">{stage === 'draft' ? 'Payments can be recorded once the invoice is approved.' : 'No payments recorded yet.'}</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {payments.map((payment) => (
-                          <div key={payment._id} className="flex items-center justify-between rounded-xl border border-neutral-100 px-3 py-2 dark:border-neutral-800">
-                            <div>
-                              <p className="text-sm font-semibold text-neutral-900 dark:text-white">{formatCurrency(payment.amount)}</p>
-                              <p className="text-xs text-neutral-500">{fmtDateOnly(payment.paymentDate || payment.createdAt)} · {payment.method}{payment.reference ? ` · ${payment.reference}` : ''}</p>
-                            </div>
-                            <Pill value={payment.status} label={PAYMENT_STAGE_LABEL[payment.status]} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                <section className={card}>
-                  <div className={inner}>
-                    <SectionHdr title="Credit / Debit notes" subtitle="Adjust the invoice total after approval" />
+                <SectionCard title="Payments received" description={`${payments.length} recorded`}>
+                  {payments.length === 0 ? (
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">{stage === 'draft' ? 'Payments can be recorded once the invoice is approved.' : 'No payments recorded yet.'}</p>
+                  ) : (
                     <div className="space-y-2">
-                      {notes.length === 0 && <p className="text-sm text-neutral-500 dark:text-neutral-400">No notes yet.</p>}
-                      {notes.map((note) => (
-                        <div key={note._id} className={statBox}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold capitalize text-neutral-700 dark:text-neutral-200">{note.type} note</span>
-                            <span className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{note.type === 'credit' ? '− ' : '+ '}{formatCurrency(note.amount)}</span>
+                      {payments.map((payment) => (
+                        <div key={payment._id} className="flex items-center justify-between rounded-xl border border-neutral-100 px-3 py-2 dark:border-neutral-800">
+                          <div>
+                            <p className="text-sm font-semibold text-neutral-900 dark:text-white">{formatCurrency(payment.amount)}</p>
+                            <p className="text-xs text-neutral-500">{fmtDateOnly(payment.paymentDate || payment.createdAt)} · {payment.method}{payment.reference ? ` · ${payment.reference}` : ''}</p>
                           </div>
-                          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{note.reason || 'No reason provided'}</p>
-                        </div>
-                      ))}
-                    </div>
-                    {settled ? (
-                      <p className="mt-4 border-t border-neutral-200 pt-4 text-xs text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">Notes can't be added to a settled invoice.</p>
-                    ) : (
-                      <form onSubmit={handleAddNote} className="mt-4 space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-                        <div className="grid grid-cols-2 gap-2">
-                          <Select
-                            label="Note type"
-                            value={noteForm.type}
-                            onChange={(e) => setNoteForm((p) => ({ ...p, type: e.target.value }))}
-                            options={[{ value: 'credit', label: 'Credit (reduce)' }, { value: 'debit', label: 'Debit (increase)' }]}
-                          />
-                          <Input label="Amount" type="number" min="0" step="0.01" value={noteForm.amount} onChange={(e) => setNoteForm((p) => ({ ...p, amount: e.target.value }))} required />
-                        </div>
-                        <Input label="Reason" placeholder="Why this note was raised" value={noteForm.reason} onChange={(e) => setNoteForm((p) => ({ ...p, reason: e.target.value }))} required />
-                        <Button type="submit" variant="outline" size="sm" disabled={submitting} fullWidth>
-                          {submitting ? 'Saving…' : 'Add note'}
-                        </Button>
-                      </form>
-                    )}
-                  </div>
-                </section>
-              </div>
-
-              <section className={card}>
-                <div className={inner}>
-                  <SectionHdr title="Invoice details" />
-                  <div className="space-y-2">
-                    {[
-                      ['Client', invoice.clientName || '—'],
-                      ['Client email', invoice.clientEmail || '—'],
-                      ['Issue date', fmtDateOnly(invoice.issueDate || invoice.createdAt)],
-                      ['Due date', fmtDateOnly(invoice.dueDate)],
-                      ['Subtotal', formatCurrency(invoice.subtotal)],
-                      [`GST (${invoice.gstRate ?? 0}%)`, formatCurrency(invoice.gstAmount)],
-                      [`TDS (${invoice.tdsRate ?? 0}%)`, formatCurrency(invoice.tdsAmount)],
-                      ['Discount', formatCurrency(invoice.discount)],
-                    ].map(([label, value]) => (
-                      <div key={label} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 px-3 py-2 dark:border-neutral-800">
-                        <span className="text-sm text-neutral-600 dark:text-neutral-400">{label}</span>
-                        <span className="truncate text-sm font-semibold text-neutral-900 dark:text-white">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {(invoice.items || []).length > 0 && (
-                    <div className="mt-4 space-y-1 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Line items</p>
-                      {invoice.items.map((item, i) => (
-                        <div key={item._id || i} className="flex justify-between text-sm text-neutral-700 dark:text-neutral-300">
-                          <span className="truncate">{item.description || 'Item'} × {item.quantity}</span>
-                          <span>{formatCurrency(item.amount)}</span>
+                          <Pill value={payment.status} label={PAYMENT_STAGE_LABEL[payment.status]} />
                         </div>
                       ))}
                     </div>
                   )}
+                </SectionCard>
+
+                <SectionCard title="Credit / Debit notes" description="Adjust the invoice total after approval">
+                  <div className="space-y-2">
+                    {notes.length === 0 && <p className="text-sm text-neutral-500 dark:text-neutral-400">No notes yet.</p>}
+                    {notes.map((note) => (
+                      <div key={note._id} className={statBox}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold capitalize text-neutral-700 dark:text-neutral-200">{note.type} note</span>
+                          <span className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{note.type === 'credit' ? '− ' : '+ '}{formatCurrency(note.amount)}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{note.reason || 'No reason provided'}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {settled ? (
+                    <p className="mt-4 border-t border-neutral-200 pt-4 text-xs text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">Notes can't be added to a settled invoice.</p>
+                  ) : (
+                    <form onSubmit={handleAddNote} className="mt-4 space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select
+                          label="Note type"
+                          value={noteForm.type}
+                          onChange={(e) => setNoteForm((p) => ({ ...p, type: e.target.value }))}
+                          options={[{ value: 'credit', label: 'Credit (reduce)' }, { value: 'debit', label: 'Debit (increase)' }]}
+                        />
+                        <Input label="Amount" type="number" min="0" step="0.01" value={noteForm.amount} onChange={(e) => setNoteForm((p) => ({ ...p, amount: e.target.value }))} required />
+                      </div>
+                      <Input label="Reason" placeholder="Why this note was raised" value={noteForm.reason} onChange={(e) => setNoteForm((p) => ({ ...p, reason: e.target.value }))} required />
+                      <Button type="submit" variant="outline" size="sm" disabled={submitting} fullWidth>
+                        {submitting ? 'Saving…' : 'Add note'}
+                      </Button>
+                    </form>
+                  )}
+                </SectionCard>
+              </div>
+
+              <SectionCard title="Invoice details">
+                <div className="space-y-2">
+                  {[
+                    ['Client', invoice.clientName || '—'],
+                    ['Client email', invoice.clientEmail || '—'],
+                    ['Issue date', fmtDateOnly(invoice.issueDate || invoice.createdAt)],
+                    ['Due date', fmtDateOnly(invoice.dueDate)],
+                    ['Subtotal', formatCurrency(invoice.subtotal)],
+                    [`GST (${invoice.gstRate ?? 0}%)`, formatCurrency(invoice.gstAmount)],
+                    [`TDS (${invoice.tdsRate ?? 0}%)`, formatCurrency(invoice.tdsAmount)],
+                    ['Discount', formatCurrency(invoice.discount)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 px-3 py-2 dark:border-neutral-800">
+                      <span className="text-sm text-neutral-600 dark:text-neutral-400">{label}</span>
+                      <span className="truncate text-sm font-semibold text-neutral-900 dark:text-white">{value}</span>
+                    </div>
+                  ))}
                 </div>
-              </section>
+                {(invoice.items || []).length > 0 && (
+                  <div className="mt-4 space-y-1 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Line items</p>
+                    {invoice.items.map((item, i) => (
+                      <div key={item._id || i} className="flex justify-between text-sm text-neutral-700 dark:text-neutral-300">
+                        <span className="truncate">{item.description || 'Item'} × {item.quantity}</span>
+                        <span>{formatCurrency(item.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
             </div>
           </>
         )}
@@ -2095,7 +2160,7 @@ export const FinancePaymentsPage = () => {
     ]);
     const list = unwrap(paymentsRes);
     return { payments: toList(list), pagination: list?.pagination, invoices: toList(unwrap(invoicesRes)), departmentCatalog: toList(unwrap(catalogRes)), balances: toList(unwrap(balancesRes)) };
-  }, [token, page, statusFilter]);
+  }, [token, page, statusFilter], QK.finance.payments());
 
   const payments = useMemo(() => data.payments || [], [data.payments]);
   const invoices = useMemo(() => data.invoices || [], [data.invoices]);
@@ -2228,142 +2293,141 @@ export const FinancePaymentsPage = () => {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
           <div className="space-y-6">
-            <section className={card} ref={formRef}>
-              <div className={inner}>
-                <SectionHdr title="Record payment" subtitle="Link it to an invoice to settle the balance" />
-                <form onSubmit={handleSubmit} className="space-y-3">
-                  <Select
-                    label="Against invoice"
-                    value={form.invoice}
-                    onChange={(e) => selectInvoice(e.target.value)}
-                    options={[
-                      { value: '', label: 'No invoice (on-account receipt)' },
-                      ...payableInvoices.map((inv) => ({ value: inv._id, label: `${inv.invoiceNumber} · ${inv.clientName || 'Client'} · ${formatCurrency(invoiceBalance(inv))}` })),
-                    ]}
-                  />
-                  <Input label="Customer name" placeholder="e.g. Acme Corp" value={form.customerName} onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))} required readOnly={Boolean(linkedInvoice)} />
-                  <Input
-                    label="Amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.amount}
-                    onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
-                    error={form.amount !== '' && amountError ? amountError : undefined}
-                    helperText={linkedInvoice ? `Balance due ${formatCurrency(linkedBalance)} — the invoice closes automatically when fully paid.` : undefined}
-                    required
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select label="Method" value={form.method} onChange={(e) => setForm((p) => ({ ...p, method: e.target.value }))} options={PAYMENT_METHOD_OPTIONS} />
-                    <Input label="Payment date" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} />
-                  </div>
-                  <Input label="Reference" placeholder="UTR / cheque / transaction ID" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
-                  <Select
-                    label="Department"
-                    value={form.departmentId}
-                    onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
-                    options={[{ value: '', label: 'No department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
-                  />
-                  {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                  <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(amountError)} fullWidth>{submitting ? 'Saving…' : 'Record payment'}</Button>
-                </form>
-              </div>
-            </section>
-
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="Awaiting payment" subtitle="Oldest due first" />
-                <div className="space-y-2">
-                  {payableInvoices.slice(0, 6).map((invoice) => (
-                    <div key={invoice._id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-700">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-neutral-800 dark:text-neutral-100">{invoice.clientName}</p>
-                        <p className={invoiceStage(invoice) === 'overdue' ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-500'}>
-                          {invoice.invoiceNumber} · due {fmtDateOnly(invoice.dueDate)}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">{formatCurrency(invoiceBalance(invoice))}</span>
-                        <button type="button" onClick={() => collect(invoice)} className="font-semibold text-primary hover:underline">Collect</button>
-                      </div>
-                    </div>
-                  ))}
-                  {payableInvoices.length === 0 && <p className="text-xs text-neutral-500 dark:text-neutral-400">No approved invoices are waiting on payment.</p>}
+            <SectionCard
+              title="Record payment"
+              description="Link it to an invoice to settle the balance"
+              ref={formRef}
+            >
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <Select
+                  label="Against invoice"
+                  value={form.invoice}
+                  onChange={(e) => selectInvoice(e.target.value)}
+                  options={[
+                    { value: '', label: 'No invoice (on-account receipt)' },
+                    ...payableInvoices.map((inv) => ({ value: inv._id, label: `${inv.invoiceNumber} · ${inv.clientName || 'Client'} · ${formatCurrency(invoiceBalance(inv))}` })),
+                  ]}
+                />
+                <Input label="Customer name" placeholder="e.g. Acme Corp" value={form.customerName} onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))} required readOnly={Boolean(linkedInvoice)} />
+                <Input
+                  label="Amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
+                  error={form.amount !== '' && amountError ? amountError : undefined}
+                  helperText={linkedInvoice ? `Balance due ${formatCurrency(linkedBalance)} — the invoice closes automatically when fully paid.` : undefined}
+                  required
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Select label="Method" value={form.method} onChange={(e) => setForm((p) => ({ ...p, method: e.target.value }))} options={PAYMENT_METHOD_OPTIONS} />
+                  <Input label="Payment date" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} />
                 </div>
-                {customerBalances.length > 0 && (
-                  <div className="mt-5 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Balance by customer</p>
-                    <div className="space-y-1.5">
-                      {customerBalances.slice(0, 5).map((customer) => (
-                        <div key={customer.name} className="flex items-center justify-between text-xs">
-                          <p className="truncate text-neutral-700 dark:text-neutral-300">{customer.name}</p>
-                          <p className="font-semibold text-neutral-800 dark:text-neutral-100">{formatCurrency(customer.balance)}</p>
-                        </div>
-                      ))}
+                <Input label="Reference" placeholder="UTR / cheque / transaction ID" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
+                <Select
+                  label="Department"
+                  value={form.departmentId}
+                  onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
+                  options={[{ value: '', label: 'No department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+                />
+                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(amountError)} fullWidth>{submitting ? 'Saving…' : 'Record payment'}</Button>
+              </form>
+            </SectionCard>
+
+            <SectionCard title="Awaiting payment" description="Oldest due first">
+              <div className="space-y-2">
+                {payableInvoices.slice(0, 6).map((invoice) => (
+                  <div key={invoice._id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-700">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-neutral-800 dark:text-neutral-100">{invoice.clientName}</p>
+                      <p className={invoiceStage(invoice) === 'overdue' ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-500'}>
+                        {invoice.invoiceNumber} · due {fmtDateOnly(invoice.dueDate)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">{formatCurrency(invoiceBalance(invoice))}</span>
+                      <button type="button" onClick={() => collect(invoice)} className="font-semibold text-primary hover:underline">Collect</button>
                     </div>
                   </div>
-                )}
+                ))}
+                {payableInvoices.length === 0 && <p className="text-xs text-neutral-500 dark:text-neutral-400">No approved invoices are waiting on payment.</p>}
               </div>
-            </section>
+              {customerBalances.length > 0 && (
+                <div className="mt-5 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Balance by customer</p>
+                  <div className="space-y-1.5">
+                    {customerBalances.slice(0, 5).map((customer) => (
+                      <div key={customer.name} className="flex items-center justify-between text-xs">
+                        <p className="truncate text-neutral-700 dark:text-neutral-300">{customer.name}</p>
+                        <p className="font-semibold text-neutral-800 dark:text-neutral-100">{formatCurrency(customer.balance)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </SectionCard>
           </div>
 
-          <section className={card}>
-            <div className={`${inner} space-y-4`}>
-              <SectionHdr title="Payment ledger" subtitle={`${pagination.total || 0} receipt${pagination.total === 1 ? '' : 's'}`} />
-              <StatusFilterBar
-                value={statusFilter}
-                onChange={(v) => { setStatusFilter(v); setPage(1); }}
-                options={PAYMENT_FILTERS.map((f) => ({ ...f, count: f.value ? statusCounts[f.value] || 0 : pagination.total || payments.length }))}
-              />
-              <DataTable
-                columns={[
-                  { key: 'paymentDate', header: 'Date', render: (r) => fmtDateOnly(r.paymentDate || r.createdAt) },
-                  {
-                    key: 'customerName',
-                    header: 'Customer',
-                    render: (r) => {
-                      const inv = invoiceById[String(r.invoice?._id || r.invoice || '')];
-                      return (
-                        <div>
-                          <p className="font-semibold text-neutral-900 dark:text-white">{r.customerName || 'N/A'}</p>
-                          <p className="text-xs text-neutral-500">{inv ? inv.invoiceNumber : 'On account'}{r.reference ? ` · ${r.reference}` : ''}</p>
-                        </div>
-                      );
-                    },
-                  },
-                  { key: 'method', header: 'Method', render: (r) => <span className="capitalize">{r.method}</span> },
-                  { key: 'amount', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amount} /> },
-                  {
-                    key: 'status',
-                    header: 'Status',
-                    render: (r) => (
+          <SectionCard
+            title="Payment ledger"
+            description={`${pagination.total || 0} receipt${pagination.total === 1 ? '' : 's'}`}
+            bodyClassName="space-y-4"
+          >
+            <StatusFilterBar
+              value={statusFilter}
+              onChange={(v) => { setStatusFilter(v); setPage(1); }}
+              options={PAYMENT_FILTERS.map((f) => ({ ...f, count: f.value ? statusCounts[f.value] || 0 : pagination.total || payments.length }))}
+            />
+            <DataTable
+              columns={[
+                { key: 'paymentDate', header: 'Date', render: (r) => fmtDateOnly(r.paymentDate || r.createdAt) },
+                {
+                  key: 'customerName',
+                  header: 'Customer',
+                  render: (r) => {
+                    const inv = invoiceById[String(r.invoice?._id || r.invoice || '')];
+                    return (
                       <div>
-                        <Pill value={r.status} label={PAYMENT_STAGE_LABEL[r.status]} />
-                        {r.status === 'failed' && r.failureReason && <p className="mt-1 max-w-[12rem] truncate text-xs text-rose-600 dark:text-rose-300" title={r.failureReason}>{r.failureReason}</p>}
+                        <p className="font-semibold text-neutral-900 dark:text-white">{r.customerName || 'N/A'}</p>
+                        <p className="text-xs text-neutral-500">{inv ? inv.invoiceNumber : 'On account'}{r.reference ? ` · ${r.reference}` : ''}</p>
                       </div>
-                    ),
+                    );
                   },
-                  {
-                    key: 'actions',
-                    header: 'Next step',
-                    render: (r) => r.status === 'recorded' && (
-                      <div className="flex justify-end gap-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <button type="button" onClick={() => setFailing({ payment: r, reason: '' })} className="text-xs font-semibold text-rose-600 hover:underline dark:text-rose-300">Mark failed</button>
-                        <button type="button" onClick={() => reconcile(r)} disabled={reconcilingId === r._id} className="text-xs font-semibold text-primary hover:underline disabled:opacity-50">
-                          {reconcilingId === r._id ? 'Reconciling…' : 'Reconcile'}
-                        </button>
-                      </div>
-                    ),
-                  },
-                ]}
-                rows={visiblePayments}
-                rowKey="_id"
-                loading={loading}
-                emptyTitle={statusFilter ? `No ${(PAYMENT_STAGE_LABEL[statusFilter] || statusFilter).toLowerCase()} payments` : 'No payments recorded'}
-              />
-              <Pager pagination={pagination} onPage={setPage} disabled={loading} />
-            </div>
-          </section>
+                },
+                { key: 'method', header: 'Method', render: (r) => <span className="capitalize">{r.method}</span> },
+                { key: 'amount', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amount} /> },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (r) => (
+                    <div>
+                      <Pill value={r.status} label={PAYMENT_STAGE_LABEL[r.status]} />
+                      {r.status === 'failed' && r.failureReason && <p className="mt-1 max-w-[12rem] truncate text-xs text-rose-600 dark:text-rose-300" title={r.failureReason}>{r.failureReason}</p>}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'actions',
+                  header: 'Next step',
+                  render: (r) => r.status === 'recorded' && (
+                    <div className="flex justify-end gap-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" onClick={() => setFailing({ payment: r, reason: '' })} className="text-xs font-semibold text-rose-600 hover:underline dark:text-rose-300">Mark failed</button>
+                      <button type="button" onClick={() => reconcile(r)} disabled={reconcilingId === r._id} className="text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                        {reconcilingId === r._id ? 'Reconciling…' : 'Reconcile'}
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+              rows={visiblePayments}
+              rowKey="_id"
+              loading={loading}
+              emptyTitle={statusFilter ? `No ${(PAYMENT_STAGE_LABEL[statusFilter] || statusFilter).toLowerCase()} payments` : 'No payments recorded'}
+            />
+            <Pager pagination={pagination} onPage={setPage} disabled={loading} />
+          </SectionCard>
         </div>
       </div>
 
@@ -2439,7 +2503,7 @@ export const FinanceExpensesPage = () => {
     ]);
     const list = unwrap(requestsRes);
     return { expenses: toList(list), pagination: list?.pagination, departmentCatalog: toList(unwrap(catalogRes)), byStatus: unwrap(agingRes)?.expenses?.byStatus || [], settings: unwrap(settingsRes), projectCatalog: toList(unwrap(projectsRes)) };
-  }, [token, page, statusFilter]);
+  }, [token, page, statusFilter], QK.finance.expenses());
   const expenses = useMemo(() => data.expenses || [], [data.expenses]);
   const departmentCatalog = data.departmentCatalog || [];
   const pagination = data.pagination || { page: 1, totalPages: 1, total: expenses.length };
@@ -2585,240 +2649,235 @@ export const FinanceExpensesPage = () => {
         </section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr title="Submit expense" subtitle="Enters the workflow as Submitted" />
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <Input label="Expense title" placeholder="e.g. Client dinner" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
-                <Select
-                  label="Category"
-                  value={form.category}
-                  onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-                  required
-                  options={[{ value: '', label: 'Select category' }, ...EXPENSE_CATEGORIES.map((c) => ({ value: c, label: c }))]}
-                />
-                <Input label="Amount" type="number" min="0" step="0.01" placeholder="0" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} required />
-                <Select
-                  label="Department"
-                  value={form.departmentId}
-                  onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
-                  required
-                  options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
-                />
-                <Select
-                  label="Cost type"
-                  value={form.costType}
-                  onChange={(e) => setForm((p) => ({ ...p, costType: e.target.value }))}
-                  options={[{ value: 'variable', label: 'Variable — moves with activity' }, { value: 'fixed', label: 'Fixed — recurs regardless of activity' }]}
-                  helperText="Decides which side of the budget this is charged to."
-                />
-                <Select
-                  label="Project (optional)"
-                  value={form.projectId}
-                  onChange={(e) => setForm((p) => ({ ...p, projectId: e.target.value }))}
-                  options={[{ value: '', label: 'Not project work' }, ...(data.projectCatalog || []).map((p) => ({ value: p._id, label: p.code ? `${p.name} (${p.code})` : p.name }))]}
-                  helperText="With a project set, the project's budget is charged instead of the department's."
-                />
-
-                {/* Split allocation: one cost shared across departments or projects. The
-                    server requires the rows to add up to the total exactly, so the running
-                    remainder is shown here and submit is blocked until it reaches zero. */}
-                <div className="rounded-xl border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
-                      <span className="material-symbols-outlined text-[18px] text-neutral-400">call_split</span>
-                      Split across departments / projects
-                    </p>
-                    <Button
-                      type="button" size="sm" variant="secondary"
-                      onClick={() => setForm((p) => ({
-                        ...p,
-                        allocations: [...p.allocations, { departmentId: p.departmentId || '', projectId: '', amount: '' }],
-                      }))}
-                    >
-                      Add a share
-                    </Button>
-                  </div>
-                  {form.allocations.length === 0 ? (
-                    <p className="text-xs text-neutral-500">
-                      Leave empty to charge the whole amount to the department and project above.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {form.allocations.map((row, i) => (
-                        <div key={i} className="grid gap-2 sm:grid-cols-[1fr_1fr_7rem_2.5rem]">
-                          <Select
-                            aria-label={`Share ${i + 1} department`}
-                            value={row.departmentId}
-                            onChange={(e) => setForm((p) => ({
-                              ...p,
-                              allocations: p.allocations.map((r, k) => (k === i ? { ...r, departmentId: e.target.value } : r)),
-                            }))}
-                            options={[{ value: '', label: 'Department…' }, ...(departmentCatalog || []).map((d) => ({ value: d._id, label: d.name }))]}
-                          />
-                          <Select
-                            aria-label={`Share ${i + 1} project`}
-                            value={row.projectId}
-                            onChange={(e) => setForm((p) => ({
-                              ...p,
-                              allocations: p.allocations.map((r, k) => (k === i ? { ...r, projectId: e.target.value } : r)),
-                            }))}
-                            options={[{ value: '', label: 'No project' }, ...(data.projectCatalog || []).map((pr) => ({ value: pr._id, label: pr.name }))]}
-                          />
-                          <Input
-                            type="number" min="0" step="0.01" placeholder="0.00"
-                            aria-label={`Share ${i + 1} amount`}
-                            value={row.amount}
-                            onChange={(e) => setForm((p) => ({
-                              ...p,
-                              allocations: p.allocations.map((r, k) => (k === i ? { ...r, amount: e.target.value } : r)),
-                            }))}
-                          />
-                          <Button
-                            type="button" size="sm" variant="secondary"
-                            aria-label={`Remove share ${i + 1}`}
-                            onClick={() => setForm((p) => ({ ...p, allocations: p.allocations.filter((_, k) => k !== i) }))}
-                          >
-                            ×
-                          </Button>
-                        </div>
-                      ))}
-                      <p className={`text-xs font-semibold ${allocationRemainder === 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                        {allocationRemainder === 0
-                          ? 'Allocated in full.'
-                          : allocationRemainder > 0
-                            ? `${formatCurrency(allocationRemainder / 100)} still to allocate.`
-                            : `${formatCurrency(-allocationRemainder / 100)} over-allocated.`}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <div className={`rounded-xl border border-dashed p-3 ${receiptRequired && !form.docUrl.trim() ? 'border-amber-400 bg-amber-50/60 dark:border-amber-500 dark:bg-amber-500/10' : 'border-neutral-300 dark:border-neutral-700'}`}>
-                  <p className="mb-2 flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
-                    <span className="material-symbols-outlined text-[18px] text-neutral-400">attach_file</span>
-                    Receipt / bill{receiptRequired && <span className="text-rose-600 dark:text-rose-300">*</span>}
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-                    <Input placeholder="Label" aria-label="Document label" value={form.docLabel} onChange={(e) => setForm((p) => ({ ...p, docLabel: e.target.value }))} />
-                    <Input placeholder="https://drive… link to the receipt" aria-label="Document link" value={form.docUrl} onChange={(e) => setForm((p) => ({ ...p, docUrl: e.target.value }))} error={docUrlError(form) || undefined} required={receiptRequired} />
-                  </div>
-                  {receiptRequired && !form.docUrl.trim() ? (
-                    <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                      <span className="material-symbols-outlined text-[13px]">warning</span>
-                      Required for claims of {formatCurrency(receiptThreshold)} or more.
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-neutral-500">Finance verifies the expense against this document.</p>
-                  )}
-                </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Checked against the department's budget on submission.</p>
-                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting || (receiptRequired && !form.docUrl.trim()) || allocationsIncomplete} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
-              </form>
-            </div>
-          </section>
-
-          <section className={card}>
-            <div className={`${inner} space-y-4`}>
-              <SectionHdr
-                title="Expense requests"
-                subtitle={`${pagination.total || 0} request${pagination.total === 1 ? '' : 's'}`}
-                action={<Button type="button" size="sm" variant="secondary" onClick={() => (showReport ? setShowReport(false) : openReport())}><span className="material-symbols-outlined mr-1 text-[16px]">summarize</span>{showReport ? 'Hide report' : 'Expense report'}</Button>}
+          <SectionCard title="Submit expense" description="Enters the workflow as Submitted">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <Input label="Expense title" placeholder="e.g. Client dinner" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
+              <Select
+                label="Category"
+                value={form.category}
+                onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                required
+                options={[{ value: '', label: 'Select category' }, ...EXPENSE_CATEGORIES.map((c) => ({ value: c, label: c }))]}
               />
-              {showReport && (
-                <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
-                  {reportError && <p role="alert" className="mb-2 text-xs text-rose-600 dark:text-rose-300">{reportError}</p>}
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-sm font-bold text-neutral-900 dark:text-white">
-                      By category · {formatCurrency(reportTotal)}
-                      <span className="ml-2 font-normal text-neutral-500">{reportRows ? `${reportCount} request${reportCount === 1 ? '' : 's'}` : 'loading…'}</span>
-                    </p>
-                    <Button type="button" size="sm" variant="secondary" onClick={exportExpenseReport} disabled={!categoryReport.length}>
-                      <span className="material-symbols-outlined mr-1 text-[16px]">download</span>CSV
-                    </Button>
-                  </div>
-                  {categoryReport.length === 0 ? <p className="text-xs text-neutral-500">No expenses yet.</p> : (
-                    <ul className="space-y-2">
-                      {categoryReport.map((r) => {
-                        const pct = reportTotal ? (r.total / reportTotal) * 100 : 0;
-                        return (
-                          <li key={r.category} className="text-xs">
-                            <div className="flex justify-between gap-2">
-                              <span className="font-semibold text-neutral-800 dark:text-neutral-100">{r.category} <span className="font-normal text-neutral-500">· {r.count}</span></span>
-                              <span className="tabular-nums">{formatCurrency(r.total)} <span className="text-neutral-400">({pct.toFixed(0)}%)</span></span>
-                            </div>
-                            <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label={`${r.category}: ${formatCurrency(r.approved)} approved, ${formatCurrency(r.pending)} pending`}>
-                              <div className="bg-emerald-500" style={{ width: `${reportTotal ? (r.approved / reportTotal) * 100 : 0}%` }} />
-                              <div className="bg-amber-400" style={{ width: `${reportTotal ? (r.pending / reportTotal) * 100 : 0}%` }} />
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  <p className="mt-2 flex gap-3 text-[11px] text-neutral-500"><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />Approved / paid</span><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />In the workflow</span></p>
+              <Input label="Amount" type="number" min="0" step="0.01" placeholder="0" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} required />
+              <Select
+                label="Department"
+                value={form.departmentId}
+                onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
+                required
+                options={[{ value: '', label: 'Select department' }, ...departmentCatalog.filter((d) => !d.isSystem).map((d) => ({ value: d._id, label: d.name }))]}
+              />
+              <Select
+                label="Cost type"
+                value={form.costType}
+                onChange={(e) => setForm((p) => ({ ...p, costType: e.target.value }))}
+                options={[{ value: 'variable', label: 'Variable — moves with activity' }, { value: 'fixed', label: 'Fixed — recurs regardless of activity' }]}
+                helperText="Decides which side of the budget this is charged to."
+              />
+              <Select
+                label="Project (optional)"
+                value={form.projectId}
+                onChange={(e) => setForm((p) => ({ ...p, projectId: e.target.value }))}
+                options={[{ value: '', label: 'Not project work' }, ...(data.projectCatalog || []).map((p) => ({ value: p._id, label: p.code ? `${p.name} (${p.code})` : p.name }))]}
+                helperText="With a project set, the project's budget is charged instead of the department's."
+              />
+
+              {/* Split allocation: one cost shared across departments or projects. The
+                  server requires the rows to add up to the total exactly, so the running
+                  remainder is shown here and submit is blocked until it reaches zero. */}
+              <div className="rounded-xl border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                    <span className="material-symbols-outlined text-[18px] text-neutral-400">call_split</span>
+                    Split across departments / projects
+                  </p>
+                  <Button
+                    type="button" size="sm" variant="secondary"
+                    onClick={() => setForm((p) => ({
+                      ...p,
+                      allocations: [...p.allocations, { departmentId: p.departmentId || '', projectId: '', amount: '' }],
+                    }))}
+                  >
+                    Add a share
+                  </Button>
                 </div>
-              )}
-              <StatusFilterBar value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }} options={filterOptions} />
-              <DataTable
-                columns={[
-                  {
-                    key: 'requestId',
-                    header: 'Expense',
-                    render: (r) => (
-                      <div>
-                        <p className="font-semibold text-neutral-900 dark:text-white">{r.type || r.requestId}</p>
-                        <p className="text-xs text-neutral-500">{r.category || '—'} · {r.department || 'Unassigned'}</p>
-                        {(r.documents || []).length > 0 ? (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {r.documents.map((d, i) => (
-                              <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 hover:underline dark:bg-blue-900/20 dark:text-blue-300">
-                                <span className="material-symbols-outlined text-[13px]">description</span>{d.label || 'Document'}
-                              </a>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
-                            <span className="material-symbols-outlined text-[13px]">warning</span>No document attached
-                          </p>
-                        )}
+                {form.allocations.length === 0 ? (
+                  <p className="text-xs text-neutral-500">
+                    Leave empty to charge the whole amount to the department and project above.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.allocations.map((row, i) => (
+                      <div key={i} className="grid gap-2 sm:grid-cols-[1fr_1fr_7rem_2.5rem]">
+                        <Select
+                          aria-label={`Share ${i + 1} department`}
+                          value={row.departmentId}
+                          onChange={(e) => setForm((p) => ({
+                            ...p,
+                            allocations: p.allocations.map((r, k) => (k === i ? { ...r, departmentId: e.target.value } : r)),
+                          }))}
+                          options={[{ value: '', label: 'Department…' }, ...(departmentCatalog || []).map((d) => ({ value: d._id, label: d.name }))]}
+                        />
+                        <Select
+                          aria-label={`Share ${i + 1} project`}
+                          value={row.projectId}
+                          onChange={(e) => setForm((p) => ({
+                            ...p,
+                            allocations: p.allocations.map((r, k) => (k === i ? { ...r, projectId: e.target.value } : r)),
+                          }))}
+                          options={[{ value: '', label: 'No project' }, ...(data.projectCatalog || []).map((pr) => ({ value: pr._id, label: pr.name }))]}
+                        />
+                        <Input
+                          type="number" min="0" step="0.01" placeholder="0.00"
+                          aria-label={`Share ${i + 1} amount`}
+                          value={row.amount}
+                          onChange={(e) => setForm((p) => ({
+                            ...p,
+                            allocations: p.allocations.map((r, k) => (k === i ? { ...r, amount: e.target.value } : r)),
+                          }))}
+                        />
+                        <Button
+                          type="button" size="sm" variant="secondary"
+                          aria-label={`Remove share ${i + 1}`}
+                          onClick={() => setForm((p) => ({ ...p, allocations: p.allocations.filter((_, k) => k !== i) }))}
+                        >
+                          ×
+                        </Button>
                       </div>
-                    ),
-                  },
-                  { key: 'amount', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amount} /> },
-                  { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} label={humanizeStatus(r.status)} /> },
-                  {
-                    key: 'actions',
-                    header: 'Next step',
-                    render: (r) => {
-                      const actions = financeExpenseRequestActions(r, isFinanceHead);
-                      if (!actions.length) return null;
+                    ))}
+                    <p className={`text-xs font-semibold ${allocationRemainder === 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                      {allocationRemainder === 0
+                        ? 'Allocated in full.'
+                        : allocationRemainder > 0
+                          ? `${formatCurrency(allocationRemainder / 100)} still to allocate.`
+                          : `${formatCurrency(-allocationRemainder / 100)} over-allocated.`}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className={`rounded-xl border border-dashed p-3 ${receiptRequired && !form.docUrl.trim() ? 'border-amber-400 bg-amber-50/60 dark:border-amber-500 dark:bg-amber-500/10' : 'border-neutral-300 dark:border-neutral-700'}`}>
+                <p className="mb-2 flex items-center gap-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                  <span className="material-symbols-outlined text-[18px] text-neutral-400">attach_file</span>
+                  Receipt / bill{receiptRequired && <span className="text-rose-600 dark:text-rose-300">*</span>}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
+                  <Input placeholder="Label" aria-label="Document label" value={form.docLabel} onChange={(e) => setForm((p) => ({ ...p, docLabel: e.target.value }))} />
+                  <Input placeholder="https://drive… link to the receipt" aria-label="Document link" value={form.docUrl} onChange={(e) => setForm((p) => ({ ...p, docUrl: e.target.value }))} error={docUrlError(form) || undefined} required={receiptRequired} />
+                </div>
+                {receiptRequired && !form.docUrl.trim() ? (
+                  <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    <span className="material-symbols-outlined text-[13px]">warning</span>
+                    Required for claims of {formatCurrency(receiptThreshold)} or more.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-neutral-500">Finance verifies the expense against this document.</p>
+                )}
+              </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Checked against the department's budget on submission.</p>
+              {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
+              <Button type="submit" variant="primary" size="sm" disabled={submitting || (receiptRequired && !form.docUrl.trim()) || allocationsIncomplete} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
+            </form>
+          </SectionCard>
+
+          <SectionCard
+            title="Expense requests"
+            description={`${pagination.total || 0} request${pagination.total === 1 ? '' : 's'}`}
+            action={<Button type="button" size="sm" variant="secondary" onClick={() => (showReport ? setShowReport(false) : openReport())}><span className="material-symbols-outlined mr-1 text-[16px]">summarize</span>{showReport ? 'Hide report' : 'Expense report'}</Button>}
+            bodyClassName="space-y-4"
+          >
+            {showReport && (
+              <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+                {reportError && <p role="alert" className="mb-2 text-xs text-rose-600 dark:text-rose-300">{reportError}</p>}
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-bold text-neutral-900 dark:text-white">
+                    By category · {formatCurrency(reportTotal)}
+                    <span className="ml-2 font-normal text-neutral-500">{reportRows ? `${reportCount} request${reportCount === 1 ? '' : 's'}` : 'loading…'}</span>
+                  </p>
+                  <Button type="button" size="sm" variant="secondary" onClick={exportExpenseReport} disabled={!categoryReport.length}>
+                    <span className="material-symbols-outlined mr-1 text-[16px]">download</span>CSV
+                  </Button>
+                </div>
+                {categoryReport.length === 0 ? <p className="text-xs text-neutral-500">No expenses yet.</p> : (
+                  <ul className="space-y-2">
+                    {categoryReport.map((r) => {
+                      const pct = reportTotal ? (r.total / reportTotal) * 100 : 0;
                       return (
-                        <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
-                          {actions.map((action) => (
-                            <button
-                              key={action.id}
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setActingRequest({ row: r, action, comment: '' }); }}
-                              className={`text-xs font-semibold hover:underline ${action.variant === 'danger' ? 'text-rose-600 dark:text-rose-300' : 'text-primary'}`}
-                            >
-                              {action.label}
-                            </button>
+                        <li key={r.category} className="text-xs">
+                          <div className="flex justify-between gap-2">
+                            <span className="font-semibold text-neutral-800 dark:text-neutral-100">{r.category} <span className="font-normal text-neutral-500">· {r.count}</span></span>
+                            <span className="tabular-nums">{formatCurrency(r.total)} <span className="text-neutral-400">({pct.toFixed(0)}%)</span></span>
+                          </div>
+                          <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label={`${r.category}: ${formatCurrency(r.approved)} approved, ${formatCurrency(r.pending)} pending`}>
+                            <div className="bg-emerald-500" style={{ width: `${reportTotal ? (r.approved / reportTotal) * 100 : 0}%` }} />
+                            <div className="bg-amber-400" style={{ width: `${reportTotal ? (r.pending / reportTotal) * 100 : 0}%` }} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <p className="mt-2 flex gap-3 text-[11px] text-neutral-500"><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />Approved / paid</span><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />In the workflow</span></p>
+              </div>
+            )}
+            <StatusFilterBar value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }} options={filterOptions} />
+            <DataTable
+              columns={[
+                {
+                  key: 'requestId',
+                  header: 'Expense',
+                  render: (r) => (
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">{r.type || r.requestId}</p>
+                      <p className="text-xs text-neutral-500">{r.category || '—'} · {r.department || 'Unassigned'}</p>
+                      {(r.documents || []).length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {r.documents.map((d, i) => (
+                            <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 hover:underline dark:bg-blue-900/20 dark:text-blue-300">
+                              <span className="material-symbols-outlined text-[13px]">description</span>{d.label || 'Document'}
+                            </a>
                           ))}
                         </div>
-                      );
-                    },
+                      ) : (
+                        <p className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                          <span className="material-symbols-outlined text-[13px]">warning</span>No document attached
+                        </p>
+                      )}
+                    </div>
+                  ),
+                },
+                { key: 'amount', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.amount} /> },
+                { key: 'status', header: 'Status', render: (r) => <Pill value={r.status} label={humanizeStatus(r.status)} /> },
+                {
+                  key: 'actions',
+                  header: 'Next step',
+                  render: (r) => {
+                    const actions = financeExpenseRequestActions(r, isFinanceHead);
+                    if (!actions.length) return null;
+                    return (
+                      <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+                        {actions.map((action) => (
+                          <button
+                            key={action.id}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setActingRequest({ row: r, action, comment: '' }); }}
+                            className={`text-xs font-semibold hover:underline ${action.variant === 'danger' ? 'text-rose-600 dark:text-rose-300' : 'text-primary'}`}
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </div>
+                    );
                   },
-                ]}
-                rows={visibleExpenses}
-                rowKey="id"
-                loading={loading}
-                emptyTitle={statusFilter ? `No ${humanizeStatus(statusFilter).toLowerCase()} expenses` : 'No expenses yet'}
-              />
-              <Pager pagination={pagination} onPage={setPage} disabled={loading} />
-            </div>
-          </section>
+                },
+              ]}
+              rows={visibleExpenses}
+              rowKey="id"
+              loading={loading}
+              emptyTitle={statusFilter ? `No ${humanizeStatus(statusFilter).toLowerCase()} expenses` : 'No expenses yet'}
+            />
+            <Pager pagination={pagination} onPage={setPage} disabled={loading} />
+          </SectionCard>
         </div>
       </div>
 
@@ -3219,261 +3278,258 @@ export const FinanceBudgetsPage = () => {
 
         <div className={`grid grid-cols-1 gap-6 ${isHead ? 'lg:grid-cols-[1fr,1.7fr]' : ''}`}>
           {!isHead ? null : (
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr title={isProjectScope ? 'Allocate project budget' : 'Allocate department budget'} subtitle={isProjectScope ? 'One budget per project per year' : 'One budget per department per year'} />
-              <form onSubmit={saveBudget} className="space-y-3">
-                {isProjectScope && (
-                  <Select
-                    label="Project"
-                    value={budgetForm.projectId}
-                    onChange={(e) => setBudgetForm((p) => ({ ...p, projectId: e.target.value }))}
-                    required
-                    options={projectOptions}
-                  />
-                )}
+          <SectionCard
+            title={isProjectScope ? 'Allocate project budget' : 'Allocate department budget'}
+            description={isProjectScope ? 'One budget per project per year' : 'One budget per department per year'}
+          >
+            <form onSubmit={saveBudget} className="space-y-3">
+              {isProjectScope && (
                 <Select
-                  label={isProjectScope ? 'Owning department' : 'Department'}
-                  value={budgetForm.departmentId}
-                  onChange={(e) => setBudgetForm((p) => ({ ...p, departmentId: e.target.value }))}
+                  label="Project"
+                  value={budgetForm.projectId}
+                  onChange={(e) => setBudgetForm((p) => ({ ...p, projectId: e.target.value }))}
                   required
-                  options={departmentOptions}
-                  helperText={isProjectScope ? 'The department accountable for delivering this project.' : undefined}
+                  options={projectOptions}
                 />
-                <Input label="Fiscal year" placeholder="e.g. 2026" value={budgetForm.fiscalYear} onChange={(e) => setBudgetForm((p) => ({ ...p, fiscalYear: e.target.value }))} required />
-                {duplicateBudget && (
-                  <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-                    <span>{duplicateBudget.projectId?.name || duplicateBudget.department} already has a {duplicateBudget.fiscalYear} budget ({formatCurrency(duplicateBudget.allocated)}).</span>
-                    <button type="button" className="shrink-0 font-semibold underline" onClick={() => setAdjusting({ budget: duplicateBudget, allocated: duplicateBudget.allocated, reason: '', costType: 'variable' })}>Adjust it</button>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    label="Fixed allocation"
-                    type="number"
-                    min="0"
-                    value={budgetForm.allocatedFixed}
-                    onChange={(e) => setBudgetForm((p) => ({ ...p, allocatedFixed: e.target.value }))}
-                    helperText="Rent, salaries, licences"
-                  />
-                  <Input
-                    label="Variable allocation"
-                    type="number"
-                    min="0"
-                    value={budgetForm.allocatedVariable}
-                    onChange={(e) => setBudgetForm((p) => ({ ...p, allocatedVariable: e.target.value }))}
-                    helperText="Materials, travel, per-unit work"
-                  />
+              )}
+              <Select
+                label={isProjectScope ? 'Owning department' : 'Department'}
+                value={budgetForm.departmentId}
+                onChange={(e) => setBudgetForm((p) => ({ ...p, departmentId: e.target.value }))}
+                required
+                options={departmentOptions}
+                helperText={isProjectScope ? 'The department accountable for delivering this project.' : undefined}
+              />
+              <Input label="Fiscal year" placeholder="e.g. 2026" value={budgetForm.fiscalYear} onChange={(e) => setBudgetForm((p) => ({ ...p, fiscalYear: e.target.value }))} required />
+              {duplicateBudget && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                  <span>{duplicateBudget.projectId?.name || duplicateBudget.department} already has a {duplicateBudget.fiscalYear} budget ({formatCurrency(duplicateBudget.allocated)}).</span>
+                  <button type="button" className="shrink-0 font-semibold underline" onClick={() => setAdjusting({ budget: duplicateBudget, allocated: duplicateBudget.allocated, reason: '', costType: 'variable' })}>Adjust it</button>
                 </div>
-                <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2 text-sm dark:bg-neutral-800/60">
-                  <span className="font-semibold text-neutral-600 dark:text-neutral-300">Total allocation</span>
-                  <span className="font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(plannedTotal)}</span>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  label="Fixed allocation"
+                  type="number"
+                  min="0"
+                  value={budgetForm.allocatedFixed}
+                  onChange={(e) => setBudgetForm((p) => ({ ...p, allocatedFixed: e.target.value }))}
+                  helperText="Rent, salaries, licences"
+                />
+                <Input
+                  label="Variable allocation"
+                  type="number"
+                  min="0"
+                  value={budgetForm.allocatedVariable}
+                  onChange={(e) => setBudgetForm((p) => ({ ...p, allocatedVariable: e.target.value }))}
+                  helperText="Materials, travel, per-unit work"
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2 text-sm dark:bg-neutral-800/60">
+                <span className="font-semibold text-neutral-600 dark:text-neutral-300">Total allocation</span>
+                <span className="font-black text-neutral-900 dark:text-neutral-100">{formatCurrency(plannedTotal)}</span>
+              </div>
+              <Select
+                label="Phase across the year"
+                value={budgetForm.phasingMethod}
+                onChange={(e) => setBudgetForm((p) => ({ ...p, phasingMethod: e.target.value }))}
+                options={[{ value: 'even', label: 'Even — spread equally over 12 months' }, { value: 'none', label: 'No phasing — annual total only' }]}
+                helperText="Phasing is what lets spend be judged against the plan to date, not just the annual total."
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Select
+                  label="Overspend control"
+                  value={budgetForm.control}
+                  onChange={(e) => setBudgetForm((p) => ({ ...p, control: e.target.value }))}
+                  options={[{ value: 'hard', label: 'Hard — block it' }, { value: 'soft', label: 'Soft — allow, flag it' }]}
+                />
+                <Input
+                  label="Tolerance %"
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                  value={budgetForm.tolerancePct}
+                  onChange={(e) => setBudgetForm((p) => ({ ...p, tolerancePct: e.target.value }))}
+                  helperText="Overrun allowed first"
+                />
+              </div>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</span>
+                <textarea className={input} placeholder="Optional notes" rows={2} value={budgetForm.notes} onChange={(e) => setBudgetForm((p) => ({ ...p, notes: e.target.value }))} />
+              </label>
+              {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
+              <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(duplicateBudget)} fullWidth>{submitting ? 'Saving…' : 'Allocate budget'}</Button>
+            </form>
+
+            <div className="mt-6 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+              <SectionHdr title="Add cost center" subtitle="Sub-divide a department's spend" />
+              <form onSubmit={saveCostCenter} className="space-y-2">
+                <Input label="Cost center name" placeholder="e.g. Regional Ops" value={costCenterForm.name} onChange={(e) => setCostCenterForm((p) => ({ ...p, name: e.target.value }))} required />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Code" placeholder="e.g. RO-01" value={costCenterForm.code} onChange={(e) => setCostCenterForm((p) => ({ ...p, code: e.target.value }))} />
+                  <Input label="Budget" type="number" min="0" value={costCenterForm.budget} onChange={(e) => setCostCenterForm((p) => ({ ...p, budget: e.target.value }))} />
                 </div>
                 <Select
-                  label="Phase across the year"
-                  value={budgetForm.phasingMethod}
-                  onChange={(e) => setBudgetForm((p) => ({ ...p, phasingMethod: e.target.value }))}
-                  options={[{ value: 'even', label: 'Even — spread equally over 12 months' }, { value: 'none', label: 'No phasing — annual total only' }]}
-                  helperText="Phasing is what lets spend be judged against the plan to date, not just the annual total."
+                  label="Department"
+                  value={costCenterForm.departmentId}
+                  onChange={(e) => setCostCenterForm((p) => ({ ...p, departmentId: e.target.value }))}
+                  options={departmentOptions}
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <Select
-                    label="Overspend control"
-                    value={budgetForm.control}
-                    onChange={(e) => setBudgetForm((p) => ({ ...p, control: e.target.value }))}
-                    options={[{ value: 'hard', label: 'Hard — block it' }, { value: 'soft', label: 'Soft — allow, flag it' }]}
-                  />
-                  <Input
-                    label="Tolerance %"
-                    type="number"
-                    min="0"
-                    max="50"
-                    step="0.5"
-                    value={budgetForm.tolerancePct}
-                    onChange={(e) => setBudgetForm((p) => ({ ...p, tolerancePct: e.target.value }))}
-                    helperText="Overrun allowed first"
-                  />
-                </div>
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</span>
-                  <textarea className={input} placeholder="Optional notes" rows={2} value={budgetForm.notes} onChange={(e) => setBudgetForm((p) => ({ ...p, notes: e.target.value }))} />
-                </label>
-                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(duplicateBudget)} fullWidth>{submitting ? 'Saving…' : 'Allocate budget'}</Button>
+                <Button type="submit" variant="outline" size="sm" disabled={submitting} fullWidth>Add cost center</Button>
               </form>
-
-              <div className="mt-6 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-                <SectionHdr title="Add cost center" subtitle="Sub-divide a department's spend" />
-                <form onSubmit={saveCostCenter} className="space-y-2">
-                  <Input label="Cost center name" placeholder="e.g. Regional Ops" value={costCenterForm.name} onChange={(e) => setCostCenterForm((p) => ({ ...p, name: e.target.value }))} required />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input label="Code" placeholder="e.g. RO-01" value={costCenterForm.code} onChange={(e) => setCostCenterForm((p) => ({ ...p, code: e.target.value }))} />
-                    <Input label="Budget" type="number" min="0" value={costCenterForm.budget} onChange={(e) => setCostCenterForm((p) => ({ ...p, budget: e.target.value }))} />
-                  </div>
-                  <Select
-                    label="Department"
-                    value={costCenterForm.departmentId}
-                    onChange={(e) => setCostCenterForm((p) => ({ ...p, departmentId: e.target.value }))}
-                    options={departmentOptions}
-                  />
-                  <Button type="submit" variant="outline" size="sm" disabled={submitting} fullWidth>Add cost center</Button>
-                </form>
-              </div>
             </div>
-          </section>
+          </SectionCard>
           )}
 
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr
-                title="Budget utilization"
-                subtitle="Highest usage first"
-                action={(
+          <SectionCard
+            title="Budget utilization"
+            description="Highest usage first"
+            action={(
                   <div className="flex items-center gap-3 text-[11px] text-neutral-500 dark:text-neutral-400">
                     <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />Spent</span>
                     <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />Reserved</span>
                   </div>
                 )}
-              />
-              {loading ? <SkeletonBlock /> : (
-                <div className="space-y-3">
-                  {rankedBudgets.map((budget) => {
-                    const allocated = Number(budget.allocated || 0);
-                    const spent = Number(budget.spent || 0);
-                    const reserved = Number(budget.reserved || 0);
-                    const available = allocated - spent - reserved;
-                    const pct = (v) => (allocated > 0 ? Math.min((v / allocated) * 100, 100) : 0);
-                    const spentPct = pct(spent);
-                    const reservedPct = Math.min(pct(reserved), 100 - spentPct);
-                    const sides = costSides(budget);
-                    return (
-                      <div key={budget._id} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-neutral-800 dark:text-neutral-100">{budget.projectId?.name || budget.department}</p>
-                            <p className="text-xs text-neutral-500">{budget.projectId?.name ? `${budget.department} · ` : ''}FY {budget.fiscalYear} · {budgetUsedPct(budget).toFixed(0)}% used</p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Pill value={budget.status} label={humanizeStatus(budget.status)} />
-                            {isHead && <button type="button" onClick={() => setAdjusting({ budget, allocated: budget.allocated, reason: '', costType: 'variable' })} className="text-xs font-semibold text-primary hover:underline">Adjust</button>}
-                          </div>
+          >
+            {loading ? <SkeletonBlock variant="list" rows={4} /> : (
+              <div className="space-y-3">
+                {rankedBudgets.map((budget) => {
+                  const allocated = Number(budget.allocated || 0);
+                  const spent = Number(budget.spent || 0);
+                  const reserved = Number(budget.reserved || 0);
+                  const available = allocated - spent - reserved;
+                  const pct = (v) => (allocated > 0 ? Math.min((v / allocated) * 100, 100) : 0);
+                  const spentPct = pct(spent);
+                  const reservedPct = Math.min(pct(reserved), 100 - spentPct);
+                  const sides = costSides(budget);
+                  return (
+                    <div key={budget._id} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-neutral-800 dark:text-neutral-100">{budget.projectId?.name || budget.department}</p>
+                          <p className="text-xs text-neutral-500">{budget.projectId?.name ? `${budget.department} · ` : ''}FY {budget.fiscalYear} · {budgetUsedPct(budget).toFixed(0)}% used</p>
                         </div>
-                        <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label={`${spentPct.toFixed(0)}% spent, ${reservedPct.toFixed(0)}% reserved`}>
-                          <div className={budget.status === 'over' ? 'bg-rose-500' : 'bg-emerald-500'} style={{ width: `${spentPct}%` }} />
-                          <div className="bg-amber-400" style={{ width: `${reservedPct}%` }} />
+                        <div className="flex items-center gap-3">
+                          <Pill value={budget.status} label={humanizeStatus(budget.status)} />
+                          {isHead && <button type="button" onClick={() => setAdjusting({ budget, allocated: budget.allocated, reason: '', costType: 'variable' })} className="text-xs font-semibold text-primary hover:underline">Adjust</button>}
                         </div>
-                        <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
-                          {[['Allocated', allocated], ['Spent', spent], ['Reserved', reserved], ['Available', available]].map(([label, value]) => (
-                            <div key={label}>
-                              <p className="text-neutral-500 dark:text-neutral-400">{label}</p>
-                              <p className={`font-semibold ${label === 'Available' && value < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-800 dark:text-neutral-100'}`}>{formatCurrency(value)}</p>
-                            </div>
-                          ))}
-                        </div>
-                        {/* Fixed vs variable: a budget can look healthy overall while one side
-                            of it has already overrun, so each side carries its own variance. */}
-                        <div className="mt-3 grid grid-cols-1 gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-800 sm:grid-cols-2">
-                          {[['Fixed', sides.fixed], ['Variable', sides.variable]].map(([label, side]) => {
-                            const planned = Number(side.allocated || 0);
-                            const committedSide = Number(side.committed || 0);
-                            const varianceAmt = Number(side.variance || 0);
-                            const usedPct = planned > 0 ? Math.min((committedSide / planned) * 100, 100) : 0;
-                            return (
-                              <div key={label} className="rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800/50">
-                                <div className="flex items-baseline justify-between gap-2">
-                                  <span className="text-xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{label}</span>
-                                  <span className={`text-xs font-semibold ${varianceAmt < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
-                                    {varianceAmt < 0 ? 'over by ' : 'left '}{formatCurrency(Math.abs(varianceAmt))}
-                                  </span>
-                                </div>
-                                <p className="mt-0.5 text-xs text-neutral-600 dark:text-neutral-300">{formatCurrency(committedSide)} of {formatCurrency(planned)}</p>
-                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                                  <div className={varianceAmt < 0 ? 'h-full bg-rose-500' : label === 'Fixed' ? 'h-full bg-indigo-500' : 'h-full bg-sky-500'} style={{ width: `${usedPct}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <BudgetPacing budget={budget} isHead={isHead} onBaseline={() => setBaselining({ budget, reason: '', rebaseline: Boolean(budget.baselineView) })} />
                       </div>
-                    );
-                  })}
-                  {budgets.length === 0 && <EmptyState icon="account_balance_wallet" title={isProjectScope ? 'No project budgets yet' : 'No department budgets yet'} description={isProjectScope ? 'Allocate a project budget so costs booked to that project are checked against it.' : 'Allocate a budget so department expenses can be approved against it.'} />}
-                </div>
-              )}
-
-              {variance?.rows?.length > 0 && (
-                <div className="mt-6">
-                  <SectionHdr title={`Budget vs actual — ${isProjectScope ? 'project' : 'department'} wise`} subtitle="Pace and forecast; fastest-burning first" />
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[820px] text-left text-xs">
-                      <thead className="text-neutral-500 dark:text-neutral-400">
-                        <tr className="border-b border-neutral-200 dark:border-neutral-700">
-                          <th scope="col" className="py-2 pr-3 font-bold">{isProjectScope ? 'Project' : 'Department'}</th>
-                          <th scope="col" className="py-2 pr-3 text-right font-bold">Allocated</th>
-                          <th scope="col" className="py-2 pr-3 text-right font-bold">Fixed variance</th>
-                          <th scope="col" className="py-2 pr-3 text-right font-bold">Variable variance</th>
-                          <th scope="col" className="py-2 pr-3 text-right font-bold">Pace</th>
-                          <th scope="col" className="py-2 pr-3 text-right font-bold">Forecast</th>
-                          <th scope="col" className="py-2 text-right font-bold">Used</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {variance.rows.map((row) => (
-                          <tr key={row.key} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
-                            <td className="py-2 pr-3 font-semibold text-neutral-800 dark:text-neutral-100">{row.label}</td>
-                            <td className="py-2 pr-3 text-right text-neutral-700 dark:text-neutral-200">{formatCurrency(row.allocated)}</td>
-                            {[row.fixed.variance, row.variable.variance].map((v, i) => (
-                              <td key={i} className={`py-2 pr-3 text-right font-semibold ${v < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
-                                {v < 0 ? '−' : ''}{formatCurrency(Math.abs(v))}
-                              </td>
-                            ))}
-                            <td className={`py-2 pr-3 text-right font-semibold ${row.pace > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{row.pace === null ? '—' : `${row.pace.toFixed(0)}%`}</td>
-                            <td className={`py-2 pr-3 text-right font-semibold ${row.forecastVariance < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
-                              {row.forecastVariance < 0 ? '−' : ''}{formatCurrency(Math.abs(row.forecastVariance))}
-                            </td>
-                            <td className={`py-2 text-right font-semibold ${row.utilization > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{row.utilization.toFixed(0)}%</td>
-                          </tr>
+                      <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label={`${spentPct.toFixed(0)}% spent, ${reservedPct.toFixed(0)}% reserved`}>
+                        <div className={budget.status === 'over' ? 'bg-rose-500' : 'bg-emerald-500'} style={{ width: `${spentPct}%` }} />
+                        <div className="bg-amber-400" style={{ width: `${reservedPct}%` }} />
+                      </div>
+                      <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
+                        {[['Allocated', allocated], ['Spent', spent], ['Reserved', reserved], ['Available', available]].map(([label, value]) => (
+                          <div key={label}>
+                            <p className="text-neutral-500 dark:text-neutral-400">{label}</p>
+                            <p className={`font-semibold ${label === 'Available' && value < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-800 dark:text-neutral-100'}`}>{formatCurrency(value)}</p>
+                          </div>
                         ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-neutral-200 font-bold dark:border-neutral-700">
-                          <td className="py-2 pr-3 text-neutral-800 dark:text-neutral-100">Total</td>
-                          <td className="py-2 pr-3 text-right text-neutral-800 dark:text-neutral-100">{formatCurrency(variance.totals.allocated)}</td>
-                          {[variance.totals.fixed.variance, variance.totals.variable.variance].map((v, i) => (
-                            <td key={i} className={`py-2 pr-3 text-right ${v < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                      </div>
+                      {/* Fixed vs variable: a budget can look healthy overall while one side
+                          of it has already overrun, so each side carries its own variance. */}
+                      <div className="mt-3 grid grid-cols-1 gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-800 sm:grid-cols-2">
+                        {[['Fixed', sides.fixed], ['Variable', sides.variable]].map(([label, side]) => {
+                          const planned = Number(side.allocated || 0);
+                          const committedSide = Number(side.committed || 0);
+                          const varianceAmt = Number(side.variance || 0);
+                          const usedPct = planned > 0 ? Math.min((committedSide / planned) * 100, 100) : 0;
+                          return (
+                            <div key={label} className="rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800/50">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <span className="text-xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{label}</span>
+                                <span className={`text-xs font-semibold ${varianceAmt < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                                  {varianceAmt < 0 ? 'over by ' : 'left '}{formatCurrency(Math.abs(varianceAmt))}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-xs text-neutral-600 dark:text-neutral-300">{formatCurrency(committedSide)} of {formatCurrency(planned)}</p>
+                              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                                <div className={varianceAmt < 0 ? 'h-full bg-rose-500' : label === 'Fixed' ? 'h-full bg-indigo-500' : 'h-full bg-sky-500'} style={{ width: `${usedPct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <BudgetPacing budget={budget} isHead={isHead} onBaseline={() => setBaselining({ budget, reason: '', rebaseline: Boolean(budget.baselineView) })} />
+                    </div>
+                  );
+                })}
+                {budgets.length === 0 && <EmptyState icon="account_balance_wallet" title={isProjectScope ? 'No project budgets yet' : 'No department budgets yet'} description={isProjectScope ? 'Allocate a project budget so costs booked to that project are checked against it.' : 'Allocate a budget so department expenses can be approved against it.'} />}
+              </div>
+            )}
+
+            {variance?.rows?.length > 0 && (
+              <div className="mt-6">
+                <SectionHdr title={`Budget vs actual — ${isProjectScope ? 'project' : 'department'} wise`} subtitle="Pace and forecast; fastest-burning first" />
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[820px] text-left text-xs">
+                    <thead className="text-neutral-500 dark:text-neutral-400">
+                      <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                        <th scope="col" className="py-2 pr-3 font-bold">{isProjectScope ? 'Project' : 'Department'}</th>
+                        <th scope="col" className="py-2 pr-3 text-right font-bold">Allocated</th>
+                        <th scope="col" className="py-2 pr-3 text-right font-bold">Fixed variance</th>
+                        <th scope="col" className="py-2 pr-3 text-right font-bold">Variable variance</th>
+                        <th scope="col" className="py-2 pr-3 text-right font-bold">Pace</th>
+                        <th scope="col" className="py-2 pr-3 text-right font-bold">Forecast</th>
+                        <th scope="col" className="py-2 text-right font-bold">Used</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variance.rows.map((row) => (
+                        <tr key={row.key} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
+                          <td className="py-2 pr-3 font-semibold text-neutral-800 dark:text-neutral-100">{row.label}</td>
+                          <td className="py-2 pr-3 text-right text-neutral-700 dark:text-neutral-200">{formatCurrency(row.allocated)}</td>
+                          {[row.fixed.variance, row.variable.variance].map((v, i) => (
+                            <td key={i} className={`py-2 pr-3 text-right font-semibold ${v < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
                               {v < 0 ? '−' : ''}{formatCurrency(Math.abs(v))}
                             </td>
                           ))}
-                          <td className={`py-2 pr-3 text-right ${variance.totals.pace > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-800 dark:text-neutral-100'}`}>{variance.totals.pace === null ? '—' : `${variance.totals.pace.toFixed(0)}%`}</td>
-                          <td className={`py-2 pr-3 text-right ${variance.totals.forecastVariance < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
-                            {variance.totals.forecastVariance < 0 ? '−' : ''}{formatCurrency(Math.abs(variance.totals.forecastVariance))}
+                          <td className={`py-2 pr-3 text-right font-semibold ${row.pace > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{row.pace === null ? '—' : `${row.pace.toFixed(0)}%`}</td>
+                          <td className={`py-2 pr-3 text-right font-semibold ${row.forecastVariance < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                            {row.forecastVariance < 0 ? '−' : ''}{formatCurrency(Math.abs(row.forecastVariance))}
                           </td>
-                          <td className="py-2 text-right text-neutral-800 dark:text-neutral-100">{variance.totals.utilization.toFixed(0)}%</td>
+                          <td className={`py-2 text-right font-semibold ${row.utilization > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{row.utilization.toFixed(0)}%</td>
                         </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6">
-                <SectionHdr title="Cost Centers" />
-                <div className="space-y-2">
-                  {costCenters.map((center) => (
-                    <div key={center._id} className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700">
-                      <div>
-                        <p className="font-semibold text-neutral-800 dark:text-neutral-100">{center.name}</p>
-                        <p className="text-xs text-neutral-500">{center.code}</p>
-                      </div>
-                      <p className="text-xs text-neutral-500">{formatCurrency(center.spent)} / {formatCurrency(center.budget)}</p>
-                    </div>
-                  ))}
-                  {costCenters.length === 0 && <p className="text-xs text-neutral-500 dark:text-neutral-400">No cost centers yet.</p>}
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-neutral-200 font-bold dark:border-neutral-700">
+                        <td className="py-2 pr-3 text-neutral-800 dark:text-neutral-100">Total</td>
+                        <td className="py-2 pr-3 text-right text-neutral-800 dark:text-neutral-100">{formatCurrency(variance.totals.allocated)}</td>
+                        {[variance.totals.fixed.variance, variance.totals.variable.variance].map((v, i) => (
+                          <td key={i} className={`py-2 pr-3 text-right ${v < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                            {v < 0 ? '−' : ''}{formatCurrency(Math.abs(v))}
+                          </td>
+                        ))}
+                        <td className={`py-2 pr-3 text-right ${variance.totals.pace > 100 ? 'text-rose-600 dark:text-rose-300' : 'text-neutral-800 dark:text-neutral-100'}`}>{variance.totals.pace === null ? '—' : `${variance.totals.pace.toFixed(0)}%`}</td>
+                        <td className={`py-2 pr-3 text-right ${variance.totals.forecastVariance < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                          {variance.totals.forecastVariance < 0 ? '−' : ''}{formatCurrency(Math.abs(variance.totals.forecastVariance))}
+                        </td>
+                        <td className="py-2 text-right text-neutral-800 dark:text-neutral-100">{variance.totals.utilization.toFixed(0)}%</td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               </div>
+            )}
+
+            <div className="mt-6">
+              <SectionHdr title="Cost Centers" />
+              <div className="space-y-2">
+                {costCenters.map((center) => (
+                  <div key={center._id} className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700">
+                    <div>
+                      <p className="font-semibold text-neutral-800 dark:text-neutral-100">{center.name}</p>
+                      <p className="text-xs text-neutral-500">{center.code}</p>
+                    </div>
+                    <p className="text-xs text-neutral-500">{formatCurrency(center.spent)} / {formatCurrency(center.budget)}</p>
+                  </div>
+                ))}
+                {costCenters.length === 0 && <p className="text-xs text-neutral-500 dark:text-neutral-400">No cost centers yet.</p>}
+              </div>
             </div>
-          </section>
+          </SectionCard>
         </div>
       </div>
 
@@ -3571,6 +3627,54 @@ const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'revenue', 'expense'];
 // Standard double-entry convention; the form pre-fills it from the type.
 const NORMAL_BALANCE = { asset: 'debit', expense: 'debit', liability: 'credit', equity: 'credit', revenue: 'credit' };
 
+// ─── Multi-line journal editor ────────────────────────────────────────────────
+// The JournalEntry model holds an arbitrary number of lines, and the server validates
+// them in integer paise (>= 2 lines, exactly one side per line, debits == credits).
+// These helpers mirror those rules so the form can only submit what the server accepts;
+// the server remains the source of truth and revalidates everything.
+
+const blankJournalLine = () => ({ account: '', description: '', debit: '', credit: '' });
+
+// Integer paise, so 0.1 + 0.2 can never leave a balanced entry looking unbalanced.
+const toMinor = (value) => {
+  const text = String(value ?? '').trim();
+  if (!text) return 0;
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(text);
+  if (!match) return NaN;
+  return Number(match[1]) * 100 + Number((match[2] || '').padEnd(2, '0'));
+};
+
+function journalLineTotals(lines) {
+  let debit = 0;
+  let credit = 0;
+  for (const line of lines || []) {
+    const d = toMinor(line.debit);
+    const c = toMinor(line.credit);
+    if (Number.isFinite(d)) debit += d;
+    if (Number.isFinite(c)) credit += c;
+  }
+  return { debit, credit, difference: debit - credit, balanced: debit === credit && debit > 0 };
+}
+
+// Returns the first blocking problem, matching the server's own order of checks.
+function journalValidationError(lines, totals) {
+  const filled = (lines || []).filter((l) => l.account || toMinor(l.debit) > 0 || toMinor(l.credit) > 0);
+  if (filled.some((l) => !Number.isFinite(toMinor(l.debit)) || !Number.isFinite(toMinor(l.credit)))) {
+    return 'Amounts must be non-negative with at most two decimal places.';
+  }
+  if (filled.length < 2) return 'A journal entry needs at least two lines.';
+  if (filled.some((l) => !l.account)) return 'Every line needs an account.';
+  if (filled.some((l) => toMinor(l.debit) > 0 && toMinor(l.credit) > 0)) {
+    return 'A line can hold either a debit or a credit, not both.';
+  }
+  if (filled.some((l) => toMinor(l.debit) === 0 && toMinor(l.credit) === 0)) {
+    return 'Every line needs a debit or a credit amount.';
+  }
+  if (totals.debit === 0) return 'Enter the amounts for this entry.';
+  if (!totals.balanced) return `Debits and credits must match — off by ${formatCurrency(Math.abs(totals.difference) / 100)}.`;
+  return '';
+}
+
 export const FinanceAccountingPage = () => {
   const { token, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -3592,7 +3696,7 @@ export const FinanceAccountingPage = () => {
   const visibleJournals = useMemo(() => (journalFilter ? journalEntries.filter((j) => j.status === journalFilter) : journalEntries), [journalEntries, journalFilter]);
 
   const emptyAccountForm = { code: '', name: '', type: 'asset', normalBalance: NORMAL_BALANCE.asset };
-  const emptyJournalForm = { memo: '', entryDate: todayIso(), debitAccount: '', creditAccount: '', amount: '' };
+  const emptyJournalForm = { memo: '', entryDate: todayIso(), lines: [blankJournalLine(), blankJournalLine()] };
   const [accountForm, setAccountForm] = useState(emptyAccountForm);
   const [journalForm, setJournalForm] = useState(emptyJournalForm);
   const [submitting, setSubmitting] = useState(false);
@@ -3600,10 +3704,8 @@ export const FinanceAccountingPage = () => {
   const [notice, setNotice] = useState('');
 
   const duplicateCode = accountForm.code.trim() && accounts.some((a) => String(a.code).toLowerCase() === accountForm.code.trim().toLowerCase());
-  const journalAmount = Number(journalForm.amount) || 0;
-  const journalError = journalForm.debitAccount && journalForm.debitAccount === journalForm.creditAccount
-    ? 'Debit and credit must be different accounts.'
-    : journalForm.amount !== '' && journalAmount <= 0 ? 'Amount must be greater than zero.' : '';
+  const journalTotals = useMemo(() => journalLineTotals(journalForm.lines), [journalForm.lines]);
+  const journalError = journalValidationError(journalForm.lines, journalTotals);
 
   const saveAccount = async (e) => {
     e.preventDefault();
@@ -3624,15 +3726,28 @@ export const FinanceAccountingPage = () => {
 
   const saveJournalEntry = async (e) => {
     e.preventDefault();
-    if (journalError || journalAmount <= 0) {
-      setFormError(journalError || 'Amount must be greater than zero.');
+    if (journalError) {
+      setFormError(journalError);
       return;
     }
     setSubmitting(true);
     setFormError('');
     try {
+      // Only the side the user filled is sent: the server rejects a line carrying both
+      // a debit and a credit, so an empty field must go as 0 rather than ''.
       await financeApi.createJournalEntry(
-        { memo: journalForm.memo, entryDate: journalForm.entryDate || undefined, lines: [{ account: journalForm.debitAccount, debit: journalAmount, credit: 0 }, { account: journalForm.creditAccount, debit: 0, credit: journalAmount }] },
+        {
+          memo: journalForm.memo,
+          entryDate: journalForm.entryDate || undefined,
+          lines: journalForm.lines
+            .filter((l) => l.account && (toMinor(l.debit) > 0 || toMinor(l.credit) > 0))
+            .map((l) => ({
+              account: l.account,
+              description: l.description || '',
+              debit: toMinor(l.debit) > 0 ? Number(l.debit) : 0,
+              credit: toMinor(l.credit) > 0 ? Number(l.credit) : 0,
+            })),
+        },
         token
       );
       setJournalForm(emptyJournalForm);
@@ -3682,186 +3797,241 @@ export const FinanceAccountingPage = () => {
 
         {tab === 'accounts' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="New account" subtitle="Normal balance follows the account type" />
-                {!isHead ? (
-                  <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
-                    <span className="material-symbols-outlined mr-1 align-middle text-[18px] text-neutral-400">lock</span>
-                    The chart of accounts is managed by the finance head. Ask them to add an account you need.
-                  </p>
-                ) : (
-                <form onSubmit={saveAccount} className="space-y-3">
-                  <Input
-                    label="Account code"
-                    placeholder="e.g. 1000"
-                    value={accountForm.code}
-                    onChange={(e) => setAccountForm((p) => ({ ...p, code: e.target.value }))}
-                    error={duplicateCode ? 'This code is already in use.' : undefined}
-                    required
+            <SectionCard title="New account" description="Normal balance follows the account type">
+              {!isHead ? (
+                <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
+                  <span className="material-symbols-outlined mr-1 align-middle text-[18px] text-neutral-400">lock</span>
+                  The chart of accounts is managed by the finance head. Ask them to add an account you need.
+                </p>
+              ) : (
+              <form onSubmit={saveAccount} className="space-y-3">
+                <Input
+                  label="Account code"
+                  placeholder="e.g. 1000"
+                  value={accountForm.code}
+                  onChange={(e) => setAccountForm((p) => ({ ...p, code: e.target.value }))}
+                  error={duplicateCode ? 'This code is already in use.' : undefined}
+                  required
+                />
+                <Input label="Account name" placeholder="e.g. Cash in Bank" value={accountForm.name} onChange={(e) => setAccountForm((p) => ({ ...p, name: e.target.value }))} required />
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    label="Type"
+                    value={accountForm.type}
+                    onChange={(e) => setAccountForm((p) => ({ ...p, type: e.target.value, normalBalance: NORMAL_BALANCE[e.target.value] }))}
+                    options={ACCOUNT_TYPES.map((t) => ({ value: t, label: humanizeStatus(t) }))}
                   />
-                  <Input label="Account name" placeholder="e.g. Cash in Bank" value={accountForm.name} onChange={(e) => setAccountForm((p) => ({ ...p, name: e.target.value }))} required />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select
-                      label="Type"
-                      value={accountForm.type}
-                      onChange={(e) => setAccountForm((p) => ({ ...p, type: e.target.value, normalBalance: NORMAL_BALANCE[e.target.value] }))}
-                      options={ACCOUNT_TYPES.map((t) => ({ value: t, label: humanizeStatus(t) }))}
-                    />
-                    <Select
-                      label="Normal balance"
-                      value={accountForm.normalBalance}
-                      onChange={(e) => setAccountForm((p) => ({ ...p, normalBalance: e.target.value }))}
-                      options={[{ value: 'debit', label: 'Debit' }, { value: 'credit', label: 'Credit' }]}
-                    />
-                  </div>
-                  {accountForm.normalBalance !== NORMAL_BALANCE[accountForm.type] && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300">Unusual: {accountForm.type} accounts normally carry a {NORMAL_BALANCE[accountForm.type]} balance.</p>
-                  )}
-                  {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                  <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(duplicateCode)} fullWidth>{submitting ? 'Saving…' : 'Add account'}</Button>
-                </form>
+                  <Select
+                    label="Normal balance"
+                    value={accountForm.normalBalance}
+                    onChange={(e) => setAccountForm((p) => ({ ...p, normalBalance: e.target.value }))}
+                    options={[{ value: 'debit', label: 'Debit' }, { value: 'credit', label: 'Credit' }]}
+                  />
+                </div>
+                {accountForm.normalBalance !== NORMAL_BALANCE[accountForm.type] && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">Unusual: {accountForm.type} accounts normally carry a {NORMAL_BALANCE[accountForm.type]} balance.</p>
                 )}
-              </div>
-            </section>
-            <section className={card}>
-              <div className={`${inner} space-y-4`}>
-                <SectionHdr title="Chart of accounts" subtitle={`${visibleAccounts.length} of ${accounts.length} shown · sorted by code`} />
-                <StatusFilterBar
-                  value={typeFilter}
-                  onChange={setTypeFilter}
-                  options={[{ value: '', label: 'All', count: accounts.length }, ...ACCOUNT_TYPES.map((t) => ({ value: t, label: humanizeStatus(t), count: typeCounts[t] || 0 }))]}
-                />
-                <DataTable
-                  columns={[
-                    { key: 'code', header: 'Code', render: (r) => <span className="font-mono font-semibold text-neutral-900 dark:text-white">{r.code}</span> },
-                    { key: 'name', header: 'Name' },
-                    { key: 'type', header: 'Type', render: (r) => <span className="capitalize">{r.type}</span> },
-                    { key: 'normalBalance', header: 'Normal', render: (r) => <span className="capitalize">{r.normalBalance}</span> },
-                  ]}
-                  rows={visibleAccounts}
-                  rowKey="_id"
-                  loading={loading}
-                  emptyTitle={typeFilter ? `No ${typeFilter} accounts` : 'No accounts yet'}
-                />
-              </div>
-            </section>
+                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(duplicateCode)} fullWidth>{submitting ? 'Saving…' : 'Add account'}</Button>
+              </form>
+              )}
+            </SectionCard>
+            <SectionCard
+              title="Chart of accounts"
+              description={`${visibleAccounts.length} of ${accounts.length} shown · sorted by code`}
+              bodyClassName="space-y-4"
+            >
+              <StatusFilterBar
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={[{ value: '', label: 'All', count: accounts.length }, ...ACCOUNT_TYPES.map((t) => ({ value: t, label: humanizeStatus(t), count: typeCounts[t] || 0 }))]}
+              />
+              <DataTable
+                columns={[
+                  { key: 'code', header: 'Code', render: (r) => <span className="font-mono font-semibold text-neutral-900 dark:text-white">{r.code}</span> },
+                  { key: 'name', header: 'Name' },
+                  { key: 'type', header: 'Type', render: (r) => <span className="capitalize">{r.type}</span> },
+                  { key: 'normalBalance', header: 'Normal', render: (r) => <span className="capitalize">{r.normalBalance}</span> },
+                ]}
+                rows={visibleAccounts}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle={typeFilter ? `No ${typeFilter} accounts` : 'No accounts yet'}
+              />
+            </SectionCard>
           </div>
         )}
 
         {tab === 'journals' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="New journal entry" subtitle="Saved as a draft until posted" />
-                {accounts.length < 2 ? (
-                  <EmptyState icon="account_tree" title="Add accounts first" description="A journal entry needs at least two accounts in the chart of accounts." />
-                ) : (
-                  <form onSubmit={saveJournalEntry} className="space-y-3">
-                    <Input label="Memo" placeholder="What is this entry for?" value={journalForm.memo} onChange={(e) => setJournalForm((p) => ({ ...p, memo: e.target.value }))} required />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input label="Entry date" type="date" value={journalForm.entryDate} onChange={(e) => setJournalForm((p) => ({ ...p, entryDate: e.target.value }))} />
-                      <Input label="Amount" type="number" min="0" step="0.01" value={journalForm.amount} onChange={(e) => setJournalForm((p) => ({ ...p, amount: e.target.value }))} required />
-                    </div>
-                    <Select
-                      label="Debit (Dr)"
-                      value={journalForm.debitAccount}
-                      onChange={(e) => setJournalForm((p) => ({ ...p, debitAccount: e.target.value }))}
-                      required
-                      options={accountOptions('Account receiving the debit')}
-                    />
-                    <Select
-                      label="Credit (Cr)"
-                      value={journalForm.creditAccount}
-                      onChange={(e) => setJournalForm((p) => ({ ...p, creditAccount: e.target.value }))}
-                      required
-                      options={accountOptions('Account receiving the credit')}
-                    />
-                    {journalForm.debitAccount && journalForm.creditAccount && !journalError && journalAmount > 0 && (
-                      <div className="rounded-xl bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-                        <p>Dr {accountLabel(journalForm.debitAccount)} <span className="float-right">{formatCurrency(journalAmount)}</span></p>
-                        <p className="pl-6">Cr {accountLabel(journalForm.creditAccount)} <span className="float-right">{formatCurrency(journalAmount)}</span></p>
-                      </div>
-                    )}
-                    {(journalError || formError) && <p className="text-sm text-rose-600 dark:text-rose-300">{journalError || formError}</p>}
-                    <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(journalError)} fullWidth>{submitting ? 'Saving…' : 'Save draft entry'}</Button>
-                  </form>
-                )}
-              </div>
-            </section>
-            <section className={card}>
-              <div className={`${inner} space-y-4`}>
-                <SectionHdr title="Journal register" subtitle={`${visibleJournals.length} of ${journalEntries.length} shown`} />
-                <StatusFilterBar
-                  value={journalFilter}
-                  onChange={setJournalFilter}
-                  options={[
-                    { value: '', label: 'All', count: journalEntries.length },
-                    { value: 'draft', label: 'Draft', count: journalCounts.draft || 0 },
-                    { value: 'posted', label: 'Posted', count: journalCounts.posted || 0 },
-                  ]}
-                />
-                <DataTable
-                  columns={[
-                    {
-                      key: 'entryNumber',
-                      header: 'Entry',
-                      render: (r) => (
-                        <div>
-                          <p className="font-semibold text-neutral-900 dark:text-white">{r.entryNumber}</p>
-                          <p className="text-xs text-neutral-500">{fmtDateOnly(r.entryDate || r.createdAt)}</p>
-                        </div>
-                      ),
-                    },
-                    {
-                      key: 'memo',
-                      header: 'Memo / lines',
-                      render: (r) => (
-                        <div className="min-w-0">
-                          <p className="truncate text-neutral-800 dark:text-neutral-200">{r.memo || 'No memo'}</p>
-                          {(r.lines || []).map((line, i) => (
-                            <p key={i} className={`truncate text-xs text-neutral-500 ${Number(line.credit) > 0 ? 'pl-4' : ''}`}>
-                              {Number(line.debit) > 0 ? 'Dr' : 'Cr'} {accountLabel(line.account)}
-                            </p>
-                          ))}
-                        </div>
-                      ),
-                    },
-                    { key: 'totalDebit', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.totalDebit} /> },
-                    {
-                      key: 'status',
-                      header: 'Status',
-                      render: (r) => (
-                        <div className="flex flex-col items-start gap-1">
-                          <Pill value={r.status} label={humanizeStatus(r.status)} />
-                          {r.status === 'draft' && <ReviewBadge item={r} />}
-                        </div>
-                      ),
-                    },
-                    {
-                      key: 'actions',
-                      header: 'Next step',
-                      render: (r) => r.status !== 'posted' && (
-                        <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                          <ReviewActions
-                            module="journal"
-                            item={r}
-                            isHead={isHead}
-                            onOpen={(s) => setReviewing({ ...s, title: `${r.entryNumber} · ${formatCurrency(r.totalDebit)}${r.memo ? ` · ${r.memo}` : ''}` })}
-                            directApprove={() => setPosting(r)}
-                            directLabel="Post"
+            <SectionCard title="New journal entry" description="Saved as a draft until posted">
+              {accounts.length < 2 ? (
+                <EmptyState icon="account_tree" title="Add accounts first" description="A journal entry needs at least two accounts in the chart of accounts." />
+              ) : (
+                <form onSubmit={saveJournalEntry} className="space-y-3">
+                  <Input label="Memo" placeholder="What is this entry for?" value={journalForm.memo} onChange={(e) => setJournalForm((p) => ({ ...p, memo: e.target.value }))} required />
+                  <Input label="Entry date" type="date" value={journalForm.entryDate} onChange={(e) => setJournalForm((p) => ({ ...p, entryDate: e.target.value }))} />
+
+                  <fieldset className="space-y-2">
+                    <legend className="mb-1 text-sm font-bold text-neutral-700 dark:text-neutral-200">Lines</legend>
+                    {journalForm.lines.map((line, index) => {
+                      const setLine = (patch) => setJournalForm((p) => ({
+                        ...p,
+                        lines: p.lines.map((l, i) => (i === index ? { ...l, ...patch } : l)),
+                      }));
+                      const bothSides = toMinor(line.debit) > 0 && toMinor(line.credit) > 0;
+                      return (
+                        <div key={index} className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Line {index + 1}</span>
+                            {journalForm.lines.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => setJournalForm((p) => ({ ...p, lines: p.lines.filter((_, i) => i !== index) }))}
+                                className="inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:text-rose-300 dark:hover:bg-rose-900/20"
+                                aria-label={`Remove line ${index + 1}`}
+                              >
+                                <span className="material-symbols-outlined text-[16px]">close</span>
+                              </button>
+                            )}
+                          </div>
+                          <Select
+                            label="Account"
+                            value={line.account}
+                            onChange={(e) => setLine({ account: e.target.value })}
+                            options={accountOptions('Select an account')}
                           />
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            {/* Filling one side clears the other: the server rejects a line with both. */}
+                            <Input
+                              label="Debit (Dr)"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={line.debit}
+                              onChange={(e) => setLine({ debit: e.target.value, credit: '' })}
+                              error={bothSides ? 'One side only' : undefined}
+                            />
+                            <Input
+                              label="Credit (Cr)"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={line.credit}
+                              onChange={(e) => setLine({ credit: e.target.value, debit: '' })}
+                            />
+                          </div>
+                          <div className="mt-2">
+                            <Input
+                              label="Line note"
+                              placeholder="Optional"
+                              value={line.description}
+                              onChange={(e) => setLine({ description: e.target.value })}
+                            />
+                          </div>
                         </div>
-                      ),
-                    },
-                  ]}
-                  rows={visibleJournals}
-                  rowKey="_id"
-                  loading={loading}
-                  emptyTitle={journalFilter ? `No ${journalFilter} entries` : 'No journal entries yet'}
-                />
-              </div>
-            </section>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setJournalForm((p) => ({ ...p, lines: [...p.lines, blankJournalLine()] }))}
+                    >
+                      <span className="material-symbols-outlined mr-1 text-[16px]">add</span>Add line
+                    </Button>
+                  </fieldset>
+
+                  <div className="rounded-xl bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                    <p>Total debits <span className="float-right">{formatCurrency(journalTotals.debit / 100)}</span></p>
+                    <p>Total credits <span className="float-right">{formatCurrency(journalTotals.credit / 100)}</span></p>
+                    <p className={`mt-1 border-t border-neutral-200 pt-1 font-semibold dark:border-neutral-700 ${journalTotals.balanced ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                      {journalTotals.balanced
+                        ? 'Balanced'
+                        : `Difference ${formatCurrency(Math.abs(journalTotals.difference) / 100)}`}
+                      <span className="float-right material-symbols-outlined text-[16px]">{journalTotals.balanced ? 'check_circle' : 'error'}</span>
+                    </p>
+                  </div>
+
+                  {(journalError || formError) && <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">{journalError || formError}</p>}
+                  <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(journalError)} fullWidth>{submitting ? 'Saving…' : 'Save draft entry'}</Button>
+                </form>
+              )}
+            </SectionCard>
+            <SectionCard
+              title="Journal register"
+              description={`${visibleJournals.length} of ${journalEntries.length} shown`}
+              bodyClassName="space-y-4"
+            >
+              <StatusFilterBar
+                value={journalFilter}
+                onChange={setJournalFilter}
+                options={[
+                  { value: '', label: 'All', count: journalEntries.length },
+                  { value: 'draft', label: 'Draft', count: journalCounts.draft || 0 },
+                  { value: 'posted', label: 'Posted', count: journalCounts.posted || 0 },
+                ]}
+              />
+              <DataTable
+                columns={[
+                  {
+                    key: 'entryNumber',
+                    header: 'Entry',
+                    render: (r) => (
+                      <div>
+                        <p className="font-semibold text-neutral-900 dark:text-white">{r.entryNumber}</p>
+                        <p className="text-xs text-neutral-500">{fmtDateOnly(r.entryDate || r.createdAt)}</p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'memo',
+                    header: 'Memo / lines',
+                    render: (r) => (
+                      <div className="min-w-0">
+                        <p className="truncate text-neutral-800 dark:text-neutral-200">{r.memo || 'No memo'}</p>
+                        {(r.lines || []).map((line, i) => (
+                          <p key={i} className={`truncate text-xs text-neutral-500 ${Number(line.credit) > 0 ? 'pl-4' : ''}`}>
+                            {Number(line.debit) > 0 ? 'Dr' : 'Cr'} {accountLabel(line.account)}
+                          </p>
+                        ))}
+                      </div>
+                    ),
+                  },
+                  { key: 'totalDebit', header: moneyHeader('Amount'), render: (r) => <MoneyCell value={r.totalDebit} /> },
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    render: (r) => (
+                      <div className="flex flex-col items-start gap-1">
+                        <Pill value={r.status} label={humanizeStatus(r.status)} />
+                        {r.status === 'draft' && <ReviewBadge item={r} />}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'actions',
+                    header: 'Next step',
+                    render: (r) => r.status !== 'posted' && (
+                      <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                        <ReviewActions
+                          module="journal"
+                          item={r}
+                          isHead={isHead}
+                          onOpen={(s) => setReviewing({ ...s, title: `${r.entryNumber} · ${formatCurrency(r.totalDebit)}${r.memo ? ` · ${r.memo}` : ''}` })}
+                          directApprove={() => setPosting(r)}
+                          directLabel="Post"
+                        />
+                      </div>
+                    ),
+                  },
+                ]}
+                rows={visibleJournals}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle={journalFilter ? `No ${journalFilter} entries` : 'No journal entries yet'}
+              />
+            </SectionCard>
           </div>
         )}
       </div>
@@ -4017,46 +4187,40 @@ export const FinanceReportsPage = () => {
 
         {tab === 'archive' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="Save report to archive" subtitle="Records a period report with your commentary" />
-                <form onSubmit={handleSubmit} className="space-y-3">
-                  <Select
-                    label="Report type"
-                    value={form.type}
-                    onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-                    options={Object.entries(REPORT_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input label="Period start" type="date" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} required />
-                    <Input label="Period end" type="date" value={form.periodEnd} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} error={periodError || undefined} required />
-                  </div>
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Summary</span>
-                    <textarea className={input} rows={3} placeholder="Key findings for this period" value={form.summary} onChange={(e) => setForm((p) => ({ ...p, summary: e.target.value }))} />
-                  </label>
-                  {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                  <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(periodError)} fullWidth>{submitting ? 'Saving…' : 'Save to archive'}</Button>
-                </form>
-              </div>
-            </section>
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="Report archive" subtitle={`${reports.length} saved`} />
-                <DataTable
-                  columns={[
-                    { key: 'type', header: 'Report', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{REPORT_TYPE_LABEL[r.type] || r.type}</span> },
-                    { key: 'period', header: 'Period', render: (r) => <span className="whitespace-nowrap">{fmtDateOnly(r.periodStart)} – {fmtDateOnly(r.periodEnd)}</span> },
-                    { key: 'summary', header: 'Summary', render: (r) => <span className="line-clamp-2">{r.summary || '—'}</span> },
-                    { key: 'createdAt', header: 'Saved', render: (r) => fmtDateOnly(r.createdAt) },
-                  ]}
-                  rows={reports}
-                  rowKey="_id"
-                  loading={loading}
-                  emptyTitle="No reports saved yet"
+            <SectionCard title="Save report to archive" description="Records a period report with your commentary">
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <Select
+                  label="Report type"
+                  value={form.type}
+                  onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+                  options={Object.entries(REPORT_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
                 />
-              </div>
-            </section>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Period start" type="date" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} required />
+                  <Input label="Period end" type="date" value={form.periodEnd} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} error={periodError || undefined} required />
+                </div>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Summary</span>
+                  <textarea className={input} rows={3} placeholder="Key findings for this period" value={form.summary} onChange={(e) => setForm((p) => ({ ...p, summary: e.target.value }))} />
+                </label>
+                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(periodError)} fullWidth>{submitting ? 'Saving…' : 'Save to archive'}</Button>
+              </form>
+            </SectionCard>
+            <SectionCard title="Report archive" description={`${reports.length} saved`}>
+              <DataTable
+                columns={[
+                  { key: 'type', header: 'Report', render: (r) => <span className="font-semibold text-neutral-900 dark:text-white">{REPORT_TYPE_LABEL[r.type] || r.type}</span> },
+                  { key: 'period', header: 'Period', render: (r) => <span className="whitespace-nowrap">{fmtDateOnly(r.periodStart)} – {fmtDateOnly(r.periodEnd)}</span> },
+                  { key: 'summary', header: 'Summary', render: (r) => <span className="line-clamp-2">{r.summary || '—'}</span> },
+                  { key: 'createdAt', header: 'Saved', render: (r) => fmtDateOnly(r.createdAt) },
+                ]}
+                rows={reports}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle="No reports saved yet"
+              />
+            </SectionCard>
           </div>
         )}
 
@@ -4064,41 +4228,39 @@ export const FinanceReportsPage = () => {
           <div className="space-y-6">
             {loading ? <SkeletonBlock /> : (
               <>
-                <section className={card}>
-                  <div className={`${inner} space-y-4`}>
-                    <SectionHdr title="Profit & loss" subtitle="Posted revenue and expense accounts" action={margin !== null && <span className="text-xs font-semibold text-neutral-500">{margin.toFixed(1)}% net margin</span>} />
-                    <StatGrid items={[
-                      { label: 'Revenue', value: formatCurrency(profitLoss.revenue) },
-                      { label: 'Expenses', value: formatCurrency(profitLoss.expenses) },
-                      { label: 'Net income', value: formatCurrency(profitLoss.netIncome), subtext: Number(profitLoss.netIncome) < 0 ? 'Loss for the period' : undefined },
-                    ]} />
-                  </div>
-                </section>
+                <SectionCard
+                  title="Profit & loss"
+                  description="Posted revenue and expense accounts"
+                  action={margin !== null && <span className="text-xs font-semibold text-neutral-500">{margin.toFixed(1)}% net margin</span>}
+                  bodyClassName="space-y-4"
+                >
+                  <StatGrid items={[
+                    { label: 'Revenue', value: formatCurrency(profitLoss.revenue) },
+                    { label: 'Expenses', value: formatCurrency(profitLoss.expenses) },
+                    { label: 'Net income', value: formatCurrency(profitLoss.netIncome), subtext: Number(profitLoss.netIncome) < 0 ? 'Loss for the period' : undefined },
+                  ]} />
+                </SectionCard>
 
-                <section className={card}>
-                  <div className={`${inner} space-y-4`}>
-                    <SectionHdr
-                      title="Balance sheet"
-                      subtitle="Assets = Liabilities + Equity"
-                      action={<CheckBadge ok={Math.abs(bsGap) < 0.01} okText="Balanced" badText={`Off by ${formatCurrency(Math.abs(bsGap))}`} />}
-                    />
-                    <StatGrid items={[
-                      { label: 'Assets', value: formatCurrency(balanceSheet.assets) },
-                      { label: 'Liabilities', value: formatCurrency(balanceSheet.liabilities) },
-                      { label: 'Equity', value: formatCurrency(balanceSheet.equity) },
-                    ]} />
-                    {Math.abs(bsGap) >= 0.01 && (
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400">A gap usually means the period's net income hasn't been closed into equity yet, or an entry was posted to the wrong account type.</p>
-                    )}
-                  </div>
-                </section>
+                <SectionCard
+                  title="Balance sheet"
+                  description="Assets = Liabilities + Equity"
+                  action={<CheckBadge ok={Math.abs(bsGap) < 0.01} okText="Balanced" badText={`Off by ${formatCurrency(Math.abs(bsGap))}`} />}
+                  bodyClassName="space-y-4"
+                >
+                  <StatGrid items={[
+                    { label: 'Assets', value: formatCurrency(balanceSheet.assets) },
+                    { label: 'Liabilities', value: formatCurrency(balanceSheet.liabilities) },
+                    { label: 'Equity', value: formatCurrency(balanceSheet.equity) },
+                  ]} />
+                  {Math.abs(bsGap) >= 0.01 && (
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">A gap usually means the period's net income hasn't been closed into equity yet, or an entry was posted to the wrong account type.</p>
+                  )}
+                </SectionCard>
 
-                <section className={card}>
-                  <div className={`${inner} space-y-4`}>
-                    <SectionHdr
-                      title="Trial balance"
-                      subtitle={`Debit ${formatCurrency(tbDebit)} · Credit ${formatCurrency(tbCredit)}`}
-                      action={(
+                <SectionCard
+                  title="Trial balance"
+                  description={`Debit ${formatCurrency(tbDebit)} · Credit ${formatCurrency(tbCredit)}`}
+                  action={(
                         <div className="flex items-center gap-3">
                           <CheckBadge ok={tbBalanced} okText="Debits = credits" badText={`Difference ${formatCurrency(Math.abs(tbDebit - tbCredit))}`} />
                           <Button type="button" variant="secondary" size="sm" onClick={exportTrialBalance} disabled={tbRows.length === 0}>
@@ -4106,21 +4268,21 @@ export const FinanceReportsPage = () => {
                           </Button>
                         </div>
                       )}
-                    />
-                    <DataTable
-                      columns={[
-                        { key: 'account', header: 'Account', render: (r) => <span><span className="font-mono text-neutral-500">{r.code}</span> {r.name}</span> },
-                        { key: 'type', header: 'Type', render: (r) => <span className="capitalize">{r.type || '—'}</span> },
-                        { key: 'debit', header: 'Debit', render: (r) => (Number(r.debit) ? formatCurrency(r.debit) : '—') },
-                        { key: 'credit', header: 'Credit', render: (r) => (Number(r.credit) ? formatCurrency(r.credit) : '—') },
-                      ]}
-                      rows={tbRows}
-                      rowKey="accountId"
-                      loading={loading}
-                      emptyTitle="No posted journal entries yet"
-                    />
-                  </div>
-                </section>
+                  bodyClassName="space-y-4"
+                >
+                  <DataTable
+                    columns={[
+                      { key: 'account', header: 'Account', render: (r) => <span><span className="font-mono text-neutral-500">{r.code}</span> {r.name}</span> },
+                      { key: 'type', header: 'Type', render: (r) => <span className="capitalize">{r.type || '—'}</span> },
+                      { key: 'debit', header: 'Debit', render: (r) => (Number(r.debit) ? formatCurrency(r.debit) : '—') },
+                      { key: 'credit', header: 'Credit', render: (r) => (Number(r.credit) ? formatCurrency(r.credit) : '—') },
+                    ]}
+                    rows={tbRows}
+                    rowKey="accountId"
+                    loading={loading}
+                    emptyTitle="No posted journal entries yet"
+                  />
+                </SectionCard>
               </>
             )}
           </div>
@@ -4235,101 +4397,99 @@ export const FinanceCompliancePage = () => {
 
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr title="Add filing obligation" subtitle="Tracked until marked filed" />
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <Select
-                  label="Type"
-                  value={form.type}
-                  onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-                  options={Object.entries(COMPLIANCE_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
-                />
-                <Input
-                  label="Period"
-                  placeholder="e.g. GSTR-3B Sep 2026, Q2 FY2026-27"
-                  value={form.periodLabel}
-                  onChange={(e) => setForm((p) => ({ ...p, periodLabel: e.target.value }))}
-                  error={duplicate ? 'This filing is already being tracked.' : undefined}
-                  required
-                />
-                <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} required />
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</span>
-                  <textarea className={input} rows={2} placeholder="Optional — who files, portal used…" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
-                </label>
-                {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
-                <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(duplicate)} fullWidth>{submitting ? 'Saving…' : 'Add to tracker'}</Button>
-              </form>
-            </div>
-          </section>
+          <SectionCard title="Add filing obligation" description="Tracked until marked filed">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <Select
+                label="Type"
+                value={form.type}
+                onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+                options={Object.entries(COMPLIANCE_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
+              />
+              <Input
+                label="Period"
+                placeholder="e.g. GSTR-3B Sep 2026, Q2 FY2026-27"
+                value={form.periodLabel}
+                onChange={(e) => setForm((p) => ({ ...p, periodLabel: e.target.value }))}
+                error={duplicate ? 'This filing is already being tracked.' : undefined}
+                required
+              />
+              <Input label="Due date" type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} required />
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</span>
+                <textarea className={input} rows={2} placeholder="Optional — who files, portal used…" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+              </label>
+              {formError && <p className="text-sm text-rose-600 dark:text-rose-300">{formError}</p>}
+              <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(duplicate)} fullWidth>{submitting ? 'Saving…' : 'Add to tracker'}</Button>
+            </form>
+          </SectionCard>
 
-          <section className={card}>
-            <div className={`${inner} space-y-4`}>
-              <SectionHdr title="Filing tracker" subtitle="Most urgent first" />
-              <StatusFilterBar
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={COMPLIANCE_FILTERS.map((f) => ({ ...f, count: f.value ? stageCounts[f.value] || 0 : compliance.length }))}
-              />
-              <DataTable
-                columns={[
-                  {
-                    key: 'type',
-                    header: 'Filing',
-                    render: (r) => (
+          <SectionCard
+            title="Filing tracker"
+            description="Most urgent first"
+            bodyClassName="space-y-4"
+          >
+            <StatusFilterBar
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={COMPLIANCE_FILTERS.map((f) => ({ ...f, count: f.value ? stageCounts[f.value] || 0 : compliance.length }))}
+            />
+            <DataTable
+              columns={[
+                {
+                  key: 'type',
+                  header: 'Filing',
+                  render: (r) => (
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">{COMPLIANCE_TYPE_LABEL[r.type] || r.type}</p>
+                      <p className="text-xs text-neutral-500">{r.periodLabel || '—'}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'dueDate',
+                  header: 'Due',
+                  render: (r) => {
+                    const stage = complianceStage(r);
+                    const days = r.dueDate ? Math.ceil((new Date(r.dueDate).setHours(23, 59, 59, 999) - Date.now()) / DAY_MS) : null;
+                    return (
                       <div>
-                        <p className="font-semibold text-neutral-900 dark:text-white">{COMPLIANCE_TYPE_LABEL[r.type] || r.type}</p>
-                        <p className="text-xs text-neutral-500">{r.periodLabel || '—'}</p>
+                        <p className={stage === 'overdue' ? 'font-semibold text-rose-600 dark:text-rose-300' : ''}>{fmtDateOnly(r.dueDate)}</p>
+                        {stage !== 'filed' && days !== null && (
+                          <p className="text-xs text-neutral-500">{days < 0 ? `${Math.abs(days)}d late` : days === 0 ? 'Due today' : `in ${days}d`}</p>
+                        )}
                       </div>
-                    ),
+                    );
                   },
-                  {
-                    key: 'dueDate',
-                    header: 'Due',
-                    render: (r) => {
-                      const stage = complianceStage(r);
-                      const days = r.dueDate ? Math.ceil((new Date(r.dueDate).setHours(23, 59, 59, 999) - Date.now()) / DAY_MS) : null;
-                      return (
-                        <div>
-                          <p className={stage === 'overdue' ? 'font-semibold text-rose-600 dark:text-rose-300' : ''}>{fmtDateOnly(r.dueDate)}</p>
-                          {stage !== 'filed' && days !== null && (
-                            <p className="text-xs text-neutral-500">{days < 0 ? `${Math.abs(days)}d late` : days === 0 ? 'Due today' : `in ${days}d`}</p>
-                          )}
-                        </div>
-                      );
-                    },
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (r) => {
+                    const stage = complianceStage(r);
+                    return (
+                      <div>
+                        <Pill value={stage === 'due_soon' ? 'at-risk' : stage} label={COMPLIANCE_STAGE_LABEL[stage]} />
+                        {stage === 'filed' && r.reference && <p className="mt-1 text-xs text-neutral-500">Ref {r.reference}</p>}
+                      </div>
+                    );
                   },
-                  {
-                    key: 'status',
-                    header: 'Status',
-                    render: (r) => {
-                      const stage = complianceStage(r);
-                      return (
-                        <div>
-                          <Pill value={stage === 'due_soon' ? 'at-risk' : stage} label={COMPLIANCE_STAGE_LABEL[stage]} />
-                          {stage === 'filed' && r.reference && <p className="mt-1 text-xs text-neutral-500">Ref {r.reference}</p>}
-                        </div>
-                      );
-                    },
-                  },
-                  {
-                    key: 'actions',
-                    header: 'Next step',
-                    render: (r) => r.status !== 'filed' && (
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setFiling({ row: r, reference: r.reference || '', filedOn: todayIso() }); }} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
-                        Mark filed
-                      </button>
-                    ),
-                  },
-                ]}
-                rows={visible}
-                rowKey="_id"
-                loading={loading}
-                emptyTitle={statusFilter ? `No ${(COMPLIANCE_STAGE_LABEL[statusFilter] || statusFilter).toLowerCase()} filings` : 'No filings tracked yet'}
-              />
-            </div>
-          </section>
+                },
+                {
+                  key: 'actions',
+                  header: 'Next step',
+                  render: (r) => r.status !== 'filed' && (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setFiling({ row: r, reference: r.reference || '', filedOn: todayIso() }); }} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
+                      Mark filed
+                    </button>
+                  ),
+                },
+              ]}
+              rows={visible}
+              rowKey="_id"
+              loading={loading}
+              emptyTitle={statusFilter ? `No ${(COMPLIANCE_STAGE_LABEL[statusFilter] || statusFilter).toLowerCase()} filings` : 'No filings tracked yet'}
+            />
+          </SectionCard>
         </div>
       </div>
 
@@ -4461,49 +4621,47 @@ export const FinanceDirectoryPage = () => {
 
         {tab === 'vendors' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="Add vendor" subtitle="Suppliers and service providers you pay" />
-                <form onSubmit={saveVendor} className="space-y-3">
-                  <Input label="Vendor name" placeholder="e.g. Acme Supplies" value={vendorForm.name} onChange={(e) => setVendorForm((p) => ({ ...p, name: e.target.value }))} error={vendorDuplicate ? 'A vendor with this name already exists.' : undefined} required />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input label="Contact email" type="email" placeholder="contact@vendor.com" value={vendorForm.contactEmail} onChange={(e) => setVendorForm((p) => ({ ...p, contactEmail: e.target.value }))} />
-                    <Input label="Phone" type="tel" placeholder="+91…" value={vendorForm.contactPhone} onChange={(e) => setVendorForm((p) => ({ ...p, contactPhone: e.target.value }))} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select label="Payment terms" value={vendorForm.paymentTerms} onChange={(e) => setVendorForm((p) => ({ ...p, paymentTerms: e.target.value }))} options={PAYMENT_TERMS_OPTIONS} />
-                    <Input label="Opening payable" type="number" min="0" value={vendorForm.balance} onChange={(e) => setVendorForm((p) => ({ ...p, balance: e.target.value }))} />
-                  </div>
-                  <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(vendorDuplicate)} fullWidth>{submitting ? 'Saving…' : 'Add vendor'}</Button>
-                </form>
-              </div>
-            </section>
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="Vendors" subtitle={`${vendors.length} shown`} action={searchBox} />
-                <DataTable
-                  columns={[
-                    {
-                      key: 'name',
-                      header: 'Vendor',
-                      render: (r) => (
-                        <div>
-                          <p className="font-semibold text-neutral-900 dark:text-white">{r.name}</p>
-                          <p className="text-xs text-neutral-500">{[r.contactEmail, r.contactPhone].filter(Boolean).join(' · ') || 'No contact details'}</p>
-                        </div>
-                      ),
-                    },
-                    { key: 'paymentTerms', header: 'Terms', render: (r) => r.paymentTerms || '—' },
-                    { key: 'status', header: 'Status', render: (r) => <Pill value={r.status || 'active'} label={humanizeStatus(r.status || 'active')} /> },
-                    { key: 'balance', header: moneyHeader('Payable'), render: (r) => <MoneyCell value={r.balance} /> },
-                  ]}
-                  rows={vendors}
-                  rowKey="_id"
-                  loading={loading}
-                  emptyTitle={search ? 'No vendors match your search' : 'No vendors yet'}
-                />
-              </div>
-            </section>
+            <SectionCard title="Add vendor" description="Suppliers and service providers you pay">
+              <form onSubmit={saveVendor} className="space-y-3">
+                <Input label="Vendor name" placeholder="e.g. Acme Supplies" value={vendorForm.name} onChange={(e) => setVendorForm((p) => ({ ...p, name: e.target.value }))} error={vendorDuplicate ? 'A vendor with this name already exists.' : undefined} required />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Contact email" type="email" placeholder="contact@vendor.com" value={vendorForm.contactEmail} onChange={(e) => setVendorForm((p) => ({ ...p, contactEmail: e.target.value }))} />
+                  <Input label="Phone" type="tel" placeholder="+91…" value={vendorForm.contactPhone} onChange={(e) => setVendorForm((p) => ({ ...p, contactPhone: e.target.value }))} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select label="Payment terms" value={vendorForm.paymentTerms} onChange={(e) => setVendorForm((p) => ({ ...p, paymentTerms: e.target.value }))} options={PAYMENT_TERMS_OPTIONS} />
+                  <Input label="Opening payable" type="number" min="0" value={vendorForm.balance} onChange={(e) => setVendorForm((p) => ({ ...p, balance: e.target.value }))} />
+                </div>
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(vendorDuplicate)} fullWidth>{submitting ? 'Saving…' : 'Add vendor'}</Button>
+              </form>
+            </SectionCard>
+            <SectionCard
+              title="Vendors"
+              description={`${vendors.length} shown`}
+              action={searchBox}
+            >
+              <DataTable
+                columns={[
+                  {
+                    key: 'name',
+                    header: 'Vendor',
+                    render: (r) => (
+                      <div>
+                        <p className="font-semibold text-neutral-900 dark:text-white">{r.name}</p>
+                        <p className="text-xs text-neutral-500">{[r.contactEmail, r.contactPhone].filter(Boolean).join(' · ') || 'No contact details'}</p>
+                      </div>
+                    ),
+                  },
+                  { key: 'paymentTerms', header: 'Terms', render: (r) => r.paymentTerms || '—' },
+                  { key: 'status', header: 'Status', render: (r) => <Pill value={r.status || 'active'} label={humanizeStatus(r.status || 'active')} /> },
+                  { key: 'balance', header: moneyHeader('Payable'), render: (r) => <MoneyCell value={r.balance} /> },
+                ]}
+                rows={vendors}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle={search ? 'No vendors match your search' : 'No vendors yet'}
+              />
+            </SectionCard>
           </div>
         )}
 
@@ -4511,69 +4669,67 @@ export const FinanceDirectoryPage = () => {
 
         {tab === 'clients' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="Add client" subtitle="Customers you invoice" />
-                <form onSubmit={saveClient} className="space-y-3">
-                  <Input
-                    label="Client name"
-                    placeholder="e.g. Nimbus Retail"
-                    value={clientForm.name}
-                    onChange={(e) => setClientForm((p) => ({ ...p, name: e.target.value }))}
-                    error={clientDuplicate ? 'A client with this name already exists.' : undefined}
-                    helperText={clientDuplicate ? undefined : 'Use the exact name you put on invoices so balances roll up.'}
-                    required
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input label="Billing email" type="email" placeholder="billing@client.com" value={clientForm.contactEmail} onChange={(e) => setClientForm((p) => ({ ...p, contactEmail: e.target.value }))} />
-                    <Input label="Phone" type="tel" placeholder="+91…" value={clientForm.contactPhone} onChange={(e) => setClientForm((p) => ({ ...p, contactPhone: e.target.value }))} />
-                  </div>
-                  <Select label="Payment terms" value={clientForm.paymentTerms} onChange={(e) => setClientForm((p) => ({ ...p, paymentTerms: e.target.value }))} options={PAYMENT_TERMS_OPTIONS} />
-                  <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(clientDuplicate)} fullWidth>{submitting ? 'Saving…' : 'Add client'}</Button>
-                </form>
-              </div>
-            </section>
-            <section className={card}>
-              <div className={inner}>
-                <SectionHdr title="Clients" subtitle={`${clients.length} shown · ${formatCurrency(totalReceivable)} receivable`} action={searchBox} />
-                <DataTable
-                  columns={[
-                    {
-                      key: 'name',
-                      header: 'Client',
-                      render: (r) => (
-                        <div>
-                          <p className="font-semibold text-neutral-900 dark:text-white">{r.name}</p>
-                          <p className="text-xs text-neutral-500">{[r.contactEmail, r.contactPhone].filter(Boolean).join(' · ') || 'No contact details'}</p>
-                        </div>
-                      ),
-                    },
-                    { key: 'paymentTerms', header: 'Terms', render: (r) => r.paymentTerms || '—' },
-                    {
-                      key: 'openInvoices',
-                      header: 'Open invoices',
-                      render: (r) => {
-                        const rec = receivables[normName(r.name)];
-                        if (!rec) return <span className="text-neutral-400">None</span>;
-                        return <span>{rec.count}{rec.overdue > 0 && <span className="ml-1 text-xs font-semibold text-rose-600 dark:text-rose-300">({rec.overdue} overdue)</span>}</span>;
-                      },
-                    },
-                    {
-                      key: 'balance',
-                      header: 'Receivable',
-                      render: (r) => {
-                        const amount = (receivables[normName(r.name)]?.amount || 0) + Number(r.balance || 0);
-                        return <span className="font-semibold">{formatCurrency(amount)}</span>;
-                      },
-                    },
-                  ]}
-                  rows={clients}
-                  rowKey="_id"
-                  loading={loading}
-                  emptyTitle={search ? 'No clients match your search' : 'No clients yet'}
+            <SectionCard title="Add client" description="Customers you invoice">
+              <form onSubmit={saveClient} className="space-y-3">
+                <Input
+                  label="Client name"
+                  placeholder="e.g. Nimbus Retail"
+                  value={clientForm.name}
+                  onChange={(e) => setClientForm((p) => ({ ...p, name: e.target.value }))}
+                  error={clientDuplicate ? 'A client with this name already exists.' : undefined}
+                  helperText={clientDuplicate ? undefined : 'Use the exact name you put on invoices so balances roll up.'}
+                  required
                 />
-              </div>
-            </section>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Billing email" type="email" placeholder="billing@client.com" value={clientForm.contactEmail} onChange={(e) => setClientForm((p) => ({ ...p, contactEmail: e.target.value }))} />
+                  <Input label="Phone" type="tel" placeholder="+91…" value={clientForm.contactPhone} onChange={(e) => setClientForm((p) => ({ ...p, contactPhone: e.target.value }))} />
+                </div>
+                <Select label="Payment terms" value={clientForm.paymentTerms} onChange={(e) => setClientForm((p) => ({ ...p, paymentTerms: e.target.value }))} options={PAYMENT_TERMS_OPTIONS} />
+                <Button type="submit" variant="primary" size="sm" disabled={submitting || Boolean(clientDuplicate)} fullWidth>{submitting ? 'Saving…' : 'Add client'}</Button>
+              </form>
+            </SectionCard>
+            <SectionCard
+              title="Clients"
+              description={`${clients.length} shown · ${formatCurrency(totalReceivable)} receivable`}
+              action={searchBox}
+            >
+              <DataTable
+                columns={[
+                  {
+                    key: 'name',
+                    header: 'Client',
+                    render: (r) => (
+                      <div>
+                        <p className="font-semibold text-neutral-900 dark:text-white">{r.name}</p>
+                        <p className="text-xs text-neutral-500">{[r.contactEmail, r.contactPhone].filter(Boolean).join(' · ') || 'No contact details'}</p>
+                      </div>
+                    ),
+                  },
+                  { key: 'paymentTerms', header: 'Terms', render: (r) => r.paymentTerms || '—' },
+                  {
+                    key: 'openInvoices',
+                    header: 'Open invoices',
+                    render: (r) => {
+                      const rec = receivables[normName(r.name)];
+                      if (!rec) return <span className="text-neutral-400">None</span>;
+                      return <span>{rec.count}{rec.overdue > 0 && <span className="ml-1 text-xs font-semibold text-rose-600 dark:text-rose-300">({rec.overdue} overdue)</span>}</span>;
+                    },
+                  },
+                  {
+                    key: 'balance',
+                    header: 'Receivable',
+                    render: (r) => {
+                      const amount = (receivables[normName(r.name)]?.amount || 0) + Number(r.balance || 0);
+                      return <span className="font-semibold">{formatCurrency(amount)}</span>;
+                    },
+                  },
+                ]}
+                rows={clients}
+                rowKey="_id"
+                loading={loading}
+                emptyTitle={search ? 'No clients match your search' : 'No clients yet'}
+              />
+            </SectionCard>
           </div>
         )}
       </div>
@@ -4679,134 +4835,143 @@ export const FinanceActivityPage = () => {
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
 
         {tab === 'requests' && (
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr title="Finance Request Center" subtitle="Department generated financial requests with lifecycle tracking" action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{requests.length} rows</p>} />
-              <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-                <div className="md:col-span-2">
-                  <Input label="Search" placeholder="Request ID, employee, department..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
-                </div>
-                <Select
-                  label="Department"
-                  value={filters.department}
-                  onChange={(e) => setFilters((p) => ({ ...p, department: e.target.value }))}
-                  options={[{ value: '', label: 'All Departments' }, ...departmentCatalog.filter((d) => !d.isSystem).map((department) => ({ value: department._id, label: department.name }))]}
-                />
-                <Select
-                  label="Status"
-                  value={filters.status}
-                  onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
-                  options={[{ value: '', label: 'All Status' }, ...['submitted', 'under_review', 'needs_information', 'verified', 'pending_approval', 'approved', 'rejected', 'processing', 'completed'].map((status) => ({ value: status, label: humanizeStatus(status) }))]}
-                />
-                <Select
-                  label="Priority"
-                  value={filters.priority}
-                  onChange={(e) => setFilters((p) => ({ ...p, priority: e.target.value }))}
-                  options={[{ value: '', label: 'All Priority' }, ...['Normal', 'High', 'Critical'].map((priority) => ({ value: priority, label: priority }))]}
-                />
+          <SectionCard
+            title="Finance Request Center"
+            description="Department generated financial requests with lifecycle tracking"
+            action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{requests.length} rows</p>}
+          >
+            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+              <div className="md:col-span-2">
+                <Input label="Search" placeholder="Request ID, employee, department..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
               </div>
-              {loading ? <SkeletonBlock /> : requests.length === 0 ? <EmptyState icon="assignment" title="No finance requests found" /> : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px] text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800">
-                        <th className="py-2 pr-3">Request</th>
-                        <th className="px-3 py-2">Department</th>
-                        <th className="px-3 py-2">Type</th>
-                        <th className="px-3 py-2">Priority</th>
-                        <th className="px-3 py-2">Submitted</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Assigned</th>
-                        <th className="py-2 pl-3 text-right">Amount</th>
-                        <th className="py-2 pl-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requests.map((row) => (
-                        <tr key={row.id} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
-                          <td className="py-3 pr-3 font-black text-neutral-900 dark:text-neutral-100">{row.requestId}</td>
-                          <td className="px-3 py-3">{row.department}</td>
-                          <td className="px-3 py-3">{row.type}</td>
-                          <td className="px-3 py-3"><Pill value={row.priority} /></td>
-                          <td className="px-3 py-3">{fmtDateOnly(row.submittedDate)}</td>
-                          <td className="px-3 py-3"><Pill value={row.status} label={humanizeStatus(row.status)} /></td>
-                          <td className="px-3 py-3">{row.assignedEmployee || 'Unassigned'}</td>
-                          <td className="py-3 pl-3 text-right font-black">{formatCurrency(row.amount)}</td>
-                          <td className="py-3 pl-3">
-                            <div className="flex flex-wrap justify-end gap-2">
-                              {availableRequestActions(row).map((action) => (
-                                <Button key={action.id} size="sm" variant={action.variant} onClick={() => setActingRequest({ row, action, comment: '' })}>
-                                  {action.label}
-                                </Button>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <Select
+                label="Department"
+                value={filters.department}
+                onChange={(e) => setFilters((p) => ({ ...p, department: e.target.value }))}
+                options={[{ value: '', label: 'All Departments' }, ...departmentCatalog.filter((d) => !d.isSystem).map((department) => ({ value: department._id, label: department.name }))]}
+              />
+              <Select
+                label="Status"
+                value={filters.status}
+                onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
+                options={[{ value: '', label: 'All Status' }, ...['submitted', 'under_review', 'needs_information', 'verified', 'pending_approval', 'approved', 'rejected', 'processing', 'completed'].map((status) => ({ value: status, label: humanizeStatus(status) }))]}
+              />
+              <Select
+                label="Priority"
+                value={filters.priority}
+                onChange={(e) => setFilters((p) => ({ ...p, priority: e.target.value }))}
+                options={[{ value: '', label: 'All Priority' }, ...['Normal', 'High', 'Critical'].map((priority) => ({ value: priority, label: priority }))]}
+              />
             </div>
-          </section>
+            {loading ? <SkeletonBlock variant="table" columns={9} rows={6} /> : requests.length === 0 ? <EmptyState icon="assignment" title="No finance requests found" /> : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800">
+                      <th className="py-2 pr-3">Request</th>
+                      <th className="px-3 py-2">Department</th>
+                      <th className="px-3 py-2">Type</th>
+                      <th className="px-3 py-2">Priority</th>
+                      <th className="px-3 py-2">Submitted</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Assigned</th>
+                      <th className="py-2 pl-3 text-right">Amount</th>
+                      <th className="py-2 pl-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.map((row) => (
+                      <tr key={row.id} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
+                        <td className="py-3 pr-3 font-black text-neutral-900 dark:text-neutral-100">{row.requestId}</td>
+                        <td className="px-3 py-3">{row.department}</td>
+                        <td className="px-3 py-3">{row.type}</td>
+                        <td className="px-3 py-3"><Pill value={row.priority} /></td>
+                        <td className="px-3 py-3">{fmtDateOnly(row.submittedDate)}</td>
+                        <td className="px-3 py-3"><Pill value={row.status} label={humanizeStatus(row.status)} /></td>
+                        <td className="px-3 py-3">{row.assignedEmployee || 'Unassigned'}</td>
+                        <td className="py-3 pl-3 text-right font-black">{formatCurrency(row.amount)}</td>
+                        <td className="py-3 pl-3">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {availableRequestActions(row).map((action) => (
+                              <Button key={action.id} size="sm" variant={action.variant} onClick={() => setActingRequest({ row, action, comment: '' })}>
+                                {action.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
         )}
 
         {tab === 'transactions' && (
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr title="Transactions" subtitle="Merged ledger of invoices, expenses, and vendor payments, most recent first." action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{transactions.length} rows</p>} />
-              {loading ? <SkeletonBlock /> : transactions.length === 0 ? <EmptyState icon="receipt_long" title="No transactions recorded yet" /> : (
-                <div className="space-y-3">
-                  {transactions.map((row) => (
-                    <div key={row.id} className="flex items-center justify-between rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                      <div>
-                        <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.reference || row.category}</p>
-                        <p className="text-xs text-neutral-500">{row.type} • {row.party} • {row.department}</p>
-                        <p className="text-xs text-neutral-500">{fmtDate(row.createdAt)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-bold ${row.type === 'expense' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                          {row.type === 'expense' ? '-' : '+'}{formatCurrency(row.amount)}
-                        </p>
-                        <Pill value={row.status} />
-                      </div>
-                    </div>
-                  ))}
+          <SectionCard
+            title="Transactions"
+            description="Merged ledger of invoices, expenses, and vendor payments, most recent first."
+            action={<p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{transactions.length} rows</p>}
+            loading={loading}
+            error={error}
+            onRetry={refetch}
+            empty={transactions.length === 0}
+            emptyIcon="receipt_long"
+            emptyTitle="No transactions recorded yet"
+            skeletonRows={5}
+          >
+            <div className="space-y-3">
+              {transactions.map((row) => (
+                <div key={row.id} className="flex items-center justify-between rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.reference || row.category}</p>
+                    <p className="text-xs text-neutral-500">{row.type} • {row.party} • {row.department}</p>
+                    <p className="text-xs text-neutral-500">{fmtDate(row.createdAt)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${row.type === 'expense' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {row.type === 'expense' ? '-' : '+'}{formatCurrency(row.amount)}
+                    </p>
+                    <Pill value={row.status} />
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
-          </section>
+          </SectionCard>
         )}
 
         {tab === 'audit' && (
-          <section className={card}>
-            <div className={inner}>
-              <SectionHdr
-                title="Audit Logs"
-                action={(
-                  <div className="flex items-center gap-3">
-                    <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{auditLogs.length} rows</p>
-                    {(isFinanceHead || role === 'ceo') && (
-                      <Button type="button" size="sm" variant="secondary" onClick={exportAudit}>
-                        <span className="material-symbols-outlined mr-1 text-[16px]">download</span>Export CSV
-                      </Button>
-                    )}
-                  </div>
+          <SectionCard
+            title="Audit Logs"
+            action={(
+              <>
+                <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{auditLogs.length} rows</p>
+                {(isFinanceHead || role === 'ceo') && (
+                  <Button type="button" size="sm" variant="secondary" onClick={exportAudit}>
+                    <span className="material-symbols-outlined mr-1 text-[16px]">download</span>Export CSV
+                  </Button>
                 )}
-              />
-              {loading ? <SkeletonBlock /> : auditLogs.length === 0 ? <EmptyState icon="policy" title="No audit activity yet" /> : (
-                <div className="space-y-3">
-                  {auditLogs.map((row) => (
-                    <div key={row._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.action}</p>
-                      <p className="text-xs text-neutral-500">{row.resourceType} • {row.riskFlag}</p>
-                      <p className="text-xs text-neutral-500">{fmtDate(row.createdAt)}</p>
-                    </div>
-                  ))}
+              </>
+            )}
+            loading={loading}
+            error={error}
+            onRetry={refetch}
+            empty={auditLogs.length === 0}
+            emptyIcon="policy"
+            emptyTitle="No audit activity yet"
+            skeletonRows={5}
+          >
+            <div className="space-y-3">
+              {auditLogs.map((row) => (
+                <div key={row._id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{row.action}</p>
+                  <p className="text-xs text-neutral-500">{row.resourceType} • {row.riskFlag}</p>
+                  <p className="text-xs text-neutral-500">{fmtDate(row.createdAt)}</p>
                 </div>
-              )}
+              ))}
             </div>
-          </section>
+          </SectionCard>
         )}
         <Modal
           open={Boolean(actingRequest)}
@@ -4920,75 +5085,73 @@ export const FinanceApprovalsPage = () => {
         {actionError && <ErrorState title="Action failed" description={actionError} />}
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
 
-        <section className={card}>
-          <div className={`${inner} space-y-4`}>
-            <SectionHdr
-              title={statusFilter === 'pending' ? 'Waiting for a decision' : `${APPROVAL_FILTERS.find((f) => f.value === statusFilter)?.label || 'All'} requests`}
-              subtitle={data.total > approvals.length ? `Showing latest ${approvals.length} of ${data.total}` : `${approvals.length} request${approvals.length === 1 ? '' : 's'}`}
-            />
-            <StatusFilterBar
-              value={statusFilter}
-              onChange={(value) => setStatusParam(value === 'pending' ? '' : value)}
-              options={APPROVAL_FILTERS.map((f) => ({ ...f, count: counts[f.value] }))}
-            />
-            {!isFinanceHead && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-                You can follow request status here. Approving or rejecting needs Finance Head permission.
-              </div>
-            )}
-            {loading ? <SkeletonBlock /> : approvals.length === 0 ? (
-              <EmptyState icon="task_alt" title={statusFilter === 'pending' ? 'All caught up' : 'Nothing here'} description={statusFilter === 'pending' ? 'No requests are waiting for a decision.' : undefined} />
-            ) : (
-              <div className="space-y-3">
-                {approvals.map((row) => {
-                  const ownRequest = myId && String(row.requestedBy?._id || row.requestedBy || '') === myId;
-                  const canDecide = isFinanceHead && row.status === 'pending' && !ownRequest;
-                  const link = row.module === 'finance' ? APPROVAL_ENTITY_LINK[String(row.entityType || '').toLowerCase()] : null;
-                  const steps = [...(row.steps || [])].sort((a, b) => (a.level || 0) - (b.level || 0));
-                  return (
-                    <div key={row._id} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-neutral-900 dark:text-white">{humanizeStatus(row.entityType)} approval</p>
-                          <p className="mt-0.5 text-xs text-neutral-500">
-                            {humanizeStatus(row.module)} · ref …{String(row.entityId || '').slice(-6)} · requested {fmtDate(row.createdAt)}
-                            {link && <> · <button type="button" onClick={() => navigate(link)} className="font-semibold text-primary hover:underline">Open {row.entityType}s</button></>}
-                          </p>
-                        </div>
-                        <Pill value={row.status} label={humanizeStatus(row.status)} />
+        <SectionCard
+          title={statusFilter === 'pending' ? 'Waiting for a decision' : `${APPROVAL_FILTERS.find((f) => f.value === statusFilter)?.label || 'All'} requests`}
+          description={data.total > approvals.length ? `Showing latest ${approvals.length} of ${data.total}` : `${approvals.length} request${approvals.length === 1 ? '' : 's'}`}
+          bodyClassName="space-y-4"
+        >
+          <StatusFilterBar
+            value={statusFilter}
+            onChange={(value) => setStatusParam(value === 'pending' ? '' : value)}
+            options={APPROVAL_FILTERS.map((f) => ({ ...f, count: counts[f.value] }))}
+          />
+          {!isFinanceHead && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+              You can follow request status here. Approving or rejecting needs Finance Head permission.
+            </div>
+          )}
+          {loading ? <SkeletonBlock variant="list" rows={4} /> : approvals.length === 0 ? (
+            <EmptyState icon="task_alt" title={statusFilter === 'pending' ? 'All caught up' : 'Nothing here'} description={statusFilter === 'pending' ? 'No requests are waiting for a decision.' : undefined} />
+          ) : (
+            <div className="space-y-3">
+              {approvals.map((row) => {
+                const ownRequest = myId && String(row.requestedBy?._id || row.requestedBy || '') === myId;
+                const canDecide = isFinanceHead && row.status === 'pending' && !ownRequest;
+                const link = row.module === 'finance' ? APPROVAL_ENTITY_LINK[String(row.entityType || '').toLowerCase()] : null;
+                const steps = [...(row.steps || [])].sort((a, b) => (a.level || 0) - (b.level || 0));
+                return (
+                  <div key={row._id} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-neutral-900 dark:text-white">{humanizeStatus(row.entityType)} approval</p>
+                        <p className="mt-0.5 text-xs text-neutral-500">
+                          {humanizeStatus(row.module)} · ref …{String(row.entityId || '').slice(-6)} · requested {fmtDate(row.createdAt)}
+                          {link && <> · <button type="button" onClick={() => navigate(link)} className="font-semibold text-primary hover:underline">Open {row.entityType}s</button></>}
+                        </p>
                       </div>
-
-                      {steps.length > 0 && (
-                        <ol className="mt-3 space-y-1.5 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
-                          {steps.map((step) => (
-                            <li key={`${step.level}-${step.role}`} className="text-xs">
-                              <span className="flex items-center gap-2">
-                                <span className={`h-2 w-2 shrink-0 rounded-full ${STEP_DOT[step.status] || STEP_DOT.pending}`} />
-                                <span className="font-semibold text-neutral-700 dark:text-neutral-200">Level {step.level} · {humanizeStatus(step.role)}</span>
-                                <span className="text-neutral-500">{step.status === 'pending' ? (step.optional ? 'optional' : 'waiting') : `${step.status} ${fmtDate(step.decidedAt)}`}</span>
-                              </span>
-                              {step.remarks && <span className="ml-4 block text-neutral-500 dark:text-neutral-400">“{step.remarks}”</span>}
-                            </li>
-                          ))}
-                        </ol>
-                      )}
-
-                      {canDecide && (
-                        <div className="mt-3 flex gap-2">
-                          <Button variant="primary" size="sm" onClick={() => setConfirmAction({ decision: 'approve', row, remarks: '' })}>Approve</Button>
-                          <Button variant="danger" size="sm" onClick={() => setConfirmAction({ decision: 'reject', row, remarks: '' })}>Reject</Button>
-                        </div>
-                      )}
-                      {isFinanceHead && row.status === 'pending' && ownRequest && (
-                        <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">You raised this request, so another approver has to decide it.</p>
-                      )}
+                      <Pill value={row.status} label={humanizeStatus(row.status)} />
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </section>
+
+                    {steps.length > 0 && (
+                      <ol className="mt-3 space-y-1.5 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
+                        {steps.map((step) => (
+                          <li key={`${step.level}-${step.role}`} className="text-xs">
+                            <span className="flex items-center gap-2">
+                              <span className={`h-2 w-2 shrink-0 rounded-full ${STEP_DOT[step.status] || STEP_DOT.pending}`} />
+                              <span className="font-semibold text-neutral-700 dark:text-neutral-200">Level {step.level} · {humanizeStatus(step.role)}</span>
+                              <span className="text-neutral-500">{step.status === 'pending' ? (step.optional ? 'optional' : 'waiting') : `${step.status} ${fmtDate(step.decidedAt)}`}</span>
+                            </span>
+                            {step.remarks && <span className="ml-4 block text-neutral-500 dark:text-neutral-400">“{step.remarks}”</span>}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+
+                    {canDecide && (
+                      <div className="mt-3 flex gap-2">
+                        <Button variant="primary" size="sm" onClick={() => setConfirmAction({ decision: 'approve', row, remarks: '' })}>Approve</Button>
+                        <Button variant="danger" size="sm" onClick={() => setConfirmAction({ decision: 'reject', row, remarks: '' })}>Reject</Button>
+                      </div>
+                    )}
+                    {isFinanceHead && row.status === 'pending' && ownRequest && (
+                      <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">You raised this request, so another approver has to decide it.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
       </div>
 
       <Modal
@@ -5169,7 +5332,7 @@ export const FinanceReviewPage = () => {
     const canSelect = isHead && rv.status === 'submitted';
     const accent = rv.status === 'returned' ? 'border-rose-200 dark:border-rose-900/50' : rv.status === 'submitted' ? 'border-amber-200 dark:border-amber-900/50' : 'border-neutral-200 dark:border-neutral-800';
     return (
-      <li key={k} className={`rounded-xl border bg-white transition-shadow hover:shadow-sm dark:bg-neutral-950 ${accent} ${selected.has(k) ? 'ring-2 ring-primary/40' : ''}`}>
+      <li key={k} className={`rounded-xl border bg-white transition-shadow hover:shadow-sm dark:bg-neutral-900 ${accent} ${selected.has(k) ? 'ring-2 ring-primary/40' : ''}`}>
         <div className="flex items-start gap-3 p-3">
           {canSelect && (
             <input type="checkbox" className="mt-1.5 h-4 w-4 shrink-0" checked={selected.has(k)} onChange={() => toggle(r)} aria-label={`Select ${r.title}`} />
@@ -5292,7 +5455,7 @@ export const FinanceReviewPage = () => {
               </div>
             )}
 
-            {loading ? <SkeletonBlock /> : visible.length === 0 ? (
+            {loading ? <SkeletonBlock variant="list" rows={4} /> : visible.length === 0 ? (
               <EmptyState
                 icon={isHead ? 'task_alt' : 'outbox'}
                 title={status === 'submitted' && isHead ? 'All caught up' : 'Nothing here'}

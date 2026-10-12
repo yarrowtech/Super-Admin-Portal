@@ -651,3 +651,30 @@ button {
      equals the natural state, so this is visually identical. */
   animation: erp-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
+
+/* ── Reduced motion ───────────────────────────────────────────────
+   Honour the OS "reduce motion" setting app-wide rather than at each of the
+   ~115 `animate-pulse` call sites. Skeletons keep their shape and colour and
+   simply stop pulsing, so a loading state is still legible without animation.
+   Transitions are collapsed to near-zero rather than `none` so JS that waits
+   on `transitionend` still fires. Deliberately NOT using `animation: none` on
+   `.app-pop-enter`-style entrances: those animate *from* a transparent state,
+   so cancelling outright would leave an element stuck invisible — instead they
+   finish immediately. Keep `backwards` (never `both`) here too, so no retained
+   transform traps a `position: fixed` descendant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Pulsing placeholders: hold them at full opacity instead of mid-fade. */
+  .animate-pulse {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}

@@ -15,12 +15,30 @@ const { handler, fail, date } = S;
 
 const r2 = n => Math.round((n || 0) * 100) / 100;
 
-// A finance employee sees their own department; the head sees everything.
-// scopeFor returns null (all), an id (scoped), or undefined (role owns no department).
+// Finance's own staff, who read across every department. The head roles already return
+// null from scopeFor (CROSS_DEPARTMENT); finance_employee is listed here because it owns
+// no department in ROLE_DEPARTMENT yet still has a cross-departmental read remit.
+const FINANCE_STAFF = new Set(['finance_manager', 'finance_employee', 'admin', 'super_admin']);
+
+// Who sees what in the tower:
+//   - Finance staff (head and employee) read across every department. Finance is the
+//     cross-departmental control function, so a finance employee who prepares invoices
+//     for every department must be able to see the exceptions for all of them. They
+//     still cannot *act*: approvals go through canControlFinance / assertDepartmentAccess.
+//   - A head of another department (IT, Media, Law, HR) is confined to their own
+//     department's rows, via ROLE_DEPARTMENT.
+//   - Any other role owns no department and has no finance remit, so it is denied.
+//
+// scopeFor returns null (sees all), a department id (scoped), or undefined (role maps to
+// no department). undefined must not be treated as "all", hence the explicit role check
+// rather than falling through to an empty filter.
 const towerScope = async req => {
   const scope = await scopeFor(req.user);
   if (scope === null) return null;
-  if (scope === undefined) fail(403, 'Your role is not assigned to a department with finance visibility');
+  if (scope === undefined) {
+    if (FINANCE_STAFF.has(String(req.user?.role || '').toLowerCase())) return null;
+    fail(403, 'Your role is not assigned to a department with finance visibility');
+  }
   return scope;
 };
 

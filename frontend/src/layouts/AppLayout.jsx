@@ -65,7 +65,7 @@ const AppLayout = ({
       <div
         className={`flex-1 overflow-x-hidden transition-[margin] duration-300 ease-out-expo ${
           collapsed ? 'md:ml-16' : 'md:ml-[250px]'
-        } ${showMobileNav || showHeader ? 'pt-16 md:pt-16' : 'pt-0 md:pt-0'}`}
+        } ${showHeader ? 'pt-16 md:pt-16' : showMobileNav ? 'pt-16 md:pt-0' : 'pt-0 md:pt-0'}`}
       >
         <main className={`portal-content min-h-screen ${contentClassName}`.trim()}>{children}</main>
       </div>

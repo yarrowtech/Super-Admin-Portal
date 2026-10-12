@@ -10,11 +10,16 @@ import ErrorState from './ErrorState';
  * combo. Also means an empty section collapses to a compact EmptyState
  * instead of reserving a large fixed-height blank card.
  *
- * action: { label, onClick, icon } — e.g. "View all →"
+ * action: { label, onClick, icon } — e.g. "View all →" — or any node, for a
+ *   header slot that a single link can't express (a row count, an export
+ *   button, several controls side by side).
  * error: pass the caught error (or true) to show ErrorState + onRetry
  * empty: pass true when loaded successfully but there's no data to show
+ * bodyClassName: extra classes for the body wrapper (e.g. "space-y-4")
+ *
+ * Forwards its ref to the <section>, so callers can scrollIntoView() a card.
  */
-const SectionCard = ({
+const SectionCard = React.forwardRef(({
   title,
   icon,
   description,
@@ -30,10 +35,12 @@ const SectionCard = ({
   skeletonRows = 3,
   noBodyPadding = false,
   className = '',
+  bodyClassName = '',
   children,
-}) => {
+}, ref) => {
   return (
     <section
+      ref={ref}
       className={`overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 ${className}`}
       style={{ boxShadow: 'var(--erp-shadow-soft)' }}
     >
@@ -50,7 +57,12 @@ const SectionCard = ({
             </h2>
             {description && <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>}
           </div>
-          {action && (
+          {/* A plain {label, onClick} renders the standard "View all →" link; anything
+              else is treated as a node and rendered as-is, so a section can put a count,
+              an export button or several controls in the same slot. */}
+          {action && (React.isValidElement(action) || !action.label ? (
+            <div className="flex shrink-0 items-center gap-3">{action}</div>
+          ) : (
             <button
               type="button"
               onClick={action.onClick}
@@ -60,11 +72,11 @@ const SectionCard = ({
               {action.label}
               <span className="material-symbols-outlined text-sm">{action.icon || 'arrow_forward'}</span>
             </button>
-          )}
+          ))}
         </div>
       )}
 
-      <div className={noBodyPadding && !loading && !error && !empty ? '' : 'p-4 lg:p-5'}>
+      <div className={`${noBodyPadding && !loading && !error && !empty ? '' : 'p-4 lg:p-5'} ${bodyClassName}`.trim()}>
         {loading && (
           <div className="space-y-2.5">
             {Array.from({ length: skeletonRows }).map((_, i) => (
@@ -89,6 +101,8 @@ const SectionCard = ({
       </div>
     </section>
   );
-};
+});
+
+SectionCard.displayName = 'SectionCard';
 
 export default SectionCard;

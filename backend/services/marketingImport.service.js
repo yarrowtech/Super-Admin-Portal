@@ -16,6 +16,8 @@ const mongoose = require('mongoose');
 const XLSX = require('xlsx');
 const MarketingImport = require('../models/marketing/MarketingImport');
 const Project = require('../models/common/Project');
+const { stages, stageIds } = require('../config/marketingStages');
+const { ROLES } = require('../config/roles');
 const INDIA_CITY_COORDS = require('../integrations/marketingPlatform/indiaCityCoords');
 const { normalizeCity, normalizeState } = require('../integrations/marketingPlatform/mapper');
 
@@ -300,14 +302,34 @@ async function commitImport({ buffer, filename, mapping, projectId, actorId }) {
 // `projectIds` is the set the caller is authorised to see. One id scopes to that project;
 // several (the "All Projects" filter, §2) aggregate across them. An empty set returns
 // nothing rather than everything — a filter that fails open is a data leak.
-async function getImportedMapPoints(projectIds) {
+const effectiveStatus = (row) => row.status || (Number.isFinite(row.latitude) && Number.isFinite(row.longitude) ? 'Mapped' : 'Unmapped');
+const statusMatch = (status) => !status || status === 'all' ? {} : { $expr: { $eq: [{ $ifNull: ['$status', { $cond: [{ $and: [{ $isNumber: '$latitude' }, { $isNumber: '$longitude' }] }, 'Mapped', 'Unmapped'] }] }, String(status)] } };
+const marketingStageMatch = (value) => {
+  if (!value || value === 'all') return {};
+  const selected = [...new Set(String(value).split(',').filter(Boolean))];
+  if (selected.some(stage => !stageIds.includes(stage) && stage !== 'NOT_RECORDED')) fail(422, 'Unknown marketing stage.');
+  const clauses = [];
+  const recorded = selected.filter(stage => stage !== 'NOT_RECORDED');
+  if (recorded.length) clauses.push({ 'marketingStatus.currentStage': { $in: recorded } });
+  if (selected.includes('NOT_RECORDED')) clauses.push({ 'marketingStatus.currentStage': null });
+  return clauses.length ? { $and: [{ $or: clauses }] } : {};
+};
+const recordFilters = ({ status, marketingStage, department, search, city, state } = {}) => ({
+  ...marketingStageMatch(marketingStage),
+  ...(city && city !== 'all' ? { city: String(city) } : {}),
+  ...(state && state !== 'all' ? { state: String(state) } : {}),
+  ...statusMatch(status), ...(department && department !== 'all' ? { department: String(department).slice(0, 200) } : {}),
+  ...(search ? { $or: ['school', 'locationRaw', 'sourceFile'].map(key => ({ [key]: { $regex: String(search).slice(0,120).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } })) } : {}),
+});
+const recordSort = (sort) => ({ newest: { createdAt: -1, _id: 1 }, oldest: { createdAt: 1, _id: 1 }, status: { 'marketingStatus.currentStage': 1, school: 1, _id: 1 } }[sort] || { school: 1, _id: 1 });
+async function getImportedMapPoints(projectIds, filters = {}) {
   const ids = (Array.isArray(projectIds) ? projectIds : [projectIds])
     .filter((id) => id && mongoose.isValidObjectId(id))
     .map((id) => new mongoose.Types.ObjectId(String(id)));
-  if (!ids.length) return { points: [], unresolved: 0, total: 0, schools: 0 };
-  const match = { projectId: { $in: ids } };
+  if (!ids.length) return { points: [], unresolved: 0, total: 0, schools: 0, pipeline: [] };
+  const match = { projectId: { $in: ids }, ...recordFilters(filters) };
 
-  const [points, counts] = await Promise.all([
+  const [points, counts, pipeline] = await Promise.all([
     MarketingImport.aggregate([
       { $match: { ...match, latitude: { $ne: null } } },
       {
@@ -317,6 +339,9 @@ async function getImportedMapPoints(projectIds) {
           longitude: { $first: '$longitude' },
           records: { $sum: 1 },
           schools: { $addToSet: '$school' },
+          projectIds: { $addToSet: '$projectId' },
+          statuses: { $addToSet: { $ifNull: ['$status', 'Mapped'] } },
+          marketingStages: { $addToSet: { $ifNull: ['$marketingStatus.currentStage', 'NOT_RECORDED'] } },
         },
       },
       {
@@ -326,7 +351,8 @@ async function getImportedMapPoints(projectIds) {
           state: '$_id.state',
           latitude: 1,
           longitude: 1,
-          records: 1,
+          records: 1, statuses: 1, marketingStages: 1,
+          projectIds: { $map: { input: '$projectIds', as: 'project', in: { $toString: '$$project' } } },
           schools: { $size: '$schools' },
         },
       },
@@ -346,10 +372,15 @@ async function getImportedMapPoints(projectIds) {
       },
       { $project: { _id: 0, total: 1, unresolved: 1, schools: { $size: '$schools' } } },
     ]),
+    MarketingImport.aggregate([
+      { $match: match },
+      { $group: { _id: { $ifNull: ['$marketingStatus.currentStage', 'NOT_RECORDED'] }, records: { $sum: 1 } } },
+      { $project: { _id: 0, stage: '$_id', records: 1 } },
+    ]),
   ]);
 
   const tally = counts[0] || { total: 0, unresolved: 0, schools: 0 };
-  return { points, unresolved: tally.unresolved, total: tally.total, schools: tally.schools };
+  return { points: points.map(point => ({ ...point, projectId: point.projectIds?.length === 1 ? point.projectIds[0] : null })), unresolved: tally.unresolved, total: tally.total, schools: tally.schools, pipeline };
 }
 
 // ── Location records (§34, §35) ─────────────────────────────────────────────
@@ -359,7 +390,7 @@ async function getImportedMapPoints(projectIds) {
 //
 // Email is returned here because this IS the authorised detail view (§34) — the same place
 // the platform's own contact drawer shows it. It is never in the map payload.
-async function getLocationRecords({ projectIds, city, page = 1, limit = 25 } = {}) {
+async function getLocationRecords({ projectIds, city, page = 1, limit = 25, status, marketingStage, department, search, sort } = {}) {
   const ids = (Array.isArray(projectIds) ? projectIds : [projectIds])
     .filter((id) => id && mongoose.isValidObjectId(id))
     .map((id) => new mongoose.Types.ObjectId(String(id)));
@@ -370,13 +401,13 @@ async function getLocationRecords({ projectIds, city, page = 1, limit = 25 } = {
   const safePage = Math.max(Number(page) || 1, 1);
   // Exact match on the normalised city the aggregation grouped by, so the drawer shows
   // precisely the records that marker counted.
-  const match = { projectId: { $in: ids }, city: String(city) };
+  const match = { projectId: { $in: ids }, city: String(city), ...recordFilters({ status, marketingStage, department, search }) };
 
   const [items, total] = await Promise.all([
     MarketingImport.find(match)
-      .select('school email locationRaw city state pincode latitude longitude sourceFile createdAt projectId')
+      .select('school email locationRaw city state pincode latitude longitude sourceFile createdAt projectId status department marketingStatus.currentStage')
       .populate('projectId', 'name projectCode')
-      .sort({ school: 1, _id: 1 })
+      .sort(recordSort(sort))
       .skip((safePage - 1) * safeLimit)
       .limit(safeLimit)
       .lean(),
@@ -385,7 +416,7 @@ async function getLocationRecords({ projectIds, city, page = 1, limit = 25 } = {
 
   return {
     items: items.map((r) => ({
-      id: String(r._id),
+      id: String(r._id), projectId: String(r.projectId?._id || r.projectId),
       school: r.school,
       email: r.email || '',
       location: r.locationRaw,
@@ -393,7 +424,9 @@ async function getLocationRecords({ projectIds, city, page = 1, limit = 25 } = {
       state: r.state,
       pincode: r.pincode || '',
       // Whether this row is on the map, so the drawer can explain an absence.
-      mapped: r.latitude !== null && r.latitude !== undefined,
+      mapped: Number.isFinite(r.latitude) && Number.isFinite(r.longitude),
+      marketingStatus: { currentStage: r.marketingStatus?.currentStage || null },
+      status: effectiveStatus(r), department: r.department || '',
       sourceFile: r.sourceFile || '',
       projectName: r.projectId?.name || '',
       createdAt: r.createdAt,
@@ -404,7 +437,7 @@ async function getLocationRecords({ projectIds, city, page = 1, limit = 25 } = {
 
 // Records with no resolvable location (§32). Same authorisation, no city filter — these are
 // exactly the rows the map cannot show, which is why they need their own view.
-async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
+async function getUnmappedRecords({ projectIds, page = 1, limit = 25, status, marketingStage, department, search, sort } = {}) {
   const ids = (Array.isArray(projectIds) ? projectIds : [projectIds])
     .filter((id) => id && mongoose.isValidObjectId(id))
     .map((id) => new mongoose.Types.ObjectId(String(id)));
@@ -412,13 +445,13 @@ async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
 
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
   const safePage = Math.max(Number(page) || 1, 1);
-  const match = { projectId: { $in: ids }, latitude: null };
+  const match = { projectId: { $in: ids }, latitude: null, ...recordFilters({ status, marketingStage, department, search }) };
 
   const [items, total] = await Promise.all([
     MarketingImport.find(match)
-      .select('school email locationRaw sourceFile createdAt projectId')
+      .select('school email locationRaw sourceFile createdAt projectId status department latitude longitude marketingStatus.currentStage')
       .populate('projectId', 'name')
-      .sort({ _id: 1 })
+      .sort(recordSort(sort))
       .skip((safePage - 1) * safeLimit)
       .limit(safeLimit)
       .lean(),
@@ -427,7 +460,7 @@ async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
 
   return {
     items: items.map((r) => ({
-      id: String(r._id),
+      id: String(r._id), projectId: String(r.projectId?._id || r.projectId),
       school: r.school,
       email: r.email || '',
       // What the file actually said — the value that failed to resolve, so it can be
@@ -436,7 +469,9 @@ async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
       sourceFile: r.sourceFile || '',
       projectName: r.projectId?.name || '',
       missingLocationReason: r.locationRaw?.trim() ? 'Location could not be resolved to coordinates' : 'Location is missing from the source record',
-      status: 'Unmapped',
+      marketingStatus: { currentStage: r.marketingStatus?.currentStage || null },
+      status: effectiveStatus(r),
+      department: r.department || '', mapped: false,
       createdAt: r.createdAt,
     })),
     pagination: { page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)) },
@@ -445,7 +480,7 @@ async function getUnmappedRecords({ projectIds, page = 1, limit = 25 } = {}) {
 
 module.exports = {
   analyzeFile, commitImport, getImportedMapPoints, getLocationRecords, getUnmappedRecords,
-  searchImportedRecords, getImportedRecord,
+  searchImportedRecords, getImportedRecord, updateMarketingStatus, getMarketingJourneyConfig,
   // exported for tests
   detectColumns, resolveLocation, validateRows, parseWorkbook, resolveMapping,
 };
@@ -455,24 +490,26 @@ const recordScope = (projectIds) => (Array.isArray(projectIds) ? projectIds : [p
   .map((id) => new mongoose.Types.ObjectId(String(id)));
 
 const recordDetail = (row) => ({
-  id: String(row._id), school: row.school, email: row.email || '',
+  id: String(row._id), projectId: String(row.projectId?._id || row.projectId), school: row.school, email: row.email || '',
   location: row.locationRaw || '', city: row.city || '', state: row.state || '',
   latitude: row.latitude ?? null, longitude: row.longitude ?? null,
   projectName: row.projectId?.name || '', department: row.department || '',
   sourceFile: row.sourceFile || '', pincode: row.pincode || '', createdAt: row.createdAt,
   mapped: Number.isFinite(row.latitude) && Number.isFinite(row.longitude),
-  status: Number.isFinite(row.latitude) && Number.isFinite(row.longitude) ? 'Mapped' : 'Unmapped',
+  marketingStatus: { currentStage: row.marketingStatus?.currentStage || null, version: row.marketingStatus?.version || 0, scheduledAt: row.marketingStatus?.scheduledAt || null, history: row.marketingStatus?.history || [] },
+  status: effectiveStatus(row),
+  statusSource: row.status ? 'record' : 'coordinates', coordSource: row.coordSource || null,
   missingLocationReason: row.locationRaw?.trim() ? 'Location could not be resolved to coordinates' : 'Location is missing from the source record',
 });
 
-async function searchImportedRecords({ projectIds, search } = {}) {
+async function searchImportedRecords({ projectIds, search, marketingStage } = {}) {
   const ids = recordScope(projectIds);
   const term = String(search || '').trim().slice(0, 120);
   if (!ids.length || term.length < 2) return { items: [] };
   const literal = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = { projectId: { $in: ids }, $or: ['school', 'locationRaw', 'city'].map((key) => ({ [key]: { $regex: literal, $options: 'i' } })) };
+  const match = { projectId: { $in: ids }, ...marketingStageMatch(marketingStage), $or: ['school', 'locationRaw', 'city'].map((key) => ({ [key]: { $regex: literal, $options: 'i' } })) };
   const rows = await MarketingImport.find(match)
-    .select('school locationRaw city state latitude longitude projectId')
+    .select('school locationRaw city state latitude longitude projectId status department marketingStatus.currentStage')
     .populate('projectId', 'name').sort({ school: 1, _id: 1 }).limit(12).lean();
   // Search exposes names and geography only; contact details are loaded after selection.
   return { items: rows.map((row) => { const { email: _email, ...item } = recordDetail(row); return item; }) };
@@ -486,4 +523,37 @@ async function getImportedRecord({ projectIds, recordId } = {}) {
     .populate('projectId', 'name').lean();
   if (!row) fail(404, 'This record is not available in the selected project.');
   return recordDetail(row);
+}
+
+
+const canUpdateMarketingStatus = (actor) => [ROLES.CEO, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(actor?.role);
+function getMarketingJourneyConfig(actor) {
+  return { stages, canUpdate: canUpdateMarketingStatus(actor), scope: 'record' };
+}
+
+async function updateMarketingStatus({ projectIds, recordId, actor, stage, expectedVersion, scheduledAt, note } = {}) {
+  if (!canUpdateMarketingStatus(actor)) fail(403, 'You do not have permission to update marketing status.');
+  const actorId = actor?.id || actor?._id;
+  if (!mongoose.isValidObjectId(actorId)) fail(403, 'An authenticated account is required.');
+  if (!stageIds.includes(stage)) fail(422, 'Select a valid marketing stage.');
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 0) fail(422, 'The current status version is required.');
+  if (note !== undefined && (typeof note !== 'string' || note.length > 1000)) fail(422, 'Notes must be at most 1000 characters.');
+  const schedule = scheduledAt ? new Date(scheduledAt) : null;
+  if (schedule && !Number.isFinite(schedule.getTime())) fail(422, 'Supply a valid scheduled date.');
+  const ids = recordScope(projectIds);
+  if (!ids.length || !mongoose.isValidObjectId(recordId)) fail(422, 'Select a valid record and project.');
+  const scope = { _id: recordId, projectId: { $in: ids } };
+  const existing = await MarketingImport.findOne(scope).lean();
+  if (!existing) fail(404, 'This record is not available in the selected project.');
+  if ((existing.marketingStatus?.version || 0) !== expectedVersion) fail(409, 'This status changed in another session. Reload the record and try again.');
+  const event = { stage, timestamp: new Date(), actorId, actorName: String(actor.name || actor.fullName || actor.role).slice(0, 200), actorRole: actor.role, source: 'marketing-map', note: (note || '').trim(), scheduledAt: schedule };
+  const sameSchedule = (existing.marketingStatus?.scheduledAt ? new Date(existing.marketingStatus.scheduledAt).getTime() : null) === (schedule?.getTime() ?? null);
+  if (existing.marketingStatus?.currentStage === stage && sameSchedule && !event.note) return recordDetail(await MarketingImport.findOne(scope).populate('projectId', 'name').lean());
+  const versionMatch = expectedVersion === 0 ? { $or: [{ 'marketingStatus.version': 0 }, { 'marketingStatus.version': { $exists: false } }] } : { 'marketingStatus.version': expectedVersion };
+  const updated = await MarketingImport.findOneAndUpdate({ ...scope, ...versionMatch }, {
+    $set: { 'marketingStatus.currentStage': stage, 'marketingStatus.scheduledAt': schedule },
+    $inc: { 'marketingStatus.version': 1 }, $push: { 'marketingStatus.history': event },
+  }, { new: true, runValidators: true }).populate('projectId', 'name').lean();
+  if (!updated) fail(409, 'This status changed in another session. Reload the record and try again.');
+  return recordDetail(updated);
 }

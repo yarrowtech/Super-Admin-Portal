@@ -10,13 +10,14 @@ const marketingImportController = require('../controllers/ceo/marketingImport.co
 const { uploadSpreadsheet } = require('../middlewares/upload.middleware');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
+const { marketingMapScope } = require('../middlewares/marketingMapScope.middleware');
 const { ROLES } = require('../config/roles');
 
 // All routes require authentication and CEO role
 router.use(authenticate);
 router.use(authorize(ROLES.CEO, ROLES.ADMIN));
 router.use(authorizePortalAccess('ceo'));
-router.use(cacheGetResponses('ceo', { tags: ['dashboard', 'analytics'] }));
+router.use(cacheGetResponses('ceo', { tags: ['dashboard', 'analytics'], skip: (req) => req.path.startsWith('/marketing-analytics/import') || req.path.startsWith('/marketing-analytics/map') }));
 router.use(invalidateCacheAfterMutation('ceo'));
 
 // CEO specific routes
@@ -46,6 +47,19 @@ router.get('/marketing-analytics/contacts/:contactId', marketingAnalyticsControl
 // selected project. Imported map points are aggregated counts only — no contact details.
 router.post('/marketing-analytics/import/analyze', uploadSpreadsheet('file'), marketingImportController.analyzeMarketingImport);
 router.post('/marketing-analytics/import', uploadSpreadsheet('file'), marketingImportController.commitMarketingImport);
+// This map is an EEC-B2B workspace; general marketing APIs retain their own project views.
+router.use('/marketing-analytics/map', marketingMapScope);
+router.get('/marketing-analytics/map/projects', (req, res) => res.json({ success: true, data: [req.marketingMapProject] }));
+router.get('/marketing-analytics/map/analytics', marketingAnalyticsController.getMarketingAnalytics);
+router.get('/marketing-analytics/map/points', marketingImportController.getImportedMarketingPoints);
+router.get('/marketing-analytics/map/journey', marketingImportController.getMarketingJourneyConfig);
+router.get('/marketing-analytics/map/records', marketingImportController.getImportedLocationRecords);
+router.get('/marketing-analytics/map/search', marketingImportController.searchImportedRecords);
+router.get('/marketing-analytics/map/unmapped', marketingImportController.getUnmappedImportedRecords);
+router.get('/marketing-analytics/map/records/:recordId', marketingImportController.getImportedRecord);
+router.patch('/marketing-analytics/map/records/:recordId/marketing-status', marketingImportController.updateMarketingStatus);
+router.get('/marketing-analytics/import/journey', marketingImportController.getMarketingJourneyConfig);
+router.patch('/marketing-analytics/import/records/:recordId/marketing-status', marketingImportController.updateMarketingStatus);
 router.get('/marketing-analytics/import/points', marketingImportController.getImportedMarketingPoints);
 // Detail views: the records behind a marker, and the records no marker could show. Both are
 // authorised, paginated and scoped to the caller's projects — the map itself gets counts only.

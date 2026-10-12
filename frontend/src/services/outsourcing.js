@@ -82,7 +82,7 @@ export const outsourcingApi = {
     requestForm('PUT', `/api/outsourcing/edifyeight/study-materials/${encodeURIComponent(materialId)}`, formData, token),
   deleteEdifyEightStudyMaterial: async (token, materialId) =>
     apiClient.delete(`/api/outsourcing/edifyeight/study-materials/${encodeURIComponent(materialId)}`, token),
-  getMyProjects: async (token) => apiClient.get('/api/my-projects', token, { ttlMs: ttl.fast }),
+  getMyProjects: async (token) => apiClient.get('/api/my-projects', token, { cache: false }),
   getProjectPermissions: async (token) => apiClient.get('/api/project-permissions', token, { ttlMs: ttl.fast }),
   getProjectRoles: async (token) => apiClient.get('/api/project-roles', token, { ttlMs: ttl.fast }),
   generateProjectAccessToken: async (token, projectCode, payload = {}) =>
@@ -129,7 +129,7 @@ export const outsourcingApi = {
   getUsers: async (token) => apiClient.get('/api/outsourcing/users', token, { ttlMs: ttl.slow }),
   getMyProfile: async (token) => apiClient.get('/api/outsourcing/profile', token, { ttlMs: ttl.medium }),
   getMyWorkspace: async (token) => apiClient.get('/api/outsourcing/workspace/me', token, { ttlMs: ttl.fast }),
-  getWorkspaceCatalog: async (token) => apiClient.get('/api/workspace', token, { ttlMs: ttl.slow }),
+  getWorkspaceCatalog: async (token) => apiClient.get('/api/workspace', token, { cache: false }),
   updateMyProfile: async (token, payload) => apiClient.put('/api/outsourcing/profile', payload, token),
   uploadProfileDocument: async (token, file, docType) => {
     const form = new FormData();

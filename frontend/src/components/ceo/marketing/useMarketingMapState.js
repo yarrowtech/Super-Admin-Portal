@@ -5,7 +5,7 @@ export const ALL = 'all';
 const today = new Date();
 export const DEFAULT_FILTERS = {
   projectId: ALL, startDate: new Date(today.getTime() - 30 * 86400000).toISOString().slice(0, 10),
-  endDate: today.toISOString().slice(0, 10), channel: ALL, state: ALL, city: ALL, campaign: ALL, status: ALL,
+  endDate: today.toISOString().slice(0, 10), channel: ALL, state: ALL, city: ALL, campaign: ALL, status: ALL, marketingStage: ALL, department: ALL,
 };
 export const DEFAULT_LAYERS = { locations: true, schools: false, records: false, campaigns: false, boundaries: true };
 export const pointKey = (point) => `${point.location}|${point.state || ''}`;
@@ -13,7 +13,7 @@ export const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-mo
 export const mapMotion = () => ({ duration: prefersReducedMotion() ? 0 : 1, easeLinearity: 0.25 });
 
 export const focusViewport = (map, point) => {
-  const zoom = Math.min(map.getMaxZoom(), Math.max(12, Math.round(map.getZoom())));
+  const zoom = Math.min(map.getMaxZoom(), Math.max(14, Math.round(map.getZoom())));
   const shift = map.getSize().x >= 640 ? [190, 0] : [0, Math.min(170, map.getSize().y * .2)];
   const center = map.unproject(map.project([point.latitude, point.longitude], zoom).add(shift), zoom);
   return { latitude: center.lat, longitude: center.lng, zoom };
@@ -32,6 +32,8 @@ export const readMapUrl = (search) => {
     ? { latitude: Number(params.get('lat')), longitude: Number(params.get('lng')), zoom: Number(params.get('zoom')) } : null;
   const panel = params.get('panel') === 'unmapped' ? 'unmapped' : selection || params.get('record') ? 'location' : null;
   return {
+    sections: Object.fromEntries(['status', 'details', 'source'].filter(key => params.has(`section.${key}`)).map(key => [key, params.get(`section.${key}`) === 'open'])),
+    recordQuery: params.get('recordSearch') || '', recordSort: params.get('recordSort') || 'name', recordStatus: ['Mapped', 'Pending', 'Needs Review', 'Unmapped', 'Invalid', 'Inactive'].includes(params.get('recordStatus')) ? ALL : params.get('recordStatus') || ALL, recordDepartment: params.get('recordDepartment') || '',
     filters, selection, viewport, panel, recordId: params.get('record') || null,
     detailPage: Math.max(1, Number(params.get('page')) || 1), clusterPage: 1,
     recordsOpen: params.get('records') !== 'hidden', baseKey: params.get('base') === 'standard' ? 'standard' : 'humanitarian',
@@ -42,6 +44,8 @@ export const readMapUrl = (search) => {
 
 export const writeMapUrl = (snapshot) => {
   const params = new URLSearchParams();
+  Object.entries(snapshot.sections || {}).forEach(([key, open]) => params.set(`section.${key}`, open ? 'open' : 'closed'));
+  for (const [key, param] of Object.entries({ recordQuery: 'recordSearch', recordSort: 'recordSort', recordStatus: 'recordStatus', recordDepartment: 'recordDepartment' })) { const value = snapshot[key]; if (value && value !== ALL && value !== 'name') params.set(param, value); }
   Object.entries(snapshot.filters).forEach(([key, value]) => { if (value && value !== ALL && value !== DEFAULT_FILTERS[key]) params.set(key, value); });
   if (snapshot.selection?.kind === 'location') params.set('location', snapshot.selection.key);
   if (snapshot.selection?.kind === 'cluster') params.set('area', snapshot.selection.bounds.flat().join(','));
@@ -60,6 +64,14 @@ export const writeMapUrl = (snapshot) => {
   return `?${params.toString()}`;
 };
 
+const hydrateSnapshot = (snapshot, search) => {
+  const parsed = readMapUrl(search);
+  const filters = { ...DEFAULT_FILTERS, ...snapshot.filters };
+  delete filters.schoolStatus;
+  const recordStatus = ['Mapped', 'Pending', 'Needs Review', 'Unmapped', 'Invalid', 'Inactive'].includes(snapshot.recordStatus) ? ALL : snapshot.recordStatus || ALL;
+  return { ...parsed, ...snapshot, filters, recordStatus };
+};
+
 const lastIndex = (session) => {
   try { return Number(sessionStorage.getItem(`marketing-map:${session}`)) || 0; } catch { return 0; }
 };
@@ -67,7 +79,7 @@ const lastIndex = (session) => {
 export const useMarketingMapState = (mapRef) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const entry = useMemo(() => location.state?.marketingMap?.version === 1 ? location.state.marketingMap : {
+  const entry = useMemo(() => location.state?.marketingMap?.version === 1 ? { ...location.state.marketingMap, snapshot: hydrateSnapshot(location.state.marketingMap.snapshot, location.search) } : {
     version: 1, session: `map-${location.key}`, index: 0, snapshot: readMapUrl(location.search),
   }, [location.key, location.search, location.state]);
   const current = useRef(entry);

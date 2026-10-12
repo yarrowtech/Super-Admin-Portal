@@ -70,28 +70,48 @@ export const marketingAnalyticsApi = {
 
   // Aggregated imported points for the map: one entry per city, counts only. Carries no
   // contact details, which is what makes it safe to render in a marker.
-  getImportedPoints: (token, projectId, { signal } = {}) =>
-    apiClient.get(`${BASE}/import/points?projectId=${encodeURIComponent(projectId)}`, token, { cache: false, signal }),
+  getImportedPoints: (token, projectId, { signal, ...filters } = {}) =>
+    apiClient.get(`${BASE}/import/points${toQuery({ projectId }, filters)}`, token, { cache: false, signal }),
 
   // The records behind one marker — the authorised detail view, fetched only on an explicit
   // click. This is the one imported-data response that carries contact details, which is
   // exactly why it is separate from the map payload.
-  getLocationRecords: (token, projectId, city, { page = 1, limit = 25, signal } = {}) =>
+  getLocationRecords: (token, projectId, city, { page = 1, limit = 25, signal, ...filters } = {}) =>
     apiClient.get(
-      `${BASE}/import/records${toQuery({ projectId }, { city, page, limit })}`,
+      `${BASE}/import/records${toQuery({ projectId }, { city, page, limit, ...filters })}`,
       token, { cache: false, signal }
     ),
 
   // Records with no resolvable location, so an unmapped count is inspectable rather than
   // just a number the user has to trust.
-  getUnmappedRecords: (token, projectId, { page = 1, limit = 25, signal } = {}) =>
-    apiClient.get(`${BASE}/import/unmapped${toQuery({ projectId }, { page, limit })}`, token, { cache: false, signal }),
+  getUnmappedRecords: (token, projectId, { page = 1, limit = 25, signal, ...filters } = {}) =>
+    apiClient.get(`${BASE}/import/unmapped${toQuery({ projectId }, { page, limit, ...filters })}`, token, { cache: false, signal }),
 
-  searchImportedRecords: (token, projectId, search, { signal } = {}) =>
-    apiClient.get(`${BASE}/import/search${toQuery({ projectId }, { search })}`, token, { signal }),
+  searchImportedRecords: (token, projectId, search, { signal, marketingStage } = {}) =>
+    apiClient.get(`${BASE}/import/search${toQuery({ projectId }, { search, marketingStage })}`, token, { cache: false, signal }),
+
+  getMarketingJourney: (token, { signal } = {}) =>
+    apiClient.get(`${BASE}/import/journey`, token, { cache: false, signal }),
+
+  updateMarketingStatus: (token, projectId, recordId, change) =>
+    apiClient.patch(`${BASE}/import/records/${encodeURIComponent(recordId)}/marketing-status${toQuery({ projectId })}`, change, token),
 
   getImportedRecord: (token, projectId, recordId, { signal } = {}) =>
-    apiClient.get(`${BASE}/import/records/${encodeURIComponent(recordId)}${toQuery({ projectId })}`, token, { signal }),
+    apiClient.get(`${BASE}/import/records/${encodeURIComponent(recordId)}${toQuery({ projectId })}`, token, { cache: false, signal }),
 };
 
 export default marketingAnalyticsApi;
+
+// Dedicated EEC-B2B map API. The general dashboard/import APIs above are unchanged.
+const MAP = `${BASE}/map`;
+export const marketingMapApi = {
+  getProjects: token => apiClient.get(`${MAP}/projects`, token, { cache: false }),
+  getAnalytics: (token, filters, options = {}) => apiClient.get(`${MAP}/analytics${toQuery(filters, { includeContacts: false })}`, token, { cache: false, signal: options.signal }),
+  getImportedPoints: (token, projectId, { signal, ...filters } = {}) => apiClient.get(`${MAP}/points${toQuery({ projectId }, filters)}`, token, { cache: false, signal }),
+  getMarketingJourney: (token, { signal, projectId } = {}) => apiClient.get(`${MAP}/journey${toQuery({ projectId })}`, token, { cache: false, signal }),
+  getLocationRecords: (token, projectId, city, { signal, ...filters } = {}) => apiClient.get(`${MAP}/records${toQuery({ projectId }, { city, ...filters })}`, token, { cache: false, signal }),
+  getUnmappedRecords: (token, projectId, { signal, ...filters } = {}) => apiClient.get(`${MAP}/unmapped${toQuery({ projectId }, filters)}`, token, { cache: false, signal }),
+  searchImportedRecords: (token, projectId, search, { signal, ...filters } = {}) => apiClient.get(`${MAP}/search${toQuery({ projectId }, { search, ...filters })}`, token, { cache: false, signal }),
+  getImportedRecord: (token, projectId, recordId, { signal } = {}) => apiClient.get(`${MAP}/records/${encodeURIComponent(recordId)}${toQuery({ projectId })}`, token, { cache: false, signal }),
+  updateMarketingStatus: (token, projectId, recordId, change) => apiClient.patch(`${MAP}/records/${encodeURIComponent(recordId)}/marketing-status${toQuery({ projectId })}`, change, token),
+};

@@ -65,16 +65,26 @@ export const MapBoundary = ({ selected, visible }) => {
   return null;
 };
 
+const stageToneFor = (point, stages) => {
+  // An aggregate pin has no single stage unless all its records agree.
+  const ids = point.marketingStages || [];
+  if (ids.length !== 1 || ids[0] === 'NOT_RECORDED') return null;
+  if (ids[0] === 'MEETING_FIXED') return 'meeting';
+  if (ids[0] === 'EMAIL_SENT' || ids[0] === 'LEAD_IDENTIFIED') return null;
+  return stages.find(stage => stage.id === ids[0])?.tone || null;
+};
 const badgeFor = (point, layers) => layers.campaigns && point.campaigns ? point.campaigns : layers.schools && point.schools ? point.schools : layers.records ? point.records : '';
 
-const MarkerLayers = ({ points, selected, layers, loading, onLocation, onCluster, onError }) => {
+
+const MarkerLayers = ({ points, selected, layers, stages = [], loading, onLocation, onCluster, onError }) => {
   const map = useMap();
   const groupRef = useRef(null);
   const markers = useRef(new Map());
   const previousSelection = useRef(null);
-  const callbacks = useRef({ onLocation, onCluster, onError, selected, layers });
+  const callbacks = useRef({ onLocation, onCluster, onError, selected, layers, stages, points });
   const budget = useRef(0);
-  useLayoutEffect(() => { callbacks.current = { onLocation, onCluster, onError, selected, layers }; }, [onLocation, onCluster, onError, selected, layers]);
+  const geometry = points.map(point => `${pointKey(point)}:${point.latitude}:${point.longitude}`).join(';');
+  useLayoutEffect(() => { callbacks.current = { onLocation, onCluster, onError, selected, layers, stages, points }; }, [onLocation, onCluster, onError, selected, layers, stages, points]);
   useEffect(() => {
     const container = map.getContainer();
     container.classList.toggle('marketing-has-selection', Boolean(selected && selected.kind !== 'cluster'));
@@ -84,7 +94,8 @@ const MarkerLayers = ({ points, selected, layers, loading, onLocation, onCluster
   useEffect(() => {
     let cancelled = false;
     const markerEntries = markers.current;
-    const max = points.reduce((value, point) => Math.max(value, point.records), 0);
+    const sourcePoints = callbacks.current.points;
+    const max = sourcePoints.reduce((value, point) => Math.max(value, point.records), 0);
     const decorate = (marker) => {
       const element = marker.getElement();
       const pin = element?.querySelector('.marketing-pin');
@@ -98,6 +109,14 @@ const MarkerLayers = ({ points, selected, layers, loading, onLocation, onCluster
       }
     };
     const resetBudget = () => { budget.current = 0; };
+    const updateLabels = () => {
+      for (const { marker, point } of markerEntries.values()) {
+        const chosen = callbacks.current.selected && callbacks.current.selected.kind !== 'cluster' && pointKey(callbacks.current.selected) === pointKey(point);
+        marker.getTooltip().options.permanent = Boolean(chosen || map.getZoom() >= 14);
+        if (marker.getElement() && (chosen || map.getZoom() >= 14)) marker.openTooltip(); else marker.closeTooltip();
+      }
+    };
+    map.on('zoomend', updateLabels);
     map.on('movestart', resetBudget);
     (async () => {
       try {
@@ -105,7 +124,7 @@ const MarkerLayers = ({ points, selected, layers, loading, onLocation, onCluster
         if (cancelled) return;
         const group = L.markerClusterGroup({
           // Plugin split animations conflict with flyTo; CSS reveals only visible pins.
-          animate: false, disableClusteringAtZoom: 11, maxClusterRadius: 48,
+          animate: false, disableClusteringAtZoom: 8, maxClusterRadius: 60,
           zoomToBoundsOnClick: false, spiderfyOnMaxZoom: true, showCoverageOnHover: false,
           iconCreateFunction: (cluster) => L.divIcon({ className: 'marketing-cluster-wrap', iconSize: [44, 44], html: `<div class="marketing-cluster">${cluster.getChildCount()}</div>` }),
         });
@@ -116,15 +135,15 @@ const MarkerLayers = ({ points, selected, layers, loading, onLocation, onCluster
           callbacks.current.onCluster(layer.getAllChildMarkers().map((marker) => marker.marketingPoint), [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]]);
         });
         map.addLayer(group);
-        group.addLayers(points.map((point) => {
+        group.addLayers(sourcePoints.map((point) => {
           const isSelected = callbacks.current.selected?.kind !== 'cluster' && callbacks.current.selected && pointKey(callbacks.current.selected) === pointKey(point);
-          const marker = L.marker([point.latitude, point.longitude], { icon: createPinIcon({ band: bandFor(point.records, max), selected: isSelected, badge: badgeFor(point, callbacks.current.layers) }), title: point.location, keyboard: true });
+          const marker = L.marker([point.latitude, point.longitude], { icon: createPinIcon({ band: bandFor(point.records, max), selected: isSelected, stageTone: stageToneFor(point, callbacks.current.stages), badge: badgeFor(point, callbacks.current.layers) }), title: point.location, keyboard: true });
           marker.marketingPoint = point;
           const tip = document.createElement('div');
           const title = document.createElement('strong');
           title.textContent = point.location;
           tip.append(title, document.createTextNode(point.state || ''));
-          marker.bindTooltip(tip, { direction: 'top', className: 'marketing-pin-tip', opacity: 1, permanent: Boolean(isSelected) });
+          marker.bindTooltip(tip, { direction: 'top', className: 'marketing-pin-tip', opacity: 1, permanent: Boolean(isSelected || map.getZoom() >= 14) });
           marker.on('click', () => callbacks.current.onLocation(point));
           marker.on('add', () => {
             decorate(marker);
@@ -139,10 +158,11 @@ const MarkerLayers = ({ points, selected, layers, loading, onLocation, onCluster
     return () => {
       cancelled = true;
       map.off('movestart', resetBudget);
+      map.off('zoomend', updateLabels);
       if (groupRef.current) { map.removeLayer(groupRef.current); groupRef.current = null; }
       markerEntries.clear();
     };
-  }, [map, points]);
+  }, [map, geometry]);
 
   useEffect(() => {
     const key = selected && selected.kind !== 'cluster' ? pointKey(selected) : null;
@@ -150,23 +170,37 @@ const MarkerLayers = ({ points, selected, layers, loading, onLocation, onCluster
       const entry = markers.current.get(locationKey);
       if (!entry) continue;
       const { marker, point, max } = entry;
-      marker.setIcon(createPinIcon({ band: bandFor(point.records, max), selected: locationKey === key, badge: badgeFor(point, layers) }));
+      marker.setIcon(createPinIcon({ band: bandFor(point.records, max), selected: locationKey === key, stageTone: stageToneFor(point, stages), badge: badgeFor(point, layers) }));
       marker.getElement()?.setAttribute('aria-label', `Select ${point.location}`);
       if (marker.getElement()) marker.getElement().dataset.location = pointKey(point);
-      marker.getTooltip().options.permanent = locationKey === key;
-      if (locationKey === key) marker.openTooltip(); else marker.closeTooltip();
+      marker.getTooltip().options.permanent = locationKey === key || map.getZoom() >= 14;
+      if (locationKey === key || map.getZoom() >= 14) marker.openTooltip(); else marker.closeTooltip();
     }
     previousSelection.current = key;
-  }, [selected, layers]);
+  }, [selected, layers, map, stages]);
+
+  useEffect(() => {
+    const max = points.reduce((value, point) => Math.max(value, point.records), 0);
+    for (const point of points) {
+      const entry = markers.current.get(pointKey(point));
+      if (!entry) continue;
+      const changed = entry.max !== max || entry.point.records !== point.records || entry.point.schools !== point.schools || entry.point.campaigns !== point.campaigns || (entry.point.marketingStages || []).join(',') !== (point.marketingStages || []).join(',');
+      entry.point = point; entry.max = max; entry.marker.marketingPoint = point;
+      if (!changed) continue;
+      const chosen = selected && selected.kind !== 'cluster' && pointKey(selected) === pointKey(point);
+      entry.marker.setIcon(createPinIcon({ band: bandFor(point.records, max), selected: chosen, stageTone: stageToneFor(point, stages), badge: badgeFor(point, layers) }));
+      entry.marker.getElement()?.setAttribute('aria-label', `Select ${point.location}`);
+    }
+  }, [points, selected, layers, stages]);
 
   useEffect(() => {
     for (const { marker, point, max } of markers.current.values()) {
       const isSelected = callbacks.current.selected?.kind !== 'cluster' && callbacks.current.selected && pointKey(callbacks.current.selected) === pointKey(point);
-      marker.setIcon(createPinIcon({ band: bandFor(point.records, max), selected: isSelected, badge: badgeFor(point, layers) }));
+      marker.setIcon(createPinIcon({ band: bandFor(point.records, max), selected: isSelected, stageTone: stageToneFor(point, stages), badge: badgeFor(point, layers) }));
       marker.getElement()?.setAttribute('aria-label', `Select ${point.location}`);
       if (marker.getElement()) marker.getElement().dataset.location = pointKey(point);
     }
-  }, [layers]);
+  }, [layers, stages]);
   return null;
 };
 

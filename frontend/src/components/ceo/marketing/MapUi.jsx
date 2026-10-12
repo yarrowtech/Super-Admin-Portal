@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MarketingJourney } from './MarketingJourney';
 import { prefersReducedMotion } from './useMarketingMapState';
 
 export const MapIcon = ({ name }) => <span aria-hidden="true" className="material-symbols-outlined">{name}</span>;
@@ -57,7 +58,7 @@ export const MapPopover = ({ open, title, onClose, children, className = '' }) =
   </MapPresence></div>;
 };
 
-export const ProjectPicker = ({ options, value, onChange, loading }) => {
+export const ProjectPicker = ({ options, value, onChange, loading, placeholder = 'Loading project...' }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -74,7 +75,7 @@ export const ProjectPicker = ({ options, value, onChange, loading }) => {
   const choose = (option) => { onChange(option.value); close(); };
   return <div ref={root} className="map-project-picker">
     <button ref={trigger} type="button" aria-label="Select project" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setOpen((old) => !old); setQuery(''); }} className="map-project-trigger">
-      <span>{options.find((option) => option.value === value)?.label || 'All Projects'}</span><MapIcon name={loading ? 'progress_activity' : 'expand_more'} />
+      <span>{options.find((option) => option.value === value)?.label || placeholder}</span><MapIcon name={loading ? 'progress_activity' : 'expand_more'} />
     </button>
     <MapPresence open={open} className="map-project-menu map-surface">
       <input autoFocus aria-label="Search projects" value={query} placeholder="Search projects" onChange={(event) => { setQuery(event.target.value); setActive(0); }} onKeyDown={(event) => {
@@ -91,12 +92,13 @@ export const ProjectPicker = ({ options, value, onChange, loading }) => {
   </div>;
 };
 
-export const RecordDetails = ({ record, onClose }) => <section className="map-record-detail">
-  <div className="map-record-heading"><h3>{record.school || 'Record'}</h3><MapButton icon="arrow_back" label="Back to records" onClick={onClose} /></div>
-  <dl>{[
+
+export const RecordDetails = ({ record, onClose, sections = {}, onSection = () => {}, stages = [], canUpdate = false, onUpdate, onReload, showHeader = true }) => <section className="map-record-detail">
+  {showHeader && <div className="map-record-heading"><div><span className="map-eyebrow">School</span><h3>{record.school || 'Record'}</h3><p className="map-school-address">{record.location || 'Address not supplied'}</p></div><MapButton icon="arrow_back" label="Back to records" onClick={onClose} /></div>}
+  <details className="map-section" open={sections.status !== false} onToggle={(event) => onSection('status', event.currentTarget.open)}><summary>Marketing status</summary><MarketingJourney key={record.id} record={record} stages={stages} canUpdate={canUpdate} onUpdate={onUpdate} onReload={onReload} /></details>
+  <details className="map-section" open={sections.details !== false} onToggle={(event) => onSection('details', event.currentTarget.open)}><summary>Details</summary><dl>{[
     ['Location', record.location], ['Project', record.projectName], ['Department', record.department || 'Not supplied'],
-    ['Status', record.status || (record.mapped ? 'Mapped' : 'Unmapped')],
-    ['Email', record.email], ['Pincode', record.pincode], ['Source', record.sourceFile],
-    !record.mapped && ['Reason', record.missingLocationReason],
-  ].filter((item) => item && item[1]).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    ['Coordinate availability', record.mapped ? 'Coordinates available' : 'Without coordinates'], ['Email', record.email], ['Pincode', record.pincode], !record.mapped && ['Reason', record.missingLocationReason],
+  ].filter((item) => item && item[1]).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details>
+  <details className="map-section" open={sections.source === true} onToggle={(event) => onSection('source', event.currentTarget.open)}><summary>Source</summary><p>{record.sourceFile || 'Not supplied'}</p><p>{record.createdAt ? new Date(record.createdAt).toLocaleDateString() : 'Import date not supplied'}</p></details>
 </section>;

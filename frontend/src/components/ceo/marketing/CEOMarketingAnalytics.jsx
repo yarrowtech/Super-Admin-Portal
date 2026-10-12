@@ -281,12 +281,10 @@ const CEOMarketingAnalytics = () => {
   // This page keeps only the unmapped-records view, which belongs to the import rather than
   // to the geography.
 
-  // The geography lives on its own full-screen route. The applied project carries across in
-  // the URL so the map opens on what is already on screen rather than resetting.
+  // The dedicated marketing map resolves its EEC-B2B project from the server.
   const openGeographicMap = useCallback(() => {
-    const projectId = applied.projectId;
-    navigate(`/ceo/marketing-map${projectId && projectId !== ALL ? `?projectId=${encodeURIComponent(projectId)}` : ''}`);
-  }, [navigate, applied.projectId]);
+    navigate('/ceo/marketing-map');
+  }, [navigate]);
 
   const openUnmapped = useCallback(() => {
     setDetail({ city: 'unmapped' });

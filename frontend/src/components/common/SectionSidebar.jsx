@@ -28,8 +28,9 @@ const SectionSidebar = ({
   activeId = '',
   onSelect,
   footerItems = [],
+  highlightOpenGroups = true,
 }) => {
-  const supportUnread = useSupportUnread(footerItems.some((item) => item.id === 'support'));
+  const supportUnread = useSupportUnread(footerItems.some((item) => item.id === 'support') || items.some(item => item.id === 'support' || item.children?.some(child => child.id === 'support')));
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const { collapsed, toggle } = useSidebar();
@@ -83,7 +84,7 @@ const SectionSidebar = ({
             // Groups don't carry their own badge — roll up children's counts so the
             // total is visible on the header itself, collapsed rail included. Once
             // the group is open, the children show their own badges instead.
-            const groupBadge = hasChildren ? item.children.reduce((sum, child) => sum + (Number(child.badge) || 0), 0) : item.badge;
+            const groupBadge = hasChildren ? item.children.reduce((sum, child) => sum + (child.id === 'support' ? supportUnread : Number(child.badge) || 0), 0) : item.badge;
             const showHeaderBadge = groupBadge > 0 && !isActive && !groupHasActiveChild && !(hasChildren && isOpen && !collapsed);
             // Icon reads "filled" whenever this item is the selected leaf, or is the
             // group currently containing it — same signal the soft-tint background uses.
@@ -100,7 +101,7 @@ const SectionSidebar = ({
                   className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 ${
                     isActive
                       ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                    : hasChildren && (groupHasActiveChild || isOpen)
+                    : hasChildren && (groupHasActiveChild || (highlightOpenGroups && isOpen))
                       ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
                       : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                   } ${collapsed ? 'justify-center px-0' : ''}`}
@@ -161,6 +162,7 @@ const SectionSidebar = ({
                       <div className="relative mb-0.5 ml-[19px] mt-1 space-y-1 border-l border-neutral-200 pl-3 dark:border-neutral-800">
                         {item.children.map((child) => {
                           const childActive = activeId === child.id;
+                          const childBadge = child.id === 'support' ? supportUnread : child.badge;
                           return (
                             <button
                               key={child.id}
@@ -183,9 +185,9 @@ const SectionSidebar = ({
                                 {child.icon || 'chevron_right'}
                               </span>
                               <span className="flex-1 truncate text-left">{child.label}</span>
-                              {child.badge > 0 && !childActive && (
+                              {childBadge > 0 && !childActive && (
                                 <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                                  {child.badge > 99 ? '99+' : child.badge}
+                                  {childBadge > 99 ? '99+' : childBadge}
                                 </span>
                               )}
                             </button>

@@ -18,6 +18,7 @@ import ApprovalHistoryTimeline from './ApprovalHistoryTimeline';
 import ProjectSwitcher from './ProjectSwitcher';
 import CreativeToolbar from './CreativeToolbar';
 import CreativeStatsGrid from './CreativeStatsGrid';
+import BulkAssetUploadModal from './BulkAssetUploadModal';
 
 const MEDIA_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'campaign' },
@@ -48,7 +49,7 @@ const MODULE_FOR_SECTION = {
 
 const META = {
   dashboard: ['Media Command Center', 'Executive overview of media production, approvals, and delivery', 'campaign'],
-  projects: ['Projects', 'Click a project to open its full media & marketing plan', 'folder_copy'],
+  projects: ['Projects', 'All global projects. Open allocated projects to view their media and marketing plan.', 'folder_copy'],
   assets: ['Digital Asset Management', 'Searchable, versioned asset vault', 'perm_media'],
   brand: ['Brand Management', 'Guidelines, templates, and compliance tracking', 'palette'],
   content: ['Content Studio', 'Blogs, copy, web content, and editorial workflow', 'edit_note'],
@@ -233,6 +234,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   const [selectedIds, setSelectedIds] = useState([]);
   const [assetViewMode, setAssetViewMode] = useState('grid');
   const [filePreview, setFilePreview] = useState(null);
+  const [bulkUploadProject, setBulkUploadProject] = useState(null);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewError, setPreviewError] = useState(false);
   const [editor, setEditor] = useState({ open: false, mode: 'create', section: 'assets', record: null });
@@ -256,18 +258,19 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
         if (!value) return null;
 
         const canonicalProject = findCanonicalProject(project);
-        if (!canonicalProject) return null;
-        const code = canonicalProject?.code || project?.projectCode || project?.code || '';
-        const name = canonicalProject?.name || project?.name || project?.projectCode || 'Untitled project';
-        const description = canonicalProject?.description || project?.description || 'Project workspace';
+        const code = project?.projectCode || project?.code || canonicalProject?.code || '';
+        const name = project?.name || project?.projectCode || canonicalProject?.name || 'Untitled project';
+        const description = project?.description || canonicalProject?.description || 'Project workspace';
 
         return {
           code,
           name,
           description,
           status: String(project?.status || 'active').trim() || 'active',
-          accessGranted: true,
-          assigned: false,
+          accessGranted: project.accessGranted !== false,
+          assigned: Boolean(project.assigned),
+          logo: project.logo,
+          themeColor: project.themeColor,
           label: name,
           value,
         };
@@ -317,13 +320,23 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   ] = useQueries({
     queries: [
       {
-        queryKey: QK.media.projects({ limit: 200 }),
-        queryFn: () => departmentApi.getMediaProjects(token, { limit: 200 }),
+        queryKey: QK.media.projects({ limit: 200, catalogue: isProjectHub, userId: String(user?._id || user?.id || "") }),
+        queryFn: async () => {
+          const params = { limit: 200, ...(isProjectHub && { catalogue: true }) };
+          const first = await departmentApi.getMediaProjects(token, params, { forceRefresh: true });
+          const items = [...(first.data?.items || [])];
+          for (let page = 2; page <= (first.data?.pagination?.totalPages || 1); page++) {
+            const next = await departmentApi.getMediaProjects(token, { ...params, page }, { forceRefresh: true });
+            items.push(...(next.data?.items || []));
+          }
+          return { ...first, data: { ...first.data, items } };
+        },
         enabled,
-        // Project allocation is changed externally by Media Head (assign/revoke) —
-        // this list must always reflect the latest allocation on mount, not the
-        // shared default 90s staleTime other media queries use (forceRefresh also
-        // bypasses the apiClient's own sessionStorage HTTP cache layer).
+        // Allocations can change while Marketing is open in another tab.
+        staleTime: 0,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: 'always',
+        refetchInterval: 30000,
       },
       { queryKey: QK.media.assets(listParams), queryFn: () => departmentApi.getMediaAssets(token, listParams), enabled: enableWorkspaceData },
       { queryKey: QK.media.content(listParams), queryFn: () => departmentApi.getMediaContent(token, listParams), enabled: enableWorkspaceData },
@@ -948,7 +961,8 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
         {!effectiveProjectId ? (
           <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
-            Select a project before creating a new {String(config?.label || 'record').toLowerCase()}.
+            {projectOptions.length ? `Select a project before creating a new ${String(config?.label || 'record').toLowerCase()}.` : 'No projects assigned to this account. Ask Media Head to allocate a project before uploading files.'}
+            {!projectOptions.length ? <button type="button" onClick={() => projectsQuery.refetch()} className="ml-3 underline">Refresh projects</button> : null}
           </section>
         ) : null}
 
@@ -1026,7 +1040,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
     );
   };
 
-  const renderProjectHub = () => <MediaProjectList projects={projectOptions} />;
+  const renderProjectHub = () => <MediaProjectList projects={projectOptions} onRefresh={() => projectsQuery.refetch()} />;
 
   const renderSection = () => {
     if (activeSection === 'projects') return renderProjectHub();
@@ -1212,10 +1226,22 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
                     <p className="text-sm font-black text-slate-950 dark:text-neutral-100">File & Evidence</p>
                   </div>
                   <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-teal-400 hover:bg-teal-50/50 dark:border-neutral-700 dark:bg-neutral-950/70 dark:hover:border-teal-700 dark:hover:bg-teal-500/10">
-                    <span className={labelClass}>Upload File</span>
+                    <span className={labelClass}>{editor.mode === 'create' ? 'Upload Files (select one or more)' : 'Replace File'}</span>
                     <input
                       type="file"
-                      onChange={(e) => setDraft((prev) => ({ ...prev, file: e.target.files?.[0] || null }))}
+                      multiple={editor.mode === 'create'}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (editor.mode === 'create' && files.length > 1) {
+                          const metadata = {};
+                          (DOMAIN_FIELDS[editor.section] || []).filter(field => !field.top).forEach(field => {
+                            const value = draft.domainFields?.[field.key];
+                            if (value !== undefined && value !== '') metadata[field.key] = field.type === 'number' ? Number(value) : value;
+                          });
+                          setBulkUploadProject({ id: effectiveProjectId, section: editor.section, name: projectOptions.find(project => project.value === effectiveProjectId)?.name, files, title: draft.title, category: draft.category, description: draft.description, metadata });
+                          closeEditor();
+                        } else setDraft(prev => ({ ...prev, file: files[0] || null }));
+                      }}
                       className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-teal-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-teal-700 dark:text-neutral-300"
                     />
                     {draft.file ? (
@@ -1361,6 +1387,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
           showNotifications
           showThemeToggle
         >
+          {activeSectionAction && CREATIVE_SECTION_IDS.has(activeSection) && <Button variant="secondary" disabled={actionBusy || !effectiveProjectId} onClick={() => setBulkUploadProject({ id: effectiveProjectId, section: activeSection, name: projectOptions.find(project => String(project.value) === String(effectiveProjectId))?.name })} icon={<span className="material-symbols-outlined text-[18px]">upload_file</span>}>Bulk upload</Button>}
           {activeSectionAction && CREATIVE_SECTION_IDS.has(activeSection) ? (
             <Button
               variant="accent"
@@ -1375,6 +1402,7 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
 
         {loading ? <div className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100 dark:border-neutral-800 dark:bg-neutral-900" /> : error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : renderSection()}
         {renderEditorModal()}
+        {bulkUploadProject && <BulkAssetUploadModal initialTitle={bulkUploadProject.title} initialFiles={bulkUploadProject.files} initialCategory={bulkUploadProject.category} initialDescription={bulkUploadProject.description} initialMetadata={bulkUploadProject.metadata} token={token} moduleType={MODULE_FOR_SECTION[bulkUploadProject.section]} label={SECTION_ACTIONS[bulkUploadProject.section].label} createFn={SECTION_ACTIONS[bulkUploadProject.section].createFn} projectId={bulkUploadProject.id} projectName={bulkUploadProject.name} onClose={() => setBulkUploadProject(null)} onCreated={asset => upsertLocalRecord(bulkUploadProject.section, asset)} onFinished={refreshData} />}
         {renderFilePreview()}
       </div>
     </main>

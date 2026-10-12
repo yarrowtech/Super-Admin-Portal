@@ -48,7 +48,7 @@ function applyFilters(leads, filters = {}) {
     // any of those matching counts as this project's lead.
     if (filters.projectId) {
       const wanted = [filters.projectId, filters.projectCode, filters.projectName].filter(Boolean);
-      const carried = [lead.projectId, lead.projectName].filter(Boolean);
+      const carried = filters.strictProject && lead.projectId ? [lead.projectId] : [lead.projectId, lead.projectName].filter(Boolean);
       if (!wanted.some((w) => carried.some((c) => eq(c, w)))) return false;
     }
     if (filters.channel && !eq(lead.channel, filters.channel)) return false;

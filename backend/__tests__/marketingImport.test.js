@@ -365,6 +365,21 @@ test('import persists into a project, dedupes a re-import, and the map payload c
     const lostRecord = await service.getImportedRecord({ projectIds: [String(project._id)], recordId: unmapped.items[0].id });
     assert.equal(lostRecord.mapped, false);
     assert.equal(lostRecord.status, 'Unmapped');
+    await MarketingImport.updateOne({ _id: record.id }, { $set: { status: 'Needs Review', department: 'Outreach' } });
+    const review = await service.getImportedRecord({ projectIds: [String(project._id)], recordId: record.id });
+    assert.equal(review.status, 'Needs Review');
+    assert.equal(review.statusSource, 'record');
+    const filtered = await service.getImportedMapPoints([String(project._id)], { status: 'Needs Review' });
+    assert.equal(filtered.total, 1);
+    assert.equal(filtered.points[0].records, 1);
+    assert.deepEqual(filtered.points[0].statuses, ['Needs Review']);
+    const reviewRows = await service.getLocationRecords({ projectIds: [String(project._id)], city: 'Kolkata', status: 'Needs Review', department: 'Outreach', search: 'ABC' });
+    assert.equal(reviewRows.pagination.total, 1);
+    assert.equal(reviewRows.items[0].status, 'Needs Review');
+    assert.equal((await service.getImportedMapPoints([String(project._id)], { status: 'Pending' })).total, 0);
+    assert.equal((await service.getImportedMapPoints([String(project._id)], { status: 'Unmapped' })).unresolved, 1);
+    assert.equal((await service.getLocationRecords({ projectIds: [String(project._id)], city: 'Kolkata', search: '.*' })).pagination.total, 0);
+
   } finally {
     await mongoose.disconnect();
     await mongod.stop();

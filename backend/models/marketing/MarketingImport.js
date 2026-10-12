@@ -1,4 +1,14 @@
 const mongoose = require('mongoose');
+const { stageIds } = require('../../config/marketingStages');
+const marketingEventSchema = new mongoose.Schema({
+  stage: { type: String, enum: stageIds, required: true },
+  timestamp: { type: Date, required: true },
+  actorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  actorName: { type: String, maxlength: 200 }, actorRole: String,
+  source: { type: String, default: 'marketing-map' },
+  note: { type: String, maxlength: 1000, default: '' },
+  scheduledAt: { type: Date, default: null },
+}, { _id: true });
 
 // A marketing record imported from a CSV/Excel file.
 //
@@ -16,6 +26,14 @@ const marketingImportSchema = new mongoose.Schema(
     // under every project's analytics.
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
 
+    status: { type: String, enum: ['Mapped', 'Pending', 'Needs Review', 'Unmapped', 'Invalid', 'Inactive'], default: undefined, index: true },
+    marketingStatus: {
+      currentStage: { type: String, enum: stageIds, default: undefined },
+      version: { type: Number, default: 0 },
+      scheduledAt: { type: Date, default: null },
+      history: { type: [marketingEventSchema], default: [] },
+    },
+    department: { type: String, trim: true, maxlength: 200, default: '' },
     school: { type: String, required: true, trim: true, maxlength: 300 },
     email: { type: String, trim: true, lowercase: true, maxlength: 200, default: '' },
 
@@ -45,6 +63,7 @@ const marketingImportSchema = new mongoose.Schema(
 
 // The map and KPI rollups read by project, and only rows that resolved.
 marketingImportSchema.index({ projectId: 1, city: 1 });
+marketingImportSchema.index({ projectId: 1, 'marketingStatus.currentStage': 1 });
 marketingImportSchema.index({ projectId: 1, createdAt: -1 });
 // Re-importing the same file must not double-count: one row per school+email+location
 // within a project. A genuinely different school at the same location still inserts.

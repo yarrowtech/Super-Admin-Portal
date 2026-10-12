@@ -12,35 +12,8 @@ const MobilePortalNavContent = ({ title = 'Portal', subtitle = '', icon = 'dashb
   const triggerRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return undefined;
-    const drawer = drawerRef.current;
-    const trigger = triggerRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const focusable = () => [...drawer.querySelectorAll('a[href], button:not([disabled])')];
-    focusable()[0]?.focus();
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setOpen(false);
-      } else if (event.key === 'Tab') {
-        const controls = focusable();
-        const first = controls[0];
-        const last = controls[controls.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault(); last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault(); first?.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      if (trigger?.isConnected) trigger.focus();
-    };
-  }, [open]);
+    setOpen(false);
+  }, [location.pathname, location.search]);
 
   const handleLogout = () => {
     logout();

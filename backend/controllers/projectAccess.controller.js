@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const User = require('../models/auth/User');
 const ActivityLog = require('../models/auth/ActivityLog');
 const jwtConfig = require('../config/jwt');
+const { getGlobalProjectIdentities, applyGlobalProjectIdentity } = require('../services/globalProjectIdentity.service');
 const {
   PROJECT_REGISTRY,
   findProjectByCode,
@@ -96,6 +97,7 @@ const getWorkspaceCatalog = async (req, res) => {
     const user = await getRequestUser(req);
     if (!user) return res.status(401).json({ success: false, error: 'User not found' });
     const catalog = buildWorkspaceCatalog();
+    const identities = await getGlobalProjectIdentities();
     const accessByCode = new Map(
       getAccessibleProjects(user).map((project) => [normalizeProjectKey(project.code), buildProjectEnvelope(project, user)])
     );
@@ -105,10 +107,10 @@ const getWorkspaceCatalog = async (req, res) => {
         ...catalog,
         brands: catalog.brands.map((brand) => ({
           ...brand,
-          projects: brand.projects.map((project) => ({
+          projects: brand.projects.map((project) => applyGlobalProjectIdentity({
             ...project,
             ...(accessByCode.get(normalizeProjectKey(project.code)) || {}),
-          })),
+          }, identities)),
         })),
       },
     });
@@ -126,8 +128,9 @@ const getMyProjects = async (req, res) => {
     }
 
     const { projects, summary } = buildProjectAccessSummary(user);
+    const identities = await getGlobalProjectIdentities();
     const payload = {
-      projects: projects.map((project) => buildProjectEnvelope(project, user)),
+      projects: projects.map((project) => applyGlobalProjectIdentity(buildProjectEnvelope(project, user), identities)),
       summary,
       assignedProjects: projects.filter((project) => project.assigned).map((project) => buildProjectEnvelope(project, user)),
       accessibleProjects: projects.filter((project) => project.accessGranted).map((project) => buildProjectEnvelope(project, user)),

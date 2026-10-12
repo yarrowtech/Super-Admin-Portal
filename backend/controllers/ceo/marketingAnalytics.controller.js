@@ -59,7 +59,7 @@ const handle = (work) => async (req, res) => {
 
 // The dashboard's single call: KPIs, map, channels, states, campaigns, trend, facets and
 // the first page of contacts in one response.
-exports.getMarketingAnalytics = handle(async (req) => service.getAnalytics(readFilters(req.query), {
+exports.getMarketingAnalytics = handle(async (req) => service.getAnalytics({ ...readFilters(req.query), ...(req.marketingMapProject ? { strictProject: true } : {}) }, {
   includeContacts: String(req.query.includeContacts ?? 'true') !== 'false',
   page: req.query.page,
   limit: req.query.limit,

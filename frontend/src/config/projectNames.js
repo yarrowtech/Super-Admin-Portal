@@ -6,6 +6,12 @@ export const normalizeProjectNameKey = (value) =>
 
 export const CANONICAL_PROJECTS = Object.freeze([
   {
+    code: 'YARROWTECH',
+    name: 'YARROWTECH',
+    description: 'Yarrowtech company project workspace.',
+    aliases: ['YARROW TECH'],
+  },
+  {
     code: 'MATEBID',
     name: 'MATEBID',
     description: 'Digital fundraising and campaign management platform.',
@@ -169,8 +175,9 @@ export const resolveCanonicalProjects = (projects = []) => {
 
     return {
       code: canonical.code,
-      name: canonical.name,
-      description: canonical.description,
+      name: match?.name || canonical.name,
+      description: match?.description || canonical.description,
+      projectId: match?.projectId || null,
       aliases: canonical.aliases,
       apiOnly: Boolean(canonical.apiOnly || match?.apiOnly),
       launchUrl: match?.launchUrl || '',

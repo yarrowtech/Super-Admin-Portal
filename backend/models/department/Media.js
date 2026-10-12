@@ -17,6 +17,8 @@ const MEDIA_SECTIONS = [
   'approval',
   'report',
   'archive',
+  'document',
+  'marketing',
 ];
 
 const MEDIA_STATUSES = ['Draft', 'Pending', 'In Review', 'Approved', 'Scheduled', 'Live', 'Published', 'Needs Revision', 'Rejected', 'Archived'];
@@ -29,6 +31,7 @@ const versionSchema = new mongoose.Schema(
     note: { type: String, trim: true, default: '' },
     changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     changedAt: { type: Date, default: Date.now },
+    snapshot: { type: mongoose.Schema.Types.Mixed },
   },
   { _id: false }
 );
@@ -56,6 +59,18 @@ const assignedEmployeeSchema = new mongoose.Schema(
 
 const mediaSchema = new mongoose.Schema(
   {
+    libraryKind: { type: String, enum: ['brand', 'creative', 'marketing', 'social', 'content', 'campaigns', 'documents'], index: true },
+    subcategory: { type: String, trim: true, default: '' },
+    originalName: { type: String, trim: true, default: '' },
+    assetType: { type: String, trim: true, default: '' },
+    isMaster: { type: Boolean, default: false },
+    usageRights: { type: String, trim: true, default: '' },
+    social: { platform: String, contentType: String, caption: String, hashtags: [String], cta: String, targetAudience: String, scheduledAt: Date, publishedAt: Date, creativeAssetId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media' } },
+    campaignStatus: { type: String, enum: ['Draft', 'Planning', 'Active', 'Scheduled', 'Completed', 'Archived'], default: 'Draft' },
+    relatedIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Media' }],
+    favoriteBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    sharedWith: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    deletedAt: { type: Date, default: null, index: true },
     section: { type: String, enum: MEDIA_SECTIONS, default: 'dashboard', index: true },
     moduleType: { type: String, trim: true, default: 'asset', index: true },
     title: { type: String, required: true, trim: true, index: true },
@@ -130,6 +145,8 @@ const mediaSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+mediaSchema.index({ projectId: 1, libraryKind: 1, deletedAt: 1, updatedAt: -1 });
+mediaSchema.index({ projectId: 1, campaignId: 1 });
 mediaSchema.index({ section: 1, projectId: 1, createdAt: -1 });
 mediaSchema.index({ moduleType: 1, status: 1, createdAt: -1 });
 mediaSchema.index({ title: 'text', description: 'text', category: 'text', tags: 'text', projectName: 'text', clientName: 'text', campaignName: 'text' });

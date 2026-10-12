@@ -12,6 +12,7 @@ const MEDIA_MODULE_KEYS = [
 ];
 
 const listValidation = [
+  query('catalogue').optional().isBoolean(),
   query('page').optional().isInt({ min: 1 }).withMessage('page must be >= 1'),
   query('limit').optional().isInt({ min: 1, max: 200 }).withMessage('limit must be between 1 and 200'),
   query('status').optional().trim().isLength({ min: 1, max: 50 }),

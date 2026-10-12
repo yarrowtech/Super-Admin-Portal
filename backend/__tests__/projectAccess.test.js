@@ -14,7 +14,7 @@ test('workspace catalog preserves the HOUSE OF MUSA hierarchy', () => {
   const yarrowtech = catalog.brands.find((brand) => brand.code === 'YARROWTECH');
   assert.deepEqual(
     yarrowtech.projects.map((project) => project.code),
-    ['EEC_B2B', 'EFNBMMS', 'ESPORTSM', 'ERMS', 'EHC', 'SMARTFARMING']
+    ['YARROWTECH', 'EEC_B2B', 'EFNBMMS', 'ESPORTSM', 'ERMS', 'EHC', 'SMARTFARMING']
   );
 });
 

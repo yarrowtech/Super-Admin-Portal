@@ -5,12 +5,14 @@ import { useSidebar } from '../../context/SidebarContext';
 import { departmentApi } from '../../services/departments';
 import MobilePortalNav from '../common/MobilePortalNav';
 import MediaSidebar from './MediaSidebar';
+import { buildMediaNavigation, mediaNavigationActiveId, mediaLibraryDestination, LEGACY_LIBRARY_SECTIONS } from './libraryConfig';
 import MediaDashboard from './MediaDashboard';
 import MediaWorkspace, { MEDIA_SECTIONS } from './MediaWorkspace';
 import EmployeeProfilePage from '../shared/EmployeeProfilePage';
 import { DepartmentTeamPage, DepartmentMessagesPage } from '../shared/DepartmentCollabPages';
 import { mediaModulesApi } from '../../services/departmentModules';
 
+const DigitalLibrary = lazy(() => import('./DigitalLibrary'));
 const MediaTasksPage = lazy(() => import('../../features/tasks/TaskWorkspace').then((m) => ({ default: () => <m.default portal="media" icon="task" title="Media Tasks" description="The media head assigns and manages work items; team members update their own progress." manageRoles={['media_head', 'admin', 'super_admin', 'superadmin']} /> })));
 const MediaAttendancePage = lazy(() => import('../shared/DepartmentAttendance').then((m) => ({ default: () => <m.default api={mediaModulesApi} portalLabel="Media" /> })));
 
@@ -128,13 +130,24 @@ const MediaPortal = () => {
     navigate({ pathname, search: search ? `?${search}` : '' });
   };
 
-  const mobileItems = sectionsWithBadges.map((section) => ({
-    key: section.id,
-    label: section.label,
-    icon: section.icon,
-    active: activeSection === section.id,
-    onClick: () => handleSectionChange(section.id),
+  const selectNavigation = id => {
+    if (id.startsWith('library:') || id.startsWith('workspace:')) navigate(mediaLibraryDestination(id, searchParams, selectedProjectId));
+    else handleSectionChange(id);
+  };
+  const currentNavigationId = mediaNavigationActiveId(activeSection, searchParams);
+  const mobileItems = buildMediaNavigation(sectionsWithBadges).flatMap(item => item.children || [item]).map(item => ({
+    key: item.id, label: item.label, icon: item.icon, active: currentNavigationId === item.id,
+    onClick: () => selectNavigation(item.id),
   }));
+  if (LEGACY_LIBRARY_SECTIONS[activeSection]) {
+    const [category, subcategory] = LEGACY_LIBRARY_SECTIONS[activeSection];
+    const next = new URLSearchParams();
+    const project = searchParams.get('project') || searchParams.get('projectId') || selectedProjectId;
+    if (project) next.set('project', project);
+    next.set('category', category);
+    if (subcategory) next.set('subcategory', subcategory);
+    return <Navigate replace to={`/media/dashboard/assets?${next}`} />;
+  }
 
   if (sectionParam && !isValidSection(sectionParam)) {
     const nextParams = new URLSearchParams(searchParams);
@@ -155,7 +168,7 @@ const MediaPortal = () => {
         icon="campaign"
         items={mobileItems}
       />
-      <MediaSidebar activeSection={activeSection} onSelect={handleSectionChange} sections={sectionsWithBadges} />
+      <MediaSidebar activeSection={activeSection} onSelect={handleSectionChange} sections={sectionsWithBadges} selectedProjectId={selectedProjectId} />
       <div
         className={`min-h-screen transition-[margin] duration-300 ease-out-expo ${
           collapsed ? 'md:ml-16' : 'md:ml-[250px]'
@@ -169,6 +182,8 @@ const MediaPortal = () => {
             selectedProjectId={selectedProjectId}
             onProjectChange={handleProjectChange}
           />
+        ) : activeSection === 'assets' ? (
+          <Suspense fallback={<div className="m-4 h-72 animate-pulse rounded-xl bg-neutral-200" />}><DigitalLibrary onProjectChange={handleProjectChange} /></Suspense>
         ) : activeSection === 'profile' ? (
           <EmployeeProfilePage portalLabel="Media Marketing" />
         ) : activeSection === 'tasks' ? (

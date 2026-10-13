@@ -407,8 +407,11 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
   const sectionLinks = lawLinksAllowed ? LAW_SECTION_LINKS : {};
   const metricLinks = lawLinksAllowed ? LAW_METRIC_LINKS : {};
 
+  // `dark:bg-none` drops the light gradient in dark mode. PORTAL_BG sets a background
+  // IMAGE while `dark:bg-background-dark` sets a background COLOR — different properties,
+  // so without it the light gradient keeps painting over the dark surface.
   return (
-    <main className={`min-h-screen w-full ${PORTAL_BG[resolvedPortalKey] || PORTAL_BG.manager} text-neutral-900 dark:bg-background-dark dark:text-neutral-100`}>
+    <main className={`min-h-screen w-full ${PORTAL_BG[resolvedPortalKey] || PORTAL_BG.manager} text-neutral-900 dark:bg-none dark:bg-background-dark dark:text-neutral-100`}>
       <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 md:p-5 lg:p-6">
         {/* ── Page header ─────────────────────────────────────────────── */}
         <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">

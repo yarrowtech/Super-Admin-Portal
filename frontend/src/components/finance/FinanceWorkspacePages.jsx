@@ -958,8 +958,11 @@ export const FinanceOverviewPage = () => {
   const recentAuditActivity = dashboard.recentAuditActivity || [];
   const primaryQueue = isFinanceHead ? approvalQueue : pendingRequests;
 
+  // `dark:bg-none` drops the light gradient in dark mode: the gradient is a background
+  // IMAGE and `dark:bg-background-dark` a background COLOR, so without it the light
+  // gradient keeps painting over the dark surface.
   return (
-    <main className="portal-page bg-[linear-gradient(180deg,#f8fafc_0%,#eef7f1_42%,#f8fafc_100%)] dark:bg-background-dark">
+    <main className="portal-page bg-[linear-gradient(180deg,#f8fafc_0%,#eef7f1_42%,#f8fafc_100%)] dark:bg-none dark:bg-background-dark">
       <div className="portal-page-inner max-w-[1500px] space-y-5">
         <Header
           title="Finance Command Center"

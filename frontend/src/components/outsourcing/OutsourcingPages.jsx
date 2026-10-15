@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -2228,7 +2229,7 @@ export const OutsourcingSettingsPage = () => {
     if (pwForm.next.length < 6) { setMsg({ type: 'err', text: 'New password must be at least 6 characters.' }); return; }
     try {
       setSaving(true);
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_BASE = API_BASE_URL;
       const res = await fetch(`${API_BASE}/api/auth/change-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

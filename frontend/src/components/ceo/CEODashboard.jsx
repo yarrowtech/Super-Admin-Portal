@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -151,7 +152,7 @@ const defaultDashboard = {
   }
 };
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 
 // Turns a percentage string like "+12.4%" or "-8%" into a number, or null when the API
 // gave something unparseable. Used only to decide whether a decline is worth surfacing.

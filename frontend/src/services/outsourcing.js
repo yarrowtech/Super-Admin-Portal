@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/backend';
 import { apiClient } from './client';
 
 const ttl = {
@@ -7,8 +8,8 @@ const ttl = {
 };
 
 const getOutsourcingPortalBaseUrl = () => {
-  const raw = import.meta.env.VITE_OUTSOURCING_PORTAL_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  return String(raw).replace(/\/$/, '');
+  const raw = import.meta.env.VITE_OUTSOURCING_PORTAL_URL || API_BASE_URL;
+  return String(raw).trim().replace(/\/+$/, '');
 };
 
 const requestForm = async (method, path, formData, token) => {
@@ -135,7 +136,7 @@ export const outsourcingApi = {
     const form = new FormData();
     form.append('file', file);
     form.append('docType', docType);
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const API_BASE = API_BASE_URL;
     const res = await fetch(`${API_BASE}/api/outsourcing/profile/document`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
@@ -179,7 +180,7 @@ export const outsourcingApi = {
   uploadFile: async (token, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/outsourcing/files/upload`, {
+    const res = await fetch(`${API_BASE_URL}/api/outsourcing/files/upload`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`

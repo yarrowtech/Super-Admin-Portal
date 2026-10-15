@@ -70,6 +70,7 @@ app.use(cors({
   credentials: corsConfig.credentials,
   methods: corsConfig.methods,
   allowedHeaders: corsConfig.allowedHeaders,
+  exposedHeaders: corsConfig.exposedHeaders,
 }));
 app.use(helmet());
 app.use(compression());
@@ -214,6 +215,8 @@ app.use("/api/portfolio-hierarchy", routes.portfolioHierarchyRoutes);
 // Versioned central policy API. This is additive; legacy Law routes continue
 // serving existing legal-record screens during phased migration.
 app.use("/api/v1", routes.policyRoutes);
+app.use("/api/v1", require('./routes/yarrowtech.routes'));
+app.use("/api/v1", routes.organizationWorkspaceRoutes);
 // Public EFNBMMS policy consumer API (OAuth2 client-credentials auth, not portal
 // session auth) — kept off "/api/v1" since that prefix already serves the
 // authenticated admin routes above.

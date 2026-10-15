@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -7,7 +8,7 @@ import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import { useSidebar } from '../../context/SidebarContext';
 import { createLogger } from '../../utils/logger';
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 const adminSidebarLogger = createLogger({ module: 'admin-sidebar' });
 
 const navItems = [

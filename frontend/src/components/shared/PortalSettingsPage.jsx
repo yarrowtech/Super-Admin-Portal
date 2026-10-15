@@ -1,9 +1,10 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { portalSupportApi } from '../../services/portalSupportApi';
 import ThemeToggleButton from '../common/ThemeToggleButton';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = API_BASE_URL;
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const Card = ({ children, className = '' }) => (

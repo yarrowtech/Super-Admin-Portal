@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/backend';
 import pino from 'pino';
 
 const APP_NAME = 'super-admin-frontend';
@@ -5,7 +6,7 @@ const ENV = import.meta.env.MODE || 'development';
 const configuredLevel = import.meta.env.VITE_LOG_LEVEL;
 const LOG_LEVEL = ['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace'].includes(configuredLevel)
   ? configuredLevel : (import.meta.env.PROD ? 'warn' : 'debug');
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 
 const isTest = ENV === 'test';
 const isDevelopment = import.meta.env.DEV && !isTest;

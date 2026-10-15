@@ -82,6 +82,7 @@ const request = async (method, path = '', { body, headers = {}, requestId } = {}
   const fetchOptions = {
     method,
     headers: fetchHeaders,
+    signal: AbortSignal.timeout(25000),
   };
 
   if (body !== undefined && body !== null && !['GET', 'HEAD'].includes(method)) {

@@ -1,9 +1,10 @@
+import { API_BASE_URL } from '../config/backend';
 import { useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { portalSupportApi } from '../services/portalSupportApi';
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 export const SUPPORT_UNREAD_REFRESH_EVENT = 'support:unread-refresh';
 
 /**

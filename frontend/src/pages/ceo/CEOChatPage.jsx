@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -61,7 +62,7 @@ export default function CEOChatPage() {
 
   useEffect(() => {
     if (!token) return;
-    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+    const baseUrl = (API_BASE_URL).replace(/\/$/, '');
     const socket = io(baseUrl, { auth: { token } });
     socketRef.current = socket;
     socket.emit('user_online', { userId: user?._id });

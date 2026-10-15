@@ -20,6 +20,8 @@ const env = Object.freeze({
   NODE_ENV: nodeEnv,
   IS_PRODUCTION: isProduction,
   PORT: parseNumber(process.env.PORT, constants.DEFAULT_PORT),
+  WORKSPACE_SYNC_AUTOMATIC: parseBoolean(process.env.WORKSPACE_SYNC_AUTOMATIC, true),
+  WORKSPACE_SYNC_POLL_SECONDS: Math.max(60, parseNumber(process.env.WORKSPACE_SYNC_POLL_SECONDS, 300)),
   MONGO_URI: process.env.MONGO_URI || "",
   CORS_ORIGIN: process.env.CORS_ORIGIN || constants.DEFAULT_CORS_ORIGIN,
   JWT_SECRET: process.env.JWT_SECRET || (isProduction ? "" : "dev-jwt-secret-change-me"),

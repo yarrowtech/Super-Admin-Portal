@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../../config/backend';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
@@ -6,7 +7,7 @@ import { hrApi } from '../../../services/hr';
 import { QK } from '../../../utils/queryKeys';
 import { createLogger } from '../../../utils/logger';
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 const ATTENDANCE_STORAGE_KEY = 'hr-dashboard-attendance';
 const hrDashboardLogger = createLogger({ module: 'hr-dashboard' });
 

@@ -1,0 +1,86 @@
+[
+  {
+    "file": "frontend/src/hooks/useOutsourcingSocket.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/hooks/useSupportUnread.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/services/client.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/services/hr.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/services/manager.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/services/outsourcing.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/utils/logger.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/pages/ceo/CEOChatPage.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/features/hr/hooks/useHrDashboard.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/admin/AdminSidebar.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/admin/AdminSupportCenter.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/ceo/CEODashboard.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/common/PortalChat.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/it/ITPortal.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/outsourcing/OutsourcingPages.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/shared/PortalSettingsPage.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/src/components/shared/PortalSupportPage.jsx",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "backend/server.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "backend/config/cors.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "backend/app.js",
+    "beforeMatchesBaseline": true
+  },
+  {
+    "file": "frontend/vite.config.js",
+    "beforeMatchesBaseline": true
+  }
+]

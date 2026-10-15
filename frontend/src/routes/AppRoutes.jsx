@@ -169,6 +169,7 @@ import { hrApi } from '../services/hr';
 import { managerModulesApi, outsourcingModulesApi } from '../services/departmentModules';
 import { allowRoleWithAdmin as allow, defaultRolePath, OutsourcingRoute, PrivateRoute } from './routeGuards';
 import activityTracker from '../services/activityTracker';
+import YarrowtechWorkspacePage from '../components/yarrowtech/YarrowtechWorkspacePage';
 
 // hrApi's createJobPost takes (data, token) — the reverse of the (token, data)
 // order every other department's job-post API and DepartmentJobsPage use —
@@ -780,6 +781,68 @@ export default function AppRoutes() {
             </PortalRoute>
           }
         />
+        {['', 'overview', 'settings', 'services', 'services/clients', 'services/projects', 'services/:serviceId', 'products', 'products/:productId', 'products/:productId/overview', 'products/:productId/settings', 'products/:productId/users', 'products/:productId/subscriptions', 'products/:productId/plans', 'subscriptions', 'subscriptions/:subscriptionId', 'crm/users', 'crm/customers', 'crm/customers/:customerId', 'crm/support', 'crm/support/:ticketId', 'crm/analytics', 'crm/activity', 'integrations', 'integrations/:integrationId', 'sync-jobs', 'sync-history'].map((path) => (
+          <Route key={`yarrowtech-admin-${path}`} path={`/admin/projects/YARROWTECH${path ? '/' + path : ''}`} element={
+            <PortalRoute portal={PORTALS.ADMIN}><PrivateRoute roles={adminRoles}>{withPortal(AdminLayout, YarrowtechWorkspacePage)}</PrivateRoute></PortalRoute>
+          } />
+        ))}
+        {[':module', 'products/:productId', 'products/:productId/:view'].map((path) => (
+          <Route key={`project-workspace-${path}`} path={`/admin/projects/:projectCode/${path}`} element={
+            <PortalRoute portal={PORTALS.ADMIN}><PrivateRoute roles={adminRoles}>{withPortal(AdminLayout, () => <HostedProjectWorkspacePage portal="admin" />)}</PrivateRoute></PortalRoute>
+          } />
+        ))}
+        <Route
+          path="/yarrowtech/overview"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, () => <YarrowtechWorkspacePage section="overview" />)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        {[
+          'services',
+          'services/:serviceId',
+          'services/clients',
+          'services/projects',
+          'products',
+          'products/:productId',
+          'products/:productId/overview',
+          'products/:productId/settings',
+          'products/:productId/users',
+          'products/:productId/subscriptions',
+          'products/:productId/plans',
+          'subscriptions',
+          'subscriptions/:subscriptionId',
+          'crm/users',
+          'crm/customers',
+          'crm/customers/:customerId',
+          'crm/support',
+          'crm/support/:ticketId',
+          'crm/analytics',
+          'crm/activity',
+          'admin/integrations',
+          'admin/integrations/:integrationId',
+          'admin/sync-jobs',
+          'integrations',
+          'integrations/:integrationId',
+          'sync-jobs',
+          'sync-history',
+          'settings',
+        ].map((path) => (
+          <Route
+            key={`yarrowtech-${path}`}
+            path={`/yarrowtech/${path}`}
+            element={
+              <PortalRoute portal={PORTALS.ADMIN}>
+                <PrivateRoute roles={adminRoles}>
+                  {withPortal(AdminLayout, YarrowtechWorkspacePage)}
+                </PrivateRoute>
+              </PortalRoute>
+            }
+          />
+        ))}
         <Route
           path="/admin/efnbmms-admin-management"
           element={

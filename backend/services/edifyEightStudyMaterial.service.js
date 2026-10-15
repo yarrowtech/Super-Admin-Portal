@@ -88,6 +88,7 @@ const request = async (method, path = '', { body, file, headers = {}, requestId 
   const fetchOptions = {
     method,
     headers: fetchHeaders,
+    signal: AbortSignal.timeout(25000),
   };
 
   if (file) {
@@ -105,6 +106,7 @@ const request = async (method, path = '', { body, file, headers = {}, requestId 
     status: response.status,
     ok: response.ok,
     data,
+    headers: response.headers,
   };
 };
 
@@ -112,6 +114,7 @@ const assertOk = (upstream, fallbackMessage) => {
   if (upstream.ok) return upstream;
   const error = new Error(upstream.data?.error || upstream.data?.message || fallbackMessage);
   error.status = upstream.status || 502;
+  error.retryAfter = upstream.headers?.get('retry-after');
   error.upstream = upstream.data;
   throw error;
 };

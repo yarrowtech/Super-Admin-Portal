@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -8,7 +9,7 @@ import { portalSupportApi } from '../../services/portalSupportApi';
 import ThemeToggleButton from '../common/ThemeToggleButton';
 
 const TICKET_LIVE_EVENT = 'support:ticket-live';
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const tone = {

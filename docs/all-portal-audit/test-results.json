@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-15",
+  "baselineBackend": {
+    "passed": 237,
+    "failed": 0
+  },
+  "baselineFrontendBuild": "passed",
+  "postChangeFullBackendSuite": {
+    "passed": 243,
+    "failed": 0,
+    "note": "Before adding the seventh focused test and final outsourcing override adjustment."
+  },
+  "finalFocusedTests": {
+    "passed": 7,
+    "failed": 0
+  },
+  "finalFrontendBuild": "passed",
+  "browserHarness": {
+    "passed": true,
+    "checks": [
+      "Authenticated API",
+      "Create/edit persistence",
+      "Refresh",
+      "Project isolation",
+      "Audit history",
+      "All ten workspaces",
+      "YarrowTech detail/settings/integrations",
+      "Linked customers/deliveries",
+      "Desktop/mobile",
+      "No runtime errors"
+    ]
+  },
+  "lint": {
+    "errors": 160,
+    "warnings": 22,
+    "introducedFindingGroupsInChangedFiles": 0,
+    "comparison": "Changed existing frontend source compared with Git HEAD in memory; baseline status shows no prior edits in those files."
+  },
+  "gitDiffCheck": "passed",
+  "taskPatchReverseDryRun": "passed",
+  "liveProviderOperations": "not run",
+  "productionDatabaseOperations": "not run",
+  "deployment": "not performed"
+}

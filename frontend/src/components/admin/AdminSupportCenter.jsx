@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -10,7 +11,7 @@ import StatusBadge from '../common/StatusBadge';
 import IconButton from '../common/IconButton';
 import Button from '../common/Button';
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 
 const STATUS_TONE = { open: 'info', in_progress: 'warning', resolved: 'success', closed: 'neutral' };
 const PRIORITY_TONE = { low: 'neutral', normal: 'info', high: 'warning', urgent: 'danger' };

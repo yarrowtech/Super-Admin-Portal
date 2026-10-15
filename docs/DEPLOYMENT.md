@@ -80,7 +80,7 @@ After deployment, open:
 https://your-backend-domain/health
 ```
 
-The response should show `database.state` as `connected`.
+The response should return HTTP 200, `success: true`, and `data.status: "ok"`. A database outage returns HTTP 503 with `data.status: "degraded"`.
 
 ## 3. Frontend
 

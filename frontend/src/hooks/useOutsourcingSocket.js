@@ -1,8 +1,9 @@
+import { API_BASE_URL } from '../config/backend';
 import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { outsourcingApi } from '../services/outsourcing';
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 
 /**
  * Connects to the outsourcing socket room and calls `onUpdate(event)` whenever

@@ -1,7 +1,8 @@
+import { API_BASE_URL } from '../config/backend';
 import { createRequestId } from '../utils/logger';
 import { clearAuthSession, readAuthSession, writeAuthSession, subscribeAuthSession } from '../lib/authSession';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 // TanStack Query owns response freshness; share only concurrent GETs here.
 const inflight = new Map();
 let refreshPromise = null;

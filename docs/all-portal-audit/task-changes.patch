@@ -1,0 +1,661 @@
+--- a/frontend/src/hooks/useOutsourcingSocket.js
++++ b/frontend/src/hooks/useOutsourcingSocket.js
+@@ -1,8 +1,9 @@
++import { API_BASE_URL } from '../config/backend';
+ import { useEffect, useRef, useCallback } from 'react';
+ import { io } from 'socket.io-client';
+ import { outsourcingApi } from '../services/outsourcing';
+ 
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ 
+ /**
+  * Connects to the outsourcing socket room and calls `onUpdate(event)` whenever
+--- a/frontend/src/hooks/useSupportUnread.js
++++ b/frontend/src/hooks/useSupportUnread.js
+@@ -1,9 +1,10 @@
++import { API_BASE_URL } from '../config/backend';
+ import { useCallback, useEffect, useState } from 'react';
+ import { io } from 'socket.io-client';
+ import { useAuth } from '../context/AuthContext';
+ import { portalSupportApi } from '../services/portalSupportApi';
+ 
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ export const SUPPORT_UNREAD_REFRESH_EVENT = 'support:unread-refresh';
+ 
+ /**
+--- a/frontend/src/services/client.js
++++ b/frontend/src/services/client.js
+@@ -1,7 +1,8 @@
++import { API_BASE_URL } from '../config/backend';
+ import { createRequestId } from '../utils/logger';
+ import { clearAuthSession, readAuthSession, writeAuthSession, subscribeAuthSession } from '../lib/authSession';
+ 
+-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
++
+ // TanStack Query owns response freshness; share only concurrent GETs here.
+ const inflight = new Map();
+ let refreshPromise = null;
+--- a/frontend/src/services/hr.js
++++ b/frontend/src/services/hr.js
+@@ -1,5 +1,6 @@
++import { API_BASE_URL } from '../config/backend';
+ import { apiClient } from './client';
+-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
++
+ 
+ const buildQueryString = (params = {}) => {
+   const search = new URLSearchParams();
+--- a/frontend/src/services/manager.js
++++ b/frontend/src/services/manager.js
+@@ -1,5 +1,6 @@
++import { API_BASE_URL } from '../config/backend';
+ import { apiClient } from './client';
+-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
++
+ 
+ const buildQueryString = (params = {}) => {
+   const search = new URLSearchParams();
+--- a/frontend/src/services/outsourcing.js
++++ b/frontend/src/services/outsourcing.js
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../config/backend';
+ import { apiClient } from './client';
+ 
+ const ttl = {
+@@ -7,8 +8,8 @@
+ };
+ 
+ const getOutsourcingPortalBaseUrl = () => {
+-  const raw = import.meta.env.VITE_OUTSOURCING_PORTAL_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+-  return String(raw).replace(/\/$/, '');
++  const raw = import.meta.env.VITE_OUTSOURCING_PORTAL_URL || API_BASE_URL;
++  return String(raw).trim().replace(/\/+$/, '');
+ };
+ 
+ const requestForm = async (method, path, formData, token) => {
+@@ -135,7 +136,7 @@
+     const form = new FormData();
+     form.append('file', file);
+     form.append('docType', docType);
+-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
++    const API_BASE = API_BASE_URL;
+     const res = await fetch(`${API_BASE}/api/outsourcing/profile/document`, {
+       method: 'POST',
+       headers: { Authorization: `Bearer ${token}` },
+@@ -179,7 +180,7 @@
+   uploadFile: async (token, file) => {
+     const formData = new FormData();
+     formData.append('file', file);
+-    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/outsourcing/files/upload`, {
++    const res = await fetch(`${API_BASE_URL}/api/outsourcing/files/upload`, {
+       method: 'POST',
+       headers: {
+         Authorization: `Bearer ${token}`
+--- a/frontend/src/utils/logger.js
++++ b/frontend/src/utils/logger.js
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../config/backend';
+ import pino from 'pino';
+ 
+ const APP_NAME = 'super-admin-frontend';
+@@ -5,7 +6,7 @@
+ const configuredLevel = import.meta.env.VITE_LOG_LEVEL;
+ const LOG_LEVEL = ['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace'].includes(configuredLevel)
+   ? configuredLevel : (import.meta.env.PROD ? 'warn' : 'debug');
+-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
++
+ 
+ const isTest = ENV === 'test';
+ const isDevelopment = import.meta.env.DEV && !isTest;
+--- a/frontend/src/pages/ceo/CEOChatPage.jsx
++++ b/frontend/src/pages/ceo/CEOChatPage.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useEffect, useMemo, useRef, useState } from 'react';
+ import { useAuth } from '../../context/AuthContext';
+ import { useToast } from '../../context/ToastContext';
+@@ -61,7 +62,7 @@
+ 
+   useEffect(() => {
+     if (!token) return;
+-    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++    const baseUrl = (API_BASE_URL).replace(/\/$/, '');
+     const socket = io(baseUrl, { auth: { token } });
+     socketRef.current = socket;
+     socket.emit('user_online', { userId: user?._id });
+--- a/frontend/src/features/hr/hooks/useHrDashboard.js
++++ b/frontend/src/features/hr/hooks/useHrDashboard.js
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../../config/backend';
+ import { useCallback, useEffect, useMemo, useState } from 'react';
+ import { useQueries, useQueryClient } from '@tanstack/react-query';
+ import { io } from 'socket.io-client';
+@@ -6,7 +7,7 @@
+ import { QK } from '../../../utils/queryKeys';
+ import { createLogger } from '../../../utils/logger';
+ 
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ const ATTENDANCE_STORAGE_KEY = 'hr-dashboard-attendance';
+ const hrDashboardLogger = createLogger({ module: 'hr-dashboard' });
+ 
+--- a/frontend/src/components/admin/AdminSidebar.jsx
++++ b/frontend/src/components/admin/AdminSidebar.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useCallback, useEffect, useMemo, useState } from 'react';
+ import { useLocation, useNavigate } from 'react-router-dom';
+ import { io } from 'socket.io-client';
+@@ -7,7 +8,7 @@
+ import { useSidebar } from '../../context/SidebarContext';
+ import { createLogger } from '../../utils/logger';
+ 
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ const adminSidebarLogger = createLogger({ module: 'admin-sidebar' });
+ 
+ const navItems = [
+--- a/frontend/src/components/admin/AdminSupportCenter.jsx
++++ b/frontend/src/components/admin/AdminSupportCenter.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useCallback, useEffect, useRef, useState } from 'react';
+ import { Link, useLocation } from 'react-router-dom';
+ import { io } from 'socket.io-client';
+@@ -10,7 +11,7 @@
+ import IconButton from '../common/IconButton';
+ import Button from '../common/Button';
+ 
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ 
+ const STATUS_TONE = { open: 'info', in_progress: 'warning', resolved: 'success', closed: 'neutral' };
+ const PRIORITY_TONE = { low: 'neutral', normal: 'info', high: 'warning', urgent: 'danger' };
+--- a/frontend/src/components/ceo/CEODashboard.jsx
++++ b/frontend/src/components/ceo/CEODashboard.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import { io } from 'socket.io-client';
+@@ -151,7 +152,7 @@
+   }
+ };
+ 
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ 
+ // Turns a percentage string like "+12.4%" or "-8%" into a number, or null when the API
+ // gave something unparseable. Used only to decide whether a decline is worth surfacing.
+--- a/frontend/src/components/common/PortalChat.jsx
++++ b/frontend/src/components/common/PortalChat.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import { io } from 'socket.io-client';
+@@ -12,7 +13,7 @@
+ const TYPING_STOP_DELAY_MS = 2000;
+ const TYPING_KEEP_ALIVE_MS = 1500;
+ const TYPING_DISPLAY_TIMEOUT_MS = 5000;
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ const employeeChatLogger = createLogger({ module: 'employee-chat' });
+ 
+ const defaultTeamMembersExtractor = (res) => {
+--- a/frontend/src/components/it/ITPortal.jsx
++++ b/frontend/src/components/it/ITPortal.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useEffect, useState } from 'react';
+ import { Outlet } from 'react-router-dom';
+ import { io } from 'socket.io-client';
+@@ -6,7 +7,7 @@
+ import { useAuth } from '../../context/AuthContext';
+ import { resolvePortalMenu } from '../../config/portalMenus';
+ 
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ 
+ const ITPortal = () => {
+   const { user, token } = useAuth();
+--- a/frontend/src/components/outsourcing/OutsourcingPages.jsx
++++ b/frontend/src/components/outsourcing/OutsourcingPages.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import { useAuth } from '../../context/AuthContext';
+@@ -2228,7 +2229,7 @@
+     if (pwForm.next.length < 6) { setMsg({ type: 'err', text: 'New password must be at least 6 characters.' }); return; }
+     try {
+       setSaving(true);
+-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
++      const API_BASE = API_BASE_URL;
+       const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+         method: 'PUT',
+         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+--- a/frontend/src/components/shared/PortalSettingsPage.jsx
++++ b/frontend/src/components/shared/PortalSettingsPage.jsx
+@@ -1,9 +1,10 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useEffect, useState } from 'react';
+ import { useAuth } from '../../context/AuthContext';
+ import { portalSupportApi } from '../../services/portalSupportApi';
+ import ThemeToggleButton from '../common/ThemeToggleButton';
+ 
+-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
++const API_BASE = API_BASE_URL;
+ 
+ // ─── Design tokens ────────────────────────────────────────────────────────────
+ const Card = ({ children, className = '' }) => (
+--- a/frontend/src/components/shared/PortalSupportPage.jsx
++++ b/frontend/src/components/shared/PortalSupportPage.jsx
+@@ -1,3 +1,4 @@
++import { API_BASE_URL } from '../../config/backend';
+ import React, { useCallback, useEffect, useRef, useState } from 'react';
+ import { Link } from 'react-router-dom';
+ import { io } from 'socket.io-client';
+@@ -8,7 +9,7 @@
+ import ThemeToggleButton from '../common/ThemeToggleButton';
+ 
+ const TICKET_LIVE_EVENT = 'support:ticket-live';
+-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
++const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
+ 
+ // ─── Design tokens ────────────────────────────────────────────────────────────
+ const tone = {
+--- /dev/null
++++ b/frontend/src/config/backend.js
+@@ -0,0 +1,3 @@
++import { resolveBackendUrl } from './backendUrl.mjs';
++
++export const API_BASE_URL = resolveBackendUrl(import.meta.env.VITE_API_URL, { production: import.meta.env.PROD });
+--- /dev/null
++++ b/frontend/src/config/backendUrl.mjs
+@@ -0,0 +1,15 @@
++// VITE_API_URL is the backend root; callers already include /api or /api/v1.
++// Keep reverse-proxy path prefixes. Never infer or rewrite API versions.
++export function resolveBackendUrl(value, { production = false } = {}) {
++  const raw = String(value || '').trim();
++  if (!raw) {
++    if (production) throw new Error('VITE_API_URL is required for a production frontend build. Configure the backend root URL and rebuild.');
++    return 'http://localhost:5000';
++  }
++  let url;
++  try { url = new URL(raw); } catch { throw new Error('VITE_API_URL must be an absolute HTTP(S) backend root URL.'); }
++  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
++    throw new Error('VITE_API_URL must be an HTTP(S) backend root URL without credentials, query parameters or fragments.');
++  }
++  return raw.replace(/\/+$/, '');
++}
+--- a/backend/server.js
++++ b/backend/server.js
+@@ -1,7 +1,6 @@
+ const logger = require("./utils/logger");
+ const env = require("./config/env");
+ const { validateStartupConfig } = require("./config/startupValidation");
+-const { server } = require("./app");
+ const mongoose = require("mongoose");
+ const logService = require("./services/log.service");
+ const { closeRedis } = require("./infrastructure/cache/redisClient");
+@@ -19,6 +18,9 @@
+   logger.fatal({ err: error }, "Server startup configuration invalid");
+   process.exit(1);
+ }
++
++// Load the application only after validation: importing app starts DB/bootstrap work.
++const { server } = require("./app");
+ 
+ const httpServer = server.listen(PORT, () => {
+   logger.info({ port: PORT }, "Server running");
+--- a/backend/config/cors.js
++++ b/backend/config/cors.js
+@@ -29,6 +29,7 @@
+   allowedOrigins: originAllowList,
+   origin,
+   credentials: true,
++  exposedHeaders: ["x-request-id", "X-New-Token"],
+   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+   allowedHeaders: ["Content-Type", "Authorization", "x-client-source", "x-project-id", "x-request-id"],
+ });
+--- a/backend/app.js
++++ b/backend/app.js
+@@ -70,6 +70,7 @@
+   credentials: corsConfig.credentials,
+   methods: corsConfig.methods,
+   allowedHeaders: corsConfig.allowedHeaders,
++  exposedHeaders: corsConfig.exposedHeaders,
+ }));
+ app.use(helmet());
+ app.use(compression());
+--- a/frontend/vite.config.js
++++ b/frontend/vite.config.js
+@@ -1,4 +1,6 @@
+-import { defineConfig } from 'vite'
++import process from 'node:process'
++import { defineConfig, loadEnv } from 'vite'
++import { resolveBackendUrl } from './src/config/backendUrl.mjs'
+ import react from '@vitejs/plugin-react'
+ import tailwindcss from '@tailwindcss/vite'
+ 
+@@ -25,7 +27,10 @@
+ const lookup = new Map(Object.entries(vendorGroups).flatMap(([chunk, pkgs]) => pkgs.map((p) => [p, chunk])))
+ 
+ // https://vite.dev/config/
+-export default defineConfig({
++export default defineConfig(({ command, mode }) => {
++  const values = loadEnv(mode, process.cwd(), 'VITE_');
++  resolveBackendUrl(process.env.VITE_API_URL || values.VITE_API_URL, { production: command === 'build' });
++  return {
+   plugins: [react(), tailwindcss()],
+   build: {
+     rollupOptions: {
+@@ -40,4 +45,5 @@
+       },
+     },
+   },
++  };
+ })
+--- a/frontend/.env.example
++++ b/frontend/.env.example
+@@ -1,4 +1,7 @@
+ # Central Super Admin Portal frontend. This value is safe to expose to the browser.
++# Backend root only: existing callers append /api or /api/v1 themselves.
++# Required for builds; development alone defaults to http://localhost:5000.
++# Set separately in each environment and rebuild after changes.
+ VITE_API_URL=https://api.example.com
+ 
+ # Optional separate central Policy API. Use this for project applications whose
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -60,3 +60,32 @@
+ FINANCE_OVERDUE_REESCALATE_DAYS=14
+ # Most invoices handled in one run, so a large backlog cannot flood recipients.
+ FINANCE_OVERDUE_ESCALATION_LIMIT=200
++
++# Optional existing project/provider adapters. Set actual documented resource URLs,
++# not guessed hosts. Retain EFMBMMS_* legacy aliases only where already deployed.
++EFNBMMS_ADMIN_MANAGEMENT_API_URL=
++EFNBMMS_API_TOKEN=
++EDIFYEIGHT_API_URL=
++EDIFYEIGHT_TEACHER_API_URL=
++EDIFYEIGHT_STUDY_MATERIAL_API_URL=
++EDIFYEIGHT_API_TOKEN=
++EEC_PORTAL_URL=
++EHC_PORTAL_URL=
++RMS_PORTAL_URL=
++OUTSOURCING_PORTAL_URL=
++OUTSOURCING_SHARED_SECRET=
++CLOUDINARY_CLOUD_NAME=
++CLOUDINARY_API_KEY=
++CLOUDINARY_API_SECRET=
++
++# Existing YarrowTech SRS configuration. Supplying credentials does not verify
++# the provider protocol or enable blocked SRS business operations.
++SRS_API_BASE_URL=https://api.yarrowtech.in
++SRS_API_KEY=
++SRS_CLIENT_ID=
++SRS_SIGNING_SECRET=
++SRS_WEBHOOK_SECRET=
++# Preserve deployment settings; no automatic production sync is enabled here.
++# Existing code defaults WORKSPACE_SYNC_AUTOMATIC to true if omitted.
++WORKSPACE_SYNC_AUTOMATIC=false
++WORKSPACE_SYNC_POLL_SECONDS=300
+--- a/docs/DEPLOYMENT.md
++++ b/docs/DEPLOYMENT.md
+@@ -80,7 +80,7 @@
+ https://your-backend-domain/health
+ ```
+ 
+-The response should show `database.state` as `connected`.
++The response should return HTTP 200, `success: true`, and `data.status: "ok"`. A database outage returns HTTP 503 with `data.status: "degraded"`.
+ 
+ ## 3. Frontend
+ 
+--- /dev/null
++++ b/backend/__tests__/urlConfiguration.test.js
+@@ -0,0 +1,128 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++const { pathToFileURL } = require('node:url');
++const root = path.resolve(__dirname, '../..');
++const resolver = () => import(pathToFileURL(path.join(root, 'frontend/src/config/backendUrl.mjs')).href);
++
++test('backend root configuration preserves proxy prefixes and strips all trailing slashes', async () => {
++  const { resolveBackendUrl } = await resolver();
++  assert.equal(resolveBackendUrl(' https://api.example.test/gateway/// '), 'https://api.example.test/gateway');
++  assert.equal(resolveBackendUrl('http://127.0.0.1:5000/'), 'http://127.0.0.1:5000');
++  assert.equal(resolveBackendUrl(''), 'http://localhost:5000');
++  assert.equal(resolveBackendUrl('https://api.example.test/api/v1'), 'https://api.example.test/api/v1');
++});
++
++test('missing production and unsafe backend URL configuration fail without exposing values', async () => {
++  const { resolveBackendUrl } = await resolver();
++  for (const value of ['', '   ']) assert.throws(() => resolveBackendUrl(value, { production: true }), /VITE_API_URL is required/);
++  for (const value of ['//api.test', '/api', 'javascript:alert(1)', 'https://user:private@api.test', 'https://api.test?token=private', 'https://api.test/#private']) {
++    assert.throws(() => resolveBackendUrl(value), (error) => /VITE_API_URL/.test(error.message) && !error.message.includes('private'));
++  }
++});
++
++const clientHarness = async (responses = []) => {
++  const { resolveBackendUrl } = await resolver();
++  const calls = [];
++  let session = { token: 'old', refreshToken: 'refresh', authMode: 'local' };
++  const source = fs.readFileSync(path.join(root, 'frontend/src/services/client.js'), 'utf8')
++    .replace(/^import .*;\r?\n/gm, '').replace('export const apiClient =', 'globalThis.apiClient =');
++  const context = { API_BASE_URL: resolveBackendUrl('https://api.test///'), Map, JSON, Error, setTimeout,
++    createRequestId: () => 'request-id', clearAuthSession: () => { session = {}; },
++    readAuthSession: () => session, writeAuthSession: (value) => { session = value; }, subscribeAuthSession: () => {},
++    localStorage: { getItem: () => 'project-one' }, sessionStorage: { length: 0 },
++    fetch: async (url, options) => {
++      calls.push({ url, options });
++      const next = responses.shift() || { ok: true, body: { success: true } };
++      return { ok: next.ok, status: next.status || 200, statusText: 'test', headers: { get: () => null }, json: async () => next.body };
++    },
++  };
++  vm.runInNewContext(source, context);
++  return { client: context.apiClient, calls };
++};
++
++test('shared client builds JSON and upload URLs without changing API versions, credentials or project scope', async () => {
++  const { client, calls } = await clientHarness();
++  await client.get('/api/dept/hr/dashboard', 'token');
++  await client.post('/api/v1/projects/YARROWTECH/services', { name: 'service' }, 'token');
++  await client.put('/api/dept/manager/tasks/one', {}, 'token');
++  await client.patch('/api/v1/services/one', {}, 'token');
++  await client.delete('/api/v1/services/one', 'token');
++  await client.upload('/api/dept/media/upload', 'form-data', 'token');
++  assert.deepEqual(calls.map((call) => call.options.method), ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'POST']);
++  assert.equal(calls[0].url, 'https://api.test/api/dept/hr/dashboard');
++  assert.equal(calls[1].url, 'https://api.test/api/v1/projects/YARROWTECH/services');
++  for (const call of calls) {
++    assert.equal(call.options.credentials, 'include');
++    assert.equal(call.options.headers.Authorization, 'Bearer token');
++    assert.equal(call.options.headers['x-project-id'], 'project-one');
++  }
++  assert.equal(calls[5].options.headers['Content-Type'], undefined);
++});
++
++test('expired-token retries keep the existing auth refresh endpoint and use the renewed token', async () => {
++  const { client, calls } = await clientHarness([
++    { ok: false, status: 401, body: { code: 'TOKEN_EXPIRED' } },
++    { ok: true, body: { data: { token: 'renewed' } } },
++    { ok: true, body: { success: true } },
++  ]);
++  await client.get('/api/dept/finance/dashboard', 'old');
++  assert.equal(calls[1].url, 'https://api.test/api/auth/refresh-token');
++  assert.equal(calls[1].options.method, 'POST');
++  assert.equal(calls[2].options.headers.Authorization, 'Bearer renewed');
++});
++
++test('cross-origin responses expose renewal and request-id headers without opening origins', async () => {
++  const express = require('express');
++  const cors = require('cors');
++  const config = require('../config/cors');
++  const app = express();
++  app.use(cors(config));
++  app.get('/probe', (req, res) => res.set('X-New-Token', 'test-token').set('x-request-id', 'test-request').json({ success: true }));
++  const server = app.listen(0, '127.0.0.1');
++  await new Promise((resolve) => server.once('listening', resolve));
++  try {
++    const origin = config.allowedOrigins[0];
++    const response = await fetch(`http://127.0.0.1:${server.address().port}/probe`, { headers: { Origin: origin } });
++    assert.equal(response.status, 200);
++    assert.equal(response.headers.get('access-control-allow-origin'), origin);
++    const exposed = response.headers.get('access-control-expose-headers').toLowerCase();
++    assert.ok(exposed.includes('x-new-token'));
++    assert.ok(exposed.includes('x-request-id'));
++    assert.equal(response.headers.get('access-control-allow-credentials'), 'true');
++    config.origin('https://untrusted.invalid', (error) => assert.match(error.message, /CORS blocked/));
++  } finally { await new Promise((resolve) => server.close(resolve)); }
++});
++
++test('invalid startup config exits before importing the app or starting DB/bootstrap work', () => {
++  const loaded = [];
++  const stopped = new Error('stopped');
++  const source = fs.readFileSync(path.join(root, 'backend/server.js'), 'utf8');
++  assert.throws(() => vm.runInNewContext(source, {
++    require: (name) => {
++      loaded.push(name);
++      if (name === './config/env') return { PORT: 5000 };
++      if (name === './config/startupValidation') return { validateStartupConfig: () => { throw new Error('missing config'); } };
++      return { fatal() {} };
++    },
++    process: { exit: (code) => { assert.equal(code, 1); throw stopped; } },
++  }), (error) => error === stopped);
++  assert.equal(loaded.includes('./app'), false);
++});
++
++
++test('outsourcing multipart override trims all trailing slashes and retains its distinct host', async () => {
++  const calls = [];
++  const source = fs.readFileSync(path.join(root, 'frontend/src/services/outsourcing.js'), 'utf8')
++    .replace(/^import .*;\r?\n/gm, '').replaceAll("import.meta.env.VITE_OUTSOURCING_PORTAL_URL", "' https://outsourcing.test/// '")
++    .replace('export const outsourcingApi =', 'globalThis.outsourcingApi =');
++  const context = { API_BASE_URL: 'https://central.test', apiClient: { clearCache() {} }, URLSearchParams, Date, String,
++    fetch: async (url, options) => { calls.push({ url, options }); return { ok: true, json: async () => ({ success: true }) }; },
++  };
++  vm.runInNewContext(source, context);
++  await context.outsourcingApi.createEdifyEightStudyMaterial('token', 'form-data');
++  assert.equal(calls[0].url, 'https://outsourcing.test/api/outsourcing/edifyeight/study-materials');
++  assert.equal(calls[0].options.headers.Authorization, 'Bearer token');
++});
+--- /dev/null
++++ b/backend/scripts/auditPortalConfiguration.cjs
+@@ -0,0 +1,110 @@
++/* Read-only source/router audit. Does not import app/server or connect to a database.
++ * Run: node scripts/auditPortalConfiguration.cjs
++ * Writes only docs/all-portal-audit. Environment file values are never exported.
++ */
++const fs = require('node:fs');
++const path = require('node:path');
++const cp = require('node:child_process');
++const crypto = require('node:crypto');
++const root = path.resolve(__dirname, '../..');
++const output = path.join(root, 'docs/all-portal-audit');
++fs.mkdirSync(output, { recursive: true });
++const rel = (file) => path.relative(root, file).replaceAll('\\', '/');
++const files = [];
++function walk(dir) {
++  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
++    if (['node_modules', 'dist', '.git', 'artifacts', 'logs', '.vite', '.claude'].includes(entry.name)) continue;
++    const file = path.join(dir, entry.name);
++    if (entry.isDirectory()) walk(file);
++    else if (/\.(?:js|jsx|mjs|cjs|json|yaml|yml|md|html|css|sh|bat)$/.test(file) || entry.name.startsWith('.env')) files.push(file);
++  }
++}
++walk(root);
++const sourceFiles = files.filter((file) => !file.includes(path.sep + 'all-portal-audit' + path.sep) && !path.basename(file).startsWith('.env') && !file.endsWith('package-lock.json') && !file.endsWith('swagger-output.json'));
++const source = new Map(sourceFiles.map((file) => [rel(file), fs.readFileSync(file, 'utf8')]));
++const save = (name, data) => fs.writeFileSync(path.join(output, name), JSON.stringify(data, null, 2) + '\n');
++const csv = (name, rows) => {
++  const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
++  fs.writeFileSync(path.join(output, name), [keys, ...rows.map((row) => keys.map((key) => typeof row[key] === 'object' ? JSON.stringify(row[key]) : row[key] ?? ''))].map((row) => row.map((value) => '"' + String(value).replaceAll('"', '""') + '"').join(',')).join('\n') + '\n');
++};
++const protectedFile = (file) => /(?:^|\/)(?:law|policy)(?:\/|\.)|legalDocument|policyClient|policyAuth|policy\.public/.test(file);
++const owner = (file) => protectedFile(file) ? 'LAW / Policy (protected)' : /marketing/i.test(file) ? 'Marketing / CEO' : /yarrowtech|workspace/i.test(file) ? 'Project workspaces / YarrowTech' : (file.match(/(?:components|controllers|modules|models|pages)\/(\w+)/)?.[1] || file.match(/(?:routes|services)\/(\w+)[.]/)?.[1] || 'Shared / deployment');
++const urls = [], variables = [], declarations = [], frontendCalls = [], dependencies = [], models = [];
++for (const [file, text] of source) {
++  const lines = text.split(/\r?\n/);
++  lines.forEach((line, index) => {
++    for (const match of line.matchAll(/(?:https?|wss?|mongodb(?:\+srv)?|rediss?):\/\/[^\s'"`<>]+/g)) {
++      let value = match[0];
++      if (/^(mongodb|redis)/.test(value)) value = '<connection URI redacted>';
++      else value = value.replace(/(\/\/)[^/@\s]+:[^/@\s]+@/, '$1<credentials-redacted>@').replace(/([?&](?:token|key|secret|password)=)[^&\s]+/gi, '$1<redacted>');
++      urls.push({ file, line: index + 1, owner: owner(file), url: value, purpose: /placeholder|example\.com/.test(line) ? 'Example / placeholder' : /socket|wss?:/.test(line) ? 'Socket' : /\.png|\.jpg|fonts\.|tile\.|\.svg/.test(line) ? 'Static asset / map / font' : 'Inspect source context', environment: /localhost|127\.0\.0\.1/.test(value) ? 'Local development / test' : /test|scripts|docs/.test(file) ? 'Test / documentation / operations' : 'Configured public reference', status: protectedFile(file) ? 'Protected and must remain unchanged' : 'Configured but unverified' });
++    }
++    for (const match of line.matchAll(/(?:process\.env|import\.meta\.env)\.([A-Z][A-Z0-9_]*)/g)) variables.push({ file, line: index + 1, owner: owner(file), name: match[1], exposure: line.includes('import.meta.env') ? 'Browser public' : 'Server', status: protectedFile(file) ? 'Protected and must remain unchanged' : 'Configured but unverified' });
++    if (/apiClient\.|fetch\(|\bio\(/.test(line)) frontendCalls.push({ file, line: index + 1, owner: owner(file), caller: line.trim(), verification: 'Source reference; runtime coverage varies' });
++    if (/\.\s*(?:get|post|put|patch|delete|use|route)\s*\(/.test(line) && /routes|middleware|mountDepartment/.test(file)) declarations.push({ file, line: index + 1, declaration: line.trim(), status: 'Source reference; dynamic helper routes included here' });
++    if (/require\(|^import /.test(line)) dependencies.push({ file, line: index + 1, dependency: line.trim() });
++    if (/mongoose\.connect|createConnection|MONGO_URI|DATABASE_URL/.test(line)) models.push({ file, line: index + 1, type: 'Connection reference', detail: line.trim() });
++    if (/\bref\s*:|\.index\(|mongoose\.model\(|new (?:mongoose\.)?Schema/.test(line) && file.startsWith('backend/models/')) models.push({ file, line: index + 1, type: 'Model / relationship / index', detail: line.trim() });
++  });
++}
++// Environment names and presence only. Do not copy real values, even for URL variables.
++const envFiles = files.filter((file) => path.basename(file).startsWith('.env')).map((file) => ({ file: rel(file), variables: fs.readFileSync(file, 'utf8').split(/\r?\n/).flatMap((line) => { const match = line.match(/^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/); return match ? [{ name: match[1], present: Boolean(match[2].trim()) }] : []; }) }));
++save('environment-presence.json', envFiles);
++csv('url-references.csv', urls); csv('environment-references.csv', variables); csv('route-declarations.csv', declarations); csv('frontend-callers.csv', frontendCalls.filter((row) => row.file.startsWith('frontend/'))); csv('dependencies.csv', dependencies); csv('database-models.csv', models);
++// Express routers are loaded without app/server. Guard against accidental connections.
++process.env.NODE_ENV = 'test';
++const mongoose = require('mongoose');
++mongoose.connect = () => { throw new Error('Database connections are forbidden in the source audit'); };
++mongoose.createConnection = mongoose.connect;
++const routes = require('../routes');
++const appSource = source.get('backend/app.js');
++const mounts = [...appSource.matchAll(/app\.use\("([^"]+)",\s*(?:routes\.(\w+)|require\('([^']+)'\))\)/g)].map((match) => ({ prefix: match[1], router: match[2] || match[3], instance: match[2] ? routes[match[2]] : require(path.resolve(root, 'backend', match[3])) }));
++const endpoints = [];
++function mountPrefix(layer) {
++  if (layer.regexp.fast_slash) return '';
++  const raw = layer.regexp.source;
++  const result = raw.replace(/^\^/, '').replace(/\\\/\?\(\?=\\\/\|\$\)$/, '').replaceAll('\\/', '/');
++  return /[()[\]?$^]/.test(result) ? `<mount:${raw}>` : result;
++}
++function inspect(router, prefix, inherited, entry) {
++  const middleware = [...inherited];
++  const routerSource = Object.values(require.cache).find((item) => item.exports === router)?.filename;
++  const file = routerSource ? rel(routerSource) : null;
++  const routerText = file ? source.get(file) || '' : '';
++  const guards = routerText.split(/\r?\n/).flatMap((line, index) => /router\.use|authorize|authenticate|Scope|Permission/.test(line) ? [{ line: index + 1, source: line.trim() }] : []);
++  const imports = [...routerText.matchAll(/require\(['"]([^'"]+)['"]\)/g)].map((match) => match[1]);
++  for (const layer of router.stack || []) {
++    if (layer.route) {
++      for (const method of Object.keys(layer.route.methods)) endpoints.push({ method: method.toUpperCase(), path: prefix + (layer.route.path === '/' ? '' : layer.route.path), owner: entry, routerSource: file, guardSource: guards, imports, handlers: layer.route.stack.map((item) => item.name), inheritedMiddleware: [...middleware], status: /law|policy|legal/i.test(entry) ? 'Protected and must remain unchanged' : 'Registered; runtime/data/provider behavior not universally verified' });
++    } else if (layer.handle?.stack) inspect(layer.handle, prefix + mountPrefix(layer), middleware, entry);
++    else middleware.push(layer.name);
++  }
++}
++for (const mount of mounts) inspect(mount.instance, mount.prefix, [], mount.router);
++save('endpoints.json', endpoints); csv('endpoints.csv', endpoints);
++const literalConnections = [];
++for (const [file, text] of source) {
++  if (!file.startsWith('frontend/')) continue;
++  for (const match of text.matchAll(/apiClient\.(get|post|put|patch|delete|upload|download|activity)\(\s*(['"])(\/[^'"]+)\2/g)) {
++    const method = ({ upload: 'POST', download: 'GET', activity: 'POST' })[match[1]] || match[1].toUpperCase();
++    const target = match[3].split('?')[0];
++    const found = endpoints.filter((endpoint) => endpoint.method === method && new RegExp('^' + endpoint.path.split('/').map((segment) => segment.startsWith(':') ? '[^/]+' : segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('/') + '/?$').test(target));
++    literalConnections.push({ file, line: text.slice(0, match.index).split('\n').length, method, path: target, matches: found.map(({ owner, routerSource }) => ({ owner, routerSource })), status: found.length ? 'Registered; request/response behavior requires runtime verification' : 'No matching registration; may be unused or belong to a separate backend; do not remap without contract evidence' });
++  }
++}
++csv('literal-client-connections.csv', literalConnections);
++
++save('mounts.json', mounts.map(({ instance, ...mount }) => mount));
++const routeGroups = new Map();
++for (const endpoint of endpoints) { const key = endpoint.method + ' ' + endpoint.path; if (!routeGroups.has(key)) routeGroups.set(key, []); routeGroups.get(key).push(endpoint); }
++save('duplicate-registrations.json', [...routeGroups].filter(([, items]) => items.length > 1).map(([key, items]) => ({ key, registrations: items.map(({ owner, routerSource }) => ({ owner, routerSource })), status: 'Duplicate registration; precedence must be reviewed, not removed automatically' })));
++csv('frontend-routes.csv', [...source].filter(([file]) => file.startsWith('frontend/') && /routes|navigation|portalMenus|projectNames/.test(file)).flatMap(([file, text]) => text.split(/\r?\n/).flatMap((line, index) => /path[=:]|to[=:]|launchUrl|redirect/i.test(line) ? [{ file, line: index + 1, owner: owner(file), declaration: line.trim(), status: protectedFile(file) ? 'Protected and must remain unchanged' : 'Source reference; navigation not universally verified' }] : [])));
++
++const baseline = JSON.parse(fs.readFileSync(path.join(output, 'baseline.json'), 'utf8'));
++const hashes = Object.fromEntries([...source].map(([file]) => [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
++const changedSinceBaseline = Object.keys(hashes).filter((file) => baseline.hashes[file] && hashes[file] !== baseline.hashes[file]);
++const notHashedAtBaseline = Object.keys(hashes).filter((file) => !baseline.hashes[file]);
++const protectedCompared = Object.keys(baseline.hashes).filter(protectedFile);
++const protectedChanged = protectedCompared.filter((file) => hashes[file] !== baseline.hashes[file]);
++save('verification.json', { baselineBranch: baseline.branch, baselineStatus: baseline.status, changedSinceBaseline, notHashedAtBaseline, protectedCompared, protectedChanged, databaseConnected: mongoose.connection.readyState !== 0, routeCount: endpoints.length, urlReferences: urls.length, environmentReferences: variables.length, limitations: ['Router registration verified without app startup or database connection.', 'Middleware names do not prove authorization for every request.', 'Controller/service/request/response contracts require source review; declarations and dependencies are supplied.', 'Runtime-generated helper routes are reflected in loaded router stacks; source declarations include their helper definitions.', 'URL references include documentation/test/static assets; duplicates are references, not evidence of redundant contracts.', 'Environment file values intentionally omitted. No provider requests made.'] });
++console.log(JSON.stringify({ endpoints: endpoints.length, urls: urls.length, protectedCompared: protectedCompared.length, protectedChanged, changedSinceBaseline: changedSinceBaseline.length }));

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -12,7 +13,7 @@ const defaultEmojiOptions = ['😀', '😁', '😂', '😅', '😍', '😎', '�
 const TYPING_STOP_DELAY_MS = 2000;
 const TYPING_KEEP_ALIVE_MS = 1500;
 const TYPING_DISPLAY_TIMEOUT_MS = 5000;
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 const employeeChatLogger = createLogger({ module: 'employee-chat' });
 
 const defaultTeamMembersExtractor = (res) => {

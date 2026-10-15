@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { outsourcingApi } from '../../services/outsourcing';
-import { applyRoleWideWorkspaceAccess, resolveCanonicalProjects } from '../../config/projectNames';
+import { organizationWorkspaceApi } from '../../services/organizationWorkspace';
 import {
   OutsourcingCard,
   OutsourcingEmptyState,
@@ -38,20 +38,20 @@ export default function AdminProjectsPage() {
     setLoading(true);
     setError('');
     try {
-      const [responseResult, catalogResult] = await Promise.allSettled([
+      const [responseResult, catalogResult, organizationResult] = await Promise.allSettled([
         outsourcingApi.getMyProjects(token),
         outsourcingApi.getWorkspaceCatalog(token),
+        organizationWorkspaceApi.getOrganization(token),
       ]);
-      if (responseResult.status === 'rejected') throw responseResult.reason;
-      const response = responseResult.value;
+      if (organizationResult.status === 'rejected') throw organizationResult.reason;
+      const organization = organizationResult.value.data;
+      const response = responseResult.status === 'fulfilled' ? responseResult.value : null;
       const catalogResponse = catalogResult.status === 'fulfilled' ? catalogResult.value : null;
       const projectsData = response?.data || {};
-      const resolvedProjects = applyRoleWideWorkspaceAccess(
-        resolveCanonicalProjects(projectsData.projects || []),
-        user
-      );
+      const legacyByCode = new Map((projectsData.projects || []).map((project) => [project.code, project]));
+      const resolvedProjects = organization.projects.map((project) => ({ ...legacyByCode.get(project.code), ...project }));
       setProjects(resolvedProjects);
-      setCatalog(catalogResponse?.data || null);
+      setCatalog({ ...(catalogResponse?.data || {}), organization: { id: organization.id, name: organization.name }, brands: organization.brands });
       setSummary({
         total: resolvedProjects.length,
         assigned: resolvedProjects.filter((project) => project.assigned).length,
@@ -129,7 +129,7 @@ export default function AdminProjectsPage() {
   };
 
   return (
-    <main className="portal-page">
+    <main className="portal-page pt-12 lg:pt-0">
       <div className="portal-page-inner space-y-4">
       <PortalHeader
         title="Project Workspaces"
@@ -294,6 +294,7 @@ export default function AdminProjectsPage() {
                   ) : null}
 
                   <div className="mt-auto pt-4">
+                    <button type="button" disabled={!hasAccess} onClick={() => navigate(`/admin/projects/${encodeURIComponent(project.code)}`)} className="mb-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 px-4 py-3 text-sm font-semibold disabled:opacity-50 dark:border-neutral-700"><span aria-hidden="true" className="material-symbols-outlined text-lg">folder_open</span>Open workspace</button>
                     <button
                       type="button"
                       disabled={!actionEnabled || launchingProject === project.code}

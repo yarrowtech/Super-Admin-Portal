@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/backend';
 import React, { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -6,7 +7,7 @@ import AppLayout from '../../layouts/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import { resolvePortalMenu } from '../../config/portalMenus';
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
 
 const ITPortal = () => {
   const { user, token } = useAuth();

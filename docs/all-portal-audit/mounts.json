@@ -1,0 +1,174 @@
+[
+  {
+    "prefix": "/api/auth",
+    "router": "authRoutes"
+  },
+  {
+    "prefix": "/api/attendance",
+    "router": "attendanceRoutes"
+  },
+  {
+    "prefix": "/api/dept/admin",
+    "router": "adminRoutes"
+  },
+  {
+    "prefix": "/api/super-admin",
+    "router": "superAdminPortalRoutes"
+  },
+  {
+    "prefix": "/api/dept/super-admin",
+    "router": "superAdminRoutes"
+  },
+  {
+    "prefix": "/api/dept/ceo",
+    "router": "ceoRoutes"
+  },
+  {
+    "prefix": "/api/ceo",
+    "router": "ceoRoutes"
+  },
+  {
+    "prefix": "/api/dept/it",
+    "router": "itRoutes"
+  },
+  {
+    "prefix": "/api/dept/hr",
+    "router": "hrRoutes"
+  },
+  {
+    "prefix": "/api/dept/finance",
+    "router": "financeRoutes"
+  },
+  {
+    "prefix": "/api/dept/law",
+    "router": "lawRoutes"
+  },
+  {
+    "prefix": "/api/law",
+    "router": "lawRoutes"
+  },
+  {
+    "prefix": "/api/dept/media",
+    "router": "mediaRoutes"
+  },
+  {
+    "prefix": "/api/dept/project-overview",
+    "router": "projectOverviewRoutes"
+  },
+  {
+    "prefix": "/api/dept/sales",
+    "router": "salesRoutes"
+  },
+  {
+    "prefix": "/api/dept/manager",
+    "router": "managerRoutes"
+  },
+  {
+    "prefix": "/api/dept/employee",
+    "router": "employeeDeptRoutes"
+  },
+  {
+    "prefix": "/api/employee",
+    "router": "employeePortalRoutes"
+  },
+  {
+    "prefix": "/api",
+    "router": "projectAccessRoutes"
+  },
+  {
+    "prefix": "/api/sso",
+    "router": "ssoRoutes"
+  },
+  {
+    "prefix": "/api/external-auth",
+    "router": "externalAuthRoutes"
+  },
+  {
+    "prefix": "/api/dept",
+    "router": "departmentRoutes"
+  },
+  {
+    "prefix": "/api/notifications",
+    "router": "notificationRoutes"
+  },
+  {
+    "prefix": "/api/chat",
+    "router": "chatRoutes"
+  },
+  {
+    "prefix": "/api/reports",
+    "router": "reportRoutes"
+  },
+  {
+    "prefix": "/api/analytics",
+    "router": "analyticsRoutes"
+  },
+  {
+    "prefix": "/api/automation",
+    "router": "automationRoutes"
+  },
+  {
+    "prefix": "/api/activity",
+    "router": "activityRoutes"
+  },
+  {
+    "prefix": "/api/outsourcing/edifyeight",
+    "router": "edifyEightTeacherRoutes"
+  },
+  {
+    "prefix": "/api/outsourcing",
+    "router": "outsourcingRoutes"
+  },
+  {
+    "prefix": "/api/integrations/efnbmms/admin-management",
+    "router": "efnbmmsRoutes"
+  },
+  {
+    "prefix": "/api/dashboard",
+    "router": "dashboardRoutes"
+  },
+  {
+    "prefix": "/api/profile",
+    "router": "profileRoutes"
+  },
+  {
+    "prefix": "/api/hr",
+    "router": "hrProfileRoutes"
+  },
+  {
+    "prefix": "/api/legal",
+    "router": "legalDocRoutes"
+  },
+  {
+    "prefix": "/api/portal-support",
+    "router": "portalSupportRoutes"
+  },
+  {
+    "prefix": "/api/logs",
+    "router": "logRoutes"
+  },
+  {
+    "prefix": "/api/portfolios",
+    "router": "portfolioRoutes"
+  },
+  {
+    "prefix": "/api/portfolio-hierarchy",
+    "router": "portfolioHierarchyRoutes"
+  },
+  {
+    "prefix": "/api/v1",
+    "router": "policyRoutes"
+  },
+  {
+    "prefix": "/api/v1",
+    "router": "./routes/yarrowtech.routes"
+  },
+  {
+    "prefix": "/api/v1",
+    "router": "organizationWorkspaceRoutes"
+  },
+  {
+    "prefix": "/api/efnbmms/policy/v1",
+    "router": "policyPublicRoutes"
+  }
+]

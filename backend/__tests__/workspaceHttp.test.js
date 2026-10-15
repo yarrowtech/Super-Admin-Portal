@@ -1,0 +1,54 @@
+process.env.NODE_ENV = 'test';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const express = require('express');
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+const { randomUUID } = require('node:crypto');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const User = require('../models/auth/User');
+const Session = require('../models/auth/Session');
+const Record = require('../models/WorkspaceRecord');
+const Configuration = require('../services/workspaceConfiguration.service');
+
+test('workspace HTTP contract enforces resource relationships and scoped mutations', async () => {
+  const mongo = await MongoMemoryServer.create();
+  let server;
+  try {
+    await mongoose.connect(mongo.getUri());
+    await Record.init(); await require('../models/WorkspaceProductMember').init(); await Configuration.initialize();
+    const admin = await User.create({ firstName: 'API', lastName: 'Admin', email: 'admin@workspace.test', password: 'ValidPass123!', role: 'admin' });
+    const member = await User.create({ firstName: 'API', lastName: 'Member', email: 'member@workspace.test', password: 'ValidPass123!', role: 'it_employee', metadata: { projectAssignments: [{ projectCode: 'EEC', status: 'active' }] } });
+    const custom = await require('../models/common/Project').create({ name: 'Stored custom project', description: 'Central project', projectCode: 'CUSTOM_PROJECT', startDate: new Date(), projectManager: member._id });
+    const token = async (user) => { const jti = randomUUID(); await Session.create({ user: user._id, jti, refreshTokenHash: 'fixture-only', expiresAt: new Date(Date.now() + 3600000) }); return jwt.sign({ userId: String(user._id) }, require('../config/jwt').accessSecret, { expiresIn: '1h', jwtid: jti }); };
+    const adminToken = await token(admin), memberToken = await token(member);
+    const app = express(); app.use(express.json());
+    app.use('/api/v1', require('../routes/policy.routes'));
+    app.use('/api/v1', require('../routes/organizationWorkspace.routes'));
+    app.use((error, req, res, next) => { void next; res.status(error.statusCode || 500).json({ success: false, error: error.message }); });
+    server = app.listen(0, '127.0.0.1'); await new Promise((resolve) => server.once('listening', resolve));
+    const origin = `http://127.0.0.1:${server.address().port}/api/v1`;
+    const call = async (path, method = 'GET', body, access = adminToken) => { const response = await fetch(origin + path, { method, headers: { authorization: `Bearer ${access}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }); return { status: response.status, body: await response.json() }; };
+    const product = await call('/projects/YARROWTECH/products', 'POST', { name: 'API product' }); assert.equal(product.status, 201);
+    const productId = product.body.data._id;
+    const customer = await call('/projects/YARROWTECH/customers', 'POST', { name: 'API customer', email: 'customer@example.test' }); assert.equal(customer.status, 201);
+    const plan = await call('/projects/YARROWTECH/plans', 'POST', { name: 'API plan', productId, amountMinor: 10000, currency: 'INR', billingInterval: 'monthly' }); assert.equal(plan.status, 201);
+    const subscription = await call('/subscriptions', 'POST', { name: 'API subscription', projectId: 'YARROWTECH', productId, customerId: customer.body.data._id, planId: plan.body.data._id }); assert.equal(subscription.status, 201);
+    assert.equal((await call(`/products/${productId}/subscriptions?projectId=YARROWTECH`)).body.data.total, 1);
+    assert.equal((await call(`/products/${productId}/workspace?projectId=MATEBID`)).status, 404);
+    assert.equal((await call(`/products/${productId}`, 'GET', null, memberToken)).status, 404);
+    assert.equal((await call('/projects/EEC/services', 'POST', { name: 'Unauthorized write' }, memberToken)).status, 403);
+    assert.equal((await call('/integrations/efnbmms-admin-management/status', 'GET', null, memberToken)).status, 404);
+    assert.equal((await call('/projects/EEC/products?projectId=YARROWTECH')).body.data.total, 0);
+    assert.equal((await call(`/subscriptions/${subscription.body.data._id}/cancel`, 'POST', {})).body.data.status, 'cancelled');
+    const ticket = await call('/projects/YARROWTECH/support/tickets', 'POST', { name: 'API support', productId, priority: 'urgent' }); assert.equal(ticket.status, 201);
+    assert.equal((await call(`/support/tickets/${ticket.body.data._id}`, 'PATCH', { status: 'resolved', version: ticket.body.data.__v })).body.data.status, 'resolved');
+    assert.equal((await call('/projects/YARROWTECH/workspace', 'PATCH', { displayName: 'Saved workspace', modules: ['overview', 'products'] })).status, 200);
+    assert.equal((await call('/projects/YARROWTECH/workspace')).body.data.project.name, 'Saved workspace');
+    assert.ok((await call('/projects/YARROWTECH/audit-logs')).body.data.total >= 6);
+    assert.equal((await call(`/projects/${custom._id}/workspace`, 'GET', null, memberToken)).body.data.project.code, 'CUSTOM_PROJECT');
+    assert.equal((await call(`/projects/${custom._id}/services`, 'POST', { name: 'Manager-owned custom service' }, memberToken)).status, 201);
+    assert.ok((await call('/organizations/HOUSE_OF_MUSA/projects', 'GET', null, memberToken)).body.data.items.some((project) => project.code === 'CUSTOM_PROJECT'));
+    assert.equal((await call('/projects/YARROWTECH/integrations', 'POST', { integrationId: 'edifyeight-teachers' })).status, 400);
+  } finally { if (server) await new Promise((resolve) => server.close(resolve)); await mongoose.disconnect(); await mongo.stop(); }
+});

@@ -1,7 +1,6 @@
 const logger = require("./utils/logger");
 const env = require("./config/env");
 const { validateStartupConfig } = require("./config/startupValidation");
-const { server } = require("./app");
 const mongoose = require("mongoose");
 const logService = require("./services/log.service");
 const { closeRedis } = require("./infrastructure/cache/redisClient");
@@ -11,6 +10,7 @@ const {
 } = require("./jobs/overdueInvoiceEscalation.job");
 
 const PORT = env.PORT;
+const workspaceSyncJob = require('./jobs/workspaceSync.job');
 
 try {
   validateStartupConfig();
@@ -19,11 +19,15 @@ try {
   process.exit(1);
 }
 
+// Load the application only after validation: importing app starts DB/bootstrap work.
+const { server } = require("./app");
+
 const httpServer = server.listen(PORT, () => {
   logger.info({ port: PORT }, "Server running");
   // Scheduled background work. Started after the server is listening so a scheduling
   // failure can never stop the API from coming up.
   startOverdueEscalationJob();
+  workspaceSyncJob.start();
   logService.fireAndForget({
     level: "info",
     event: "SERVER_STARTED",
@@ -43,6 +47,7 @@ const shutdown = async (signal) => {
   // Stop the scheduler before closing connections, so a tick cannot fire against a
   // database that is already going away.
   stopOverdueEscalationJob();
+  workspaceSyncJob.stop();
   const forceExitTimer = setTimeout(() => {
     process.exit(1);
   }, 10000);

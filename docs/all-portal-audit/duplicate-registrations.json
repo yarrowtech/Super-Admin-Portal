@@ -1,0 +1,426 @@
+[
+  {
+    "key": "GET /api/dept/it/dashboard",
+    "registrations": [
+      {
+        "owner": "itRoutes",
+        "routerSource": "backend/routes/it.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/department.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/law/task-items/mine",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/law/task-items/:taskId",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/law/task-items/:taskId/:recordId",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/law/task-items/:taskId/:recordId/files/:index",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "PUT /api/dept/law/task-items/:taskId/:recordId/content",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "POST /api/dept/law/task-items/:taskId/:recordId/annotations",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "DELETE /api/dept/law/task-items/:taskId/:recordId/annotations/:annotationId",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/law/dashboard",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/department.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/law/task-items/mine",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/law/task-items/:taskId",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/law/task-items/:taskId/:recordId",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/law/task-items/:taskId/:recordId/files/:index",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "PUT /api/law/task-items/:taskId/:recordId/content",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "POST /api/law/task-items/:taskId/:recordId/annotations",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "DELETE /api/law/task-items/:taskId/:recordId/annotations/:annotationId",
+    "registrations": [
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      },
+      {
+        "owner": "lawRoutes",
+        "routerSource": "backend/routes/law.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/media/dashboard",
+    "registrations": [
+      {
+        "owner": "mediaRoutes",
+        "routerSource": "backend/modules/media/media.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/department.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/sales/dashboard",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/department.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/sales/queries",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "POST /api/dept/sales/queries",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "PUT /api/dept/sales/queries/:id",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "DELETE /api/dept/sales/queries/:id",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/dept/sales/questions",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "POST /api/dept/sales/questions",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "PUT /api/dept/sales/questions/:id",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "DELETE /api/dept/sales/questions/:id",
+    "registrations": [
+      {
+        "owner": "salesRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      },
+      {
+        "owner": "departmentRoutes",
+        "routerSource": "backend/routes/sales.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/v1/projects",
+    "registrations": [
+      {
+        "owner": "policyRoutes",
+        "routerSource": "backend/routes/policy.routes.js"
+      },
+      {
+        "owner": "organizationWorkspaceRoutes",
+        "routerSource": "backend/routes/organizationWorkspace.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/v1/projects/:projectId",
+    "registrations": [
+      {
+        "owner": "policyRoutes",
+        "routerSource": "backend/routes/policy.routes.js"
+      },
+      {
+        "owner": "organizationWorkspaceRoutes",
+        "routerSource": "backend/routes/organizationWorkspace.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "POST /api/v1/projects/:projectId/integrations",
+    "registrations": [
+      {
+        "owner": "./routes/yarrowtech.routes",
+        "routerSource": "backend/routes/yarrowtech.routes.js"
+      },
+      {
+        "owner": "organizationWorkspaceRoutes",
+        "routerSource": "backend/routes/organizationWorkspace.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  },
+  {
+    "key": "GET /api/v1/integrations/:integrationId/sync-jobs",
+    "registrations": [
+      {
+        "owner": "./routes/yarrowtech.routes",
+        "routerSource": "backend/routes/yarrowtech.routes.js"
+      },
+      {
+        "owner": "organizationWorkspaceRoutes",
+        "routerSource": "backend/routes/organizationWorkspace.routes.js"
+      }
+    ],
+    "status": "Duplicate registration; precedence must be reviewed, not removed automatically"
+  }
+]

@@ -1,0 +1,378 @@
+[
+  {
+    "file": "backend/.env",
+    "variables": [
+      {
+        "name": "MONGO_URI",
+        "present": true
+      },
+      {
+        "name": "JWT_SECRET",
+        "present": true
+      },
+      {
+        "name": "JWT_REFRESH_SECRET",
+        "present": true
+      },
+      {
+        "name": "JWT_EXPIRES_IN",
+        "present": true
+      },
+      {
+        "name": "JWT_REFRESH_EXPIRES_IN",
+        "present": true
+      },
+      {
+        "name": "PORT",
+        "present": true
+      },
+      {
+        "name": "NODE_ENV",
+        "present": true
+      },
+      {
+        "name": "CORS_ORIGIN",
+        "present": true
+      },
+      {
+        "name": "EEC_PORTAL_URL",
+        "present": true
+      },
+      {
+        "name": "EFNBMMS_ADMIN_MANAGEMENT_API_URL",
+        "present": true
+      },
+      {
+        "name": "EFNBMMS_API_TOKEN",
+        "present": true
+      },
+      {
+        "name": "EDIFYEIGHT_API_URL",
+        "present": true
+      },
+      {
+        "name": "EDIFYEIGHT_TEACHER_API_URL",
+        "present": true
+      },
+      {
+        "name": "EDIFYEIGHT_STUDY_MATERIAL_API_URL",
+        "present": true
+      },
+      {
+        "name": "EDIFYEIGHT_API_TOKEN",
+        "present": true
+      },
+      {
+        "name": "EDIFYEIGHT_API_URL",
+        "present": true
+      },
+      {
+        "name": "EDIFYEIGHT_TEACHER_API_URL",
+        "present": true
+      },
+      {
+        "name": "EDIFYEIGHT_STUDY_MATERIAL_API_URL",
+        "present": true
+      },
+      {
+        "name": "EFNBMMS_API_URL",
+        "present": true
+      },
+      {
+        "name": "EFNBMMS_TEACHER_API_URL",
+        "present": true
+      },
+      {
+        "name": "SRS_API_BASE_URL",
+        "present": true
+      },
+      {
+        "name": "SRS_API_KEY",
+        "present": true
+      },
+      {
+        "name": "SRS_CLIENT_ID",
+        "present": true
+      },
+      {
+        "name": "SRS_SIGNING_SECRET",
+        "present": true
+      },
+      {
+        "name": "SRS_WEBHOOK_SECRET",
+        "present": true
+      },
+      {
+        "name": "CLOUDINARY_CLOUD_NAME",
+        "present": true
+      },
+      {
+        "name": "CLOUDINARY_API_KEY",
+        "present": true
+      },
+      {
+        "name": "CLOUDINARY_API_SECRET",
+        "present": true
+      },
+      {
+        "name": "ENABLE_SELF_REGISTRATION",
+        "present": true
+      },
+      {
+        "name": "LOG_LEVEL",
+        "present": true
+      }
+    ]
+  },
+  {
+    "file": "backend/.env.example",
+    "variables": [
+      {
+        "name": "NODE_ENV",
+        "present": true
+      },
+      {
+        "name": "PORT",
+        "present": true
+      },
+      {
+        "name": "MONGO_URI",
+        "present": true
+      },
+      {
+        "name": "CORS_ORIGIN",
+        "present": true
+      },
+      {
+        "name": "JWT_SECRET",
+        "present": true
+      },
+      {
+        "name": "JWT_REFRESH_SECRET",
+        "present": true
+      },
+      {
+        "name": "JWT_EXPIRES_IN",
+        "present": true
+      },
+      {
+        "name": "JWT_REFRESH_EXPIRES_IN",
+        "present": true
+      },
+      {
+        "name": "CACHE_ENABLED",
+        "present": true
+      },
+      {
+        "name": "REDIS_URL",
+        "present": true
+      },
+      {
+        "name": "POLICY_CLIENT_RATE_LIMIT_WINDOW_MS",
+        "present": true
+      },
+      {
+        "name": "POLICY_CLIENT_RATE_LIMIT_MAX",
+        "present": true
+      },
+      {
+        "name": "MARKETING_PLATFORM_BASE_URL",
+        "present": true
+      },
+      {
+        "name": "MARKETING_PLATFORM_TOKEN",
+        "present": false
+      },
+      {
+        "name": "MARKETING_PLATFORM_API_KEY",
+        "present": false
+      },
+      {
+        "name": "MARKETING_PLATFORM_TIMEOUT_MS",
+        "present": true
+      },
+      {
+        "name": "MARKETING_PLATFORM_PAGE_SIZE",
+        "present": true
+      },
+      {
+        "name": "MARKETING_PLATFORM_MAX_PAGES",
+        "present": true
+      },
+      {
+        "name": "MARKETING_PLATFORM_LEADS_PATH",
+        "present": true
+      },
+      {
+        "name": "MARKETING_PLATFORM_CAMPAIGNS_PATH",
+        "present": true
+      },
+      {
+        "name": "MARKETING_ANALYTICS_CACHE_TTL",
+        "present": true
+      },
+      {
+        "name": "FINANCE_OVERDUE_ESCALATION_ENABLED",
+        "present": true
+      },
+      {
+        "name": "FINANCE_OVERDUE_ESCALATION_CRON",
+        "present": true
+      },
+      {
+        "name": "FINANCE_OVERDUE_ESCALATION_TZ",
+        "present": true
+      },
+      {
+        "name": "FINANCE_OVERDUE_ESCALATION_DAYS",
+        "present": true
+      },
+      {
+        "name": "FINANCE_OVERDUE_REESCALATE_DAYS",
+        "present": true
+      },
+      {
+        "name": "FINANCE_OVERDUE_ESCALATION_LIMIT",
+        "present": true
+      },
+      {
+        "name": "EFNBMMS_ADMIN_MANAGEMENT_API_URL",
+        "present": false
+      },
+      {
+        "name": "EFNBMMS_API_TOKEN",
+        "present": false
+      },
+      {
+        "name": "EDIFYEIGHT_API_URL",
+        "present": false
+      },
+      {
+        "name": "EDIFYEIGHT_TEACHER_API_URL",
+        "present": false
+      },
+      {
+        "name": "EDIFYEIGHT_STUDY_MATERIAL_API_URL",
+        "present": false
+      },
+      {
+        "name": "EDIFYEIGHT_API_TOKEN",
+        "present": false
+      },
+      {
+        "name": "EEC_PORTAL_URL",
+        "present": false
+      },
+      {
+        "name": "EHC_PORTAL_URL",
+        "present": false
+      },
+      {
+        "name": "RMS_PORTAL_URL",
+        "present": false
+      },
+      {
+        "name": "OUTSOURCING_PORTAL_URL",
+        "present": false
+      },
+      {
+        "name": "OUTSOURCING_SHARED_SECRET",
+        "present": false
+      },
+      {
+        "name": "CLOUDINARY_CLOUD_NAME",
+        "present": false
+      },
+      {
+        "name": "CLOUDINARY_API_KEY",
+        "present": false
+      },
+      {
+        "name": "CLOUDINARY_API_SECRET",
+        "present": false
+      },
+      {
+        "name": "SRS_API_BASE_URL",
+        "present": true
+      },
+      {
+        "name": "SRS_API_KEY",
+        "present": false
+      },
+      {
+        "name": "SRS_CLIENT_ID",
+        "present": false
+      },
+      {
+        "name": "SRS_SIGNING_SECRET",
+        "present": false
+      },
+      {
+        "name": "SRS_WEBHOOK_SECRET",
+        "present": false
+      },
+      {
+        "name": "WORKSPACE_SYNC_AUTOMATIC",
+        "present": true
+      },
+      {
+        "name": "WORKSPACE_SYNC_POLL_SECONDS",
+        "present": true
+      }
+    ]
+  },
+  {
+    "file": "frontend/.env",
+    "variables": [
+      {
+        "name": "VITE_API_URL",
+        "present": true
+      },
+      {
+        "name": "VITE_POLICY_API_URL",
+        "present": true
+      },
+      {
+        "name": "VITE_POLICY_PROJECT_ID",
+        "present": false
+      },
+      {
+        "name": "VITE_OUTSOURCING_PORTAL_URL",
+        "present": false
+      },
+      {
+        "name": "VITE_EFNBMMS_ADMIN_MANAGEMENT_PROXY_BASE",
+        "present": false
+      },
+      {
+        "name": "VITE_SUPER_ADMIN_API_BASE",
+        "present": false
+      },
+      {
+        "name": "VITE_LOG_LEVEL",
+        "present": true
+      }
+    ]
+  },
+  {
+    "file": "frontend/.env.example",
+    "variables": [
+      {
+        "name": "VITE_API_URL",
+        "present": true
+      },
+      {
+        "name": "VITE_POLICY_API_URL",
+        "present": true
+      },
+      {
+        "name": "VITE_POLICY_PROJECT_ID",
+        "present": false
+      },
+      {
+        "name": "VITE_POLICY_CONSUMER_API_URL",
+        "present": true
+      }
+    ]
+  }
+]

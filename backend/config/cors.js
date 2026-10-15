@@ -29,6 +29,7 @@ module.exports = Object.freeze({
   allowedOrigins: originAllowList,
   origin,
   credentials: true,
+  exposedHeaders: ["x-request-id", "X-New-Token"],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-client-source", "x-project-id", "x-request-id"],
 });

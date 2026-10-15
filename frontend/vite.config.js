@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite'
+import process from 'node:process'
+import { defineConfig, loadEnv } from 'vite'
+import { resolveBackendUrl } from './src/config/backendUrl.mjs'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -25,7 +27,10 @@ const packageOf = (id) => {
 const lookup = new Map(Object.entries(vendorGroups).flatMap(([chunk, pkgs]) => pkgs.map((p) => [p, chunk])))
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  const values = loadEnv(mode, process.cwd(), 'VITE_');
+  resolveBackendUrl(process.env.VITE_API_URL || values.VITE_API_URL, { production: command === 'build' });
+  return {
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
@@ -40,4 +45,5 @@ export default defineConfig({
       },
     },
   },
+  };
 })

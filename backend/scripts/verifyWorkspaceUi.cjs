@@ -16,6 +16,15 @@ const configuration = require('../services/workspaceConfiguration.service');
 async function run() {
   const mongo = await MongoMemoryServer.create();
   let browser, server, testPage;
+  const provider = require('../services/yarrowtechApi.service');
+  const originalProbe = provider.probe;
+  let healthFailure = false;
+  provider.probe = async () => ({ status: 'blocked', syncReady: false, authenticationStatus: 'unverified',
+    baseUrl: provider.inventory().providerBaseUrl, checkedAt: new Date(), reachable: !healthFailure,
+    healthy: !healthFailure, ...(healthFailure ? {} : { httpStatus: 200 }),
+    connectionStatus: healthFailure ? 'unreachable' : 'healthy',
+    connectionMessage: healthFailure ? 'Could not reach the provider health endpoint.' : 'Provider health check passed. Authenticated data access is still unverified.',
+    blockedBy: provider.CONTRACT_BLOCKER });
   try {
     await mongoose.connect(mongo.getUri());
     await Record.init(); await configuration.initialize();
@@ -53,6 +62,20 @@ async function run() {
         await request.respond({ status: response.status, headers, body: await response.text() });
       } catch { await request.respond({ status: 500, headers, body: JSON.stringify({ error: 'Isolated API forwarding failed' }) }); }
     });
+    await page.goto(origin + '/admin/projects/YARROWTECH/integrations', { waitUntil: 'networkidle0' });
+    await page.waitForFunction(() => document.body.innerText.includes('Provider health: Not checked'));
+    await page.$$eval('button', (buttons) => buttons.find((button) => button.textContent.trim() === 'Check provider health').click());
+    await page.waitForFunction(() => document.body.innerText.includes('Provider health: Healthy (HTTP 200)'));
+    assert.equal(await page.$$eval('button', (buttons) => buttons.find((button) => button.textContent.trim().endsWith('Sync')).disabled), true);
+    assert.equal(await page.$eval('body', (body) => body.innerText.split('Synchronization needs verified provider resource endpoints, authentication instructions and response formats.').length - 1), 1);
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.waitForFunction(() => document.body.innerText.includes('Provider health: Healthy (HTTP 200)'));
+    healthFailure = true;
+    await page.$$eval('button', (buttons) => buttons.find((button) => button.textContent.trim() === 'Check provider health').click());
+    await page.waitForFunction(() => document.querySelector('[role="alert"]')?.textContent.includes('Could not reach the provider'));
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.waitForFunction(() => document.body.innerText.includes('Provider health: unreachable'));
+    assert.equal(await require('../models/WorkspaceSync').Job.countDocuments({ integrationId: 'yarrowtech-srs' }), 0);
     await page.goto(origin + '/yarrowtech/services', { waitUntil: 'networkidle0' });
     await page.waitForSelector('button[aria-label="Add record"]');
     await page.click('button[aria-label="Add record"]');
@@ -105,10 +128,10 @@ async function run() {
       await page.screenshot({ path: path.resolve(__dirname, `../artifacts/workspace/services-${viewport.width}.png`), fullPage: true });
     }
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: true, checks: ['Authenticated API', 'Create and edit persist', 'Refresh retains records', 'Cross-project UI isolation', 'Audit history', 'All ten project workspaces open', 'YarrowTech admin detail/settings/integration routes', 'Linked clients and deliveries', 'Desktop/mobile layout', 'No runtime errors'] }));
+    console.log(JSON.stringify({ passed: true, checks: ['SRS health success/failure persist after reload', 'SRS blocker displayed once', 'Health success never enables unverified sync', 'Authenticated API', 'Create and edit persist', 'Refresh retains records', 'Cross-project UI isolation', 'Audit history', 'All ten project workspaces open', 'YarrowTech admin detail/settings/integration routes', 'Linked clients and deliveries', 'Desktop/mobile layout', 'No runtime errors'] }));
   } catch (error) {
     if (testPage) console.error((await testPage.$eval('body', (body) => body.innerText)).slice(-4000));
     throw error;
-  } finally { if (browser) await browser.close(); if (server) await new Promise((resolve) => server.close(resolve)); await mongoose.disconnect(); await mongo.stop(); }
+  } finally { provider.probe = originalProbe; if (browser) await browser.close(); if (server) await new Promise((resolve) => server.close(resolve)); await mongoose.disconnect(); await mongo.stop(); }
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

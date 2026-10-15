@@ -781,7 +781,7 @@ export default function AppRoutes() {
             </PortalRoute>
           }
         />
-        {['', 'overview', 'settings', 'services', 'services/clients', 'services/projects', 'services/:serviceId', 'products', 'products/:productId', 'products/:productId/overview', 'products/:productId/settings', 'products/:productId/users', 'products/:productId/subscriptions', 'products/:productId/plans', 'subscriptions', 'subscriptions/:subscriptionId', 'crm/users', 'crm/customers', 'crm/customers/:customerId', 'crm/support', 'crm/support/:ticketId', 'crm/analytics', 'crm/activity', 'integrations', 'integrations/:integrationId', 'sync-jobs', 'sync-history'].map((path) => (
+        {['', 'overview', 'projects', 'projects/:providerProjectId', 'settings', 'services', 'services/clients', 'services/projects', 'services/:serviceId', 'products', 'products/:productId', 'products/:productId/overview', 'products/:productId/settings', 'products/:productId/users', 'products/:productId/subscriptions', 'products/:productId/plans', 'subscriptions', 'subscriptions/:subscriptionId', 'crm/users', 'crm/customers', 'crm/customers/:customerId', 'crm/support', 'crm/support/:ticketId', 'crm/analytics', 'crm/activity', 'integrations', 'integrations/:integrationId', 'sync-jobs', 'sync-history'].map((path) => (
           <Route key={`yarrowtech-admin-${path}`} path={`/admin/projects/YARROWTECH${path ? '/' + path : ''}`} element={
             <PortalRoute portal={PORTALS.ADMIN}><PrivateRoute roles={adminRoles}>{withPortal(AdminLayout, YarrowtechWorkspacePage)}</PrivateRoute></PortalRoute>
           } />
@@ -830,6 +830,8 @@ export default function AppRoutes() {
           'sync-jobs',
           'sync-history',
           'settings',
+          'projects',
+          'projects/:providerProjectId',
         ].map((path) => (
           <Route
             key={`yarrowtech-${path}`}

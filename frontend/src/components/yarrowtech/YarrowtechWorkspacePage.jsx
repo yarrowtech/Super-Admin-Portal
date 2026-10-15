@@ -10,9 +10,12 @@ import WorkspaceSettings from './WorkspaceSettings';
 import YarrowtechSettings from './YarrowtechSettings';
 import YarrowtechResourceDetail from './YarrowtechResourceDetail';
 import YarrowtechServiceProjects from './YarrowtechServiceProjects';
+import WorkspaceProviderProjects from './WorkspaceProviderProjects';
+import WorkspaceProviderProjectDetail from './WorkspaceProviderProjectDetail';
 
 const navigation = [
-  ['Overview', '/overview', 'overview'], ['Services', '/services', 'services'],
+  ['Overview', '/overview', 'overview'], ['Projects', '/projects', 'overview'],
+  ['Services', '/services', 'services'],
   ['Products', '/products', 'products'], ['Subscriptions', '/subscriptions', 'subscriptions'],
   ['Customers', '/crm/customers', 'crm'], ['Users', '/crm/users', 'crm'],
   ['Support', '/crm/support', 'crm'], ['Analytics', '/crm/analytics', 'crm'],
@@ -34,7 +37,7 @@ export default function YarrowtechWorkspacePage() {
   const selected = [...navigation].reverse().find(([, route]) => path.startsWith(route));
   const title = selected?.[0] || 'Overview';
   const group = selected?.[2] || 'overview';
-  const primary = navigation.filter(([, route]) => ['/overview', '/services', '/products', '/subscriptions', '/crm/customers', '/integrations', '/settings'].includes(route));
+  const primary = navigation.filter(([, route]) => ['/overview', '/projects', '/services', '/products', '/subscriptions', '/crm/customers', '/integrations', '/settings'].includes(route));
   const secondary = navigation.filter(([, , module]) => module === group && ['crm', 'integrations'].includes(group));
   const enabled = !selected || data?.modules.some((module) => module.id === selected[2] && module.enabled);
   const product = params.productId ? encodeURIComponent(params.productId) : '';
@@ -60,7 +63,7 @@ export default function YarrowtechWorkspacePage() {
       <div><Link to="/admin/projects" className="text-sm text-neutral-500">House of Musa / Projects</Link><h1 className="mt-1 text-2xl font-semibold">YarrowTech <span className="yt-page-title">/ {title}</span></h1></div>
       <div className="yt-header-actions"><span className="yt-access">{data?.project.canWrite ? 'Manage workspace' : 'Read only'}</span><button type="button" title="Refresh workspace" aria-label="Refresh workspace" disabled={query.isFetching} onClick={() => client.invalidateQueries({ predicate: ({ queryKey }) => ['yarrowtech-workspace', 'workspace-records', 'yarrowtech-deliveries', 'workspace-integrations', 'project-workspace'].includes(queryKey[0]) })} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border disabled:opacity-40"><span aria-hidden="true" className={`material-symbols-outlined w-5 overflow-hidden ${query.isFetching ? 'animate-spin' : ''}`}>refresh</span></button></div>
     </header>
-    <nav aria-label="YarrowTech workspace" className="yt-primary-nav">{primary.filter(([, , module]) => !data || data.modules.some((item) => item.id === module && item.enabled)).map(([label, route, module]) => { const active = route === '/settings' ? path === route : route === '/overview' ? path === route : group === module && path !== '/settings'; return <Link key={route} aria-current={active ? 'page' : undefined} to={basePath + route}>{route === '/crm/customers' ? 'CRM' : label}</Link>; })}</nav>
+    <nav aria-label="YarrowTech workspace" className="yt-primary-nav">{primary.filter(([, , module]) => !data || data.modules.some((item) => item.id === module && item.enabled)).map(([label, route, module]) => { const active = ['/settings', '/overview'].includes(route) ? path === route : route === '/projects' ? path.startsWith('/projects') : group === module && !path.startsWith('/projects') && path !== '/settings'; return <Link key={route} aria-current={active ? 'page' : undefined} to={basePath + route}>{route === '/crm/customers' ? 'CRM' : label}</Link>; })}</nav>
     {query.isPending ? <p role="status">Loading workspace...</p> : null}
     {query.error ? <p role="alert" className="text-rose-600">{query.error.message}</p> : null}
     {data ? <>
@@ -73,6 +76,8 @@ export default function YarrowtechWorkspacePage() {
         {product && path.endsWith('/settings') ? <YarrowtechSettings key={product} resourceId={params.productId} canWrite={data.project.canWrite} /> : null}
         {product && path.endsWith('/users') ? <WorkspaceProductUsers key={product} productId={params.productId} projectId="YARROWTECH" canWrite={data.project.canWrite} /> : null}
         {isIntegration ? <WorkspaceIntegrations key={location.pathname} projectId="YARROWTECH" integrations={data.integrations} canWrite={data.project.canWrite} integrationId={params.integrationId} jobsOnly={path.startsWith('/sync-')} /> : null}
+        {path === '/projects' ? <WorkspaceProviderProjects key={location.pathname} projectId="YARROWTECH" canWrite={data.project.canWrite} basePath={basePath} /> : null}
+        {params.providerProjectId ? <WorkspaceProviderProjectDetail key={location.pathname} projectId={params.providerProjectId} canWrite={data.project.canWrite} basePath={basePath} /> : null}
         {path === '/settings' ? <WorkspaceSettings key={data.project.code} workspace={data} /> : null}
         {path === '/overview' ? <><p className="text-sm">{data.project.description}</p><h2 className="text-lg font-semibold">Operational summary</h2><WorkspaceRecords path="projects/YARROWTECH/analytics" projectId="YARROWTECH" /></> : null}
       </>}

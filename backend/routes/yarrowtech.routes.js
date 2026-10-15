@@ -15,6 +15,9 @@ router.patch('/services/:resourceId/settings', controller.saveSettings('service'
 router.get('/products/:resourceId/settings', controller.settings('product'));
 router.patch('/products/:resourceId/settings', controller.saveSettings('product'));
 router.get('/subscriptions/:resourceId/payments', controller.payments);
+router.get('/projects/:projectId/provider-projects', controller.projects);
+router.get('/provider-projects/:resourceId', controller.project);
+router.patch('/provider-projects/:resourceId', controller.updateProject);
 router.get('/projects/:projectId/activity', controller.audit);
 router.get('/projects/YARROWTECH/audit-logs', controller.audit);
 router.get('/projects/:projectId/sync-history', controller.syncHistory);

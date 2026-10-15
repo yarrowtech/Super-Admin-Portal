@@ -63,6 +63,25 @@ test('YarrowTech operations persist settings, linked deliveries, archives and sc
     const origin = `http://127.0.0.1:${server.address().port}/api/v1`;
     const response = await fetch(origin + '/projects/YARROWTECH/activity', { headers: { authorization: `Bearer ${token}` } });
     const audit = await response.json(); assert.equal(response.status, 200); assert.ok(audit.data.items.some((item) => item.kind === 'settings'));
+    const originalProbe = provider.probe;
+    try {
+      provider.probe = async () => ({ status: 'blocked', syncReady: false, authenticationStatus: 'unverified',
+        baseUrl: provider.inventory().providerBaseUrl, checkedAt: new Date(), reachable: true, healthy: true,
+        httpStatus: 200, connectionStatus: 'healthy', connectionMessage: 'Provider health check passed.', blockedBy: provider.CONTRACT_BLOCKER });
+      const checked = await fetch(origin + '/integrations/yarrowtech-srs/test-connection', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+      assert.equal(checked.status, 200); assert.equal((await checked.json()).data.connectionStatus, 'healthy');
+      const stored = await require('../models/WorkspaceSync').State.findOne({ projectId: 'YARROWTECH', integrationId: 'yarrowtech-srs' }).lean();
+      assert.equal(stored.connectionCheck.httpStatus, 200); assert.equal(stored.error, null); assert.equal(stored.status, 'blocked');
+      const detail = await fetch(origin + '/integrations/yarrowtech-srs/status', { headers: { authorization: `Bearer ${token}` } });
+      const snapshot = (await detail.json()).data;
+      assert.equal(snapshot.connectionCheck.healthy, true); assert.equal(snapshot.syncReady, false); assert.equal(snapshot.authenticationStatus, 'unverified');
+      const workspace = await require('../services/organizationWorkspace.service').buildProjectWorkspace(admin, 'YARROWTECH');
+      assert.equal(workspace.integrations.find((item) => item.id === 'yarrowtech-srs').connectionCheck.healthy, true);
+      const disabled = await fetch(origin + '/integrations/yarrowtech-srs', { method: 'PATCH', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ enabled: false }) });
+      assert.equal(disabled.status, 200);
+      const disabledStatus = await fetch(origin + '/integrations/yarrowtech-srs/status', { headers: { authorization: `Bearer ${token}` } });
+      assert.equal((await disabledStatus.json()).data.status, 'disabled');
+    } finally { provider.probe = originalProbe; }
     const blocked = await fetch(origin + '/integrations/yarrowtech-srs/sync', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: '{}' });
     assert.equal(blocked.status, 409); assert.equal((await blocked.json()).code, 'YARROWTECH_CONTRACT_UNVERIFIED');
     assert.equal(await require('../models/WorkspaceSync').Job.countDocuments({ projectId: 'YARROWTECH' }), 0);
@@ -79,10 +98,42 @@ test('SRS public probe never transmits configured credentials or invents capabil
     assert.equal(inventory.status, 'blocked'); assert.deepEqual(inventory.capabilities, []);
     for (const key of keys.slice(1)) assert.equal(JSON.stringify(inventory).includes(process.env[key]), false);
     let request;
-    global.fetch = async (url, options) => { request = { url, options }; return new Response('Provider is running', { status: 200 }); };
+    global.fetch = async (url, options) => { request = { url, options }; return new Response(JSON.stringify({ ok: true, service: 'YarrowTech API + ERP' }), { status: 200, headers: { 'content-type': 'application/json' } }); };
     const result = await provider.probe();
-    assert.equal(result.reachable, true); assert.equal(result.status, 'blocked');
+    assert.equal(result.reachable, true); assert.equal(result.healthy, true); assert.equal(result.connectionStatus, 'healthy'); assert.equal(result.status, 'blocked');
+    assert.equal(request.url, 'https://api.yarrowtech.in/health'); assert.equal(request.options.redirect, 'error');
     assert.deepEqual(Object.keys(request.options.headers), ['Accept']);
     assert.throws(provider.rejectUnverifiedOperation, { code: 'YARROWTECH_CONTRACT_UNVERIFIED', statusCode: 409 });
   } finally { global.fetch = originalFetch; for (const key of keys) { if (original[key] === undefined) delete process.env[key]; else process.env[key] = original[key]; } }
+});
+
+
+test('SRS health failures stay distinct and never expose provider response bodies or credentials', async () => {
+  const originalFetch = global.fetch;
+  const cases = [
+    [() => new Response('private-provider-error', { status: 503 }), 'http_error', true, 503],
+    [() => new Response('<html>private-provider-error</html>', { status: 200, headers: { 'content-type': 'text/html' } }), 'unexpected_response', true, 200],
+    [() => new Response('private-provider-error', { status: 200, headers: { 'content-type': 'application/json' } }), 'unexpected_response', true, 200],
+    [() => new Response(JSON.stringify({ ok: false }), { status: 200, headers: { 'content-type': 'application/json' } }), 'unhealthy', true, 200],
+    [() => { throw new DOMException('private-provider-error', 'TimeoutError'); }, 'timeout', false, undefined],
+    [() => { throw new Error('private-provider-error'); }, 'unreachable', false, undefined],
+  ];
+  try {
+    for (const [respond, expected, reachable, status] of cases) {
+      global.fetch = async () => respond();
+      const result = await provider.probe();
+      assert.equal(result.connectionStatus, expected); assert.equal(result.reachable, reachable);
+      assert.equal(result.httpStatus, status); assert.equal(result.healthy, false); assert.equal(result.syncReady, false);
+      assert.equal(JSON.stringify(result).includes('private-provider-error'), false);
+    }
+  } finally { global.fetch = originalFetch; }
+});
+
+test('SRS health diagnostics expire when the configured provider host changes', () => {
+  const current = provider.inventory();
+  const state = { checkedAt: new Date(), connectionCheck: { baseUrl: current.providerBaseUrl, connectionStatus: 'healthy', healthy: true, checkedAt: new Date() } };
+  assert.equal(provider.withState(state).connectionCheck.healthy, true);
+  assert.equal(provider.withState({ ...state, connectionCheck: { ...state.connectionCheck, baseUrl: 'https://previous-provider.example.test' } }).connectionCheck, null);
+  assert.equal(provider.withState({ ...state, enabled: false }).status, 'disabled');
+  assert.equal(provider.withState(state).syncReady, false);
 });

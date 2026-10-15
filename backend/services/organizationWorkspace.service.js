@@ -155,6 +155,7 @@ const buildProjectWorkspace = async (user, projectId) => {
     configuration: { persisted: Boolean(config), modules: enabledModules },
     integrations: integrations.map((integration) => {
       const state = states.find((item) => item.integrationId === integration.id);
+      if (integration.id === 'yarrowtech-srs') return require('./yarrowtechApi.service').withState(state);
       return { ...integration, name: state?.displayName || integration.name, enabled: state?.enabled !== false, status: state?.enabled === false ? 'disabled' : integration.id === 'yarrowtech-srs' ? 'blocked' : state?.status || integration.status, checkedAt: state?.checkedAt || null, blockedBy: state?.error || integration.blockedBy };
     }),
     sync: {

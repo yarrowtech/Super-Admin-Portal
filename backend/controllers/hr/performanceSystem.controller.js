@@ -1,4 +1,5 @@
 const apiResponse = require('../../utils/apiResponse');
+const logger = require('../../utils/logger').child({ module: 'hr.performance' });
 const performanceService = require('../../services/performance/performanceSystem.service');
 
 const toPositiveInt = (value, fallback) => {
@@ -20,6 +21,7 @@ exports.getOverview = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance overview fetched successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'Get performance overview failed');
     return res.status(500).json(apiResponse.error('Failed to fetch performance overview'));
   }
 };
@@ -39,6 +41,7 @@ exports.getEmployeeSummary = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Employee performance summary fetched successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'Get employee performance summary failed');
     return res.status(500).json(apiResponse.error('Failed to fetch employee performance summary'));
   }
 };
@@ -59,6 +62,7 @@ exports.recalculateSnapshot = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance snapshot generated successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'Recalculate performance snapshot failed');
     return res.status(500).json(apiResponse.error('Failed to generate performance snapshot'));
   }
 };
@@ -76,6 +80,7 @@ exports.listSnapshots = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance snapshots fetched successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'List performance snapshots failed');
     return res.status(500).json(apiResponse.error('Failed to fetch performance snapshots'));
   }
 };
@@ -89,6 +94,7 @@ exports.listAppraisalCycles = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Performance appraisal cycles fetched successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'List appraisal cycles failed');
     return res.status(500).json(apiResponse.error('Failed to fetch appraisal cycles'));
   }
 };
@@ -118,6 +124,7 @@ exports.createAppraisalCycle = async (req, res) => {
 
     return res.status(201).json(apiResponse.success(data, 'Performance appraisal cycle created successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'Create appraisal cycle failed');
     return res.status(500).json(apiResponse.error('Failed to create appraisal cycle'));
   }
 };

@@ -3,9 +3,9 @@ const minute = 60_000;
 const matchesAny = (segment, needles) => needles.some((needle) => segment.includes(needle));
 
 export const CACHE_POLICIES = Object.freeze({
-  auth: { staleTime: 10 * minute, gcTime: 60 * minute },
-  permissions: { staleTime: 15 * minute, gcTime: 60 * minute },
-  reference: { staleTime: 30 * minute, gcTime: 24 * 60 * minute },
+  auth: { staleTime: 10 * minute, gcTime: 60 * minute, meta: { persist: true } },
+  permissions: { staleTime: 15 * minute, gcTime: 60 * minute, meta: { persist: true } },
+  reference: { staleTime: 30 * minute, gcTime: 24 * 60 * minute, meta: { persist: true } },
   lists: { staleTime: 3 * minute, gcTime: 30 * minute },
   dashboards: { staleTime: 60_000, gcTime: 10 * minute },
   analytics: { staleTime: 3 * minute, gcTime: 60 * minute },

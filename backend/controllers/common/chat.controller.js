@@ -1,4 +1,5 @@
 const asyncHandler = require('../../utils/asyncHandler');
+const logger = require('../../utils/logger').child({ module: 'common.chat' });
 const chatService = require('../../services/chat.service');
 const User = require('../../models/auth/User');
 

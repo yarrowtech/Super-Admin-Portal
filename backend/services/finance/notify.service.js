@@ -5,6 +5,7 @@
 //
 // Notifications are best-effort: a delivery failure must never roll back or block the
 // financial write that triggered it, so every call is wrapped and logged, not thrown.
+const logger = require('../../utils/logger').child({ module: 'finance.notify' });
 const Notification = require('../../models/manager/ManagerNotification');
 const User = require('../../models/auth/User');
 
@@ -24,8 +25,7 @@ async function send(rows) {
     await Notification.insertMany(rows, { ordered: false });
     return rows.length;
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('finance notification delivery failed', err.message);
+    logger.error({ err }, 'Finance notification delivery failed');
     return 0;
   }
 }

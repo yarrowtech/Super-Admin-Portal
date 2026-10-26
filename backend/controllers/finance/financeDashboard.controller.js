@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../../utils/logger').child({ module: 'finance.dashboard' });
 const Invoice = require('../../models/finance/Invoice');
 const InvoiceNote = require('../../models/finance/InvoiceNote');
 const Payment = require('../../models/finance/Payment');
@@ -142,6 +143,7 @@ const normalizeBudgetPayload = async (payload = {}) => {
 };
 
 const sendError = (res, err, fallback) => {
+  logger.error({ err }, fallback);
   res.status(500).json({
     success: false,
     error: fallback,
@@ -848,6 +850,7 @@ exports.createJournalEntry = async (req, res) => {
     });
     res.status(201).json({ success: true, data: entry });
   } catch (err) {
+    logger.error({ err }, 'Create journal entry failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create journal entry', details: err.message });
   }
 };
@@ -872,6 +875,7 @@ exports.updateJournalEntry = async (req, res) => {
     const entry = await JournalEntry.findByIdAndUpdate(req.params.id, payload, { new: true });
     res.status(200).json({ success: true, data: entry });
   } catch (err) {
+    logger.error({ err }, 'Update journal entry failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update journal entry', details: err.message });
   }
 };
@@ -1083,6 +1087,7 @@ exports.createInvoice = async (req, res) => {
     });
     res.status(201).json({ success: true, data: invoice });
   } catch (err) {
+    logger.error({ err }, 'Create invoice failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create invoice', details: err.details || err.message });
   }
 };
@@ -1142,6 +1147,7 @@ exports.updateInvoice = async (req, res) => {
     });
     res.status(200).json({ success: true, data: invoice });
   } catch (err) {
+    logger.error({ err }, 'Update invoice failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update invoice', details: err.details || err.message });
   }
 };
@@ -1261,6 +1267,7 @@ exports.createPayment = async (req, res) => {
     });
     res.status(201).json({ success: true, data: payment });
   } catch (err) {
+    logger.error({ err }, 'Record payment failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to record payment', details: err.details || err.message });
   }
 };
@@ -1305,6 +1312,7 @@ exports.updatePayment = async (req, res) => {
     });
     res.status(200).json({ success: true, data: payment });
   } catch (err) {
+    logger.error({ err }, 'Update payment failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update payment', details: err.details || err.message });
   }
 };
@@ -1374,6 +1382,7 @@ exports.createExpense = async (req, res) => {
     });
     res.status(201).json({ success: true, data: expense });
   } catch (err) {
+    logger.error({ err }, 'Create expense failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create expense', details: err.details || err.message });
   }
 };
@@ -1409,6 +1418,7 @@ exports.updateExpense = async (req, res) => {
     });
     res.status(200).json({ success: true, data: expense });
   } catch (err) {
+    logger.error({ err }, 'Update expense failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update expense', details: err.details || err.message });
   }
 };
@@ -1464,6 +1474,7 @@ exports.createBudget = async (req, res) => {
     });
     res.status(201).json({ success: true, data: budget });
   } catch (err) {
+    logger.error({ err }, 'Create budget failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to create budget', details: err.details || err.message });
   }
 };
@@ -1510,6 +1521,7 @@ exports.updateBudget = async (req, res) => {
     });
     res.status(200).json({ success: true, data: budget });
   } catch (err) {
+    logger.error({ err }, 'Update budget failed');
     res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to update budget', details: err.details || err.message });
   }
 };
@@ -1822,6 +1834,7 @@ exports.updateFinanceRequestAction = async (req, res) => {
     });
     res.status(200).json({ success: true, data });
   } catch (err) {
+    logger.error({ err }, 'Update finance request action failed');
     res.status(err.statusCode || 500).json({
       success: false,
       error: err.statusCode ? err.message : 'Failed to update finance request',
@@ -1862,6 +1875,7 @@ exports.addVendorLedgerEntry = async (req, res) => {
       meta: { amount: Number(req.body.amount), reference: req.body.reference, balance: vendor.balance } });
     return res.status(201).json({ success: true, data: vendor });
   } catch (err) {
+    logger.error({ err }, 'Record vendor entry failed');
     return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to record vendor entry' });
   }
 };
@@ -2305,6 +2319,7 @@ exports.submitForReview = async (req, res) => {
     });
     return res.json({ success: true, data: doc });
   } catch (err) {
+    logger.error({ err }, 'Submit for review failed');
     return res.status(err.statusCode || 500).json({ success: false, error: err.statusCode ? err.message : 'Failed to submit for review' });
   }
 };

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger').child({ module: 'portfolio' });
 const Portfolio = require('../models/Portfolio');
 const Project = require('../models/common/Project');
 const Media = require('../models/department/Media');
@@ -135,6 +136,7 @@ exports.listPortfolios = async (req, res) => {
 
     return res.json({ success: true, data: enriched });
   } catch (err) {
+    logger.error({ err }, 'List portfolios failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -153,6 +155,7 @@ exports.listPortfolioProjects = async (req, res) => {
     }));
     return res.json({ success: true, data });
   } catch (err) {
+    logger.error({ err }, 'List portfolio projects failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -166,6 +169,7 @@ exports.getPortfolio = async (req, res) => {
     if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Get portfolio failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -189,6 +193,7 @@ exports.getPortfolioOverview = async (req, res) => {
     const crossPortal = await buildCrossPortalSummary(portfolio.project);
     return res.json({ success: true, data: { project, crossPortal } });
   } catch (err) {
+    logger.error({ err }, 'Get portfolio overview failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -226,6 +231,7 @@ exports.createPortfolio = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Create portfolio failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -250,6 +256,7 @@ exports.updatePortfolio = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Update portfolio failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -284,6 +291,7 @@ exports.uploadCoverImage = async (req, res) => {
 
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Upload cover image failed');
     const status = err.statusCode || 500;
     return res.status(status).json({ success: false, error: err.message });
   }
@@ -307,6 +315,7 @@ exports.removeCoverImage = async (req, res) => {
 
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Remove cover image failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -320,6 +329,7 @@ exports.deletePortfolio = async (req, res) => {
     if (!portfolio) return res.status(404).json({ success: false, error: 'Portfolio not found' });
     return res.json({ success: true, data: { _id: id } });
   } catch (err) {
+    logger.error({ err }, 'Delete portfolio failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -341,6 +351,7 @@ exports.addSection = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Add section failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -363,6 +374,7 @@ exports.updateSection = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Update section failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -381,6 +393,7 @@ exports.deleteSection = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Delete section failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -410,6 +423,7 @@ exports.addItem = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Add item failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -436,6 +450,7 @@ exports.updateItem = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Update item failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -456,6 +471,7 @@ exports.deleteItem = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Delete item failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -494,6 +510,7 @@ exports.uploadItemImage = async (req, res) => {
 
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Upload item image failed');
     const status = err.statusCode || 500;
     return res.status(status).json({ success: false, error: err.message });
   }
@@ -520,6 +537,7 @@ exports.removeItemImage = async (req, res) => {
 
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Remove item image failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -554,6 +572,7 @@ exports.addPlaybookSlideFromTemplate = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Add playbook slide from template failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -573,6 +592,7 @@ exports.addPlaybookSlide = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Add playbook slide failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -594,6 +614,7 @@ exports.updatePlaybookSlide = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Update playbook slide failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -612,6 +633,7 @@ exports.deletePlaybookSlide = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Delete playbook slide failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -652,6 +674,7 @@ exports.addPlaybookBlock = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.status(201).json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Add playbook block failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -673,6 +696,7 @@ exports.updatePlaybookBlock = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Update playbook block failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -693,6 +717,7 @@ exports.deletePlaybookBlock = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Delete playbook block failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -782,6 +807,7 @@ exports.syncFromMarketingPlan = async (req, res) => {
     await portfolio.populate('project', PROJECT_SUMMARY_FIELDS);
     return res.json({ success: true, data: portfolio });
   } catch (err) {
+    logger.error({ err }, 'Sync from marketing plan failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };

@@ -1,4 +1,5 @@
 const env = require("../config/env");
+const logger = require("../utils/logger").child({ module: "activity" });
 const { recordActivityFromRequest } = require("../services/activity.service");
 
 exports.recordActivity = async (req, res) => {
@@ -14,6 +15,7 @@ exports.recordActivity = async (req, res) => {
     return res.status(202).json({ success: true });
   } catch (error) {
     const statusCode = error.statusCode || 500;
+    logger.error({ err: error }, 'Record activity failed');
     return res.status(statusCode).json({
       success: false,
       error: statusCode >= 500 ? "Failed to record activity" : error.message,

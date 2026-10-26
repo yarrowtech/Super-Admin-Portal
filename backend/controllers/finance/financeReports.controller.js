@@ -1,5 +1,6 @@
 'use strict';
 const S = require('../../services/finance/operations.service');
+const logger = require('../../utils/logger').child({ module: 'finance.reports' });
 const W = require('../../services/finance/workflows.service');
 const Journal = require('../../models/finance/JournalEntry');
 const Invoice = require('../../models/finance/Invoice');
@@ -69,7 +70,7 @@ const documentExport = async (req, res) => {
       return await pdf(res, `Invoice ${inv.invoiceNumber}`, [['Customer', inv.clientName], ['Status', S.invoiceStatus(inv)], ['Issued', inv.issueDate?.toISOString().slice(0, 10)], ['Due', inv.dueDate?.toISOString().slice(0, 10)], ...inv.items.map(i => [i.description, `${i.quantity} x ${i.rate} = ${i.amount}`]), ['Discount', inv.discount], ['Adjusted total', inv.total], ['Paid', inv.amountPaid], ['Outstanding', inv.balanceDue], ['Currency', inv.currency], ['Terms', inv.terms]]);
     }
     fail(404, 'Document type not found');
-  } catch (e) { return res.status(e.statusCode || 500).json({ success: false, error: e.statusCode ? e.message : 'PDF generation failed' }); }
+  } catch (e) { logger.error({ err: e }, 'Finance document export failed'); return res.status(e.statusCode || 500).json({ success: false, error: e.statusCode ? e.message : 'PDF generation failed' }); }
 };
 const reportExport = async (req, res) => {
   try {
@@ -78,7 +79,7 @@ const reportExport = async (req, res) => {
     if (req.query.format === 'pdf') return await pdf(res, 'Financial report', rows);
     const csv = rows.map(row => row.map(v => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; return `"${s.replace(/"/g, '""')}"`; }).join(',')).join('\r\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', 'attachment; filename="finance-report.csv"'); res.setHeader('Cache-Control', 'private, no-store'); return res.send(csv);
-  } catch (e) { return res.status(e.statusCode || 500).json({ success: false, error: e.statusCode ? e.message : 'Report export failed' }); }
+  } catch (e) { logger.error({ err: e }, 'Finance report export failed'); return res.status(e.statusCode || 500).json({ success: false, error: e.statusCode ? e.message : 'Report export failed' }); }
 };
 const getTaxSummary = S.handler(async req => {
   let sales = 0n; let gst = 0n; let tds = 0n;

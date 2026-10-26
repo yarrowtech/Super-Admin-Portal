@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const ConfirmDialogContext = createContext(null);
@@ -15,6 +15,17 @@ const ConfirmDialogPanel = ({ dialog, onClose }) => {
   const [typedValue, setTypedValue] = useState('');
   const requiredWord = dialog.requireTypedConfirmation;
   const canConfirm = !requiredWord || typedValue.trim() === requiredWord;
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); onCloseRef.current(false); }
+      if (e.key === 'Enter' && canConfirm) { e.preventDefault(); onCloseRef.current(true); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [canConfirm]);
 
   // Portaled to <body> with a z-index above the standard Modal (z-50) so this
   // reliably paints on top even when triggered from inside an already-open
@@ -22,8 +33,14 @@ const ConfirmDialogPanel = ({ dialog, onClose }) => {
   // of the normal React tree) would render *behind* the portaled Modal it was
   // opened from, leaving Cancel/Confirm invisible and looking unresponsive.
   return createPortal(
-    <div className="fixed inset-0 z-100 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-      <div className="app-modal-panel max-w-md p-6">
+    <div
+      className="modal-backdrop-anim fixed inset-0 z-100 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      style={{ animation: 'modal-backdrop-in 200ms ease-out backwards' }}
+    >
+      <div
+        className="modal-panel-anim app-modal-panel max-w-md p-6"
+        style={{ animation: 'modal-panel-in 240ms cubic-bezier(0.34,1.56,0.64,1) backwards' }}
+      >
         <div className="flex items-start gap-3">
           <div className={`mt-1 rounded-full p-2 ${dialog.tone === 'danger' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'}`}>
             <span className="material-symbols-outlined text-lg">{dialog.tone === 'danger' ? 'warning' : 'help'}</span>

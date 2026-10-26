@@ -13,10 +13,11 @@ const sizes = {
   lg: 'min-h-12 px-5 text-base',
 };
 
-const Button = ({ as: Component = 'button', type = 'button', variant = 'primary', size = 'md', icon, children, className, disabled, ...props }) => (
+const Button = ({ as: Component = 'button', type = 'button', variant = 'primary', size = 'md', icon, loading = false, children, className, disabled, ...props }) => (
   <Component
     type={Component === 'button' ? type : undefined}
-    disabled={disabled}
+    disabled={disabled || loading}
+    aria-busy={loading || undefined}
     className={cn(
       'inline-flex items-center justify-center gap-2 rounded-lg font-bold transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
       variants[variant] || variants.primary,
@@ -25,7 +26,9 @@ const Button = ({ as: Component = 'button', type = 'button', variant = 'primary'
     )}
     {...props}
   >
-    {icon}
+    {loading
+      ? <span className="material-symbols-outlined animate-spin text-[1.1em] leading-none">progress_activity</span>
+      : icon}
     {children}
   </Component>
 );

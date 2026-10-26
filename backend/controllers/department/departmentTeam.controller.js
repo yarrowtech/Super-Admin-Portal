@@ -1,5 +1,6 @@
 const User = require('../../models/auth/User');
 const asyncHandler = require('../../utils/asyncHandler');
+const logger = require('../../utils/logger').child({ module: 'department.team' });
 const { rolesForDepartment } = require('../../utils/departmentChatScope');
 
 const deriveStatus = (lastLogin) => {

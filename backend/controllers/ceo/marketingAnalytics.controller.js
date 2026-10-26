@@ -6,6 +6,7 @@
 // the UI shows differently — not configured, unreachable, and empty — because collapsing
 // them into one 500 would leave an operator guessing which of the three they have.
 const service = require('../../services/marketingAnalytics.service');
+const logger = require('../../utils/logger').child({ module: 'ceo.marketing' });
 const { MarketingPlatformError, NOT_CONFIGURED } = require('../../integrations/marketingPlatform/client');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -53,6 +54,7 @@ const handle = (work) => async (req, res) => {
   } catch (err) {
     if (err instanceof MarketingPlatformError) return sendIntegrationError(res, err);
     req.log?.error?.({ err }, 'Marketing analytics request failed');
+    logger.error({ err }, 'Marketing analytics request failed');
     return res.status(500).json({ success: false, error: 'Failed to load marketing analytics' });
   }
 };

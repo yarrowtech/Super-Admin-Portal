@@ -1,4 +1,5 @@
 const apiResponse = require('../../utils/apiResponse');
+const logger = require('../../utils/logger').child({ module: 'hr.attendance.export' });
 const exportService = require('../../services/export/exportSystem.service');
 
 const toPositiveInt = (value, fallback) => {
@@ -36,6 +37,7 @@ exports.exportAttendanceCsv = async (req, res) => {
       errorMessage: error.message,
       fileName: `hr-attendance-export-${new Date().toISOString().slice(0, 10)}.csv`,
     }).catch(() => null);
+    logger.error({ err: error }, 'Export attendance CSV failed');
     return res.status(500).json(apiResponse.error('Failed to export attendance'));
   }
 };
@@ -52,6 +54,7 @@ exports.getAttendanceExportHistory = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Attendance export history fetched successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'Get attendance export history failed');
     return res.status(500).json(apiResponse.error('Failed to fetch attendance export history'));
   }
 };

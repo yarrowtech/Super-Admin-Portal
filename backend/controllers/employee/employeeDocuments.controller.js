@@ -1,4 +1,5 @@
 const asyncHandler = require('../../utils/asyncHandler');
+const logger = require('../../utils/logger').child({ module: 'employee.documents' });
 const documentsService = require('../../services/report.service');
 const EmployeeDocument = require('../../models/employee/EmployeeDocument');
 

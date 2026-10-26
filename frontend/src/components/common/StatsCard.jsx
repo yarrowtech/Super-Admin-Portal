@@ -6,6 +6,7 @@ const StatsCard = ({
   icon = 'analytics',
   colorScheme = 'blue',
   size = 'md',
+  trend,
   className = '',
 }) => {
   const colorSchemes = {
@@ -73,6 +74,11 @@ const StatsCard = ({
   const colors = colorSchemes[colorScheme] || colorSchemes.neutral;
   const sizeStyles = sizes[size] || sizes.md;
 
+  const hasTrend = trend !== undefined && trend !== null;
+  const trendUp = hasTrend && trend >= 0;
+  const trendColor = trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400';
+  const trendIcon = trendUp ? 'trending_up' : 'trending_down';
+
   return (
     <div
       className={`inline-flex items-center ${sizeStyles.gap} rounded-lg ${colors.bg} ${sizeStyles.padding} shadow-sm ${className}`}
@@ -82,6 +88,12 @@ const StatsCard = ({
         <span className={`font-bold ${sizeStyles.valueSize} ${colors.text}`}>{value}</span>
         <span className={`font-semibold ${sizeStyles.labelSize} ${colors.text}`}>{label}</span>
       </div>
+      {hasTrend && (
+        <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${trendColor}`}>
+          <span className="material-symbols-outlined text-sm leading-none">{trendIcon}</span>
+          {trendUp ? '+' : ''}{trend}%
+        </span>
+      )}
     </div>
   );
 };

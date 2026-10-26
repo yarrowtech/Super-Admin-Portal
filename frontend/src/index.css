@@ -703,6 +703,22 @@ button {
   }
 }
 
+@keyframes skeleton-shimmer {
+  from { background-position: -200% center; }
+  to   { background-position:  200% center; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(90deg, #262a33 25%, #333844 50%, #262a33 75%);
+  background-size: 200% 100%;
+}
+
 @keyframes erp-page-enter {
   from {
     opacity: 0;
@@ -711,6 +727,43 @@ button {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modal-panel-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes drawer-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes drawer-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes fetch-bar-sweep {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX(-10%); }
+  100% { transform: translateX(0%); }
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(100% + 1rem));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -756,9 +809,19 @@ button {
     scroll-behavior: auto !important;
   }
 
-  /* Pulsing placeholders: hold them at full opacity instead of mid-fade. */
-  .animate-pulse {
+  /* Pulsing / shimmering placeholders: hold at full opacity instead of mid-fade. */
+  .animate-pulse,
+  .skeleton-shimmer {
     animation: none !important;
     opacity: 1 !important;
+  }
+
+  /* Modals/drawers that animate FROM invisible: collapse to near-zero so the
+     element doesn't get stuck transparent. Use `backwards` not `both`. */
+  .modal-backdrop-anim,
+  .modal-panel-anim,
+  .drawer-panel-anim,
+  .fetch-progress-bar {
+    animation-duration: 0.01ms !important;
   }
 }

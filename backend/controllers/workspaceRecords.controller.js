@@ -1,4 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
+const logger = require('../utils/logger').child({ module: 'workspace.records' });
 const service = require('../services/workspaceRecords.service');
 const ok = (res, data, status = 200) => res.status(status).json({ success: true, data });
 exports.list = (kind) => asyncHandler(async (req, res) => ok(res, await service.list(req.user, req.params.projectId || req.query.projectId, kind, req.query)));

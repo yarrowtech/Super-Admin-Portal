@@ -1,4 +1,5 @@
 const PortalSupportTicket = require('../models/PortalSupportTicket');
+const logger = require('../utils/logger').child({ module: 'portal.support' });
 const { User } = require('../models/auth');
 const { ROLES } = require('../config/roles');
 const { setCache } = require('../services/cache.service');
@@ -105,6 +106,7 @@ exports.createTicket = async (req, res) => {
 
     return res.status(201).json({ success: true, data: ticket });
   } catch (err) {
+    logger.error({ err }, 'Create support ticket failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -123,6 +125,7 @@ exports.getMyTickets = async (req, res) => {
       .limit(200);
     return res.json({ success: true, data: tickets });
   } catch (err) {
+    logger.error({ err }, 'Get my tickets failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -133,6 +136,7 @@ exports.getUnreadCount = async (req, res) => {
     const count = await PortalSupportTicket.countDocuments({ user: uidOf(req), requesterUnread: true });
     return res.json({ success: true, data: { count } });
   } catch (err) {
+    logger.error({ err }, 'Get unread count failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -166,6 +170,7 @@ exports.getAllTickets = async (req, res) => {
       pagination: { total, page, limit, pages: Math.ceil(total / limit) },
     });
   } catch (err) {
+    logger.error({ err }, 'Get all tickets failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -189,6 +194,7 @@ exports.getTicket = async (req, res) => {
 
     return res.json({ success: true, data: ticket });
   } catch (err) {
+    logger.error({ err }, 'Get ticket failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -259,6 +265,7 @@ exports.updateTicket = async (req, res) => {
 
     return res.json({ success: true, data: ticket });
   } catch (err) {
+    logger.error({ err }, 'Update ticket failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -319,6 +326,7 @@ exports.addComment = async (req, res) => {
     emitTicketUpdate(req, ticket, { hasReply: true });
     return res.status(201).json({ success: true, data: ticket });
   } catch (err) {
+    logger.error({ err }, 'Add comment failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -361,6 +369,7 @@ exports.changeOwnTicketStatus = async (req, res) => {
     emitTicketUpdate(req, ticket, { action });
     return res.json({ success: true, data: ticket });
   } catch (err) {
+    logger.error({ err }, 'Change own ticket status failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -384,6 +393,7 @@ exports.updatePreferences = async (req, res) => {
 
     return res.json({ success: true, data: { timezone: user.metadata.timezone, language: user.metadata.language, notifPrefs: user.metadata.notifPrefs, privacyPrefs: user.metadata.privacyPrefs } });
   } catch (err) {
+    logger.error({ err }, 'Update preferences failed');
     return res.status(500).json({ success: false, error: err.message });
   }
 };

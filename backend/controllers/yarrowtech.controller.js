@@ -1,4 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
+const logger = require('../utils/logger').child({ module: 'yarrowtech' });
 const operations = require('../services/yarrowtechOperations.service');
 const provider = require('../services/yarrowtechApi.service');
 const projectsAdapter = require('../services/yarrowtechProjects.adapter');
@@ -54,7 +55,7 @@ exports.testConnection = asyncHandler(async (req, res) => {
 exports.sync = asyncHandler(async (req, res) => {
   await operations.scope(req.user, 'YARROWTECH', true);
   try { provider.rejectUnverifiedOperation(); }
-  catch (error) { res.status(error.statusCode).json({ success: false, code: error.code, error: error.message }); }
+  catch (error) { logger.error({ err: error }, 'Yarrowtech sync rejected'); res.status(error.statusCode).json({ success: false, code: error.code, error: error.message }); }
 });
 exports.configureIntegration = asyncHandler(async (req, res) => {
   const filter = { ...await operations.scope(req.user, req.params.projectId || 'YARROWTECH', true), integrationId: 'yarrowtech-srs' };

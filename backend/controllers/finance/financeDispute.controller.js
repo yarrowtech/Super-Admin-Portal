@@ -5,6 +5,7 @@
 // the transactions and the state machines. Reads are scoped the same way the rest of the
 // portal scopes them — a finance employee sees their own department, the head sees all.
 const S = require('../../services/finance/operations.service');
+const logger = require('../../utils/logger').child({ module: 'finance.dispute' });
 const D = require('../../services/finance/dispute.service');
 const Dispute = require('../../models/finance/Dispute');
 const Refund = require('../../models/finance/Refund');

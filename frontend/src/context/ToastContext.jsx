@@ -63,6 +63,7 @@ export const ToastProvider = ({ children }) => {
             key={toast.id}
             role="status"
             aria-live="polite"
+            style={{ animation: 'toast-slide-in 260ms cubic-bezier(0.34,1.56,0.64,1) backwards' }}
             className={`pointer-events-auto rounded-2xl border p-4 shadow-xl backdrop-blur ${toneClasses[toast.tone] || toneClasses.info}`}
           >
             <div className="flex items-start gap-3">

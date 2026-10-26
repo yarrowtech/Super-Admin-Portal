@@ -57,8 +57,17 @@ const Modal = ({ open, title, description, children, onClose, footer, className 
   // any ancestor with a transform/filter/will-change (e.g. `.portal-content`'s
   // page-enter animation), leaving the modal mis-anchored on a scrolled page.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
-      <div ref={dialogRef} className={cn('flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:max-w-2xl sm:rounded-2xl', className)}>
+    <div
+      className="modal-backdrop-anim fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      style={{ animation: 'modal-backdrop-in 200ms ease-out backwards' }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        ref={dialogRef}
+        style={{ animation: 'modal-panel-in 240ms cubic-bezier(0.34,1.56,0.64,1) backwards' }}
+        className={cn('modal-panel-anim flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:max-w-2xl sm:rounded-2xl', className)}
+      >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-4 dark:border-neutral-800">
           <div className="min-w-0">
             <h2 className="text-lg font-black text-neutral-900 dark:text-neutral-100">{title}</h2>

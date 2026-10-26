@@ -73,10 +73,22 @@ const DataTable = ({
         <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
           {loading ? (
             Array.from({ length: 5 }).map((_, index) => (
-              <tr key={index}>
-                <td colSpan={totalColumns} className="px-4 py-3">
-                  <Skeleton className="h-8 w-full" />
-                </td>
+              <tr key={index} className="border-b border-neutral-100 last:border-b-0 dark:border-neutral-800">
+                {selectable && (
+                  <td className="px-4 py-3">
+                    <Skeleton className="h-4 w-4" />
+                  </td>
+                )}
+                {columns.map((col, ci) => (
+                  <td key={col.key} className="px-4 py-3">
+                    <Skeleton className={`h-4 ${ci === 0 ? 'w-32' : 'w-20'}`} />
+                  </td>
+                ))}
+                {rowActions && (
+                  <td className="px-4 py-3">
+                    <Skeleton className="h-4 w-6" />
+                  </td>
+                )}
               </tr>
             ))
           ) : !rows.length ? (

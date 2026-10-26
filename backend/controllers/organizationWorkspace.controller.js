@@ -1,4 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
+const logger = require('../utils/logger').child({ module: 'organization.workspace' });
 const {
   buildOrganization,
   buildProjectWorkspace,

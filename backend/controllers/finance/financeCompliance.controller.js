@@ -1,5 +1,6 @@
 'use strict';
 const S = require('../../services/finance/operations.service');
+const logger = require('../../utils/logger').child({ module: 'finance.compliance' });
 const W = require('../../services/finance/workflows.service');
 const Invoice = require('../../models/finance/Invoice');
 const Note = require('../../models/finance/InvoiceNote');
@@ -33,7 +34,7 @@ function csv(res, name, rows) {
 }
 const sendCsv = (name, build) => async (req, res) => {
   try { const { rows } = await build(req); return csv(res, name, rows); }
-  catch (e) { return res.status(e.statusCode || 500).json({ success: false, error: e.statusCode ? e.message : 'Export failed' }); }
+  catch (e) { logger.error({ err: e }, 'Finance CSV export failed'); return res.status(e.statusCode || 500).json({ success: false, error: e.statusCode ? e.message : 'Export failed' }); }
 };
 
 // ---- Tax rules -------------------------------------------------------------

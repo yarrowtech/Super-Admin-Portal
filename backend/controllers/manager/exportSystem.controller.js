@@ -1,4 +1,5 @@
 const apiResponse = require('../../utils/apiResponse');
+const logger = require('../../utils/logger').child({ module: 'manager.export' });
 const exportService = require('../../services/export/exportSystem.service');
 
 const toPositiveInt = (value, fallback) => {
@@ -40,6 +41,7 @@ exports.exportTasksCsv = async (req, res) => {
       errorMessage: error.message,
       fileName: `manager-team-tasks-export-${new Date().toISOString().slice(0, 10)}.csv`,
     }).catch(() => null);
+    logger.error({ err: error }, 'Export manager tasks CSV failed');
     return res.status(500).json(apiResponse.error(error.message || 'Failed to export manager tasks'));
   }
 };
@@ -56,6 +58,7 @@ exports.getTaskExportHistory = async (req, res) => {
 
     return res.status(200).json(apiResponse.success(data, 'Manager task export history fetched successfully'));
   } catch (error) {
+    logger.error({ err: error }, 'Get manager task export history failed');
     return res.status(500).json(apiResponse.error(error.message || 'Failed to fetch manager export history'));
   }
 };

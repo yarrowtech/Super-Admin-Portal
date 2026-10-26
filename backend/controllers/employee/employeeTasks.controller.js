@@ -1,4 +1,5 @@
 const asyncHandler = require('../../utils/asyncHandler');
+const logger = require('../../utils/logger').child({ module: 'employee.tasks' });
 const { getTaskOverview, getTaskList } = require('../../services/task.service');
 
 exports.getTasks = asyncHandler(async (req, res) => {

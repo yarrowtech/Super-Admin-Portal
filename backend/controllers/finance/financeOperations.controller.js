@@ -1,6 +1,7 @@
 ﻿'use strict';
 const mongoose = require('mongoose');
 const S = require('../../services/finance/operations.service');
+const logger = require('../../utils/logger').child({ module: 'finance.operations' });
 const W = require('../../services/finance/workflows.service');
 const { handler, fail, id, head, actor, text, date, transaction, audit, money } = S;
 const Invoice = require('../../models/finance/Invoice');

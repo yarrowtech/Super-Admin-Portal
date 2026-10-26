@@ -1,6 +1,6 @@
 import { cn } from '../../lib/cn';
 
-const Select = ({ label, error, options = [], className, id, ...props }) => {
+const Select = ({ label, error, helperText, options = [], className, id, ...props }) => {
   const inputId = id || props.name;
 
   return (
@@ -21,7 +21,11 @@ const Select = ({ label, error, options = [], className, id, ...props }) => {
           </option>
         ))}
       </select>
-      {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
+      {(error || helperText) && (
+        <span className={cn('mt-1 block text-xs', error ? 'text-red-600' : 'text-neutral-500 dark:text-neutral-400')}>
+          {error || helperText}
+        </span>
+      )}
     </label>
   );
 };

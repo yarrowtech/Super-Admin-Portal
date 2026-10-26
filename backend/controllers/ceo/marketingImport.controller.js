@@ -5,6 +5,7 @@
 // geocoding and persistence. Two endpoints rather than one, because analysing a file and
 // committing it are different decisions — the user reviews the analysis, then commits.
 const service = require('../../services/marketingImport.service');
+const logger = require('../../utils/logger').child({ module: 'ceo.marketing.import' });
 // Reused for the authorised project list, so "All Projects" means the same set here as in
 // the selector rather than a second, divergent definition.
 const analyticsService = require('../../services/marketingAnalytics.service');
@@ -15,6 +16,7 @@ const handle = (work) => async (req, res) => {
   } catch (err) {
     const status = err.statusCode || 500;
     if (status === 500) req.log?.error?.({ err }, 'Marketing import failed');
+    logger.error({ err }, 'Marketing import failed');
     return res.status(status).json({
       success: false,
       error: status === 500 ? 'The import could not be processed.' : err.message,

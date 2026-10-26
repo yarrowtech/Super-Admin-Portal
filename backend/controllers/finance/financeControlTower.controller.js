@@ -6,6 +6,7 @@
 // the trial balance by construction. That is the whole point of a ledger being the single
 // source of truth: a report that re-derives totals from invoices can drift from it.
 const S = require('../../services/finance/operations.service');
+const logger = require('../../utils/logger').child({ module: 'finance.control.tower' });
 const T = require('../../services/finance/controlTower.service');
 const { scopeFor } = require('../../services/finance/departmentAccess');
 const Journal = require('../../models/finance/JournalEntry');

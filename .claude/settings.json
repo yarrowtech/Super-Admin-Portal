@@ -201,7 +201,10 @@
       "Bash(sed -i 's|<WarmGreeting user={user} message=\"Hope your work, tasks, and priorities stay on track today.\" />|<WarmGreeting user={user} roleHint=\"systems and tasks\" />|' it/ITDashboard.jsx)",
       "Bash(node \"C:/Users/SANTU/AppData/Local/Temp/claude/e--Super-Admin-Portal/8b98ccaa-7d0a-44fd-886e-76f91b2dd0a6/scratchpad/e1.js\")",
       "Bash(node \"C:/Users/SANTU/AppData/Local/Temp/claude/e--Super-Admin-Portal/8b98ccaa-7d0a-44fd-886e-76f91b2dd0a6/scratchpad/m1.js\")",
-      "Bash(grep -o \"pointer-fine\\\\\\\\\\\\\\\\:h-7[^}]*}\" *.css)"
+      "Bash(grep -o \"pointer-fine\\\\\\\\\\\\\\\\:h-7[^}]*}\" *.css)",
+      "Bash(xargs grep -rLl \"require.*logger\\\\|createLogger\")",
+      "Bash(xargs grep -Ll \"require.*logger\")",
+      "Bash(xargs grep -Ll \"createLogger\\\\|from.*logger\")"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

@@ -1,4 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
+const logger = require('../utils/logger').child({ module: 'workspace.sync' });
 const service = require('../services/workspaceSync.service');
 const records = require('../services/workspaceRecords.service');
 const { Job, External, State } = require('../models/WorkspaceSync');

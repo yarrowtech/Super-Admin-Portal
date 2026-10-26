@@ -1,4 +1,5 @@
 const User = require('../../models/auth/User');
+const logger = require('../../utils/logger').child({ module: 'hr.smart' });
 const Leave = require('../../models/hr/Leave');
 const Attendance = require('../../models/hr/Attendance');
 
@@ -42,6 +43,7 @@ const getAnalyticsOverview = async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error({ err: error }, 'Get HR analytics overview failed');
     return res.status(500).json({ success: false, error: 'Failed to load analytics overview', details: error.message });
   }
 };
@@ -71,6 +73,7 @@ const getPredictiveAlerts = async (req, res) => {
 
     return res.status(200).json({ success: true, data: { alerts } });
   } catch (error) {
+    logger.error({ err: error }, 'Get predictive alerts failed');
     return res.status(500).json({ success: false, error: 'Failed to load predictive alerts', details: error.message });
   }
 };
@@ -92,6 +95,7 @@ const getAutomationOverview = async (req, res) => {
 
     return res.status(200).json({ success: true, data: { workflows } });
   } catch (error) {
+    logger.error({ err: error }, 'Get automation overview failed');
     return res.status(500).json({ success: false, error: 'Failed to load automation overview', details: error.message });
   }
 };
@@ -117,6 +121,7 @@ const getHrReports = async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error({ err: error }, 'Get HR reports failed');
     return res.status(500).json({ success: false, error: 'Failed to load HR reports', details: error.message });
   }
 };

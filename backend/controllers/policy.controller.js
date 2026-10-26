@@ -1,4 +1,5 @@
 const policy = require('../services/policy.service');
+const logger = require('../utils/logger').child({ module: 'policy' });
 const PolicyVersion = require('../models/policy/PolicyVersion');
 const PolicyProjectAssignment = require('../models/policy/PolicyProjectAssignment');
 const PolicyAcceptance = require('../models/policy/PolicyAcceptance');
@@ -11,6 +12,7 @@ const run = (handler) => async (req, res, next) => {
   try {
     return await handler(req, res);
   } catch (error) {
+    logger.error({ err: error }, 'Policy request failed');
     if (error.status) return res.status(error.status).json({ success: false, code: error.code || 'VALIDATION_ERROR', error: error.message });
     if (error?.name === 'ValidationError' || error?.name === 'CastError') {
       return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', error: 'Invalid policy request' });

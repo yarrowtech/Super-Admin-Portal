@@ -1,4 +1,5 @@
 const asyncHandler = require('../../utils/asyncHandler');
+const logger = require('../../utils/logger').child({ module: 'employee.notification' });
 const {
   createTaskCompletionNotifications,
 } = require('../../services/notification.service');

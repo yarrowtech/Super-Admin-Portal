@@ -37,7 +37,7 @@ const PolicyReviewLegalApprovalPage = ({ searchTerm, onSearchChange, error, reco
           {error && <p className="mt-4 text-sm text-yellow-600">{error}</p>}
         </div>
 
-        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr,420px]">
+        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
           <div className="space-y-4">
             {filteredRecords.map((record) => (
               <article key={record._id} className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../common/Button';
@@ -124,7 +124,11 @@ export default function SuperAdminDashboard() {
   const usersLoading = usersQuery.isLoading;
 
   // Auto-select the first user once the list loads, if nothing is selected yet.
-  useMemo(() => {
+  // This is a side effect, not a computed value: it returned nothing and only called
+  // setState. In useMemo that runs during render, which React warns can loop — the memo
+  // sets state, the re-render re-evaluates the memo, and so on. useEffect runs after
+  // commit, which is where a state update belongs.
+  useEffect(() => {
     if (!selectedUserKey && users[0]) {
       const first = users[0];
       setSelectedUser(first);

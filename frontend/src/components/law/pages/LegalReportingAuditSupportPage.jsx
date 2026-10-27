@@ -11,7 +11,7 @@ const LegalReportingAuditSupportPage = ({ searchTerm, onSearchChange, error, api
   return (
     <main className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-6 lg:grid-cols-[1fr,420px]">
+        <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
           <div>
             <h1 className="text-3xl font-black text-neutral-900 dark:text-white">{section.title}</h1>
             <p className="mt-1 text-neutral-500 dark:text-neutral-400">{section.summary}</p>
@@ -35,7 +35,7 @@ const LegalReportingAuditSupportPage = ({ searchTerm, onSearchChange, error, api
           </div>
         </div>
 
-        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1fr]">
+        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr]">
           <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <h2 className="font-bold text-neutral-900 dark:text-white">Report Generator</h2>
             <div className="mt-4 grid gap-3">

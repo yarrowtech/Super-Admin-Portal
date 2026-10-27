@@ -25,7 +25,7 @@ const CaseDisputeLitigationPage = ({ searchTerm, onSearchChange, error, records 
         </div>
         {error && <p className="mt-4 text-sm text-yellow-600">{error}</p>}
 
-        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr,340px]">
+        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
           <div className="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
               <h2 className="font-bold text-neutral-900 dark:text-white">Case Docket</h2>

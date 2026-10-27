@@ -461,7 +461,7 @@ export const FinanceDisputeDetailPage = () => {
           {isHead && active && <Button type="button" size="sm" variant="secondary" onClick={() => setActing('cancel')}>Cancel</Button>}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr,1.3fr]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.3fr]">
           <SectionCard title="Dispute">
             <dl className="space-y-2 text-sm">
               {[

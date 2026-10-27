@@ -4,7 +4,6 @@ const hrResourceConfig = {
     description: 'Create and manage employee profiles and status.',
     endpoint: '/api/dept/hr/employees',
     allowDelete: false,
-    allowDelete: false,
     formFields: [
       { name: 'email', label: 'Email', type: 'text', required: true, hideOnEdit: true },
       { name: 'password', label: 'Password', type: 'text', required: true, hideOnEdit: true },

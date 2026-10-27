@@ -63,8 +63,6 @@ export default {
         "text-dark": "#f1f5f9",
         "subtext-light": "#5b6478",
         "subtext-dark": "#94a3b8",
-        "success": "#07883b",
-        "danger": "#e73908",
       },
       fontFamily: {
         display: ["Manrope", "sans-serif"],

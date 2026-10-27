@@ -57,7 +57,7 @@ const ExportModal = ({
           </button>
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr,0.9fr]">
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
             <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Export Scope</p>

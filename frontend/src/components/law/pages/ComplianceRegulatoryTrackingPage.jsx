@@ -11,7 +11,7 @@ const ComplianceRegulatoryTrackingPage = ({ searchTerm, onSearchChange, error, a
   return (
     <main className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-7xl">
-        <header className="grid gap-6 lg:grid-cols-[1fr,360px]">
+        <header className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div>
             <h1 className="text-3xl font-black text-neutral-900 dark:text-white">{section.title}</h1>
             <p className="mt-1 text-neutral-500 dark:text-neutral-400">{section.summary}</p>

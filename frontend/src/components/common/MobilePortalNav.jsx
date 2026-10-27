@@ -62,9 +62,15 @@ const MobilePortalNavContent = ({ title = 'Portal', subtitle = '', icon = 'dashb
       window.clearTimeout(timer);
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
-      // Only pull focus back if it is still inside the drawer; a nav click has already
-      // moved focus (and unmounted this effect), and stealing it back would fight routing.
-      if (drawer?.contains(document.activeElement)) trigger?.focus?.();
+      // Restore focus to the trigger unless something outside the drawer has already
+      // claimed it — after a nav click focus has moved on, and stealing it back would
+      // fight routing. By the time this cleanup runs the drawer is usually already
+      // detached, so `drawer.contains(activeElement)` is false and focus has fallen to
+      // <body>; treating that as "focus is still ours" is what keeps Escape from
+      // stranding a keyboard user at the top of the document.
+      const active = document.activeElement;
+      const focusLeftOurs = active && active !== document.body && !drawer?.contains(active);
+      if (!focusLeftOurs) trigger?.focus?.();
     };
   }, [open]);
 
@@ -145,7 +151,13 @@ const MobilePortalNavContent = ({ title = 'Portal', subtitle = '', icon = 'dashb
 
       {open && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label={`${title} navigation`}>
-          <button type="button" className="absolute inset-0 bg-black/50 transition-opacity duration-300" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />
+          {/* Click-to-dismiss backdrop. It is kept out of the tab order (tabIndex={-1},
+              aria-hidden) because it sits inside role="dialog" but outside drawerRef, so
+              as a tab stop it became the dialog's first focusable while the focus trap —
+              which queries drawerRef — believed the Close button was. Shift+Tab from
+              Close then walked onto the backdrop instead of wrapping to the last control.
+              Keyboard users dismiss with the Close button or Escape, so nothing is lost. */}
+          <button type="button" tabIndex={-1} aria-hidden="true" className="absolute inset-0 bg-black/50 transition-opacity duration-300" onClick={() => setOpen(false)} />
           {/* The light gradient is a background-IMAGE, while `dark:bg-neutral-900` is a
               background-COLOR — different properties, so the gradient would keep painting
               over the dark surface. `dark:bg-none` drops the image so the dark colour shows. */}

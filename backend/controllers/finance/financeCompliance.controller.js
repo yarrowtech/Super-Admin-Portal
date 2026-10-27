@@ -275,12 +275,33 @@ const getSettings = handler(async () => ({
   configurable: await settingsService.all(),
 }));
 
+// Every settings key is dotted ('invoice.prefix', 'tower.budgetAmberPct'), and the global
+// express-mongo-sanitize in app.js strips keys containing a dot — so a flat dotted body
+// arrives empty and nothing could ever be written. Rather than relax the sanitizer
+// globally (allowDots only inspects a key's first character, which would let 'a.$where'
+// through on every route), accept the equivalent nested form and flatten it here:
+//   { invoice: { prefix: 'INV' } }  ->  { 'invoice.prefix': 'INV' }
+// A flat dotted body is still honoured for any caller that can send one. Flattening is
+// one level deep and purely mechanical; setMany() remains the only authority on which
+// keys exist, so an unknown or injected key is still rejected there.
+const flattenSettings = (body) => {
+  const out = {};
+  for (const [key, value] of Object.entries(body || {})) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [leaf, inner] of Object.entries(value)) out[`${key}.${leaf}`] = inner;
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+};
+
 // Finance Head only — the route guard enforces it, and this re-checks because a settings
 // write changes document numbering for everyone.
 const updateSettings = handler(async req => {
   if (!head(req.user)) fail(403, 'Finance Head permission required');
   const before = await settingsService.all();
-  const applied = await settingsService.setMany(req.body || {}, actor(req));
+  const applied = await settingsService.setMany(flattenSettings(req.body), actor(req));
   const Setting = require('../../models/finance/Setting');
   // One audit row naming only the keys that changed, so the trail stays readable.
   const row = await Setting.findOne({ key: Object.keys(applied)[0] });

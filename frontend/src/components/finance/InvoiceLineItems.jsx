@@ -25,7 +25,7 @@ export default function InvoiceLineItems({ lines, onChange, gstOptions, totals, 
       <div className="space-y-2">
         {lines.map((line, i) => (
           <div key={i} className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr,0.7fr,1fr,1fr]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_0.7fr_1fr_1fr]">
               <Input
                 label={i === 0 ? 'Description' : undefined}
                 aria-label={`Line ${i + 1} description`}

@@ -569,7 +569,7 @@ const ProjectOverviewPage = ({ portalKey = 'manager', portalName, titleOverride 
                 {[1, 2, 3, 4].map((item) => <MetricCardSkeleton key={item} />)}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]" aria-label="Project metrics">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-[repeat(auto-fit_minmax(170px,1fr))]" aria-label="Project metrics">
                 {metrics.map((metric) => (
                   <div key={metric.label} className={`${cardClass} flex min-w-0 flex-col transition-shadow hover:shadow-sm`}>
                     <div className="flex items-start gap-2.5">

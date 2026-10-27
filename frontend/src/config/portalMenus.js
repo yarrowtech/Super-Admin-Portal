@@ -195,8 +195,13 @@ export const portalMenuConfig = {
     { section: 'Risk & Recovery', label: 'Refunds',         icon: 'undo',         path: '/finance/dashboard/refunds',         description: 'Money returned against a receipt' },
     { section: 'Risk & Recovery', label: 'Non-Compliance',  icon: 'report',       path: '/finance/dashboard/non-compliance',  description: 'Missed deadlines, overruns, quality and scope breaches' },
     { section: 'My Workspace', label: 'Tasks',     icon: 'task',        path: '/finance/dashboard/tasks',     description: 'Workflow tasks and reminders' },
-    { section: 'My Workspace', label: 'Leave',     icon: 'event_note',  path: '/finance/dashboard/leave',     description: 'Leave requests and status' },
-    { section: 'My Workspace', label: 'Documents', icon: 'folder_open', path: '/finance/dashboard/documents', description: 'Personal documents' },
+    // Leave and Documents are personal records served by the shared employee API, whose
+    // allowlist (backend routes/employee.dept.routes.js) covers FINANCE_EMPLOYEE but not
+    // FINANCE_MANAGER. Offering them to the head produced a link that answered 403, so
+    // they are scoped to the employee — the same way the Law portal scopes its own
+    // My Workspace items to law_employee.
+    { section: 'My Workspace', label: 'Leave',     icon: 'event_note',  path: '/finance/dashboard/leave',     description: 'Leave requests and status', roles: ['finance_employee'] },
+    { section: 'My Workspace', label: 'Documents', icon: 'folder_open', path: '/finance/dashboard/documents', description: 'Personal documents', roles: ['finance_employee'] },
     { section: 'My Workspace', label: 'Team',      icon: 'group',       path: '/finance/dashboard/team',      description: 'Finance department directory', roles: FINANCE_DEPT_ROLES },
     { section: 'My Workspace', label: 'Messages',  icon: 'forum',       path: '/finance/dashboard/messages',  description: 'Finance team messages', roles: FINANCE_DEPT_ROLES },
   ],

@@ -10,15 +10,91 @@ let cacheGeneration = 0;
 const getStoredProjectId = () => {
   try { return localStorage.getItem('activeProjectId') || ''; } catch { return ''; }
 };
+const CACHE_PREFIX = 'sap_http_cache_v1:';
+// A single entry is capped so one large list cannot evict everything else, and the store
+// is swept when it grows past a sane size rather than growing without bound.
+const CACHE_MAX_ENTRY_BYTES = 256 * 1024;
+const CACHE_MAX_ENTRIES = 120;
+
 const clearApiCache = () => {
   cacheGeneration += 1;
   inflight.clear();
   try {
     for (let i = sessionStorage.length - 1; i >= 0; i--) {
       const key = sessionStorage.key(i);
-      if (key?.startsWith('sap_http_cache_v1:')) sessionStorage.removeItem(key);
+      if (key?.startsWith(CACHE_PREFIX)) sessionStorage.removeItem(key);
     }
   } catch { /* Storage may be unavailable. */ }
+};
+
+// max-age from the server's Cache-Control, in ms. `no-store`/`no-cache` mean never, and
+// an absent or unparseable header also means never — the client does not invent a TTL
+// the server did not grant.
+const maxAgeMs = (cacheControl) => {
+  const value = String(cacheControl || '').toLowerCase();
+  if (!value || value.includes('no-store') || value.includes('no-cache')) return 0;
+  const match = /max-age=(\d+)/.exec(value);
+  if (!match) return 0;
+  return Number(match[1]) * 1000;
+};
+
+// Entries are read back only for the same identity: the key carries the token, so a
+// different user (or a signed-out one) can never read a cached response, and
+// cacheGeneration invalidates everything after any mutation.
+const cacheKey = (path, token) =>
+  `${CACHE_PREFIX}${JSON.stringify([API_BASE_URL, path, token || '', getStoredProjectId(), cacheGeneration])}`;
+
+const readCache = (key) => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return undefined;
+    const entry = JSON.parse(raw);
+    if (!entry || typeof entry.expiresAt !== 'number') return undefined;
+    if (Date.now() >= entry.expiresAt) {
+      sessionStorage.removeItem(key);
+      return undefined;
+    }
+    return entry.payload;
+  } catch {
+    // A corrupt or unreadable entry must never break a request.
+    try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+    return undefined;
+  }
+};
+
+// `generation` is the cacheGeneration the request started in. A request already in flight
+// when the cache is cleared (a mutation, a token change, sign-out) must not write its
+// response back afterwards, or a stale entry outlives the very event that invalidated it
+// — including sign-out, which would leave one user's data readable in storage.
+const writeCache = (key, payload, ttlMs, generation) => {
+  if (!(ttlMs > 0)) return;
+  if (generation !== cacheGeneration) return;
+  try {
+    const raw = JSON.stringify({ expiresAt: Date.now() + ttlMs, payload });
+    if (raw.length > CACHE_MAX_ENTRY_BYTES) return;
+    // Evict by dropping stored entries directly, never via clearApiCache(): that bumps
+    // cacheGeneration, which would both invalidate every in-flight request's key and let
+    // this write land under the *new* generation, so the entry would then survive the
+    // sweep that a mutation or sign-out performs. Eviction is a size concern; generation
+    // is a correctness one, and the two must not be conflated.
+    const stored = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const k = sessionStorage.key(i);
+      if (k?.startsWith(CACHE_PREFIX)) stored.push(k);
+    }
+    if (stored.length >= CACHE_MAX_ENTRIES) {
+      for (const k of stored) sessionStorage.removeItem(k);
+    }
+    sessionStorage.setItem(key, raw);
+  } catch {
+    // Quota exceeded or storage blocked: drop stored entries and carry on uncached.
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+        const k = sessionStorage.key(i);
+        if (k?.startsWith(CACHE_PREFIX)) sessionStorage.removeItem(k);
+      }
+    } catch { /* ignore */ }
+  }
 };
 clearApiCache();
 subscribeAuthSession(clearApiCache);
@@ -130,7 +206,7 @@ const shouldRefresh = (error, path) => {
   return ['TOKEN_EXPIRED', 'SESSION_INVALID', 'INVALID_TOKEN', 'TOKEN_INVALID'].includes(error.code);
 };
 
-const request = async ({ method, path, body, token, signal }) => {
+const request = async ({ method, path, body, token, signal, onPolicy }) => {
   const execute = async (requestToken) => {
     const requestId = createRequestId();
     const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -143,6 +219,10 @@ const request = async ({ method, path, body, token, signal }) => {
     });
     const parsed = await parseResponse(res, requestId);
     persistResponseToken(res);
+    // Hand the server's own caching policy back to the caller. The backend declares a
+    // per-route Cache-Control (backend/middlewares/cacheHeaders.js), so the client reuses
+    // that TTL instead of maintaining a second, drifting copy of the same rules.
+    onPolicy?.(res.headers.get('cache-control') || '');
     return parsed;
   };
 
@@ -158,16 +238,45 @@ const request = async ({ method, path, body, token, signal }) => {
 };
 
 export const apiClient = {
+  // Three layers, cheapest first:
+  //   1. sessionStorage — survives a reload/remount, within the server's own max-age.
+  //   2. in-flight map  — collapses concurrent identical GETs into one request.
+  //   3. the network.
+  // `cache: false` opts a call out of layer 1 (used where data must always be live), and
+  // `forceRefresh: true` additionally bypasses deduplication.
   async get(path, token, options = {}) {
-    const { signal, forceRefresh = false } = options || {};
+    const { signal, forceRefresh = false, cache = true } = options || {};
     // Credentials are used only in memory, never in storage keys or logs.
     const key = JSON.stringify([API_BASE_URL, path, token || '', getStoredProjectId(), cacheGeneration]);
+    const storageKey = cacheKey(path, token);
+    const useStore = cache && !forceRefresh;
+
+    if (useStore) {
+      const hit = readCache(storageKey);
+      if (hit !== undefined) return hit;
+    }
+
     const deduplicate = !signal && !forceRefresh;
     if (deduplicate && inflight.has(key)) return inflight.get(key);
-    const pending = request({ method: 'GET', path, token, signal });
+
+    // Captured before the request starts, so a cache clear that happens while it is in
+    // flight makes the write below a no-op.
+    const generation = cacheGeneration;
+    let ttlMs = 0;
+    const pending = request({
+      method: 'GET', path, token, signal,
+      onPolicy: (cacheControl) => { ttlMs = maxAgeMs(cacheControl); },
+    });
     if (deduplicate) inflight.set(key, pending);
     try {
-      return await pending;
+      const parsed = await pending;
+      // Only store what the server said may be stored, and only for as long as it said.
+      // `useStore` (not `cache`) is the gate: a forceRefresh caller deliberately bypassed
+      // the read because it needs live data, so it must not repopulate the store either —
+      // otherwise a poll that was in flight across a clear writes a fresh entry back and
+      // the response outlives the mutation, or the sign-out, that invalidated it.
+      if (useStore) writeCache(storageKey, parsed, ttlMs, generation);
+      return parsed;
     } finally {
       if (inflight.get(key) === pending) inflight.delete(key);
     }

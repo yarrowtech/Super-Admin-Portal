@@ -11,7 +11,7 @@ const RiskAssessmentLegalAdvisoryPage = ({ searchTerm, onSearchChange, error, re
   return (
     <main className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-6 lg:grid-cols-[360px,1fr]">
+        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           <aside className="rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
             <span className="material-symbols-outlined text-4xl text-primary">health_and_safety</span>
             <h1 className="mt-4 text-2xl font-black text-neutral-900 dark:text-white">{section.title}</h1>

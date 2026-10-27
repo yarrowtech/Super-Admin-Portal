@@ -142,12 +142,31 @@ const normalizeBudgetPayload = async (payload = {}) => {
   };
 };
 
+// Invalid input is the caller's fault, not a server fault: a Mongoose ValidationError or
+// CastError reaching here means the payload failed the schema, so it must be reported as
+// 422 (or 400 for an unusable id) rather than a 500. Returning 500 for bad input also
+// logs at error level and pages whoever watches 5xx rates, for what is a rejected form.
+// A statusCode already set by a domain guard is honoured as-is.
 const sendError = (res, err, fallback) => {
-  logger.error({ err }, fallback);
-  res.status(500).json({
+  const name = err?.name;
+  let status = Number(err?.statusCode) || 0;
+  if (!status && name === 'ValidationError') status = 422;
+  if (!status && name === 'CastError') status = 400;
+  if (!status && err?.code === 11000) status = 409; // duplicate key
+  if (!status) status = 500;
+
+  if (status >= 500) logger.error({ err }, fallback);
+  else logger.warn({ err, status }, fallback);
+
+  // For a validation failure, name the offending fields so the caller can correct them.
+  const details = name === 'ValidationError' && err.errors
+    ? Object.entries(err.errors).map(([field, e]) => `${field}: ${e.message}`).join('; ')
+    : err.message;
+
+  res.status(status).json({
     success: false,
-    error: fallback,
-    details: err.message
+    error: status >= 500 ? fallback : (details || fallback),
+    details,
   });
 };
 

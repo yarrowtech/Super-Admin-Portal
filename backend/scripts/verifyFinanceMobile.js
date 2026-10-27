@@ -3,15 +3,39 @@
 // database and authorization behavior are covered separately by the finance HTTP tests.
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const express = require('express');
 const puppeteer = require('puppeteer');
 
 (async () => {
   const app = express();
   const dist = path.resolve(__dirname, '../../frontend/dist');
+  // The build bakes in VITE_API_URL (http://localhost:5000), so every API call is
+  // cross-origin from this static server. The client sends x-request-id and
+  // x-client-source, which makes those calls preflighted, and request interception
+  // never answers the OPTIONS preflight — so the request is blocked, auth bootstrap
+  // fails and the app redirects to /login before any portal chrome renders.
+  //
+  // Rewriting that base to THIS server's own origin makes the calls same-origin, so no
+  // preflight is involved. It must be the real origin and never an empty string:
+  // frontend/src/config/backend.js throws 'VITE_API_URL is required for a production
+  // frontend build' on an empty value, which kills the whole React tree and leaves an
+  // empty <div id="root">.
+  let origin = '';
+  const rewritten = new Map();
+  app.use((req, res, next) => {
+    if (!req.path.endsWith('.js')) return next();
+    const file = path.join(dist, req.path);
+    if (!fs.existsSync(file)) return next();
+    if (!rewritten.has(req.path)) {
+      rewritten.set(req.path, fs.readFileSync(file, 'utf8').split('http://localhost:5000').join(origin));
+    }
+    return res.type('application/javascript').send(rewritten.get(req.path));
+  });
   app.use(express.static(dist));
   app.get('*', (req, res) => res.sendFile(path.join(dist, 'index.html')));
   const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  origin = `http://127.0.0.1:${server.address().port}`;
   let browser;
   try {
     browser = await puppeteer.launch({ headless: true });
@@ -20,7 +44,12 @@ const puppeteer = require('puppeteer');
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.setViewport({ width: 390, height: 844 });
-      await page.evaluateOnNewDocument(() => localStorage.setItem('sap_token', 'mobile-verification-token'));
+      // Both keys are required: readAuthSession (frontend/src/lib/authSession.js) reads
+      // sap_auth_mode alongside the token, so seeding the token alone leaves no session.
+      await page.evaluateOnNewDocument(() => {
+        localStorage.setItem('sap_token', 'mobile-verification-token');
+        localStorage.setItem('sap_auth_mode', 'default');
+      });
       await page.setRequestInterception(true);
       page.on('request', request => {
         const url = new URL(request.url());
@@ -49,8 +78,21 @@ const puppeteer = require('puppeteer');
       assert.ok(navigation.links.some(link => link.href === '/finance/dashboard/support'));
       assert.ok(navigation.links.some(link => link.label.includes(role === 'finance_manager' ? 'Review Queue' : 'My Submissions')));
       assert.equal(navigation.links.some(link => link.label.includes('Approval Rules')), role === 'finance_manager');
-      await page.keyboard.press('Shift+Tab');
-      assert.equal(await page.evaluate(() => document.activeElement.textContent.trim()), 'Logout', 'focus wraps to the last drawer control');
+      // The drawer moves focus inside itself on a setTimeout(..., 0), so immediately
+      // after it renders focus is still on the trigger. Pressing Shift+Tab then walks
+      // the page behind the overlay instead of wrapping within the trap. Wait for focus
+      // to actually land in the drawer before testing the trap.
+      await page.waitForFunction(
+        () => document.querySelector('[role="dialog"]')?.contains(document.activeElement),
+        { timeout: 10000 },
+      );
+      // Puppeteer has no combined 'Shift+Tab' key: the modifier is held around the press.
+      await page.keyboard.down('Shift');
+      await page.keyboard.press('Tab');
+      await page.keyboard.up('Shift');
+      // The control holds a Material Symbols icon ligature before its label, so
+      // textContent reads 'logoutLogout'. Match the label rather than the exact string.
+      assert.match(await page.evaluate(() => document.activeElement.textContent.trim()), /Logout$/, 'focus wraps to the last drawer control');
       await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Close navigation');
       await page.keyboard.press('Escape');

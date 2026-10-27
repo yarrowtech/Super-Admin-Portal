@@ -1659,7 +1659,9 @@ export const FinanceInvoicesPage = () => {
           ]}
         />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
+        {/* The invoice list below spans the full width — see the note on the payments
+            grid. The entry form is capped rather than stretched. */}
+        <div className="grid grid-cols-1 gap-6 lg:max-w-2xl">
           <SectionCard
             title={editingId ? 'Edit draft invoice' : 'New invoice'}
             description={editingId ? 'Only drafts can be edited' : 'Saved as a draft for verification'}
@@ -1740,10 +1742,11 @@ export const FinanceInvoicesPage = () => {
               </div>
             </div>
           </SectionCard>
+        </div>
 
-          <SectionCard
-            title="Invoices"
-            description={`${visibleInvoices.length} of ${invoices.length} shown`}
+        <SectionCard
+          title="Invoices"
+          description={`${visibleInvoices.length} of ${invoices.length} shown`}
             action={(
                   <div className="w-full sm:w-56">
                     <Input placeholder="Search number or client" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search invoices" />
@@ -1825,9 +1828,8 @@ export const FinanceInvoicesPage = () => {
               emptyTitle={query ? `No invoices match "${query}"` : statusFilter ? `No ${INVOICE_STAGE_LABEL[statusFilter]?.toLowerCase() || statusFilter} invoices` : 'No invoices yet'}
               onRowClick={(r) => navigate(`/finance/dashboard/invoices/${r._id}`)}
             />
-            <Pager pagination={pagination} onPage={setPage} disabled={loading} />
-          </SectionCard>
-        </div>
+          <Pager pagination={pagination} onPage={setPage} disabled={loading} />
+        </SectionCard>
       </div>
 
       {payingInvoice && <RecordPaymentModal key={payingInvoice._id} invoice={payingInvoice} onClose={() => setPayingInvoice(null)} onSaved={onPaymentSaved} />}
@@ -2245,8 +2247,11 @@ export const FinancePaymentsPage = () => {
           ]}
         />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
-          <div className="space-y-6">
+        {/* Entry and the receivables list sit side by side; the ledger spans the full
+            width beneath them. The ledger's table needs ~760px before it scrolls and
+            clips the row actions, which a shared two-column ratio cannot guarantee on a
+            1280-1440px screen once the fixed sidebar is subtracted. */}
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
             <SectionCard
               title="Record payment"
               description="Link it to an invoice to settle the balance"
@@ -2322,13 +2327,13 @@ export const FinancePaymentsPage = () => {
                 </div>
               )}
             </SectionCard>
-          </div>
+        </div>
 
-          <SectionCard
-            title="Payment ledger"
-            description={`${pagination.total || 0} receipt${pagination.total === 1 ? '' : 's'}`}
-            bodyClassName="space-y-4"
-          >
+        <SectionCard
+          title="Payment ledger"
+          description={`${pagination.total || 0} receipt${pagination.total === 1 ? '' : 's'}`}
+          bodyClassName="space-y-4"
+        >
             <StatusFilterBar
               value={statusFilter}
               onChange={(v) => { setStatusFilter(v); setPage(1); }}
@@ -2380,9 +2385,8 @@ export const FinancePaymentsPage = () => {
               loading={loading}
               emptyTitle={statusFilter ? `No ${(PAYMENT_STAGE_LABEL[statusFilter] || statusFilter).toLowerCase()} payments` : 'No payments recorded'}
             />
-            <Pager pagination={pagination} onPage={setPage} disabled={loading} />
-          </SectionCard>
-        </div>
+          <Pager pagination={pagination} onPage={setPage} disabled={loading} />
+        </SectionCard>
       </div>
 
       <Modal
@@ -2602,7 +2606,11 @@ export const FinanceExpensesPage = () => {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
+        {/* The request queue below spans the full width, because its table needs ~760px
+            before it scrolls and clips the row actions. The submission form is a tall,
+            narrow stack of fields, so it is capped rather than stretched across 1140px
+            and the queue sits directly beneath it instead of beside an empty column. */}
+        <div className="grid grid-cols-1 gap-6 lg:max-w-2xl">
           <SectionCard title="Submit expense" description="Enters the workflow as Submitted">
             <form onSubmit={handleSubmit} className="space-y-3">
               <Input label="Expense title" placeholder="e.g. Client dinner" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required />
@@ -2733,9 +2741,10 @@ export const FinanceExpensesPage = () => {
               <Button type="submit" variant="primary" size="sm" disabled={submitting || (receiptRequired && !form.docUrl.trim()) || allocationsIncomplete} fullWidth>{submitting ? 'Submitting…' : 'Submit expense'}</Button>
             </form>
           </SectionCard>
+        </div>
 
-          <SectionCard
-            title="Expense requests"
+        <SectionCard
+          title="Expense requests"
             description={`${pagination.total || 0} request${pagination.total === 1 ? '' : 's'}`}
             action={<Button type="button" size="sm" variant="secondary" onClick={() => (showReport ? setShowReport(false) : openReport())}><span className="material-symbols-outlined mr-1 text-[16px]">summarize</span>{showReport ? 'Hide report' : 'Expense report'}</Button>}
             bodyClassName="space-y-4"
@@ -2830,9 +2839,8 @@ export const FinanceExpensesPage = () => {
               loading={loading}
               emptyTitle={statusFilter ? `No ${humanizeStatus(statusFilter).toLowerCase()} expenses` : 'No expenses yet'}
             />
-            <Pager pagination={pagination} onPage={setPage} disabled={loading} />
-          </SectionCard>
-        </div>
+          <Pager pagination={pagination} onPage={setPage} disabled={loading} />
+        </SectionCard>
       </div>
 
       <Modal
@@ -3230,7 +3238,7 @@ export const FinanceBudgetsPage = () => {
         )}
         <BudgetAlerts budgets={budgets} />
 
-        <div className={`grid grid-cols-1 gap-6 ${isHead ? 'lg:grid-cols-[1fr,1.7fr]' : ''}`}>
+        <div className={`grid grid-cols-1 gap-6 ${isHead ? 'lg:grid-cols-[1fr_1.7fr]' : ''}`}>
           {!isHead ? null : (
           <SectionCard
             title={isProjectScope ? 'Allocate project budget' : 'Allocate department budget'}
@@ -3750,7 +3758,7 @@ export const FinanceAccountingPage = () => {
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
 
         {tab === 'accounts' && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_1.6fr]">
             <SectionCard title="New account" description="Normal balance follows the account type">
               {!isHead ? (
                 <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
@@ -3817,7 +3825,7 @@ export const FinanceAccountingPage = () => {
         )}
 
         {tab === 'journals' && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_1.6fr]">
             <SectionCard title="New journal entry" description="Saved as a draft until posted">
               {accounts.length < 2 ? (
                 <EmptyState icon="account_tree" title="Add accounts first" description="A journal entry needs at least two accounts in the chart of accounts." />
@@ -4140,7 +4148,7 @@ export const FinanceReportsPage = () => {
         {tab === 'summaries' && <FinanceReportExtras token={token} />}
 
         {tab === 'archive' && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.7fr]">
             <SectionCard title="Save report to archive" description="Records a period report with your commentary">
               <form onSubmit={handleSubmit} className="space-y-3">
                 <Select
@@ -4350,7 +4358,7 @@ export const FinanceCompliancePage = () => {
         />
 
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,1.7fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.7fr]">
           <SectionCard title="Add filing obligation" description="Tracked until marked filed">
             <form onSubmit={handleSubmit} className="space-y-3">
               <Select
@@ -4574,7 +4582,7 @@ export const FinanceDirectoryPage = () => {
         {notice && <Notice onDismiss={() => setNotice('')}>{notice}</Notice>}
 
         {tab === 'vendors' && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_1.6fr]">
             <SectionCard title="Add vendor" description="Suppliers and service providers you pay">
               <form onSubmit={saveVendor} className="space-y-3">
                 <Input label="Vendor name" placeholder="e.g. Acme Supplies" value={vendorForm.name} onChange={(e) => setVendorForm((p) => ({ ...p, name: e.target.value }))} error={vendorDuplicate ? 'A vendor with this name already exists.' : undefined} required />
@@ -4622,7 +4630,7 @@ export const FinanceDirectoryPage = () => {
         {tab === 'vendors' && <VendorLedger vendors={data.vendors || []} token={token} user={user} onSaved={refetch} />}
 
         {tab === 'clients' && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr,1.6fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_1.6fr]">
             <SectionCard title="Add client" description="Customers you invoice">
               <form onSubmit={saveClient} className="space-y-3">
                 <Input

@@ -42,6 +42,15 @@ const cacheHeaders = (req, res, next) => {
     return next();
   }
 
+  // Risk and recovery state must never be served stale, to any cache. The finance
+  // router already refuses to cache these server-side (routes/finance.routes.js) because
+  // a freeze served from a cache could show money as payable after it has been frozen;
+  // the same reasoning applies to the browser, so the header has to say so too.
+  if (/\/(disputes|refunds|non-compliance|justifications|control-tower)/.test(path)) {
+    res.setHeader('Cache-Control', 'no-store');
+    return next();
+  }
+
   for (const pattern of PATTERNS) {
     if (pattern.test.test(path)) {
       res.setHeader(

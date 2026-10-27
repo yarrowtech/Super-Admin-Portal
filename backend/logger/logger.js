@@ -87,6 +87,23 @@ const logger = pino(
         "secret",
         "clientSecret",
         "privateKey",
+        // Provider credentials as config/yarrowtech.js actually returns them, plus the
+        // raw environment variable names. Logging the config object or a chunk of
+        // process.env would otherwise print these in clear text.
+        "signingSecret",
+        "webhookSecret",
+        "SRS_API_KEY",
+        "SRS_CLIENT_ID",
+        "SRS_SIGNING_SECRET",
+        "SRS_WEBHOOK_SECRET",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "SESSION_SECRET",
+        "MONGO_URI",
+        "*.signingSecret",
+        "*.webhookSecret",
+        "*.apiKey",
+        "*.secret",
         "cardNumber",
         "cvv",
         "cvc",

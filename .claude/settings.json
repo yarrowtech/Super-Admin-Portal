@@ -224,7 +224,10 @@
       "Bash(node -e \"const {ROLES}=require\\('./config/roles'\\);console.log\\(Object.entries\\(ROLES\\).map\\(\\([k,v]\\)=>k+'='+v\\).join\\('\\\\n'\\)\\)\")",
       "Bash(cp logger/logger.js /tmp/logger.bak)",
       "Bash(python -c ' *)",
-      "Bash(grep -oE \"[a-z-]+/?[a-z-]*$\")"
+      "Bash(grep -oE \"[a-z-]+/?[a-z-]*$\")",
+      "Bash(xargs -I{} du -k \"{}\")",
+      "PowerShell(npx vite build 2>&1)",
+      "PowerShell(node -e \"const c = require\\('./controllers/ceo/ceoDashboard.controller'\\); console.log\\('getExecutiveAnalytics:', typeof c.getExecutiveAnalytics\\); const r = require\\('./routes/ceo.routes'\\); console.log\\('routes loaded ok'\\);\")"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

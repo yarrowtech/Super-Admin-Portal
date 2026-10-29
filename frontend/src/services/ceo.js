@@ -3,6 +3,8 @@ import { apiClient } from './client';
 export const ceoApi = {
   getDashboard: (token) => apiClient.get('/api/dept/ceo/dashboard', token),
   getOverview: (token) => apiClient.get('/api/dept/ceo/overview', token),
+  getExecutiveAnalytics: (token, months) =>
+    apiClient.get(`/api/dept/ceo/analytics${months ? `?months=${months}` : ''}`, token),
   getRevenueAnalytics: (token) => apiClient.get('/api/dept/ceo/revenue', token),
   getProductAnalytics: (token) => apiClient.get('/api/dept/ceo/products', token),
   getEmployeeAnalytics: (token) => apiClient.get('/api/dept/ceo/employees-analytics', token),

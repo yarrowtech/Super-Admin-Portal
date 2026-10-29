@@ -24,7 +24,9 @@ const CEOProductInsights = () => {
         {q.isLoading ? <div className="h-80 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" /> : (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <BarChartCard title="Active Users per Product" data={products} xKey="product" bars={[{ key: 'activeUsers', color: '#2563eb' }]} />
-            <LineChartCard title="Product Growth Rate" data={growthLine} xKey="product" lineKey="growth" formatter={(v) => `${v}%`} />
+            {/* Products are categories, not a time axis — a connected line would imply
+                a trajectory between unrelated products. */}
+            <LineChartCard title="Product Growth Rate" data={growthLine} xKey="product" lineKey="growth" formatter={(v) => `${v}%`} categorical />
             <PieChartCard title="Product Revenue Distribution" data={products} nameKey="product" valueKey="revenue" formatter={(v) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0)} />
           </div>
         )}

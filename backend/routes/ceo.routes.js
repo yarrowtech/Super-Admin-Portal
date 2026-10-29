@@ -23,6 +23,7 @@ router.use(invalidateCacheAfterMutation('ceo'));
 // CEO specific routes
 router.get('/dashboard', ceoController.getDashboard);
 router.get('/overview', ceoController.getOverviewAnalytics);
+router.get('/analytics', ceoController.getExecutiveAnalytics);
 router.get('/revenue', ceoController.getRevenueAnalytics);
 router.get('/products', ceoController.getProductAnalytics);
 router.get('/employees-analytics', ceoController.getEmployeeAnalytics);

@@ -60,9 +60,26 @@ const DepartmentStats = () => {
 
       {!loading && stats.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <BarChartCard title="Department KPI Score" data={stats.map((s) => ({ department: s.department, kpi: Number(s.completionRate.toFixed(1)) }))} xKey="department" bars={[{ key: 'kpi', color: '#2563eb' }]} />
-          <BarChartCard title="Output vs Target" data={stats.map((s) => ({ department: s.department, output: s.completedTasks, target: s.totalTasks || 0 }))} xKey="department" bars={[{ key: 'output', color: '#16a34a' }, { key: 'target', color: '#ea580c' }]} />
-          <PieChartCard title="Department Contribution" data={stats.map((s) => ({ department: s.department, value: s.totalTasks }))} nameKey="department" valueKey="value" />
+          <BarChartCard
+            title="Task completion rate"
+            hint="completed ÷ total tasks"
+            data={stats.map((s) => ({ department: s.department, completion: Number(s.completionRate.toFixed(1)) }))}
+            xKey="department"
+            bars={[{ key: 'completion', label: 'Completion %', color: '#2563eb' }]}
+            formatter={(value) => `${value}%`}
+          />
+          <BarChartCard
+            title="Completed vs total tasks"
+            data={stats.map((s) => ({ department: s.department, completed: s.completedTasks, total: s.totalTasks || 0 }))}
+            xKey="department"
+            bars={[{ key: 'completed', label: 'Completed', color: '#16a34a' }, { key: 'total', label: 'Total', color: '#ea580c' }]}
+          />
+          <PieChartCard
+            title="Share of all tasks"
+            data={stats.map((s) => ({ department: s.department, value: s.totalTasks }))}
+            nameKey="department"
+            valueKey="value"
+          />
 
           <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 lg:col-span-2">
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">Performance Table</h3>

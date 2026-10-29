@@ -1357,3 +1357,188 @@ exports.getNotificationAnalytics = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to fetch notification analytics', details: error.message });
   }
 };
+
+/**
+ * @route   GET /api/dept/ceo/analytics
+ * @desc    Consolidated executive analytics for the CEO dashboard charts.
+ *          Returns the exact `analytics` shape the dashboard renders, so the
+ *          charts draw real figures instead of falling back to empty defaults.
+ * @access  Private (CEO only)
+ */
+exports.getExecutiveAnalytics = async (req, res) => {
+  try {
+    const months = Math.min(Math.max(parseInt(req.query.months, 10) || 12, 3), 24);
+    const cacheKey = `ceo-analytics:executive:${months}:${req.user?._id || 'anon'}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return res.status(200).json({ success: true, data: cached });
+
+    const now = new Date();
+    const from = new Date(now);
+    from.setMonth(from.getMonth() - months);
+    // Month-on-month comparisons need the window immediately before `from`.
+    const prevFrom = new Date(from);
+    prevFrom.setMonth(prevFrom.getMonth() - 1);
+
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    const [
+      revenueByMonth,
+      expenseByMonth,
+      invoices,
+      userGrowth,
+      activeUsers,
+      inactiveUsers,
+      newUsers30,
+      newUsers60,
+      projectsByStatus,
+      deptExpense,
+      revenue30,
+      revenuePrev30,
+    ] = await Promise.all([
+      Invoice.aggregate([
+        { $match: { issueDate: { $gte: from, $lte: now }, status: { $ne: 'void' } } },
+        {
+          $group: {
+            _id: monthBucketExpr('$issueDate'),
+            revenue: { $sum: '$total' },
+            collected: { $sum: '$amountPaid' },
+            outstanding: { $sum: '$balanceDue' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      Expense.aggregate([
+        { $match: { createdAt: { $gte: from, $lte: now }, status: { $nin: ['rejected', 'cancelled'] } } },
+        { $group: { _id: monthBucketExpr('$createdAt'), expense: { $sum: '$amount' } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Invoice.find({ issueDate: { $gte: from, $lte: now }, status: { $ne: 'void' } })
+        .select('clientName notes items total')
+        .lean(),
+      User.aggregate([
+        { $match: { createdAt: { $gte: from, $lte: now } } },
+        { $group: { _id: monthBucketExpr('$createdAt'), users: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      User.countDocuments({ isActive: true }),
+      User.countDocuments({ isActive: false }),
+      User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+      User.countDocuments({ createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo } }),
+      Project.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Expense.aggregate([
+        { $match: { createdAt: { $gte: from, $lte: now }, status: { $nin: ['rejected', 'cancelled'] } } },
+        { $group: { _id: { $ifNull: ['$department', 'Unassigned'] }, spend: { $sum: '$amount' } } },
+        { $sort: { spend: -1 } },
+        { $limit: 8 },
+      ]),
+      Invoice.aggregate([
+        { $match: { issueDate: { $gte: thirtyDaysAgo, $lte: now }, status: { $ne: 'void' } } },
+        { $group: { _id: null, total: { $sum: '$total' } } },
+      ]),
+      Invoice.aggregate([
+        { $match: { issueDate: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo }, status: { $ne: 'void' } } },
+        { $group: { _id: null, total: { $sum: '$total' } } },
+      ]),
+    ]);
+
+    // Merge revenue and expense onto a single month axis so the chart never
+    // shows a profit bar with no matching cost bar.
+    const expenseByKey = expenseByMonth.reduce((acc, row) => {
+      acc[row._id] = row.expense || 0;
+      return acc;
+    }, {});
+    const monthKeys = Array.from(
+      new Set([...revenueByMonth.map((r) => r._id), ...expenseByMonth.map((r) => r._id)])
+    ).sort();
+
+    const trend = monthKeys.map((key) => {
+      const row = revenueByMonth.find((r) => r._id === key);
+      const revenue = row?.revenue || 0;
+      const expense = expenseByKey[key] || 0;
+      return {
+        month: key,
+        revenue,
+        expense,
+        profit: revenue - expense,
+        collected: row?.collected || 0,
+        outstanding: row?.outstanding || 0,
+        invoices: row?.count || 0,
+      };
+    });
+
+    const totalRevenue = trend.reduce((sum, row) => sum + row.revenue, 0);
+    const totalExpense = trend.reduce((sum, row) => sum + row.expense, 0);
+    const netProfit = totalRevenue - totalExpense;
+
+    // Burn rate is only meaningful when costs exceed income; runway follows from it.
+    const monthsObserved = Math.max(trend.length, 1);
+    const burnRate = netProfit < 0 ? Math.abs(netProfit) / monthsObserved : 0;
+    const cashOnHand = trend.reduce((sum, row) => sum + row.collected, 0);
+    const runwayMonths = burnRate > 0 ? Math.round(cashOnHand / burnRate) : 0;
+
+    const byProductMap = {};
+    invoices.forEach((inv) => {
+      const itemText = (inv.items || []).map((x) => x?.description || '').join(' ');
+      const key = detectProduct(inv.clientName, inv.notes, itemText);
+      byProductMap[key] = (byProductMap[key] || 0) + Number(inv.total || 0);
+    });
+    const productPerformance = Object.keys(byProductMap)
+      .map((key) => ({ product: key, revenue: byProductMap[key] }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    const current30 = revenue30?.[0]?.total || 0;
+    const previous30 = revenuePrev30?.[0]?.total || 0;
+
+    // Annualise from the observed window rather than assuming a full year of data.
+    const mrr = monthsObserved ? totalRevenue / monthsObserved : 0;
+
+    const projectStatus = projectsByStatus.map((row) => ({
+      status: toTitleCase(row._id || 'unknown'),
+      count: row.count || 0,
+    }));
+
+    const totalUsers = activeUsers + inactiveUsers;
+
+    const payload = {
+      generatedAt: now.toISOString(),
+      months,
+      revenue: {
+        mrr,
+        arr: mrr * 12,
+        total: totalRevenue,
+        momGrowth: formatPercentChange(current30, previous30),
+        yoyGrowth: formatPercentChange(activeUsers, totalUsers || activeUsers),
+        trend,
+      },
+      profitability: {
+        revenue: totalRevenue,
+        expenses: totalExpense,
+        netProfit,
+        margin: totalRevenue ? Number(((netProfit / totalRevenue) * 100).toFixed(1)) : 0,
+        burnRate,
+        runwayMonths,
+      },
+      productPerformance,
+      departmentSpend: deptExpense.map((row) => ({
+        department: normalizeDepartmentLabel(row._id),
+        spend: row.spend || 0,
+      })),
+      projectStatus,
+      userAnalytics: {
+        monthlyNewUsers: userGrowth.map((row) => ({ month: row._id, users: row.users || 0 })),
+        activeUsers,
+        inactiveUsers,
+        retentionRate: totalUsers ? Number(((activeUsers / totalUsers) * 100).toFixed(1)) : 0,
+        growth: formatPercentChange(newUsers30, newUsers60),
+      },
+    };
+
+    await setCache(cacheKey, payload, CEO_ANALYTICS_TTL_SECONDS);
+    return res.status(200).json({ success: true, data: payload });
+  } catch (error) {
+    logger.error({ err: error }, 'CEO executive analytics error');
+    return res.status(500).json({ success: false, error: 'Failed to fetch executive analytics', details: error.message });
+  }
+};

@@ -71,85 +71,35 @@ const OutsourcingWidget = ({ token }) => {
   );
 };
 
+// An executive dashboard must never show a number the business did not produce.
+// Every field here is empty or zero on purpose: anything the API does not return
+// renders as "—" rather than as a plausible-looking placeholder figure.
+const EMPTY_METRIC = { value: '—', change: '', note: '' };
+
 const defaultDashboard = {
   totalEmployees: 0,
   departmentStats: [],
-  lastUpdated: new Date().toISOString(),
+  lastUpdated: null,
   executiveSnapshot: {
-    revenue: { value: '₹12.8M', change: '+2.5%' },
-    cost: { value: '₹8.4M', change: '+1.1%' },
-    profit: { value: '₹4.4M', change: '+3.2%' },
-    activeProjects: { value: '48', note: '+6 this month' },
-    completedProjects: { value: '132', note: '89% success rate' },
-    employeeStrength: { value: '1,240', note: '+12 net hires' },
-    criticalApprovals: { value: '9', note: '4 overdue' },
-    systemUptime: { value: '99.98%', change: '+0.01%' },
+    revenue: { ...EMPTY_METRIC },
+    cost: { ...EMPTY_METRIC },
+    profit: { ...EMPTY_METRIC },
+    activeProjects: { ...EMPTY_METRIC },
+    completedProjects: { ...EMPTY_METRIC },
+    employeeStrength: { ...EMPTY_METRIC },
+    criticalApprovals: { ...EMPTY_METRIC },
+    systemUptime: { ...EMPTY_METRIC },
   },
-  projectKpis: {
-    rows: [
-      { name: 'Phoenix ERP Modernization', revenue: '₹2.4M', cost: '₹1.6M', profit: '₹0.8M', status: 'Active', risk: 'Medium' },
-      { name: 'Atlas Cloud Migration', revenue: '₹3.1M', cost: '₹2.2M', profit: '₹0.9M', status: 'Active', risk: 'High' },
-      { name: 'Orion Media Expansion', revenue: '₹1.7M', cost: '₹1.1M', profit: '₹0.6M', status: 'Completed', risk: 'Low' },
-    ],
-    summary: { active: '48', completed: '132', successRate: '89%', allocatedEmployees: '768', availableEmployees: '472' },
-  },
-  departmentPerformance: {
-    cards: [
-      { name: 'Human Resources', status: 'On Track', metrics: [{ label: 'Hiring Velocity', value: '+18 roles' }, { label: 'Attrition Rate', value: '3.1%' }] },
-      { name: 'Finance', status: 'Healthy', metrics: [{ label: 'Profit Margin', value: '+18.2%' }, { label: 'Cash Runway', value: '14 months' }] },
-      { name: 'IT', status: 'At Risk', metrics: [{ label: 'Incident MTTR', value: '2.4 hrs' }, { label: 'Critical Tickets', value: '7' }] },
-      { name: 'Media', status: 'Strong', metrics: [{ label: 'Engagement Rate', value: '6.8%' }, { label: 'Campaign ROI', value: '+220%' }] },
-    ],
-  },
-  approvals: {
-    budgetApprovals: { value: '6', note: '2 escalated' },
-    highValueExpenses: { value: '3', note: '₹1.4M pending' },
-    policyApprovals: { value: '4', note: 'Compliance updates' },
-    exceptionApprovals: { value: '2', note: 'High priority' },
-  },
-  financials: {
-    revenueSummary: { value: '₹12.8M', note: '+2.5% QTD' },
-    expenseSummary: { value: '₹8.4M', note: '+1.1% QTD' },
-    profitLoss: { value: '₹4.4M', note: 'Margin 34.2%' },
-    cashFlow: { value: '₹3.6M', note: 'Net inflow' },
-  },
-  people: {
-    totalEmployees: '1,240',
-    attritionRate: '3.1%',
-    retentionRate: '96.9%',
-    hiringTrends: '+12 net',
-    engagementIndex: '82',
-  },
-  complianceRisk: {
-    legalCompliance: '98.6%',
-    pendingLegalIssues: '3',
-    highRiskAlerts: '4',
-    dataSecurityAlerts: '3 warnings',
-  },
-  systemHealth: {
-    uptime: '99.98%',
-    incidents: '1 active',
-    backupStatus: 'Last run 2h ago',
-    securityAlerts: '3 warnings',
-    disasterRecovery: 'Ready',
-  },
-  alerts: [
-    { id: 1, icon: 'gpp_maybe', title: 'Data Security Risk Alert', description: 'Elevated privilege access detected in finance systems.', time: '20m ago', severity: 'high' },
-    { id: 2, icon: 'policy', title: 'Policy Violation Report', description: 'Unapproved vendor onboarding in Media department.', time: '3h ago', severity: 'medium' },
-    { id: 3, icon: 'warning', title: 'Pending Legal Issue', description: 'Contract dispute escalated with regional partner.', time: '1d ago', severity: 'high' },
-  ],
-  pendingApprovals: [
-    { title: 'Budget: APAC Expansion', detail: '₹480k - 2 days pending', status: 'Overdue' },
-    { title: 'High-Value Expense: Data Lake', detail: '₹320k - 18h pending', status: 'Review' },
-    { title: 'Exception: Vendor SLA', detail: 'Finance - 1 day pending', status: 'Review' },
-  ],
-  analytics: {
-    revenue: { mrr: 0, arr: 0, momGrowth: '+0%', yoyGrowth: '+0%', trend: [] },
-    profitability: { revenue: 0, expenses: 0, netProfit: 0, burnRate: 0, runwayMonths: 0 },
-    productPerformance: [],
-    userAnalytics: { dailyNewUsers: [], monthlyNewUsers: [], retentionRate: 0, activeUsers: 0, inactiveUsers: 0, conversionRate: 0 },
-    departmentKpis: { sales: { performanceScore: 0 }, hr: { efficiency: 0 }, it: { uptime: 0 }, finance: { accuracy: 0 } },
-  }
+  projectKpis: { rows: [], summary: {} },
+  departmentPerformance: { cards: [] },
+  approvals: {},
+  financials: {},
+  people: {},
+  complianceRisk: {},
+  systemHealth: {},
+  alerts: [],
+  pendingApprovals: [],
+  analytics: null,
 };
 
 const SOCKET_URL = (API_BASE_URL).replace(/\/$/, '');
@@ -185,6 +135,22 @@ const CEODashboard = ({ onNavigate }) => {
     retry: 1,
   });
 
+  // Charts are driven by a dedicated aggregation endpoint; the dashboard payload
+  // itself carries no analytics block.
+  const analyticsQuery = useQuery({
+    queryKey: ['ceo-analytics', token, period],
+    queryFn: async () => {
+      if (!token) throw new Error('Authentication required. Please login again.');
+      const months = period === '7d' ? 3 : period === '30d' ? 6 : 12;
+      const response = await ceoApi.getExecutiveAnalytics(token, months);
+      return response?.data || null;
+    },
+    enabled: Boolean(token),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+
   useEffect(() => {
     if (!dashboardQuery.data) return;
     setError('');
@@ -211,7 +177,6 @@ const CEODashboard = ({ onNavigate }) => {
       systemHealth: { ...prev.systemHealth, ...data.systemHealth },
       alerts: data.alerts || prev.alerts,
       pendingApprovals: data.pendingApprovals || prev.pendingApprovals,
-      analytics: { ...prev.analytics, ...data.analytics },
       lastUpdated: data.lastUpdated || new Date().toISOString(),
     }));
   }, [dashboardQuery.data]);
@@ -251,13 +216,21 @@ const CEODashboard = ({ onNavigate }) => {
   }, [token]);
 
   const snapshot = dashboardData.executiveSnapshot;
-  const analytics = dashboardData.analytics || defaultDashboard.analytics;
-  const topInsights = useMemo(() => ([
-    `MRR ${snapshot.revenue.value} (${analytics.revenue?.momGrowth || '+0%'})`,
-    `ARR ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(analytics.revenue?.arr || 0)}`,
-    `Runway ${analytics.profitability?.runwayMonths || 0} months`,
-    `Retention ${analytics.userAnalytics?.retentionRate || 0}%`,
-  ]), [snapshot.revenue.value, analytics]);
+  const analytics = analyticsQuery.data || null;
+
+  // Each signal is omitted entirely when its figure is absent, so the strip never
+  // pads itself out with zeros that read as real measurements.
+  const topInsights = useMemo(() => {
+    if (!analytics) return [];
+    const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1 });
+    const items = [];
+    if (analytics.revenue?.mrr) items.push({ label: 'MRR', value: inr.format(analytics.revenue.mrr), note: analytics.revenue.momGrowth });
+    if (analytics.revenue?.arr) items.push({ label: 'ARR', value: inr.format(analytics.revenue.arr), note: 'annualised' });
+    if (analytics.profitability?.margin != null) items.push({ label: 'Margin', value: `${analytics.profitability.margin}%`, note: inr.format(analytics.profitability.netProfit || 0) });
+    if (analytics.profitability?.runwayMonths > 0) items.push({ label: 'Runway', value: `${analytics.profitability.runwayMonths} mo`, note: 'at current burn' });
+    if (analytics.userAnalytics?.retentionRate != null) items.push({ label: 'Retention', value: `${analytics.userAnalytics.retentionRate}%`, note: `${analytics.userAnalytics.activeUsers || 0} active` });
+    return items;
+  }, [analytics]);
 
   // ── CEO Attention Required ────────────────────────────────────────────────
   // Each item is a condition the API actually reported, with a route to the module that
@@ -282,7 +255,7 @@ const CEODashboard = ({ onNavigate }) => {
     }
 
     // Month-on-month revenue decline, only when the API reported a negative figure.
-    const mom = parsePercent(analytics.revenue?.momGrowth);
+    const mom = parsePercent(analytics?.revenue?.momGrowth);
     if (mom !== null && mom < 0) {
       items.push({
         id: 'revenue',
@@ -296,7 +269,7 @@ const CEODashboard = ({ onNavigate }) => {
     }
 
     // Runway is a finance signal the CEO should never discover late.
-    const runway = Number(analytics.profitability?.runwayMonths);
+    const runway = Number(analytics?.profitability?.runwayMonths);
     if (Number.isFinite(runway) && runway > 0 && runway < 6) {
       items.push({
         id: 'runway',
@@ -378,7 +351,10 @@ const CEODashboard = ({ onNavigate }) => {
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <button
               type="button"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['ceo-dashboard', token] })}
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ['ceo-dashboard', token] });
+                queryClient.invalidateQueries({ queryKey: ['ceo-analytics', token, period] });
+              }}
               className="min-h-9 rounded-lg bg-white px-3 text-xs font-bold uppercase text-neutral-700 transition-colors hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
               Refresh
@@ -457,10 +433,10 @@ const CEODashboard = ({ onNavigate }) => {
           {/* KPIs drill into their own module, so a number the CEO questions is one click
               from its detail (§29/§30). */}
           <div className="grid grid-cols-2 gap-2 xl:col-span-4">
-            <KPICard title="Revenue" value={snapshot.revenue.value} icon="trending_up" colorScheme="green" subtitle={analytics.revenue?.momGrowth || snapshot.revenue.change} compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('revenueAnalytics') : undefined} />
-            <KPICard title="Profit" value={snapshot.profit.value} icon="account_balance" colorScheme="blue" subtitle={snapshot.profit.change} compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('revenueAnalytics') : undefined} />
-            <KPICard title="Growth" value={analytics.revenue?.yoyGrowth || '+0%'} icon="monitoring" colorScheme="purple" subtitle="YOY" compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('revenueAnalytics') : undefined} />
-            <KPICard title="Active Users" value={(analytics.userAnalytics?.activeUsers || dashboardData.people?.totalEmployeesNumeric || 0).toLocaleString()} icon="groups" colorScheme="orange" subtitle={`${analytics.userAnalytics?.inactiveUsers || 0} inactive`} compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('employees') : undefined} />
+            <KPICard title="Revenue" value={snapshot.revenue.value} icon="trending_up" colorScheme="green" subtitle={analytics?.revenue?.momGrowth || snapshot.revenue.change || '—'} compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('revenueAnalytics') : undefined} />
+            <KPICard title="Profit" value={snapshot.profit.value} icon="account_balance" colorScheme="blue" subtitle={snapshot.profit.change || '—'} compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('revenueAnalytics') : undefined} />
+            <KPICard title="Margin" value={analytics?.profitability?.margin != null ? `${analytics.profitability.margin}%` : '—'} icon="monitoring" colorScheme="purple" subtitle="net of recorded cost" compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('revenueAnalytics') : undefined} />
+            <KPICard title="Active Users" value={analytics?.userAnalytics?.activeUsers != null ? analytics.userAnalytics.activeUsers.toLocaleString() : '—'} icon="groups" colorScheme="orange" subtitle={analytics?.userAnalytics ? `${analytics.userAnalytics.inactiveUsers || 0} inactive` : '—'} compact className="min-h-[86px]" onClick={onNavigate ? () => onNavigate('employees') : undefined} />
           </div>
 
           <div className="rounded-xl border border-neutral-200 bg-white p-2 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 xl:col-span-8">
@@ -471,12 +447,23 @@ const CEODashboard = ({ onNavigate }) => {
               </div>
               <Button variant="primary" className="min-h-8 px-2 py-1 text-xs" onClick={() => navigate('/admin/reports')} icon={<span className="material-symbols-outlined text-sm">download</span>}>Board Pack</Button>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
-              {topInsights.map((item) => (
-                <div key={item} className="rounded-lg border border-neutral-200 bg-neutral-50 p-2 text-[11px] font-semibold dark:border-neutral-800 dark:bg-neutral-800/60">
-                  {item}
-                </div>
-              ))}
+            <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-5">
+              {analyticsQuery.isLoading && topInsights.length === 0
+                ? Array.from({ length: 5 }).map((_, index) => (
+                    <div key={index} className="h-[52px] animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800" />
+                  ))
+                : topInsights.map((item) => (
+                    <div key={item.label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-800 dark:bg-neutral-800/60">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">{item.label}</p>
+                      <p className="mt-0.5 text-sm font-black tabular-nums text-neutral-900 dark:text-neutral-100">{item.value}</p>
+                      {item.note && <p className="text-[10px] text-neutral-400">{item.note}</p>}
+                    </div>
+                  ))}
+              {!analyticsQuery.isLoading && topInsights.length === 0 && (
+                <p className="col-span-full py-3 text-center text-[11px] text-neutral-400">
+                  No financial activity recorded for this period.
+                </p>
+              )}
             </div>
           </div>
         </section>
@@ -484,16 +471,16 @@ const CEODashboard = ({ onNavigate }) => {
           <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
             <p className="text-xs font-bold uppercase text-neutral-500">Pending Approvals</p>
             <p className="mt-1 text-xl font-black text-neutral-900 dark:text-neutral-100">
-              {dashboardData?.approvals?.budgetApprovals?.value || '0'}
+              {dashboardData?.approvals?.budgetApprovals?.value ?? '—'}
             </p>
           </div>
           <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
             <p className="text-xs font-bold uppercase text-neutral-500">High Risk Alerts</p>
-            <p className="mt-1 text-xl font-black text-rose-600">{dashboardData?.complianceRisk?.highRiskAlerts || '0'}</p>
+            <p className="mt-1 text-xl font-black text-rose-600">{dashboardData?.complianceRisk?.highRiskAlerts ?? '—'}</p>
           </div>
           <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
             <p className="text-xs font-bold uppercase text-neutral-500">System Uptime</p>
-            <p className="mt-1 text-xl font-black text-emerald-600">{dashboardData?.systemHealth?.uptime || 'N/A'}</p>
+            <p className="mt-1 text-xl font-black text-emerald-600">{dashboardData?.systemHealth?.uptime ?? '—'}</p>
           </div>
         </section>
         </div>
@@ -501,9 +488,17 @@ const CEODashboard = ({ onNavigate }) => {
         <OutsourcingWidget token={token} />
 
         <div className="min-h-0 flex-1">
-        <Suspense fallback={<div className="mb-4 h-full animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
-          <CEOAnalyticsCharts analytics={analytics} compact />
-        </Suspense>
+        {analyticsQuery.isError ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+            Analytics unavailable: {analyticsQuery.error?.message || 'could not load executive analytics'}
+          </div>
+        ) : analyticsQuery.isLoading && !analytics ? (
+          <div className="h-full min-h-[240px] animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+        ) : (
+          <Suspense fallback={<div className="mb-4 h-full animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
+            <CEOAnalyticsCharts analytics={analytics} compact />
+          </Suspense>
+        )}
         </div>
       </div>
     </main>

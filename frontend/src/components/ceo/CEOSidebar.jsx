@@ -21,56 +21,26 @@ const MiniTooltip = memo(({ label }) => (
 // module answers which question, and scanning them costs more than reading a heading. Keys,
 // labels and icons are unchanged — only the arrangement is new, so every existing view
 // still resolves exactly as before.
-const menuSections = [
-  {
-    section: 'Overview',
-    items: [{ key: 'dashboard', label: 'Overview Dashboard', icon: 'dashboard' }],
-  },
-  {
-    section: 'Projects',
-    items: [
-      { key: 'projectOverview', label: 'Project Overview', icon: 'folder_copy' },
-      { key: 'projectUpdates', label: 'Project Updates', icon: 'update' },
-    ],
-  },
-  {
-    section: 'Finance',
-    items: [{ key: 'revenueAnalytics', label: 'Revenue Analytics', icon: 'payments' }],
-  },
-  {
-    section: 'People',
-    items: [
-      { key: 'employees', label: 'Employee Analytics', icon: 'groups' },
-      { key: 'departmentStats', label: 'Department Insights', icon: 'bar_chart' },
-    ],
-  },
-  {
-    section: 'Product',
-    items: [{ key: 'productInsights', label: 'Product Insights', icon: 'insights' }],
-  },
-  {
-    section: 'Marketing',
-    items: [
-      { key: 'mediaAnalysis', label: 'Media Analysis', icon: 'analytics' },
-      { key: 'marketingAnalytics', label: 'Marketing Analytics', icon: 'trending_up' },
-      { key: 'salesQueryAnalytics', label: 'Sales Query Analytics', icon: 'query_stats' },
-    ],
-  },
-  {
-    section: 'Governance',
-    items: [{ key: 'legalApproval', label: 'Legal Approval', icon: 'gavel' }],
-  },
-  {
-    section: 'Reporting',
-    items: [{ key: 'reports', label: 'Reports', icon: 'summarize' }],
-  },
-  {
-    section: 'Communication',
-    items: [
-      { key: 'chat', label: 'Chat', icon: 'chat' },
-      { key: 'notifications', label: 'Notifications', icon: 'notifications' },
-    ],
-  },
+// A flat list, matching the admin portal's sidebar. Section headings cost roughly a
+// row of height each, and with fourteen items that pushed the last links past the
+// bottom of the viewport; ordering related items together carries the same grouping
+// without spending the space. Keys, labels and icons are unchanged, so every existing
+// view still resolves as before.
+const menuItems = [
+  { key: 'dashboard', label: 'Overview Dashboard', icon: 'dashboard' },
+  { key: 'revenueAnalytics', label: 'Revenue Analytics', icon: 'payments' },
+  { key: 'projectOverview', label: 'Project Overview', icon: 'folder_copy' },
+  { key: 'projectUpdates', label: 'Project Updates', icon: 'update' },
+  { key: 'productInsights', label: 'Product Insights', icon: 'insights' },
+  { key: 'employees', label: 'Employee Analytics', icon: 'groups' },
+  { key: 'departmentStats', label: 'Department Insights', icon: 'bar_chart' },
+  { key: 'mediaAnalysis', label: 'Media Analysis', icon: 'analytics' },
+  { key: 'marketingAnalytics', label: 'Marketing Analytics', icon: 'trending_up' },
+  { key: 'salesQueryAnalytics', label: 'Sales Query Analytics', icon: 'query_stats' },
+  { key: 'legalApproval', label: 'Legal Approval', icon: 'gavel' },
+  { key: 'reports', label: 'Reports', icon: 'summarize' },
+  { key: 'chat', label: 'Chat', icon: 'chat' },
+  { key: 'notifications', label: 'Notifications', icon: 'notifications' },
 ];
 
 const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
@@ -108,58 +78,39 @@ const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
       {!collapsed && <div className="mx-3 mb-1 mt-0.5 h-px bg-neutral-100 dark:bg-neutral-800" />}
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2 pb-2 pt-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-200 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700">
-        {/* Each group is its own labelled list, so a screen reader announces the section
-            as well as the item. Collapsed, the headings would not fit, so the groups are
-            separated by a rule instead and the tooltip carries the label. */}
-        {menuSections.map((group, groupIndex) => (
-          <div key={group.section} className={groupIndex > 0 ? 'mt-3' : ''}>
-            {!collapsed ? (
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                {group.section}
-              </p>
-            ) : (
-              groupIndex > 0 && <div className="mx-3 mb-2 h-px bg-neutral-100 dark:bg-neutral-800" />
-            )}
-            <div className="space-y-0.5" role="group" aria-label={group.section}>
-              {group.items.map((item) => {
-                const active = currentView === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => handleViewChange(item.key)}
-                    aria-current={active ? 'page' : undefined}
-                    className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                      active
-                        ? 'bg-[var(--portal-accent)] text-white shadow-sm'
-                        : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
-                    } ${collapsed ? 'justify-center px-0' : ''}`}
-                    aria-label={collapsed ? `${group.section}: ${item.label}` : undefined}
-                  >
-                    <span
-                      className={`material-symbols-outlined shrink-0 text-[20px] transition-none ${collapsed ? 'mx-auto' : ''}`}
-                      style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
-                    >
-                      {item.icon}
-                    </span>
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1 truncate text-left leading-none">{item.label}</span>
-                        {active && <span className="material-symbols-outlined shrink-0 text-[14px] text-white/70">chevron_right</span>}
-                      </>
-                    )}
-                    {collapsed && <MiniTooltip label={item.label} />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      <nav className="flex-1 overflow-y-auto px-2 pb-2 pt-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-200 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700">
+        <div className="space-y-0.5">
+          {menuItems.map((item) => {
+            const active = currentView === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handleViewChange(item.key)}
+                aria-current={active ? 'page' : undefined}
+                className={`group relative flex w-full items-center gap-3 rounded-lg py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
+                  active
+                    ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
+                    : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
+                } ${collapsed ? 'justify-center px-0' : ''}`}
+                aria-label={collapsed ? item.label : undefined}
+              >
+                <span
+                  className={`material-symbols-outlined shrink-0 text-[18px] leading-none transition-none ${collapsed ? 'mx-auto' : ''}`}
+                  style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
+                >
+                  {item.icon}
+                </span>
+                {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
+                {collapsed && <MiniTooltip label={item.label} />}
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       {/* Footer */}
-      <div className="shrink-0 border-t border-neutral-100 px-2 pb-3 pt-2 dark:border-neutral-800">
+      <div className="shrink-0 border-t border-neutral-100 px-2 pb-3 pt-2.5 dark:border-neutral-800">
         <div className="space-y-0.5">
           {[
             { key: 'settings', label: 'Settings', icon: 'settings' },
@@ -172,20 +123,20 @@ const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
                 type="button"
                 onClick={() => handleViewChange(item.key)}
                 aria-current={active ? 'page' : undefined}
-                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                className={`group relative flex w-full items-center gap-3 rounded-lg py-2.5 pl-3 pr-3 text-sm font-medium transition-all duration-150 ${
                   active
-                    ? 'bg-[var(--portal-accent)] text-white shadow-sm'
+                    ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
                     : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
                 aria-label={collapsed ? item.label : undefined}
               >
                 <span
-                  className={`material-symbols-outlined shrink-0 text-[20px] transition-none ${collapsed ? 'mx-auto' : ''}`}
+                  className={`material-symbols-outlined shrink-0 text-[18px] leading-none transition-none ${collapsed ? 'mx-auto' : ''}`}
                   style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
                 >
                   {item.icon}
                 </span>
-                {!collapsed && <span className="flex-1 truncate text-left leading-none">{item.label}</span>}
+                {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
                 {!collapsed && item.key === 'support' && supportUnread > 0 && (
                   <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{supportUnread > 99 ? '99+' : supportUnread}</span>
                 )}
@@ -196,10 +147,10 @@ const CEOSidebar = ({ currentView = 'dashboard', onViewChange }) => {
           <button
             type="button"
             onClick={handleLogout}
-            className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition-all duration-150 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 ${collapsed ? 'justify-center px-0' : ''}`}
+            className={`group relative flex w-full items-center gap-3 rounded-lg py-2.5 pl-3 pr-3 text-sm font-medium text-rose-600 transition-all duration-150 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 ${collapsed ? 'justify-center px-0' : ''}`}
             aria-label={collapsed ? 'Logout' : undefined}
           >
-            <span className={`material-symbols-outlined shrink-0 text-[20px] ${collapsed ? 'mx-auto' : ''}`}>logout</span>
+            <span className={`material-symbols-outlined shrink-0 text-[18px] leading-none ${collapsed ? 'mx-auto' : ''}`}>logout</span>
             {!collapsed && <span className="flex-1 text-left">Logout</span>}
             {collapsed && <MiniTooltip label="Logout" />}
           </button>

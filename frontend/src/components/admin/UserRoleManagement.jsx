@@ -1,6 +1,8 @@
 import './users/userManagement.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { adminApi } from '../../services/admin';
+import { queryClient } from '../../app/providers/queryCache';
+import { QK } from '../../utils/queryKeys';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
@@ -38,6 +40,14 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
   const toast = useToast();
   const { confirm } = useConfirmDialog();
   const requestSequence = useRef(0);
+
+  // Every user mutation moves the counts the admin dashboard reports (total, active,
+  // inactive, per-role and per-department). This page keeps its own list in local state,
+  // so nothing invalidates the dashboard's cached payload on its behalf — without this it
+  // would keep showing pre-mutation numbers for the rest of its 60s stale window.
+  const invalidateDashboard = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: QK.admin.dashboard() });
+  }, []);
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, inactiveUsers: 0 });
@@ -280,6 +290,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
       }
 
       closeModal();
+      invalidateDashboard();
       toast.success(editingUser ? 'User updated successfully.' : 'User created successfully.');
       // Reload with filters that cannot hide the saved user.
       requestSequence.current += 1;
@@ -311,6 +322,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     try {
       await userApi.toggleUserStatus(token, userId);
       toast.success(targetUser.isActive ? `${fullName} deactivated.` : `${fullName} activated.`);
+      invalidateDashboard();
       await fetchUsers();
     } catch (err) {
       const message = err.message || 'Failed to update status';
@@ -341,6 +353,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     try {
       await userApi.setUserStatus(token, userId, accountStatus);
       toast.success(blocking ? `${fullName} blocked.` : `${fullName} unblocked.`);
+      invalidateDashboard();
       await fetchUsers();
     } catch (err) {
       const message = err.message || 'Failed to update account status';
@@ -388,6 +401,7 @@ const UserRoleManagement = ({ api = adminApi } = {}) => {
     try {
       await userApi.deleteUser(token, userId);
       toast.success(`${fullName} deactivated; employment history preserved.`);
+      invalidateDashboard();
       await fetchUsers();
     } catch (err) {
       const message = err.message || 'Failed to delete user';

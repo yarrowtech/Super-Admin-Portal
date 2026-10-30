@@ -7,7 +7,13 @@ export const CACHE_POLICIES = Object.freeze({
   permissions: { staleTime: 15 * minute, gcTime: 60 * minute, meta: { persist: true } },
   reference: { staleTime: 30 * minute, gcTime: 24 * 60 * minute, meta: { persist: true } },
   lists: { staleTime: 3 * minute, gcTime: 30 * minute },
-  dashboards: { staleTime: 60_000, gcTime: 10 * minute },
+  // Persisted: a dashboard is aggregate counts and chart series, not records, so it is
+  // safe to restore in-tab, and it is the first screen after every sign-in and reload —
+  // the surface where a cold fetch is most visible. The persister is session-scoped and
+  // cleared on any session change (utils/localStorageCache.js), so the numbers can never
+  // outlive the user who loaded them. Still 60s stale, so what is painted is immediately
+  // revalidated in the background.
+  dashboards: { staleTime: 60_000, gcTime: 10 * minute, meta: { persist: true } },
   analytics: { staleTime: 3 * minute, gcTime: 60 * minute },
   notifications: { staleTime: 30_000, gcTime: 5 * minute },
   operational: { staleTime: 15_000, gcTime: 10 * minute },

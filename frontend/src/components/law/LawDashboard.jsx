@@ -234,7 +234,10 @@ const LawDashboard = () => {
   })[0];
   const records = useMemo(() => recordsQuery.data?.data?.items || recordsQuery.data?.data || [], [recordsQuery.data]);
   const lastUpdatedAt = recordsQuery.dataUpdatedAt || null;
-  const agreementsLoading = recordsQuery.isLoading;
+  // `isPending && data === undefined` rather than `isLoading`, so switching back to a
+  // section whose records are already cached shows them immediately and revalidates
+  // behind the table instead of flashing the loading state.
+  const agreementsLoading = recordsQuery.isPending && recordsQuery.data === undefined;
 
   const dashboardEnabled = enabled && activeSection === 'dashboard';
   const dashboardQuery = useQueries({

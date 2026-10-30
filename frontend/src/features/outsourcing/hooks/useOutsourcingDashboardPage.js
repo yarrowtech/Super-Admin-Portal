@@ -102,12 +102,14 @@ export const useOutsourcingDashboardPage = () => {
 
   return {
     isWorker,
+    // `isPending && data === undefined` rather than `isLoading`, so a revisit with cached
+    // or persisted payloads renders straight away and revalidates behind the page.
     loading:
-      jobsQuery.isLoading ||
-      contractsQuery.isLoading ||
-      timeLogsQuery.isLoading ||
-      workspaceQuery.isLoading ||
-      (!isWorker && dashboardQuery.isLoading),
+      (jobsQuery.isPending && jobsQuery.data === undefined) ||
+      (contractsQuery.isPending && contractsQuery.data === undefined) ||
+      (timeLogsQuery.isPending && timeLogsQuery.data === undefined) ||
+      (workspaceQuery.isPending && workspaceQuery.data === undefined) ||
+      (!isWorker && dashboardQuery.isPending && dashboardQuery.data === undefined),
     error: dashboardQuery.error || jobsQuery.error || contractsQuery.error || timeLogsQuery.error || workspaceQuery.error,
     contracts,
     kpis,

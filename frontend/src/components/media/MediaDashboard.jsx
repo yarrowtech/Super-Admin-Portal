@@ -149,7 +149,9 @@ const MediaDashboard = ({ selectedProjectId, onSectionChange }) => {
   const approvals = useMemo(() => arr(approvalsQuery.data?.data?.items || approvalsQuery.data?.data), [approvalsQuery.data]);
 
   const dataQueries = [dashboardQuery, assetsQuery, campaignsQuery, contentQuery, brandAssetsQuery, approvalsQuery];
-  const loading = [projectsQuery, ...dataQueries].some((q) => q.isLoading);
+  // `isPending && data === undefined` rather than `isLoading`, so a revisit with cached
+  // or persisted payloads renders straight away and revalidates behind the page.
+  const loading = [projectsQuery, ...dataQueries].some((q) => q.isPending && q.data === undefined);
   const error = projectsQuery.isError
     ? projectsQuery.error?.message || 'Failed to load Media portal data.'
     : !loading && dataQueries.every((q) => q.isError)

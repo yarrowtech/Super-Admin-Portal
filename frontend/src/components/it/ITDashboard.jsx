@@ -86,7 +86,12 @@ const ITDashboard = () => {
   });
 
   const unwrap = (r) => r?.data ?? r ?? {};
-  const loading = [dashboardQuery, monitoringQuery, overviewQuery, backupQuery, ticketsQuery, infraQuery].some((q) => q.isLoading);
+  // `isPending && data === undefined` rather than `isLoading`, so a revisit with cached
+  // or persisted payloads renders straight away and revalidates behind the page. The
+  // `.some()` still means one genuinely cold query holds the page, which is the intended
+  // behaviour here — these panels are read together.
+  const loading = [dashboardQuery, monitoringQuery, overviewQuery, backupQuery, ticketsQuery, infraQuery]
+    .some((q) => q.isPending && q.data === undefined);
   const refreshing = !loading && [dashboardQuery, monitoringQuery, overviewQuery, backupQuery, ticketsQuery, infraQuery].some((q) => q.isFetching);
   const dash = unwrap(dashboardQuery.data);
   const kpis = unwrap(monitoringQuery.data)?.kpis || {};

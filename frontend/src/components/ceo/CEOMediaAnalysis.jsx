@@ -77,7 +77,10 @@ const CEOMediaAnalysis = () => {
   const kpis = dashboard.kpis || {};
   const charts = dashboard.charts || {};
   const projects = getItems(projectsQuery.data);
-  const isLoading = [dashboardQuery, projectsQuery, ...sectionQueries].some((query) => query.isLoading);
+  // `isPending && data === undefined` rather than `isLoading`, so a revisit with cached
+  // or persisted payloads renders straight away and revalidates behind the page.
+  const isLoading = [dashboardQuery, projectsQuery, ...sectionQueries]
+    .some((query) => query.isPending && query.data === undefined);
   const error = [dashboardQuery, projectsQuery, ...sectionQueries].find((query) => query.isError)?.error;
 
   const sections = useMemo(

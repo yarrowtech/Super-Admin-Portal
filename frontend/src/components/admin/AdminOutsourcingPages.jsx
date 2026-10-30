@@ -122,7 +122,10 @@ const useOutsourcingAdminData = () => {
     ],
   });
 
-  const loading = [dashboardQuery, jobsQuery, contractsQuery, timeLogsQuery, freelancersQuery, efnbmmsQuery].some((q) => q.isLoading);
+  // `isPending && data === undefined` rather than `isLoading`, so a revisit with cached
+  // or persisted payloads renders straight away and revalidates behind the page.
+  const loading = [dashboardQuery, jobsQuery, contractsQuery, timeLogsQuery, freelancersQuery, efnbmmsQuery]
+    .some((q) => q.isPending && q.data === undefined);
   const dashboard = dashboardQuery.data?.data ?? null;
   const jobs = useMemo(() => jobsQuery.data?.data || [], [jobsQuery.data]);
   const contracts = useMemo(() => contractsQuery.data?.data || [], [contractsQuery.data]);

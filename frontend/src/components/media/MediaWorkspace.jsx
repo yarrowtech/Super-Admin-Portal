@@ -361,10 +361,12 @@ const MediaWorkspace = ({ activeSection, onSectionChange, selectedProjectId, onP
   useEffect(() => { setVideoItems(arr(videoQuery.data?.data?.items)); }, [videoQuery.data]);
   useEffect(() => { setSocialPosts(arr(socialQuery.data?.data?.items)); }, [socialQuery.data]);
 
+  // `isPending && data === undefined` rather than `isLoading`, so a revisit with cached
+  // payloads renders straight away and revalidates behind the page.
   const anyLoading = [
     projectsQuery, assetsQuery, contentQuery, brandAssetsQuery,
     designQuery, videoQuery, socialQuery,
-  ].some((q) => q.isLoading);
+  ].some((q) => q.isPending && q.data === undefined);
 
   useEffect(() => {
     setLoading(anyLoading);

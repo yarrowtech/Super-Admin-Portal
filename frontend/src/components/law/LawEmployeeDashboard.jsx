@@ -30,7 +30,10 @@ const QUICK_LINKS = [
  */
 const LawEmployeeDashboard = () => {
   const { user, token } = useAuth();
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+  // Deliberately keeps its own 30s staleTime and is NOT persisted: these are live task
+  // rows, not the aggregate counts the dashboards policy is meant for. Only the
+  // revisit flash is fixed, via `isPending` below.
+  const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['law', 'employee-dashboard-tasks'],
     queryFn: () => lawApi.getTasks(token, { limit: 100 }),
     enabled: Boolean(token),
@@ -134,7 +137,7 @@ const LawEmployeeDashboard = () => {
           />
         )}
         <SectionCard title="Up next" icon="event" description="Your nearest deadlines" error={isError ? error : null} onRetry={refetch}>
-          {isLoading ? (
+          {isPending && !data ? (
             <p className="animate-pulse text-sm text-neutral-500">Loading tasks...</p>
           ) : upcoming.length === 0 ? (
             <p className="text-sm text-neutral-500">Nothing pending. New tasks from the Law head will appear here.</p>

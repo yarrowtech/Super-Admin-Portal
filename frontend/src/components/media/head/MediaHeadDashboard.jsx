@@ -18,7 +18,7 @@ const MediaHeadDashboard = ({ onNavigate }) => {
   const navigate = useNavigate();
   const enabled = Boolean(token);
 
-  const { data, isLoading } = useQuery({
+  const { data, isPending } = useQuery({
     queryKey: QK.mediaHead.dashboard({}),
     queryFn: () => departmentApi.getMediaHeadDashboard(token, { catalogVersion: 'matebid-v1' }),
     enabled,
@@ -32,7 +32,9 @@ const MediaHeadDashboard = ({ onNavigate }) => {
   const planActivity = arr(planActivityData?.data);
 
   const payload = data?.data || {};
-  const loading = isLoading;
+  // `isPending && !data` rather than `isLoading`, so a revisit with a cached or persisted
+  // payload renders straight away and revalidates behind the page.
+  const loading = isPending && !data;
   const projects = arr(payload.projects?.items);
   const kpis = payload.kpis || {};
   const sales = payload.sales || {};

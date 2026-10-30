@@ -61,6 +61,31 @@ queryRoots.forEach((queryKey) => {
   queryClient.setQueryDefaults(queryKey, cachePolicyFor(queryKey));
 });
 
+// Root defaults are matched by prefix, so a root alone resolves its policy from the root
+// segment only: `['admin']` has no keyword in it and lands on `default` (90s), even though
+// the real key `['admin','dashboard']` would match the `dashboards` policy. Registering the
+// deeper keys explicitly lets each surface get the policy its own name implies. A later,
+// longer prefix wins over a shorter one in TanStack Query, so order here does not matter.
+const queryBranches = [
+  QK.admin.dashboard(),
+  QK.ceo.dashboard(),
+  QK.finance.dashboard(),
+  QK.hr.dashboard(),
+  QK.it.dashboard(),
+  QK.manager.dashboard(),
+  QK.employee.dashboard(),
+  QK.outsourcing.dashboard(),
+  QK.law.dashboard(),
+  QK.media.dashboard(),
+  QK.mediaHead.dashboard(),
+  QK.ceo.analytics(),
+  QK.hr.analytics(),
+];
+
+queryBranches.forEach((queryKey) => {
+  queryClient.setQueryDefaults(queryKey, cachePolicyFor(queryKey));
+});
+
 attachQueryPersister(queryClient);
 
 export const invalidatePortalCache = (module) => {

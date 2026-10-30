@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ceoApi } from '../../services/ceo';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../services/client';
+import { QK, cachePolicyFor } from '../../utils/queryKeys';
 import PortalHeader from '../common/PortalHeader';
 import WarmGreeting from '../common/WarmGreeting';
 import KPICard from '../common/KPICard';
@@ -122,15 +123,20 @@ const CEODashboard = ({ onNavigate }) => {
   const queryClient = useQueryClient();
 
   const dashboardQuery = useQuery({
-    queryKey: ['ceo-dashboard', token],
+    // Was an ad-hoc `['ceo-dashboard', token]` key with hand-rolled times, which sat
+    // outside the shared policy table and so never picked up the dashboards policy or
+    // reload persistence. The token does not belong in the key either: the cache is
+    // already session-scoped and cleared on any session change
+    // (utils/localStorageCache.js), so keying by it only guaranteed a cold fetch after
+    // every token rotation.
+    queryKey: QK.ceo.dashboard(),
     queryFn: async () => {
       if (!token) throw new Error('Authentication required. Please login again.');
       const response = await ceoApi.getDashboard(token);
       return response?.data || {};
     },
     enabled: Boolean(token),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    ...cachePolicyFor(QK.ceo.dashboard()),
     refetchOnWindowFocus: true,
     retry: 1,
   });
@@ -138,7 +144,9 @@ const CEODashboard = ({ onNavigate }) => {
   // Charts are driven by a dedicated aggregation endpoint; the dashboard payload
   // itself carries no analytics block.
   const analyticsQuery = useQuery({
-    queryKey: ['ceo-analytics', token, period],
+    // Keyed by period, which genuinely changes the payload — switching ranges and
+    // switching back now reuses the cached series instead of refetching.
+    queryKey: QK.ceo.analytics(period),
     queryFn: async () => {
       if (!token) throw new Error('Authentication required. Please login again.');
       const months = period === '7d' ? 3 : period === '30d' ? 6 : 12;
@@ -146,8 +154,7 @@ const CEODashboard = ({ onNavigate }) => {
       return response?.data || null;
     },
     enabled: Boolean(token),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    ...cachePolicyFor(QK.ceo.analytics(period)),
     retry: 1,
   });
 
@@ -352,8 +359,8 @@ const CEODashboard = ({ onNavigate }) => {
             <button
               type="button"
               onClick={() => {
-                queryClient.invalidateQueries({ queryKey: ['ceo-dashboard', token] });
-                queryClient.invalidateQueries({ queryKey: ['ceo-analytics', token, period] });
+                queryClient.invalidateQueries({ queryKey: QK.ceo.dashboard() });
+                queryClient.invalidateQueries({ queryKey: QK.ceo.analytics(period) });
               }}
               className="min-h-9 rounded-lg bg-white px-3 text-xs font-bold uppercase text-neutral-700 transition-colors hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >

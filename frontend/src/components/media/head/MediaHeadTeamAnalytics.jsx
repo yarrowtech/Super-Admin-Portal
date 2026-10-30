@@ -24,7 +24,7 @@ const MediaHeadTeamAnalytics = () => {
   const { token } = useAuth();
   const [expandedId, setExpandedId] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isPending } = useQuery({
     queryKey: QK.mediaHead.userWork(),
     queryFn: () => departmentApi.getMediaHeadUserWork(token),
     enabled: Boolean(token),
@@ -50,7 +50,7 @@ const MediaHeadTeamAnalytics = () => {
           <KPICard title="Plan Edits" value={totalPlanEdits} icon="edit_note" tone="success" compact />
         </div>
 
-        {isLoading ? (
+        {isPending && !data ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-neutral-100 dark:bg-neutral-800" />)}
           </div>

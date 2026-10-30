@@ -69,7 +69,7 @@ const AdminDashboardEnterprise = () => {
 
   const {
     data,
-    isLoading,
+    isPending,
     isError,
     error,
     refetch,
@@ -78,7 +78,17 @@ const AdminDashboardEnterprise = () => {
     queryKey: QK.admin.dashboard(),
     queryFn: () => adminApi.getDashboard(token),
     enabled: Boolean(token),
+    // `placeholderData: keepPreviousData` is not what this needs — there is only ever one
+    // key here. What matters is that the skeleton is gated on `isPending` (no data at all)
+    // rather than `isFetching`: with the cached payload restored by the persister, a
+    // revisit or reload paints the real numbers immediately and the background
+    // revalidation shows up only as the header's spinner.
   });
+
+  // `isPending` is true only when the cache holds nothing for this key. While the token is
+  // still resolving the query is disabled, which also reports pending — treat that as a
+  // cold load too, since there is nothing to paint either way.
+  const showSkeleton = isPending && !data;
 
   const dashboardData = data?.data || null;
 
@@ -188,7 +198,7 @@ const AdminDashboardEnterprise = () => {
     return items;
   }, [metrics, navigate]);
 
-  if (isLoading) {
+  if (showSkeleton) {
     return (
       <main className="portal-page">
         <div className="portal-page-inner">
@@ -211,7 +221,10 @@ const AdminDashboardEnterprise = () => {
     );
   }
 
-  if (isError) {
+  // A failed background refetch must not blank out numbers that are already on screen.
+  // The full-page error is only for the case where there is nothing cached to fall back
+  // to; otherwise the stale figures stay up and the header's refresh offers the retry.
+  if (isError && !dashboardData) {
     return (
       <main className="portal-page p-4 dark:bg-neutral-900">
         <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center">

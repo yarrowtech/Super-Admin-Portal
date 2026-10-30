@@ -103,12 +103,15 @@ export const useHrDashboard = () => {
   // isProjectContextError, so surface it the same way here instead of as a
   // hard page-level error.
   const dashboardData = dashboardQuery.data?.data || null;
+  // `dashboardData` doubles as the "is anything on screen" test: when a cached or
+  // persisted payload is present, a failed background refetch must not replace it with an
+  // error banner, and a revalidation must not drop the page back to the loading state.
   const error =
     actionError ||
-    (dashboardQuery.isError && !isProjectContextError(dashboardQuery.error)
+    (dashboardQuery.isError && !dashboardData && !isProjectContextError(dashboardQuery.error)
       ? dashboardQuery.error?.message || 'Failed to load dashboard data'
       : '');
-  const loading = dashboardQuery.isLoading;
+  const loading = dashboardQuery.isPending && !dashboardData;
 
   const analyticsOverview = analyticsQuery.data?.data || null;
   const predictiveApiAlerts = useMemo(() => predictiveQuery.data?.data?.alerts || [], [predictiveQuery.data]);

@@ -68,8 +68,12 @@ const useEmployeeData = (loader, queryKey) => {
   });
   return {
     data: query.data ?? null,
-    loading: query.isLoading,
-    error: query.isError ? (query.error?.message || 'Unable to load this page.') : '',
+    // `isPending`, not `isLoading`: with a cached (or persisted) payload the page paints
+    // the real content immediately and revalidates behind it, instead of flashing the
+    // loading state on every revisit. A failed background refetch likewise keeps the
+    // last good data on screen rather than replacing it with an error.
+    loading: query.isPending && query.data === undefined,
+    error: query.isError && query.data === undefined ? (query.error?.message || 'Unable to load this page.') : '',
     reload: () => queryClient.invalidateQueries({ queryKey: key }),
     token,
   };

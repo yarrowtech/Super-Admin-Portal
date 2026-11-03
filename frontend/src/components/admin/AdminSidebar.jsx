@@ -69,6 +69,12 @@ const navItems = [
     description: 'Project allocation and access'
   },
   {
+    label: 'CRM Management',
+    icon: 'contact_page',
+    path: '/admin/crm',
+    description: 'Media & Marketing client relationships'
+  },
+  {
     label: 'Digital Portfolios',
     icon: 'work',
     path: '/admin/digital-portfolio',

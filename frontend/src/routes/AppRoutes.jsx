@@ -120,6 +120,7 @@ import {
   AdminSupportPage,
   AdminSupportCenterPage,
   AdminSettingsPage,
+  AdminCRMPage,
   AdminPortfolioPage,
   PortfolioViewerPage,
   PortfolioCategoryWorkspacePage,
@@ -182,6 +183,7 @@ const hrJobsApi = {
 };
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
+const MODULES_CRM = ['dashboard','clients','contacts','statuses','email','followups','comms','vendors','analytics','settings'];
 // No backend role is literally 'manager' (User.role enum has no such value —
 // see backend/config/roles.js) — the Manager portal is IT-manager-only today.
 const managerRoles = ['it_manager', ...adminRoles];
@@ -1017,6 +1019,30 @@ export default function AppRoutes() {
             </PortalRoute>
           }
         />
+        {/* CRM Management — Media & Marketing only, centralized under Admin */}
+        <Route
+          path="/admin/crm"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, AdminCRMPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
+        {MODULES_CRM.map((id) => (
+          <Route
+            key={`crm-${id}`}
+            path={`/admin/crm/${id}`}
+            element={
+              <PortalRoute portal={PORTALS.ADMIN}>
+                <PrivateRoute roles={adminRoles}>
+                  {withPortal(AdminLayout, AdminCRMPage)}
+                </PrivateRoute>
+              </PortalRoute>
+            }
+          />
+        ))}
         <Route
           path="/admin/digital-portfolio"
           element={

@@ -39,3 +39,4 @@ exports.portfolioHierarchyRoutes = require("../modules/portfolio/portfolioHierar
 exports.policyRoutes = require("./policy.routes");
 exports.policyPublicRoutes = require("./policy.public.routes");
 exports.organizationWorkspaceRoutes = require("./organizationWorkspace.routes");
+exports.crmRoutes = require("./crm.routes");

@@ -227,7 +227,12 @@
       "Bash(grep -oE \"[a-z-]+/?[a-z-]*$\")",
       "Bash(xargs -I{} du -k \"{}\")",
       "PowerShell(npx vite build 2>&1)",
-      "PowerShell(node -e \"const c = require\\('./controllers/ceo/ceoDashboard.controller'\\); console.log\\('getExecutiveAnalytics:', typeof c.getExecutiveAnalytics\\); const r = require\\('./routes/ceo.routes'\\); console.log\\('routes loaded ok'\\);\")"
+      "PowerShell(node -e \"const c = require\\('./controllers/ceo/ceoDashboard.controller'\\); console.log\\('getExecutiveAnalytics:', typeof c.getExecutiveAnalytics\\); const r = require\\('./routes/ceo.routes'\\); console.log\\('routes loaded ok'\\);\")",
+      "Bash(node --check routes/crm.routes.js)",
+      "Bash(node --check models/crm/CRMClient.js)",
+      "Bash(node --check models/crm/CRMContact.js)",
+      "Bash(node --check models/crm/CRMFollowUp.js)",
+      "Bash(node --check models/crm/CRMCommunication.js)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

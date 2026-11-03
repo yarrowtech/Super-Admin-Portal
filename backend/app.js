@@ -217,6 +217,7 @@ app.use("/api/portfolio-hierarchy", routes.portfolioHierarchyRoutes);
 app.use("/api/v1", routes.policyRoutes);
 app.use("/api/v1", require('./routes/yarrowtech.routes'));
 app.use("/api/v1", routes.organizationWorkspaceRoutes);
+app.use("/api/v1/crm", routes.crmRoutes);
 // Public EFNBMMS policy consumer API (OAuth2 client-credentials auth, not portal
 // session auth) — kept off "/api/v1" since that prefix already serves the
 // authenticated admin routes above.

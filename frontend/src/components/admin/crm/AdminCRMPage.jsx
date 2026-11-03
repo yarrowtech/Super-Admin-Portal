@@ -37,6 +37,31 @@ const DEPT_TABS = [
   { key: 'marketing', label: 'Marketing' },
 ];
 
+// The department selector is a working context, not a per-visit choice — persist it
+// so an operator returning to the CRM stays in the department they were working in.
+const DEPT_STORAGE_KEY = 'crm.department';
+const VALID_DEPTS = DEPT_TABS.map(t => t.key);
+
+const NAV_GROUPS_STORAGE_KEY = 'crm.collapsedNavGroups';
+
+const readCollapsedGroups = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NAV_GROUPS_STORAGE_KEY));
+    return Array.isArray(parsed) ? parsed.filter(g => typeof g === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const readStoredDepartment = () => {
+  try {
+    const stored = localStorage.getItem(DEPT_STORAGE_KEY);
+    return VALID_DEPTS.includes(stored) ? stored : 'all';
+  } catch {
+    return 'all';
+  }
+};
+
 const DEPT_BADGE_TONE = { media: 'info', marketing: 'success', both: 'neutral' };
 const PRIORITY_TONE   = { low: 'success', medium: 'warning', high: 'danger', urgent: 'danger' };
 
@@ -1132,6 +1157,25 @@ const MODULES = [
   { id:'settings',  label:'CRM Settings',         icon:'settings',               Component: SettingsModule },
 ];
 
+// Navigation grouping. Module ids are unchanged — these groups are presentation only,
+// so existing /admin/crm/:id routes keep working. Leads & Opportunities and a split
+// Third-Party Providers section are part of the CRM roadmap but not yet built; they
+// are deliberately absent here rather than shown as dead links.
+const NAV_GROUPS = [
+  { id:'overview',     label:'Overview',                      moduleIds:['dashboard'] },
+  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','contacts','statuses'] },
+  { id:'activities',   label:'Activities & Communication',    moduleIds:['followups','comms','email'] },
+  { id:'network',      label:'Business Network',              moduleIds:['vendors'] },
+  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','settings'] },
+];
+
+const MODULE_BY_ID = Object.fromEntries(MODULES.map(m => [m.id, m]));
+
+const NAV_GROUPS_RESOLVED = NAV_GROUPS.map(group => ({
+  ...group,
+  modules: group.moduleIds.map(id => MODULE_BY_ID[id]).filter(Boolean),
+}));
+
 // ── Root page ─────────────────────────────────────────────────────────────────
 export default function AdminCRMPage() {
   const { token, user } = useAuth();
@@ -1140,7 +1184,22 @@ export default function AdminCRMPage() {
 
   const urlSegment   = location.pathname.split('/').pop();
   const activeId     = MODULES.find(m => m.id === urlSegment)?.id ?? 'dashboard';
-  const [department, setDepartment] = useState('all');
+  const [department, setDepartment] = useState(readStoredDepartment);
+
+  const selectDepartment = useCallback((key) => {
+    setDepartment(key);
+    try { localStorage.setItem(DEPT_STORAGE_KEY, key); } catch {}
+  }, []);
+
+  const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
+
+  const toggleGroup = useCallback((groupId) => {
+    setCollapsedGroups((prev) => {
+      const next = prev.includes(groupId) ? prev.filter(g => g !== groupId) : [...prev, groupId];
+      try { localStorage.setItem(NAV_GROUPS_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   const { Component: ActiveComponent } = MODULES.find(m => m.id === activeId) || MODULES[0];
 
@@ -1166,7 +1225,7 @@ export default function AdminCRMPage() {
                 key={key}
                 type="button"
                 aria-pressed={department === key}
-                onClick={() => setDepartment(key)}
+                onClick={() => selectDepartment(key)}
                 className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 ${
                   department === key
                     ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
@@ -1183,26 +1242,54 @@ export default function AdminCRMPage() {
       <div className="flex min-h-0 flex-1">
         {/* Desktop sidebar nav */}
         <aside className="hidden w-56 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 lg:flex">
-          <nav className="flex flex-col gap-0.5 overflow-y-auto p-2">
-            {MODULES.map(({ id, label, icon }) => {
-              const active = activeId === id;
+          <nav className="flex flex-col gap-1 overflow-y-auto p-2">
+            {NAV_GROUPS_RESOLVED.map(({ id: groupId, label: groupLabel, modules }) => {
+              const open = !collapsedGroups.includes(groupId);
+              const groupHasActive = modules.some(m => m.id === activeId);
               return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => navigate(`/admin/crm/${id}`)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 ${
-                    active
-                      ? 'bg-[var(--portal-accent-soft)] font-semibold'
-                      : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
-                  }`}
-                  style={active ? { color:'var(--portal-accent)' } : {}}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                  <span className="truncate">{label}</span>
-                  {active && <span className="ml-auto h-1.5 w-1.5 rounded-full" style={{ background:'var(--portal-accent)' }} />}
-                </button>
+                <div key={groupId} className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(groupId)}
+                    aria-expanded={open}
+                    className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-neutral-400 transition-colors hover:text-neutral-600 focus:outline-none focus-visible:ring-2 dark:hover:text-neutral-300"
+                  >
+                    <span className="truncate">{groupLabel}</span>
+                    {/* A collapsed group still signals that something inside it is active. */}
+                    {!open && groupHasActive && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background:'var(--portal-accent)' }} />
+                    )}
+                    <span className={`material-symbols-outlined ml-auto text-[16px] transition-transform ${open ? '' : '-rotate-90'}`}>
+                      expand_more
+                    </span>
+                  </button>
+
+                  {open && (
+                    <div className="flex flex-col gap-0.5 pb-1">
+                      {modules.map(({ id, label, icon }) => {
+                        const active = activeId === id;
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => navigate(`/admin/crm/${id}`)}
+                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 ${
+                              active
+                                ? 'bg-[var(--portal-accent-soft)] font-semibold'
+                                : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                            }`}
+                            style={active ? { color:'var(--portal-accent)' } : {}}
+                            aria-current={active ? 'page' : undefined}
+                          >
+                            <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                            <span className="truncate">{label}</span>
+                            {active && <span className="ml-auto h-1.5 w-1.5 rounded-full" style={{ background:'var(--portal-accent)' }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>
@@ -1211,24 +1298,36 @@ export default function AdminCRMPage() {
         {/* Mobile horizontal tab strip */}
         <div className="flex w-full flex-col lg:hidden">
           <div className="flex overflow-x-auto border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex gap-1 px-3 py-2">
-              {MODULES.map(({ id, label, icon }) => {
-                const active = activeId === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => navigate(`/admin/crm/${id}`)}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
-                      active ? 'text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400'
-                    }`}
-                    style={active ? { background:'var(--portal-accent)' } : {}}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">{icon}</span>
-                    {label}
-                  </button>
-                );
-              })}
+            {/* Same grouping as the desktop sidebar, flattened into a scrollable strip
+                with group labels acting as separators. */}
+            <div className="flex items-center gap-1 px-3 py-2">
+              {NAV_GROUPS_RESOLVED.map(({ id: groupId, label: groupLabel, modules }, groupIndex) => (
+                <React.Fragment key={groupId}>
+                  {groupIndex > 0 && (
+                    <span className="mx-1 h-5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-700" aria-hidden="true" />
+                  )}
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    {groupLabel}
+                  </span>
+                  {modules.map(({ id, label, icon }) => {
+                    const active = activeId === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => navigate(`/admin/crm/${id}`)}
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                          active ? 'text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400'
+                        }`}
+                        style={active ? { background:'var(--portal-accent)' } : {}}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">{icon}</span>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
             </div>
           </div>
 

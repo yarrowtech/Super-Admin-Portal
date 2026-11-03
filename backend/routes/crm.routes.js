@@ -20,13 +20,22 @@ const CRM_ROLES = ['admin', 'super_admin', 'superadmin', 'media_head', 'media_ma
 const requireCRM = authorize(...CRM_ROLES);
 const requireAdmin = authorize('admin', 'super_admin', 'superadmin');
 
+/**
+ * Department filter for records whose `department` enum includes a shared value.
+ * A record marked 'both' (or 'shared') belongs to Media *and* Marketing, so it
+ * must surface under either single-department filter — not only under 'all'.
+ */
+const deptFilterFor = (department, sharedValue = 'both') =>
+  department && department !== 'all'
+    ? { department: { $in: [department, sharedValue] } }
+    : {};
+
 router.use(authenticate);
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/dashboard', requireCRM, async (req, res) => {
   try {
-    const dept = req.query.department;
-    const deptFilter = dept && dept !== 'all' ? { department: { $in: [dept, 'both'] } } : {};
+    const deptFilter = deptFilterFor(req.query.department);
 
     const [
       totalMedia,
@@ -42,7 +51,9 @@ router.get('/dashboard', requireCRM, async (req, res) => {
       CRMClient.countDocuments({ department: 'both', isActive: true }),
       CRMClient.countDocuments({ ...deptFilter, isActive: true }),
       CRMFollowUp.countDocuments({ ...deptFilter, status: 'pending' }),
-      CRMFollowUp.countDocuments({ ...deptFilter, status: 'overdue' }),
+      // Overdue is derived, not stored: nothing writes status 'overdue', so counting
+      // that literal always returned 0. Match how /followups?overdue=true computes it.
+      CRMFollowUp.countDocuments({ ...deptFilter, status: 'pending', dueDate: { $lt: new Date() } }),
       CRMCommunication.countDocuments({ ...deptFilter, createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }),
     ]);
 
@@ -75,8 +86,7 @@ router.get('/dashboard', requireCRM, async (req, res) => {
 router.get('/clients', requireCRM, async (req, res) => {
   try {
     const { department, status, priority, search, page = 1, limit = 20 } = req.query;
-    const filter = { isActive: true };
-    if (department && department !== 'all') filter.department = { $in: [department, 'both'] };
+    const filter = { isActive: true, ...deptFilterFor(department) };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
     if (search) filter.$or = [
@@ -148,8 +158,7 @@ router.delete('/clients/:id', requireAdmin, async (req, res) => {
 router.get('/contacts', requireCRM, async (req, res) => {
   try {
     const { department, clientId } = req.query;
-    const filter = { isActive: true };
-    if (department && department !== 'all') filter.department = department;
+    const filter = { isActive: true, ...deptFilterFor(department) };
     if (clientId) filter.client = clientId;
     const contacts = await CRMContact.find(filter).populate('client', 'name clientId').sort({ createdAt: -1 }).lean();
     res.json({ success: true, data: contacts });
@@ -189,9 +198,7 @@ router.delete('/contacts/:id', requireAdmin, async (req, res) => {
 // ── Statuses ──────────────────────────────────────────────────────────────────
 router.get('/statuses', requireCRM, async (req, res) => {
   try {
-    const { department } = req.query;
-    const filter = { isActive: true };
-    if (department && department !== 'all') filter.department = { $in: [department, 'shared'] };
+    const filter = { isActive: true, ...deptFilterFor(req.query.department, 'shared') };
     const statuses = await CRMStatus.find(filter).sort({ department: 1, order: 1 }).lean();
     res.json({ success: true, data: statuses });
   } catch (err) {
@@ -314,9 +321,7 @@ router.post('/communications', requireCRM, async (req, res) => {
 // ── Email Templates ───────────────────────────────────────────────────────────
 router.get('/email-templates', requireCRM, async (req, res) => {
   try {
-    const { department } = req.query;
-    const filter = { isActive: true };
-    if (department && department !== 'all') filter.department = { $in: [department, 'shared'] };
+    const filter = { isActive: true, ...deptFilterFor(req.query.department, 'shared') };
     const templates = await CRMEmailTemplate.find(filter).sort({ name: 1 }).lean();
     res.json({ success: true, data: templates });
   } catch (err) {
@@ -356,8 +361,7 @@ router.delete('/email-templates/:id', requireAdmin, async (req, res) => {
 router.get('/vendors', requireCRM, async (req, res) => {
   try {
     const { department, entityType } = req.query;
-    const filter = { isActive: true };
-    if (department && department !== 'all') filter.department = { $in: [department, 'both'] };
+    const filter = { isActive: true, ...deptFilterFor(department) };
     if (entityType) filter.entityType = entityType;
     const vendors = await CRMVendor.find(filter).sort({ name: 1 }).lean();
     res.json({ success: true, data: vendors });
@@ -398,7 +402,7 @@ router.delete('/vendors/:id', requireAdmin, async (req, res) => {
 router.get('/analytics', requireCRM, async (req, res) => {
   try {
     const { department, dateFrom, dateTo } = req.query;
-    const deptFilter = department && department !== 'all' ? { department: { $in: [department, 'both'] } } : {};
+    const deptFilter = deptFilterFor(department);
     const dateFilter = {};
     if (dateFrom) dateFilter.$gte = new Date(dateFrom);
     if (dateTo) dateFilter.$lte = new Date(dateTo);

@@ -232,7 +232,11 @@
       "Bash(node --check models/crm/CRMClient.js)",
       "Bash(node --check models/crm/CRMContact.js)",
       "Bash(node --check models/crm/CRMFollowUp.js)",
-      "Bash(node --check models/crm/CRMCommunication.js)"
+      "Bash(node --check models/crm/CRMCommunication.js)",
+      "Bash(curl -s -o /dev/null -w \"health:%{http_code}\\\\n\" http://localhost:5000/api/v1/health)",
+      "Bash(curl -s -w \"\\\\ncrm-noauth:%{http_code}\\\\n\" http://localhost:5000/api/v1/crm/clients)",
+      "Bash(node scripts/seedCRMPipelineStatuses.js)",
+      "Bash(node -e \"require\\('./routes/crm.routes.js'\\); console.log\\('crm.routes.js loads OK'\\)\")"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

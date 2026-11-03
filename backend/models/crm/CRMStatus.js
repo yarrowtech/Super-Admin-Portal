@@ -6,6 +6,8 @@ const crmStatusSchema = new mongoose.Schema({
   color:       { type: String, default: '#6b7280' },
   order:       { type: Number, default: 0 },
   isDefault:   { type: Boolean, default: false },
+  // Terminal stages close a pipeline (e.g. Delivered, Converted) — no onward transition.
+  isTerminal:  { type: Boolean, default: false },
   isActive:    { type: Boolean, default: true },
   description: { type: String },
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

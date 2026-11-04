@@ -183,7 +183,7 @@ const hrJobsApi = {
 };
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
-const MODULES_CRM = ['dashboard','clients','contacts','statuses','email','followups','comms','vendors','analytics','settings'];
+const MODULES_CRM = ['dashboard','clients','pipeline','contacts','statuses','email','followups','comms','vendors','analytics','settings'];
 // No backend role is literally 'manager' (User.role enum has no such value —
 // see backend/config/roles.js) — the Manager portal is IT-manager-only today.
 const managerRoles = ['it_manager', ...adminRoles];

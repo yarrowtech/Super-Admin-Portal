@@ -789,6 +789,35 @@ button {
   animation: erp-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
+/* CRM module transition. `backwards`, never `both`: a retained transform here
+   would make this element the containing block for every `position: fixed`
+   descendant, trapping the CRM's modals and drawers inside the content column
+   instead of the viewport. */
+.crm-module-enter {
+  animation: erp-page-enter 220ms ease-out backwards;
+}
+
+/* Thin, unobtrusive scrollbars for the CRM's horizontal pipeline board and
+   sticky sidebar, which otherwise get a full-width platform scrollbar. */
+.crm-scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+.crm-scroll-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.crm-scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.crm-scroll-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.35);
+  border-radius: 9999px;
+}
+.crm-scroll-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.55);
+}
+
 /* ── Reduced motion ───────────────────────────────────────────────
    Honour the OS "reduce motion" setting app-wide rather than at each of the
    ~115 `animate-pulse` call sites. Skeletons keep their shape and colour and

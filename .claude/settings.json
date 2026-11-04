@@ -236,7 +236,21 @@
       "Bash(curl -s -o /dev/null -w \"health:%{http_code}\\\\n\" http://localhost:5000/api/v1/health)",
       "Bash(curl -s -w \"\\\\ncrm-noauth:%{http_code}\\\\n\" http://localhost:5000/api/v1/crm/clients)",
       "Bash(node scripts/seedCRMPipelineStatuses.js)",
-      "Bash(node -e \"require\\('./routes/crm.routes.js'\\); console.log\\('crm.routes.js loads OK'\\)\")"
+      "Bash(node -e \"require\\('./routes/crm.routes.js'\\); console.log\\('crm.routes.js loads OK'\\)\")",
+      "Bash(node -c routes/crm.routes.js)",
+      "Bash(timeout 90 node scripts/seedCRMPipelineStatuses.js)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Start-Sleep 3; \"port 5000 clear\")",
+      "Bash(timeout 60 node /tmp/crmtest.js)",
+      "Bash(cp /tmp/crmtest.js ./_crmtest.js)",
+      "Bash(timeout 60 node _crmtest.js)",
+      "Bash(sed -i \"s|require\\('./models/User'\\)|require\\('./models/auth/User'\\)|\" _crmtest.js)",
+      "Bash(timeout 90 node _crmverify.js)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; \"test server stopped\")",
+      "Bash(curl -s -o /dev/null -w \"dev server: %{http_code}\\\\n\" http://localhost:5199/admin/crm/clients)",
+      "Bash(curl -s http://localhost:5199/src/components/admin/crm/AdminCRMPage.jsx -o /dev/null -w \"module transform: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:5199/src/components/admin/crm/PipelineBoard.jsx -o /dev/null -w \"pipeline transform: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:5199/src/components/admin/crm/ClientDetailDrawer.jsx -o /dev/null -w \"drawer transform: %{http_code}\\\\n\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5199 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; \"dev server stopped\")"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

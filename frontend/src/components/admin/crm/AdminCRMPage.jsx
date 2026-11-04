@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
@@ -12,29 +12,23 @@ import Modal from '../../ui/Modal';
 import Input from '../../ui/Input';
 import Select from '../../ui/Select';
 import DataTable from '../../ui/DataTable';
+import DropdownMenu from '../../ui/DropdownMenu';
 import Skeleton from '../../ui/Skeleton';
 import EmptyState from '../../ui/EmptyState';
-
-// ── API helper ────────────────────────────────────────────────────────────────
-const apiFetch = async (path, token, options = {}) => {
-  const res = await fetch(`${API_BASE_URL}/api/v1/crm${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-  return body;
-};
+import ClientDetailDrawer from './ClientDetailDrawer';
+import PipelineBoard from './PipelineBoard';
+import {
+  apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, PRIORITY_RAIL, DEPT_OPTIONS, SINGLE_DEPT_OPTIONS,
+  PRIORITY_OPTIONS, fmt, fmtDateTime, relativeDue, userLabel, toDateInput,
+  useClientOptions, useUserOptions, useStatusOptions,
+  ClientPicker, UserPicker, StatusPicker, TextArea,
+} from './crmShared';
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 const DEPT_TABS = [
-  { key: 'all',       label: 'All Media & Marketing' },
-  { key: 'media',     label: 'Media' },
-  { key: 'marketing', label: 'Marketing' },
+  { key: 'all',       label: 'All Media & Marketing', short: 'All',       icon: 'hub' },
+  { key: 'media',     label: 'Media',                 short: 'Media',     icon: 'movie' },
+  { key: 'marketing', label: 'Marketing',             short: 'Marketing', icon: 'campaign' },
 ];
 
 // The department selector is a working context, not a per-visit choice — persist it
@@ -62,19 +56,26 @@ const readStoredDepartment = () => {
   }
 };
 
-const DEPT_BADGE_TONE = { media: 'info', marketing: 'success', both: 'neutral' };
-const PRIORITY_TONE   = { low: 'success', medium: 'warning', high: 'danger', urgent: 'danger' };
-
-const fmt = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
-
-// ── Field helpers ─────────────────────────────────────────────────────────────
-const DEPT_OPTIONS    = [{ value:'media', label:'Media' }, { value:'marketing', label:'Marketing' }, { value:'both', label:'Both' }];
-const PRIORITY_OPTIONS= [{ value:'low', label:'Low' }, { value:'medium', label:'Medium' }, { value:'high', label:'High' }, { value:'urgent', label:'Urgent' }];
+// Communication type -> icon. Declared up here because both the dashboard's
+// recent-activity list and the Communications module render from it.
+const TYPE_ICONS_COMMS = { email:'email', call:'call', meeting:'meeting_room', visit:'location_on', message:'chat_bubble', proposal:'description', approval:'check_circle', note:'edit_note', status_change:'update' };
 
 // ── CRM Dashboard ─────────────────────────────────────────────────────────────
 function CRMDashboard({ token, department }) {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [overdue, setOverdue] = useState([]);
+  const [recent, setRecent]   = useState([]);
+  const [listsLoading, setListsLoading] = useState(true);
+  const [statuses] = useStatusOptions(token, department);
+
+  // Stage name -> configured colour, so the dashboard, pipeline board and client
+  // table all render a given stage in the same colour.
+  const stageColors = React.useMemo(
+    () => Object.fromEntries(statuses.map(s => [s.name, s.color])),
+    [statuses]
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -84,26 +85,130 @@ function CRMDashboard({ token, department }) {
       .finally(() => setLoading(false));
   }, [token, department]);
 
-  const kpis = data ? [
-    { title: 'Media Clients',        value: data.totalMedia,           icon: 'movie',          tone: 'info',    tooltip: 'Active clients associated with Media' },
-    { title: 'Marketing Clients',    value: data.totalMarketing,       icon: 'campaign',       tone: 'success', tooltip: 'Active clients associated with Marketing' },
-    { title: 'Shared Clients',       value: data.totalBoth,            icon: 'hub',            tone: 'neutral', tooltip: 'Clients linked to both departments' },
-    { title: 'Active Relationships', value: data.activeClients,        icon: 'handshake',      tone: 'accent'  },
-    { title: 'Pending Follow-ups',   value: data.pendingFollowUps,     icon: 'event_available',tone: 'warning' },
-    { title: 'Overdue Follow-ups',   value: data.overdueFollowUps,     icon: 'event_busy',     tone: 'danger'  },
-    { title: 'Activity (7 days)',    value: data.recentCommunications, icon: 'forum',          tone: 'info'    },
+  // The action lists are what make the dashboard a starting point rather than a
+  // scoreboard: what is late, and what just happened.
+  useEffect(() => {
+    let cancelled = false;
+    setListsLoading(true);
+    Promise.all([
+      apiFetch(`/followups?department=${department}&overdue=true`, token).catch(() => ({ data: [] })),
+      apiFetch(`/communications?department=${department}&page=1&limit=6`, token).catch(() => ({ data: [] })),
+    ])
+      .then(([f, c]) => {
+        if (cancelled) return;
+        setOverdue((f.data || []).slice(0, 6));
+        setRecent(c.data || []);
+      })
+      .finally(() => { if (!cancelled) setListsLoading(false); });
+    return () => { cancelled = true; };
+  }, [token, department]);
+
+  // Headline metrics: the four an operator acts on. The departmental splits are
+  // supporting detail and render smaller below, so the row has a clear ranking
+  // instead of seven tiles competing for attention.
+  const headlineKpis = data ? [
+    { title: 'Active Relationships', value: data.activeClients,        icon: 'handshake',       tone: 'accent',
+      context: 'Live client records', action: { label: 'View clients →', onClick: () => navigate('/admin/crm/clients') } },
+    { title: 'Overdue Follow-ups',   value: data.overdueFollowUps,     icon: 'event_busy',      tone: 'danger',
+      tooltip: 'Pending follow-ups whose due date has passed',
+      context: data.overdueFollowUps ? 'Needs attention today' : 'All on schedule',
+      action: { label: 'Resolve →', onClick: () => navigate('/admin/crm/followups') } },
+    { title: 'Pending Follow-ups',   value: data.pendingFollowUps,     icon: 'event_available', tone: 'warning',
+      context: 'Scheduled and open', action: { label: 'View all →', onClick: () => navigate('/admin/crm/followups') } },
+    { title: 'Activity (7 days)',    value: data.recentCommunications, icon: 'forum',           tone: 'info',
+      context: 'Interactions logged', action: { label: 'Timeline →', onClick: () => navigate('/admin/crm/comms') } },
+  ] : [];
+
+  const splitKpis = data ? [
+    { title: 'Media Clients',     value: data.totalMedia,     icon: 'movie',    tone: 'info',    tooltip: 'Active clients associated with Media' },
+    { title: 'Marketing Clients', value: data.totalMarketing, icon: 'campaign', tone: 'success', tooltip: 'Active clients associated with Marketing' },
+    { title: 'Shared Clients',    value: data.totalBoth,      icon: 'hub',      tone: 'neutral', tooltip: 'Clients linked to both departments' },
   ] : [];
 
   return (
     <div className="space-y-6">
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Headline KPIs */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {loading
-          ? Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)
-          : kpis.map(k => (
-              <KPICard key={k.title} title={k.title} value={k.value ?? 0} icon={k.icon} tone={k.tone} tooltip={k.tooltip} />
+          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-2xl" />)
+          : headlineKpis.map(k => (
+              <KPICard key={k.title} title={k.title} value={k.value ?? 0} icon={k.icon} tone={k.tone}
+                tooltip={k.tooltip} context={k.context} action={k.action} />
             ))
         }
+      </div>
+
+      {/* Departmental split — supporting detail, visually subordinate */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {loading
+          ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)
+          : splitKpis.map(k => (
+              <KPICard key={k.title} title={k.title} value={k.value ?? 0} icon={k.icon} tone={k.tone}
+                tooltip={k.tooltip} priority="secondary" variant="minimal" />
+            ))
+        }
+      </div>
+
+      {/* Action lists */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SectionCard
+          title="Needs Attention"
+          icon="priority_high"
+          description="Overdue follow-ups, soonest first"
+          loading={listsLoading}
+          empty={!listsLoading && overdue.length === 0}
+          emptyIcon="task_alt"
+          emptyTitle="Nothing overdue"
+          emptyDescription="Every follow-up is on schedule"
+          action={{ label: 'View all →', onClick: () => navigate('/admin/crm/followups') }}
+        >
+          <div className="space-y-2">
+            {overdue.map(f => (
+              <div key={f._id} className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50/50 p-3 dark:border-red-900/40 dark:bg-red-900/10">
+                <span className="material-symbols-outlined mt-0.5 text-[18px] text-red-500">event_busy</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                    {f.client?.name || 'Unlinked follow-up'}
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    <span className="capitalize">{f.type}</span>
+                    {f.assignedTo ? ` · ${userLabel(f.assignedTo)}` : ''}
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-red-600">{relativeDue(f.dueDate)}</span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Recent Activity"
+          icon="forum"
+          description="Latest logged client interactions"
+          loading={listsLoading}
+          empty={!listsLoading && recent.length === 0}
+          emptyTitle="No activity yet"
+          emptyDescription="Logged calls, emails and meetings appear here"
+          action={{ label: 'View all →', onClick: () => navigate('/admin/crm/comms') }}
+        >
+          <div className="space-y-2">
+            {recent.map(c => (
+              <div key={c._id} className="flex items-start gap-3 rounded-xl border border-neutral-100 p-3 dark:border-neutral-700">
+                <span className="material-symbols-outlined mt-0.5 text-[18px] text-neutral-400">
+                  {TYPE_ICONS_COMMS[c.type] || 'chat'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                    {c.subject || c.type?.replace(/_/g, ' ')}
+                  </p>
+                  <p className="truncate text-xs text-neutral-500">
+                    {c.client?.name ? `${c.client.name} · ` : ''}{fmtDateTime(c.occurredAt || c.createdAt)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
       </div>
 
       {/* Status breakdown */}
@@ -116,25 +221,33 @@ function CRMDashboard({ token, department }) {
         emptyDescription="Add clients to see status distribution"
         skeletonRows={5}
       >
-        <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-          {data?.statusBreakdown?.map(s => (
-            <div key={s._id} className="flex items-center justify-between px-1 py-3">
-              <span className="text-sm text-neutral-700 dark:text-neutral-300">{s._id}</span>
-              <div className="flex items-center gap-3">
-                {/* bar */}
-                <div className="h-2 w-32 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+        <div className="space-y-2.5">
+          {data?.statusBreakdown?.map(s => {
+            // Scale bars against the largest stage, not the total: with clients
+            // spread over 16 stages every bar was a sliver against the total.
+            const peak = Math.max(...(data.statusBreakdown || []).map(x => x.count), 1);
+            const share = data.activeClients ? Math.round((s.count / data.activeClients) * 100) : 0;
+            const color = stageColors[s._id] || 'var(--portal-accent)';
+            return (
+              <button
+                key={s._id}
+                type="button"
+                onClick={() => navigate('/admin/crm/pipeline')}
+                className="group flex w-full items-center gap-3 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+                <span className="w-36 shrink-0 truncate text-sm text-neutral-700 dark:text-neutral-300">{s._id}</span>
+                <div className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
                   <div
-                    className="h-2 rounded-full"
-                    style={{
-                      width: `${Math.min(100, (s.count / (data?.activeClients || 1)) * 100)}%`,
-                      background: 'var(--portal-accent)',
-                    }}
+                    className="h-full rounded-full transition-[width] duration-500 ease-out"
+                    style={{ width: `${Math.max(4, (s.count / peak) * 100)}%`, background: color }}
                   />
                 </div>
-                <span className="w-8 text-right text-sm font-bold text-neutral-900 dark:text-neutral-100">{s.count}</span>
-              </div>
-            </div>
-          ))}
+                <span className="w-9 shrink-0 text-right text-sm font-bold tabular-nums text-neutral-900 dark:text-neutral-100">{s.count}</span>
+                <span className="w-10 shrink-0 text-right text-xs tabular-nums text-neutral-400">{share}%</span>
+              </button>
+            );
+          })}
         </div>
       </SectionCard>
     </div>
@@ -142,16 +255,29 @@ function CRMDashboard({ token, department }) {
 }
 
 // ── Client form modal ─────────────────────────────────────────────────────────
-const BLANK_CLIENT = { name:'', contactPerson:'', email:'', phone:'', website:'', address:'', department:'media', priority:'medium', status:'New Enquiry', relatedProject:'', source:'', notes:'' };
+const BLANK_CLIENT = { name:'', contactPerson:'', email:'', phone:'', website:'', address:'', department:'media', priority:'medium', status:'', relatedProject:'', source:'', owner:'', campaignSource:'', marketingChannel:'', notes:'' };
 
-function ClientFormModal({ open, onClose, onSaved, token, editData }) {
+function ClientFormModal({ open, onClose, onSaved, token, editData, statuses, users }) {
   const toast = useToast();
   const [form, setForm] = useState(BLANK_CLIENT);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setForm(editData ? { ...BLANK_CLIENT, ...editData } : BLANK_CLIENT);
-  }, [editData, open]);
+    if (!open) return;
+    if (editData) {
+      setForm({
+        ...BLANK_CLIENT,
+        ...editData,
+        // Populated refs arrive as objects; the <select> needs the id.
+        owner: editData.owner?._id || editData.owner || '',
+      });
+    } else {
+      // Default a new client to the first configured stage of its pipeline
+      // rather than a hardcoded string that may not exist as a status.
+      const defaultStage = statuses.find(s => s.isDefault)?.name || statuses[0]?.name || 'New Enquiry';
+      setForm({ ...BLANK_CLIENT, status: defaultStage });
+    }
+  }, [editData, open, statuses]);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -214,20 +340,17 @@ function ClientFormModal({ open, onClose, onSaved, token, editData }) {
             onChange={set('priority')}
             options={PRIORITY_OPTIONS}
           />
+          <StatusPicker statuses={statuses} value={form.status} onChange={set('status')} label="Pipeline Status" />
+          <UserPicker users={users} value={form.owner} onChange={set('owner')} label="Relationship Owner" name="owner" />
           <Input label="Related Project" name="relatedProject" value={form.relatedProject} onChange={set('relatedProject')} />
           <Input label="Client Source" name="source" value={form.source} onChange={set('source')} placeholder="e.g. Referral, Website, Campaign" />
+          <Input label="Campaign Source" name="campaignSource" value={form.campaignSource} onChange={set('campaignSource')} placeholder="e.g. Q4 Brand Push" />
+          <Input label="Marketing Channel" name="marketingChannel" value={form.marketingChannel} onChange={set('marketingChannel')} placeholder="e.g. LinkedIn, Email, Events" />
           <div className="sm:col-span-2">
             <Input label="Address" name="address" value={form.address} onChange={set('address')} />
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</label>
-            <textarea
-              name="notes"
-              rows={3}
-              value={form.notes}
-              onChange={set('notes')}
-              className="min-h-11 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-            />
+            <TextArea label="Notes" name="notes" rows={3} value={form.notes} onChange={set('notes')} />
           </div>
         </div>
       </form>
@@ -238,45 +361,112 @@ function ClientFormModal({ open, onClose, onSaved, token, editData }) {
 // ── Clients module ────────────────────────────────────────────────────────────
 function ClientsModule({ token, department }) {
   const toast = useToast();
-  const navigate = useNavigate();
   const [clients, setClients]   = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch]     = useState('');
+  const [statusFilter, setStatusFilter]     = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
   const [page, setPage]         = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal]       = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [detailId, setDetailId] = useState(null);
+
+  const [statuses] = useStatusOptions(token, department);
+  const users = useUserOptions(token);
+
+  // Debounce the search box: typing previously fired one request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const load = useCallback(() => {
     setLoading(true);
-    const q = new URLSearchParams({ department, page, limit: 15, ...(search ? { search } : {}) }).toString();
+    const q = new URLSearchParams({
+      department, page, limit: 15,
+      ...(search ? { search } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(priorityFilter ? { priority: priorityFilter } : {}),
+    }).toString();
     apiFetch(`/clients?${q}`, token)
       .then(r => { setClients(r.data || []); setTotal(r.total || 0); setTotalPages(r.pages || 1); })
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, search, page]);
+  }, [token, department, search, page, statusFilter, priorityFilter]);
 
-  useEffect(() => { setPage(1); }, [department, search]);
+  useEffect(() => { setPage(1); }, [department, search, statusFilter, priorityFilter]);
   useEffect(() => { load(); }, [load]);
 
+  const handleDelete = async (row) => {
+    if (!window.confirm(`Deactivate “${row.name}”? The record is archived, not erased, and can be restored in the database.`)) return;
+    try {
+      await apiFetch(`/clients/${row._id}`, token, { method: 'DELETE' });
+      toast.success('Client deactivated');
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const exportCsv = () => {
+    if (!clients.length) return;
+    const cols = ['clientId','name','contactPerson','email','phone','department','status','priority','source','lastContactedAt','nextFollowUpAt'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [cols.join(','), ...clients.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `crm-clients-${department}-${new Date().toISOString().slice(0,10)}.csv` });
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const columns = [
-    { key:'clientId', header:'ID', render:r => <span className="font-mono text-xs text-neutral-500">{r.clientId}</span> },
     { key:'name', header:'Client', render:r => (
-      <div>
-        <p className="font-semibold text-neutral-900 dark:text-neutral-100">{r.name}</p>
-        {r.contactPerson && <p className="text-xs text-neutral-500">{r.contactPerson}</p>}
+      <div className="flex items-center gap-2.5">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black"
+          style={{ background:'var(--portal-accent-soft)', color:'var(--portal-accent)' }}
+          aria-hidden="true"
+        >
+          {(r.name?.[0] || '?').toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate font-bold text-neutral-900 dark:text-neutral-100">{r.name}</p>
+          <p className="truncate font-mono text-[11px] text-neutral-400">
+            {r.clientId}{r.contactPerson ? ` · ${r.contactPerson}` : ''}
+          </p>
+        </div>
       </div>
     )},
-    { key:'email', header:'Email', render:r => <span className="text-sm text-neutral-600 dark:text-neutral-400">{r.email||'—'}</span> },
+    { key:'email', header:'Contact', render:r => (
+      <div className="min-w-0">
+        <p className="truncate text-sm text-neutral-600 dark:text-neutral-400">{r.email || '—'}</p>
+        {r.phone && <p className="truncate text-xs text-neutral-400">{r.phone}</p>}
+      </div>
+    )},
     { key:'department', header:'Dept', render:r => <StatusBadge tone={DEPT_BADGE_TONE[r.department]||'neutral'} label={r.department} /> },
-    { key:'status', header:'Status', render:r => <span className="text-sm text-neutral-600 dark:text-neutral-400">{r.status}</span> },
+    { key:'status', header:'Status', render:r => {
+      const stage = statuses.find(s => s.name === r.status);
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm text-neutral-600 dark:text-neutral-400">
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: stage?.color || '#94a3b8' }} />
+          {r.status}
+        </span>
+      );
+    }},
     { key:'priority', header:'Priority', render:r => <StatusBadge tone={PRIORITY_TONE[r.priority]||'neutral'} label={r.priority} /> },
+    { key:'owner', header:'Owner', render:r => <span className="text-xs text-neutral-500">{r.owner ? userLabel(r.owner) : '—'}</span> },
     { key:'lastContactedAt', header:'Last Contact', render:r => <span className="text-xs text-neutral-400">{fmt(r.lastContactedAt)}</span> },
     { key:'nextFollowUpAt', header:'Next Follow-up', render:r => {
       const overdue = r.nextFollowUpAt && new Date(r.nextFollowUpAt) < new Date();
       return <span className={`text-xs ${overdue ? 'font-semibold text-red-600' : 'text-neutral-400'}`}>{fmt(r.nextFollowUpAt)}</span>;
     }},
+  ];
+
+  const rowActions = (row) => [
+    { label: 'View details', icon: 'visibility', onClick: () => setDetailId(row._id) },
+    { label: 'Edit',         icon: 'edit',       onClick: () => { setEditTarget(row); setModalOpen(true); } },
+    { label: 'Deactivate',   icon: 'delete',     tone: 'danger', onClick: () => handleDelete(row) },
   ];
 
   return (
@@ -287,6 +477,18 @@ function ClientsModule({ token, department }) {
         onSaved={load}
         token={token}
         editData={editTarget}
+        statuses={statuses}
+        users={users}
+      />
+
+      <ClientDetailDrawer
+        open={Boolean(detailId)}
+        clientId={detailId}
+        token={token}
+        statuses={statuses}
+        onClose={() => setDetailId(null)}
+        onChanged={load}
+        onEdit={(c) => { setDetailId(null); setEditTarget(c); setModalOpen(true); }}
       />
 
       <SectionCard
@@ -299,16 +501,38 @@ function ClientsModule({ token, department }) {
         emptyDescription="Create your first client record to get started"
         emptyAction={{ label:'Add Client', onClick:() => setModalOpen(true) }}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <span className="material-symbols-outlined pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">search</span>
               <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
                 placeholder="Search clients…"
-                className="h-9 w-48 rounded-lg border border-neutral-200 bg-white pl-8 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                aria-label="Search clients"
+                className="h-9 w-44 rounded-lg border border-neutral-200 bg-white pl-8 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
               />
             </div>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              aria-label="Filter by status"
+              className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            >
+              <option value="">All statuses</option>
+              {statuses.map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
+            </select>
+            <select
+              value={priorityFilter}
+              onChange={e => setPriorityFilter(e.target.value)}
+              aria-label="Filter by priority"
+              className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            >
+              <option value="">All priorities</option>
+              {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+            <Button variant="secondary" size="sm" onClick={exportCsv} disabled={!clients.length} icon={<span className="material-symbols-outlined text-base">download</span>}>
+              CSV
+            </Button>
             <Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={() => { setEditTarget(null); setModalOpen(true); }}>
               Add Client
             </Button>
@@ -320,7 +544,8 @@ function ClientsModule({ token, department }) {
           columns={columns}
           rows={clients}
           rowKey="_id"
-          onRowClick={r => { setEditTarget(r); setModalOpen(true); }}
+          onRowClick={r => setDetailId(r._id)}
+          rowActions={rowActions}
           emptyTitle="No clients"
         />
         {totalPages > 1 && (
@@ -338,29 +563,52 @@ function ClientsModule({ token, department }) {
 }
 
 // ── Contacts module ───────────────────────────────────────────────────────────
-const BLANK_CONTACT = { firstName:'', lastName:'', title:'', email:'', phone:'', department:'media', role:'', isPrimary:false, notes:'' };
+const BLANK_CONTACT = { client:'', firstName:'', lastName:'', title:'', email:'', phone:'', department:'media', role:'', isPrimary:false, notes:'' };
 
 function ContactsModule({ token, department }) {
   const toast = useToast();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch]     = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]         = useState(BLANK_CONTACT);
   const [saving, setSaving]     = useState(false);
 
+  const clients = useClientOptions(token, department);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`/contacts?department=${department}`, token)
+    const q = new URLSearchParams({ department, ...(search ? { search } : {}) }).toString();
+    apiFetch(`/contacts?${q}`, token)
       .then(r => setContacts(r.data || []))
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department]);
+  }, [token, department, search]);
 
   useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setEditTarget(null); setForm(BLANK_CONTACT); setModalOpen(true); };
-  const openEdit   = (c)  => { setEditTarget(c); setForm({ ...BLANK_CONTACT, ...c }); setModalOpen(true); };
+  const openEdit   = (c)  => {
+    setEditTarget(c);
+    setForm({ ...BLANK_CONTACT, ...c, client: c.client?._id || c.client || '' });
+    setModalOpen(true);
+  };
+
+  const handleDelete = async (row) => {
+    if (!window.confirm(`Remove contact “${row.firstName} ${row.lastName || ''}”?`)) return;
+    try {
+      await apiFetch(`/contacts/${row._id}`, token, { method: 'DELETE' });
+      toast.success('Contact removed');
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
@@ -414,6 +662,16 @@ function ContactsModule({ token, department }) {
         }
       >
         <form id="crm-contact-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <ClientPicker
+              clients={clients}
+              value={form.client}
+              onChange={set('client')}
+              label="Client Organisation"
+              required={false}
+              allowNone
+            />
+          </div>
           <Input label="First Name *" required name="firstName" value={form.firstName} onChange={set('firstName')} />
           <Input label="Last Name"     name="lastName"  value={form.lastName}  onChange={set('lastName')} />
           <Input label="Title"         name="title"     value={form.title}     onChange={set('title')} />
@@ -426,31 +684,57 @@ function ContactsModule({ token, department }) {
             <label htmlFor="isPrimary" className="text-sm text-neutral-700 dark:text-neutral-300">Primary contact</label>
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes</label>
-            <textarea rows={2} name="notes" value={form.notes} onChange={set('notes')} className="min-h-11 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" />
+            <TextArea label="Notes" rows={2} name="notes" value={form.notes} onChange={set('notes')} />
           </div>
         </form>
       </Modal>
 
-      <SectionCard title="Contacts" icon="contacts" description="People within client organisations"
+      <SectionCard title={`Contacts${contacts.length ? ` (${contacts.length})` : ''}`} icon="contacts" description="People within client organisations"
         loading={loading} empty={!loading && contacts.length === 0}
         emptyTitle="No contacts yet" emptyAction={{ label:'Add Contact', onClick:openCreate }}
-        action={<Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={openCreate}>Add Contact</Button>}
+        action={
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <span className="material-symbols-outlined pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">search</span>
+              <input
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                placeholder="Search contacts…"
+                aria-label="Search contacts"
+                className="h-9 w-44 rounded-lg border border-neutral-200 bg-white pl-8 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+              />
+            </div>
+            <Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={openCreate}>Add Contact</Button>
+          </div>
+        }
         noBodyPadding
       >
-        <DataTable columns={columns} rows={contacts} rowKey="_id" onRowClick={openEdit} emptyTitle="No contacts" />
+        <DataTable
+          columns={columns}
+          rows={contacts}
+          rowKey="_id"
+          onRowClick={openEdit}
+          rowActions={(row) => [
+            { label: 'Edit',   icon: 'edit',   onClick: () => openEdit(row) },
+            { label: 'Remove', icon: 'delete', tone: 'danger', onClick: () => handleDelete(row) },
+          ]}
+          emptyTitle="No contacts"
+        />
       </SectionCard>
     </>
   );
 }
 
 // ── Status Management ─────────────────────────────────────────────────────────
+const BLANK_STATUS = { name:'', department:'shared', color:'#6366f1', order:0, description:'', isDefault:false, isTerminal:false };
+
 function StatusModule({ token, department }) {
   const toast = useToast();
   const [statuses, setStatuses] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm]         = useState({ name:'', department: department === 'all' ? 'shared' : department, color:'#6366f1', order:0, description:'' });
+  const [editTarget, setEditTarget] = useState(null);
+  const [form, setForm]         = useState(BLANK_STATUS);
   const [saving, setSaving]     = useState(false);
 
   const load = useCallback(() => {
@@ -463,14 +747,30 @@ function StatusModule({ token, department }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const set = (k) => (e) => setForm(f => ({
+    ...f,
+    [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value,
+  }));
+
+  const openCreate = (dept) => {
+    setEditTarget(null);
+    setForm({ ...BLANK_STATUS, department: dept || (department === 'all' ? 'shared' : department) });
+    setModalOpen(true);
+  };
+  const openEdit = (s) => { setEditTarget(s); setForm({ ...BLANK_STATUS, ...s }); setModalOpen(true); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await apiFetch('/statuses', token, { method:'POST', body: JSON.stringify(form) });
-      toast.success('Status created');
+      const payload = { ...form, order: Number(form.order) || 0 };
+      if (editTarget?._id) {
+        await apiFetch(`/statuses/${editTarget._id}`, token, { method:'PUT', body: JSON.stringify(payload) });
+        toast.success('Status updated');
+      } else {
+        await apiFetch('/statuses', token, { method:'POST', body: JSON.stringify(payload) });
+        toast.success('Status created');
+      }
       setModalOpen(false);
       load();
     } catch (err) {
@@ -480,34 +780,99 @@ function StatusModule({ token, department }) {
     }
   };
 
-  const mediaStatuses    = statuses.filter(s => s.department === 'media');
-  const marketingStatuses= statuses.filter(s => s.department === 'marketing');
-  const sharedStatuses   = statuses.filter(s => s.department === 'shared');
+  const handleDelete = async (s) => {
+    if (!window.confirm(`Retire the “${s.name}” stage? Clients already in it keep the label, but it can no longer be selected.`)) return;
+    try {
+      await apiFetch(`/statuses/${s._id}`, token, { method:'DELETE' });
+      toast.success('Status retired');
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
 
-  const StatusGroup = ({ title, items, tone }) => (
-    <div>
-      <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400">{title}</p>
-      {items.length === 0
-        ? <p className="text-sm text-neutral-400 italic">None configured</p>
-        : <div className="flex flex-wrap gap-2">
-            {items.map(s => (
-              <span key={s._id} className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-sm font-medium dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
-                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-                {s.name}
-              </span>
+  /** Reorder by swapping `order` with the neighbour — the pipeline reads in this sequence. */
+  const move = async (list, index, delta) => {
+    const target = list[index + delta];
+    const current = list[index];
+    if (!target) return;
+    try {
+      await Promise.all([
+        apiFetch(`/statuses/${current._id}`, token, { method:'PUT', body: JSON.stringify({ order: target.order }) }),
+        apiFetch(`/statuses/${target._id}`,  token, { method:'PUT', body: JSON.stringify({ order: current.order }) }),
+      ]);
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const byDept = (d) => statuses.filter(s => s.department === d).sort((a, b) => a.order - b.order);
+
+  const renderGroup = (title, dept) => {
+    const items = byDept(dept);
+    return (
+      <div key={dept}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">{title}</p>
+          <button
+            type="button"
+            onClick={() => openCreate(dept)}
+            className="text-xs font-bold text-[var(--portal-accent)] hover:underline"
+          >
+            + Add stage
+          </button>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-sm italic text-neutral-400">None configured</p>
+        ) : (
+          <ol className="space-y-1.5">
+            {items.map((s, i) => (
+              <li
+                key={s._id}
+                className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800"
+              >
+                <span className="w-5 shrink-0 text-center text-[11px] font-bold text-neutral-400">{i + 1}</span>
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: s.color }} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{s.name}</p>
+                    {s.isDefault  && <StatusBadge tone="info"    label="Default"  dot={false} />}
+                    {s.isTerminal && <StatusBadge tone="success" label="Terminal" dot={false} />}
+                  </div>
+                  {s.description && <p className="truncate text-xs text-neutral-500">{s.description}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button type="button" onClick={() => move(items, i, -1)} disabled={i === 0}
+                    aria-label={`Move ${s.name} earlier`}
+                    className="rounded p-1 text-neutral-400 hover:bg-neutral-100 disabled:opacity-30 dark:hover:bg-neutral-700">
+                    <span className="material-symbols-outlined text-[16px]">arrow_upward</span>
+                  </button>
+                  <button type="button" onClick={() => move(items, i, 1)} disabled={i === items.length - 1}
+                    aria-label={`Move ${s.name} later`}
+                    className="rounded p-1 text-neutral-400 hover:bg-neutral-100 disabled:opacity-30 dark:hover:bg-neutral-700">
+                    <span className="material-symbols-outlined text-[16px]">arrow_downward</span>
+                  </button>
+                  <button type="button" onClick={() => openEdit(s)} aria-label={`Edit ${s.name}`}
+                    className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700">
+                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                  </button>
+                  <button type="button" onClick={() => handleDelete(s)} aria-label={`Retire ${s.name}`}
+                    className="rounded p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20">
+                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                  </button>
+                </div>
+              </li>
             ))}
-          </div>
-      }
-    </div>
-  );
+          </ol>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
-      <Modal open={modalOpen} title="New Status" description="Add a configurable status for client relationship workflows" onClose={() => setModalOpen(false)}
+      <Modal open={modalOpen} title={editTarget ? 'Edit Status' : 'New Status'} description="Stages define the relationship pipeline and the order it flows in" onClose={() => setModalOpen(false)}
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button variant="accent" type="submit" form="crm-status-form" loading={saving}>Create Status</Button>
+            <Button variant="accent" type="submit" form="crm-status-form" loading={saving}>{editTarget ? 'Save Changes' : 'Create Status'}</Button>
           </div>
         }
       >
@@ -520,8 +885,18 @@ function StatusModule({ token, department }) {
           />
           <Input label="Sort Order" name="order" type="number" value={form.order} onChange={set('order')} />
           <div>
-            <label className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Colour</label>
-            <input type="color" value={form.color} onChange={set('color')} className="h-11 w-full cursor-pointer rounded-lg border border-neutral-200 p-1 dark:border-neutral-700" />
+            <label className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200" htmlFor="status-color">Colour</label>
+            <input id="status-color" type="color" value={form.color} onChange={set('color')} className="h-11 w-full cursor-pointer rounded-lg border border-neutral-200 p-1 dark:border-neutral-700" />
+          </div>
+          <div className="flex flex-col justify-center gap-2 pt-5">
+            <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+              <input type="checkbox" checked={Boolean(form.isDefault)} onChange={set('isDefault')} className="h-4 w-4 rounded border-neutral-300" />
+              Default entry stage
+            </label>
+            <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+              <input type="checkbox" checked={Boolean(form.isTerminal)} onChange={set('isTerminal')} className="h-4 w-4 rounded border-neutral-300" />
+              Terminal (closes the pipeline)
+            </label>
           </div>
           <div className="sm:col-span-2">
             <Input label="Description" name="description" value={form.description} onChange={set('description')} placeholder="Optional — shown in status tooltips" />
@@ -529,14 +904,14 @@ function StatusModule({ token, department }) {
         </form>
       </Modal>
 
-      <SectionCard title="Status Management" icon="flag" description="Department-aware configurable relationship statuses"
+      <SectionCard title="Status Management" icon="flag" description="Department-aware configurable relationship pipelines, in stage order"
         loading={loading}
-        action={<Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={() => setModalOpen(true)}>Add Status</Button>}
+        action={<Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={() => openCreate()}>Add Status</Button>}
       >
         <div className="space-y-6">
-          <StatusGroup title="Media Statuses"      items={mediaStatuses} />
-          <StatusGroup title="Marketing Statuses"  items={marketingStatuses} />
-          <StatusGroup title="Shared Statuses"     items={sharedStatuses} />
+          {renderGroup('Media Pipeline', 'media')}
+          {renderGroup('Marketing Pipeline', 'marketing')}
+          {renderGroup('Shared Stages', 'shared')}
         </div>
       </SectionCard>
     </>
@@ -544,35 +919,70 @@ function StatusModule({ token, department }) {
 }
 
 // ── Follow-ups ────────────────────────────────────────────────────────────────
-const BLANK_FOLLOWUP = { department:'media', type:'call', priority:'medium', notes:'', dueDate:'', nextAction:'' };
+const BLANK_FOLLOWUP = { client:'', department:'media', type:'call', priority:'medium', notes:'', dueDate:'', nextAction:'', assignedTo:'', outcome:'' };
 
 function FollowUpsModule({ token, department }) {
   const toast = useToast();
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [assigneeFilter, setAssigneeFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]         = useState(BLANK_FOLLOWUP);
   const [saving, setSaving]     = useState(false);
 
+  const clients = useClientOptions(token, department);
+  const users   = useUserOptions(token);
+
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`/followups?department=${department}&status=${statusFilter}`, token)
+    const q = new URLSearchParams({
+      department,
+      status: statusFilter,
+      ...(assigneeFilter ? { assignedTo: assigneeFilter } : {}),
+    }).toString();
+    apiFetch(`/followups?${q}`, token)
       .then(r => setItems(r.data || []))
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, statusFilter]);
+  }, [token, department, statusFilter, assigneeFilter]);
 
   useEffect(() => { load(); }, [load]);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const openCreate = () => {
+    setEditTarget(null);
+    setForm({ ...BLANK_FOLLOWUP, department: department === 'all' ? 'media' : department });
+    setModalOpen(true);
+  };
+
+  const openEdit = (f) => {
+    setEditTarget(f);
+    setForm({
+      ...BLANK_FOLLOWUP,
+      ...f,
+      client: f.client?._id || f.client || '',
+      assignedTo: f.assignedTo?._id || f.assignedTo || '',
+      dueDate: toDateInput(f.dueDate),
+    });
+    setModalOpen(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.client) { toast.error('Select a client for this follow-up'); return; }
     setSaving(true);
     try {
-      await apiFetch('/followups', token, { method:'POST', body: JSON.stringify(form) });
-      toast.success('Follow-up created');
+      const payload = { ...form, assignedTo: form.assignedTo || undefined };
+      if (editTarget?._id) {
+        await apiFetch(`/followups/${editTarget._id}`, token, { method:'PUT', body: JSON.stringify(payload) });
+        toast.success('Follow-up updated');
+      } else {
+        await apiFetch('/followups', token, { method:'POST', body: JSON.stringify(payload) });
+        toast.success('Follow-up created');
+      }
       setModalOpen(false);
       load();
     } catch (err) {
@@ -592,32 +1002,51 @@ function FollowUpsModule({ token, department }) {
     }
   };
 
-  const STATUS_TABS = ['pending','completed','overdue','cancelled'];
+  const cancelFollowUp = async (id) => {
+    try {
+      await apiFetch(`/followups/${id}`, token, { method:'PUT', body: JSON.stringify({ status:'cancelled' }) });
+      toast.success('Follow-up cancelled');
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const STATUS_TABS = ['pending','overdue','completed','cancelled'];
   const TYPE_ICONS  = { call:'call', email:'email', meeting:'meeting_room', visit:'location_on', proposal:'description', approval:'check_circle', other:'more_horiz' };
 
   return (
     <>
-      <Modal open={modalOpen} title="New Follow-up" onClose={() => setModalOpen(false)}
+      <Modal open={modalOpen} title={editTarget ? 'Edit Follow-up' : 'New Follow-up'} onClose={() => setModalOpen(false)}
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button variant="accent" type="submit" form="crm-followup-form" loading={saving}>Create Follow-up</Button>
+            <Button variant="accent" type="submit" form="crm-followup-form" loading={saving}>{editTarget ? 'Save Changes' : 'Create Follow-up'}</Button>
           </div>
         }
       >
         <form id="crm-followup-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <ClientPicker clients={clients} value={form.client} onChange={set('client')} />
+          </div>
           <Select label="Department *" required name="department" value={form.department} onChange={set('department')}
-            options={[{ value:'media', label:'Media' }, { value:'marketing', label:'Marketing' }]} />
+            options={SINGLE_DEPT_OPTIONS} />
           <Select label="Type" name="type" value={form.type} onChange={set('type')}
             options={Object.keys(TYPE_ICONS).map(t => ({ value:t, label:t.charAt(0).toUpperCase()+t.slice(1) }))} />
           <Select label="Priority" name="priority" value={form.priority} onChange={set('priority')} options={PRIORITY_OPTIONS} />
           <Input label="Due Date *" required name="dueDate" type="date" value={form.dueDate} onChange={set('dueDate')} />
           <div className="sm:col-span-2">
-            <Input label="Notes" name="notes" value={form.notes} onChange={set('notes')} placeholder="What needs to happen?" />
+            <UserPicker users={users} value={form.assignedTo} onChange={set('assignedTo')} />
+          </div>
+          <div className="sm:col-span-2">
+            <TextArea label="Notes" rows={2} name="notes" value={form.notes} onChange={set('notes')} placeholder="What needs to happen?" />
           </div>
           <div className="sm:col-span-2">
             <Input label="Next Action" name="nextAction" value={form.nextAction} onChange={set('nextAction')} />
           </div>
+          {editTarget && (
+            <div className="sm:col-span-2">
+              <TextArea label="Outcome" rows={2} name="outcome" value={form.outcome} onChange={set('outcome')} placeholder="Recorded on the client timeline when completed" />
+            </div>
+          )}
         </form>
       </Modal>
 
@@ -628,9 +1057,9 @@ function FollowUpsModule({ token, department }) {
         loading={loading}
         empty={!loading && items.length === 0}
         emptyTitle={`No ${statusFilter} follow-ups`}
-        emptyAction={statusFilter === 'pending' ? { label:'Create Follow-up', onClick:() => setModalOpen(true) } : undefined}
+        emptyAction={statusFilter === 'pending' ? { label:'Create Follow-up', onClick: openCreate } : undefined}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Status tabs */}
             <div className="flex rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-700 dark:bg-neutral-800">
               {STATUS_TABS.map(s => (
@@ -641,17 +1070,40 @@ function FollowUpsModule({ token, department }) {
                 </button>
               ))}
             </div>
-            <Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={() => setModalOpen(true)}>Add</Button>
+            <select
+              value={assigneeFilter}
+              onChange={e => setAssigneeFilter(e.target.value)}
+              aria-label="Filter by assignee"
+              className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            >
+              <option value="">All assignees</option>
+              {users.map(u => <option key={u._id} value={u._id}>{userLabel(u)}</option>)}
+            </select>
+            <Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={openCreate}>Add</Button>
           </div>
         }
       >
         <div className="space-y-3">
           {items.map(f => {
             const overdue = f.status === 'pending' && new Date(f.dueDate) < new Date();
+            const done = f.status === 'completed';
             return (
-              <div key={f._id} className={`flex items-start gap-4 rounded-xl border p-4 transition-colors ${overdue ? 'border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10' : 'border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800/50'}`}>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background:'var(--portal-accent-soft)', color:'var(--portal-accent)' }}>
-                  <span className="material-symbols-outlined text-xl">{TYPE_ICONS[f.type]||'event'}</span>
+              <div key={f._id}
+                className={`relative flex items-start gap-4 overflow-hidden rounded-xl border p-4 pl-5 transition-all hover:shadow-md ${
+                  overdue
+                    ? 'border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10'
+                    : 'border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800/50'
+                } ${done ? 'opacity-70' : ''}`}
+              >
+                {/* Priority rail — severity readable before any text is parsed */}
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-0 left-0 w-1.5"
+                  style={{ background: overdue ? '#e11d48' : PRIORITY_RAIL[f.priority] || '#94a3b8' }}
+                />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${overdue ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : ''}`}
+                  style={overdue ? undefined : { background:'var(--portal-accent-soft)', color:'var(--portal-accent)' }}>
+                  <span className="material-symbols-outlined text-xl">{done ? 'task_alt' : TYPE_ICONS[f.type]||'event'}</span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -661,11 +1113,27 @@ function FollowUpsModule({ token, department }) {
                     {overdue && <StatusBadge tone="danger" label="Overdue" />}
                   </div>
                   {f.notes && <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400 line-clamp-2">{f.notes}</p>}
-                  <p className="mt-1 text-xs text-neutral-400">Due: <span className={overdue ? 'font-semibold text-red-600' : ''}>{fmt(f.dueDate)}</span></p>
+                  <p className="mt-1 text-xs text-neutral-400">
+                    <span className="capitalize">{f.type}</span>
+                    {' · Due: '}
+                    <span className={overdue ? 'font-semibold text-red-600' : ''}>{fmt(f.dueDate)}</span>
+                    {f.status === 'pending' && ` (${relativeDue(f.dueDate)})`}
+                    {f.assignedTo && ` · ${userLabel(f.assignedTo)}`}
+                  </p>
                 </div>
-                {f.status === 'pending' && (
-                  <Button variant="success" size="sm" onClick={() => markComplete(f._id)}>Done</Button>
-                )}
+                <div className="flex shrink-0 items-center gap-1">
+                  {f.status === 'pending' && (
+                    <Button variant="success" size="sm" onClick={() => markComplete(f._id)}>Done</Button>
+                  )}
+                  <DropdownMenu
+                    items={[
+                      { label: 'Edit', icon: 'edit', onClick: () => openEdit(f) },
+                      ...(f.status === 'pending'
+                        ? [{ label: 'Cancel', icon: 'cancel', tone: 'danger', onClick: () => cancelFollowUp(f._id) }]
+                        : []),
+                    ]}
+                  />
+                </div>
               </div>
             );
           })}
@@ -676,8 +1144,7 @@ function FollowUpsModule({ token, department }) {
 }
 
 // ── Communication History ─────────────────────────────────────────────────────
-const TYPE_ICONS_COMMS = { email:'email', call:'call', meeting:'meeting_room', visit:'location_on', message:'chat_bubble', proposal:'description', approval:'check_circle', note:'edit_note', status_change:'update' };
-const BLANK_COMM = { department:'media', type:'note', direction:'outbound', subject:'', body:'', isInternal:false };
+const BLANK_COMM = { client:'', department:'media', type:'note', direction:'outbound', subject:'', body:'', isInternal:false, outcome:'', occurredAt:'' };
 
 function CommunicationsModule({ token, department }) {
   const toast = useToast();
@@ -686,28 +1153,50 @@ function CommunicationsModule({ token, department }) {
   const [page, setPage]         = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal]       = useState(0);
+  const [typeFilter, setTypeFilter]     = useState('');
+  const [clientFilter, setClientFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm]         = useState(BLANK_COMM);
   const [saving, setSaving]     = useState(false);
 
+  const clients = useClientOptions(token, department);
+
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`/communications?department=${department}&page=${page}&limit=20`, token)
+    const q = new URLSearchParams({
+      department, page, limit: 20,
+      ...(typeFilter ? { type: typeFilter } : {}),
+      ...(clientFilter ? { clientId: clientFilter } : {}),
+    }).toString();
+    apiFetch(`/communications?${q}`, token)
       .then(r => { setItems(r.data || []); setTotal(r.total||0); setTotalPages(r.pages||1); })
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, page]);
+  }, [token, department, page, typeFilter, clientFilter]);
 
-  useEffect(() => { setPage(1); }, [department]);
+  useEffect(() => { setPage(1); }, [department, typeFilter, clientFilter]);
   useEffect(() => { load(); }, [load]);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
+  const openCreate = () => {
+    setForm({
+      ...BLANK_COMM,
+      department: department === 'all' ? 'media' : department,
+      client: clientFilter || '',
+      // Default to now, so the timeline orders correctly without extra typing.
+      occurredAt: new Date().toISOString().slice(0, 16),
+    });
+    setModalOpen(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.client) { toast.error('Select a client for this entry'); return; }
     setSaving(true);
     try {
-      await apiFetch('/communications', token, { method:'POST', body: JSON.stringify(form) });
+      const payload = { ...form, occurredAt: form.occurredAt ? new Date(form.occurredAt).toISOString() : undefined };
+      await apiFetch('/communications', token, { method:'POST', body: JSON.stringify(payload) });
       toast.success('Communication logged');
       setModalOpen(false);
       load();
@@ -731,16 +1220,24 @@ function CommunicationsModule({ token, department }) {
         }
       >
         <form id="crm-comm-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <ClientPicker clients={clients} value={form.client} onChange={set('client')} />
+          </div>
           <Select label="Type" name="type" value={form.type} onChange={set('type')}
-            options={Object.keys(TYPE_ICONS_COMMS).map(t => ({ value:t, label:t.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase()) }))} />
+            options={Object.keys(TYPE_ICONS_COMMS).filter(t => t !== 'status_change').map(t => ({ value:t, label:t.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase()) }))} />
           <Select label="Direction" name="direction" value={form.direction} onChange={set('direction')}
             options={[{ value:'outbound', label:'Outbound' }, { value:'inbound', label:'Inbound' }, { value:'internal', label:'Internal' }]} />
           <Select label="Department *" required name="department" value={form.department} onChange={set('department')}
-            options={[{ value:'media', label:'Media' }, { value:'marketing', label:'Marketing' }]} />
-          <Input label="Subject" name="subject" value={form.subject} onChange={set('subject')} />
+            options={SINGLE_DEPT_OPTIONS} />
+          <Input label="Occurred At" name="occurredAt" type="datetime-local" value={form.occurredAt} onChange={set('occurredAt')} />
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Notes / Body</label>
-            <textarea rows={4} name="body" value={form.body} onChange={set('body')} className="min-h-11 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" />
+            <Input label="Subject" name="subject" value={form.subject} onChange={set('subject')} placeholder="e.g. Kick-off call" />
+          </div>
+          <div className="sm:col-span-2">
+            <TextArea label="Notes / Body" rows={4} name="body" value={form.body} onChange={set('body')} />
+          </div>
+          <div className="sm:col-span-2">
+            <Input label="Outcome" name="outcome" value={form.outcome} onChange={set('outcome')} placeholder="What came of it?" />
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="isInternal" checked={form.isInternal} onChange={set('isInternal')} className="h-4 w-4 rounded border-neutral-300" />
@@ -756,8 +1253,32 @@ function CommunicationsModule({ token, department }) {
         loading={loading}
         empty={!loading && items.length === 0}
         emptyTitle="No communications logged"
-        emptyAction={{ label:'Log First Entry', onClick:() => setModalOpen(true) }}
-        action={<Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={() => { setForm(BLANK_COMM); setModalOpen(true); }}>Log</Button>}
+        emptyAction={{ label:'Log First Entry', onClick: openCreate }}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={clientFilter}
+              onChange={e => setClientFilter(e.target.value)}
+              aria-label="Filter by client"
+              className="h-9 max-w-[12rem] rounded-lg border border-neutral-200 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            >
+              <option value="">All clients</option>
+              {clients.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
+            <select
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+              aria-label="Filter by type"
+              className="h-9 rounded-lg border border-neutral-200 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            >
+              <option value="">All types</option>
+              {Object.keys(TYPE_ICONS_COMMS).map(t => (
+                <option key={t} value={t}>{t.replace('_',' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+              ))}
+            </select>
+            <Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={openCreate}>Log</Button>
+          </div>
+        }
       >
         <div className="space-y-2">
           {items.map(c => (
@@ -772,10 +1293,13 @@ function CommunicationsModule({ token, department }) {
                   <StatusBadge tone={DIRECTION_TONE[c.direction]||'neutral'} label={c.direction} dot={false} />
                   {c.isInternal && <StatusBadge tone="neutral" label="Internal" dot={false} />}
                 </div>
+                {c.client?.name && (
+                  <p className="mt-0.5 text-xs font-semibold text-[var(--portal-accent)]">{c.client.name}</p>
+                )}
                 {c.body && <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400 line-clamp-2">{c.body}</p>}
                 <p className="mt-1 text-xs text-neutral-400">
-                  {c.createdBy ? `${c.createdBy.firstName} ${c.createdBy.lastName} · ` : ''}
-                  {new Date(c.occurredAt || c.createdAt).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
+                  {c.createdBy ? `${userLabel(c.createdBy)} · ` : ''}
+                  {fmtDateTime(c.occurredAt || c.createdAt)}
                 </p>
               </div>
             </div>
@@ -805,6 +1329,7 @@ function EmailModule({ token, department }) {
   const [loading, setLoading]     = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [viewModal, setViewModal] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]           = useState(BLANK_TEMPLATE);
   const [saving, setSaving]       = useState(false);
 
@@ -820,12 +1345,20 @@ function EmailModule({ token, department }) {
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const openCreate = () => { setEditTarget(null); setForm(BLANK_TEMPLATE); setModalOpen(true); };
+  const openEdit   = (t) => { setEditTarget(t); setForm({ ...BLANK_TEMPLATE, ...t }); setViewModal(null); setModalOpen(true); };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await apiFetch('/email-templates', token, { method:'POST', body: JSON.stringify(form) });
-      toast.success('Template created');
+      if (editTarget?._id) {
+        await apiFetch(`/email-templates/${editTarget._id}`, token, { method:'PUT', body: JSON.stringify(form) });
+        toast.success('Template updated');
+      } else {
+        await apiFetch('/email-templates', token, { method:'POST', body: JSON.stringify(form) });
+        toast.success('Template created');
+      }
       setModalOpen(false);
       load();
     } catch (err) {
@@ -835,15 +1368,32 @@ function EmailModule({ token, department }) {
     }
   };
 
+  const handleDelete = async (t) => {
+    if (!window.confirm(`Delete the “${t.name}” template?`)) return;
+    try {
+      await apiFetch(`/email-templates/${t._id}`, token, { method:'DELETE' });
+      toast.success('Template deleted');
+      setViewModal(null);
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const copyTemplate = async (t) => {
+    try {
+      await navigator.clipboard.writeText(`Subject: ${t.subject}\n\n${t.body}`);
+      toast.success('Template copied to clipboard');
+    } catch { toast.error('Could not copy to clipboard'); }
+  };
+
   const TYPE_ICONS_EMAIL = { introduction:'waving_hand', followup:'replay', proposal:'description', meeting:'calendar_month', delivery:'local_shipping', outreach:'send', update:'update', other:'email' };
 
   return (
     <>
-      <Modal open={modalOpen} title="New Email Template" description="Use {{variable}} placeholders for dynamic content" onClose={() => setModalOpen(false)}
+      <Modal open={modalOpen} title={editTarget ? 'Edit Email Template' : 'New Email Template'} description="Use {{variable}} placeholders for dynamic content" onClose={() => setModalOpen(false)}
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button variant="accent" type="submit" form="crm-email-form" loading={saving}>Create Template</Button>
+            <Button variant="accent" type="submit" form="crm-email-form" loading={saving}>{editTarget ? 'Save Changes' : 'Create Template'}</Button>
           </div>
         }
       >
@@ -868,7 +1418,18 @@ function EmailModule({ token, department }) {
       </Modal>
 
       {/* Template viewer */}
-      <Modal open={Boolean(viewModal)} title={viewModal?.name || 'Template'} onClose={() => setViewModal(null)}>
+      <Modal
+        open={Boolean(viewModal)}
+        title={viewModal?.name || 'Template'}
+        onClose={() => setViewModal(null)}
+        footer={viewModal && (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="danger" size="sm" onClick={() => handleDelete(viewModal)}>Delete</Button>
+            <Button variant="secondary" size="sm" onClick={() => copyTemplate(viewModal)}>Copy</Button>
+            <Button variant="accent" size="sm" onClick={() => openEdit(viewModal)}>Edit</Button>
+          </div>
+        )}
+      >
         {viewModal && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
@@ -891,8 +1452,8 @@ function EmailModule({ token, department }) {
         loading={loading}
         empty={!loading && templates.length === 0}
         emptyTitle="No templates yet"
-        emptyAction={{ label:'Create Template', onClick:() => setModalOpen(true) }}
-        action={<Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={() => { setForm(BLANK_TEMPLATE); setModalOpen(true); }}>New Template</Button>}
+        emptyAction={{ label:'Create Template', onClick: openCreate }}
+        action={<Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={openCreate}>New Template</Button>}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map(t => (
@@ -946,6 +1507,15 @@ function VendorsModule({ token, department }) {
 
   const openCreate = () => { setEditTarget(null); setForm({ ...BLANK_VENDOR, entityType: entityFilter }); setModalOpen(true); };
   const openEdit   = (v)  => { setEditTarget(v); setForm({ ...BLANK_VENDOR, ...v }); setModalOpen(true); };
+
+  const handleDelete = async (row) => {
+    if (!window.confirm(`Remove “${row.name}”?`)) return;
+    try {
+      await apiFetch(`/vendors/${row._id}`, token, { method: 'DELETE' });
+      toast.success('Removed');
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1029,54 +1599,200 @@ function VendorsModule({ token, department }) {
         }
         noBodyPadding
       >
-        <DataTable columns={columns} rows={items} rowKey="_id" onRowClick={openEdit} emptyTitle={`No ${entityLabel.toLowerCase()}`} />
+        <DataTable
+          columns={columns}
+          rows={items}
+          rowKey="_id"
+          onRowClick={openEdit}
+          rowActions={(row) => [
+            { label: 'Edit',   icon: 'edit',   onClick: () => openEdit(row) },
+            { label: 'Remove', icon: 'delete', tone: 'danger', onClick: () => handleDelete(row) },
+          ]}
+          emptyTitle={`No ${entityLabel.toLowerCase()}`}
+        />
       </SectionCard>
     </>
   );
 }
 
 // ── Reports & Analytics ───────────────────────────────────────────────────────
+// Categorical palette, fixed order so a given series keeps its colour between
+// renders and between charts.
+const PALETTE = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#ef4444'];
+
+const prettyLabel = (v) => String(v ?? '—').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+/** Horizontal ranked bars. Scaled to the largest row so small values stay visible. */
+function BarList({ rows = [], offset = 0 }) {
+  const max = Math.max(...rows.map(r => r.count || 0), 1);
+  const total = rows.reduce((n, r) => n + (r.count || 0), 0) || 1;
+  return (
+    <div className="space-y-3">
+      {rows.slice(0, 10).map((r, i) => {
+        const color = PALETTE[(i + offset) % PALETTE.length];
+        return (
+          <div key={r._id ?? i}>
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+                <span className="truncate">{prettyLabel(r._id)}</span>
+              </span>
+              <span className="shrink-0 text-sm font-bold tabular-nums text-neutral-900 dark:text-neutral-100">
+                {r.count}
+                <span className="ml-1.5 text-xs font-medium text-neutral-400">
+                  {Math.round((r.count / total) * 100)}%
+                </span>
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+              <div className="h-full rounded-full transition-[width] duration-700 ease-out"
+                style={{ width: `${Math.max(3, (r.count / max) * 100)}%`, background: color }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Donut built from a single conic-gradient — no chart dependency for what is a
+ * share-of-total readout. Each slice is also listed with its exact value,
+ * because a ring alone is hard to read precisely.
+ */
+function DonutChart({ rows = [] }) {
+  const total = rows.reduce((n, r) => n + (r.count || 0), 0);
+  if (!total) return null;
+
+  let cursor = 0;
+  const stops = rows.map((r, i) => {
+    const start = (cursor / total) * 360;
+    cursor += r.count || 0;
+    const end = (cursor / total) * 360;
+    return `${PALETTE[i % PALETTE.length]} ${start}deg ${end}deg`;
+  }).join(', ');
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-6 sm:justify-start">
+      <div className="relative h-36 w-36 shrink-0">
+        <div className="h-full w-full rounded-full" style={{ background: `conic-gradient(${stops})` }} />
+        {/* Inner cut-out carries the total, so the chart answers "how many" too */}
+        <div className="absolute inset-[22%] flex flex-col items-center justify-center rounded-full bg-white dark:bg-neutral-900">
+          <span className="text-xl font-black tabular-nums text-neutral-900 dark:text-neutral-100">{total}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total</span>
+        </div>
+      </div>
+      <ul className="min-w-0 space-y-2">
+        {rows.map((r, i) => (
+          <li key={r._id ?? i} className="flex items-center gap-2.5 text-sm">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: PALETTE[i % PALETTE.length] }} />
+            <span className="min-w-0 flex-1 truncate text-neutral-700 dark:text-neutral-300">{prettyLabel(r._id)}</span>
+            <span className="shrink-0 font-bold tabular-nums text-neutral-900 dark:text-neutral-100">{r.count}</span>
+            <span className="w-9 shrink-0 text-right text-xs tabular-nums text-neutral-400">
+              {Math.round((r.count / total) * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const DATE_PRESETS = [
+  { key: '30',  label: '30 days' },
+  { key: '90',  label: '90 days' },
+  { key: '365', label: '12 months' },
+  { key: 'all', label: 'All time' },
+];
+
 function AnalyticsModule({ token, department }) {
   const toast = useToast();
-  const [data, setData]         = useState(null);
-  const [loading, setLoading]   = useState(true);
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [range, setRange]     = useState('90');
 
   useEffect(() => {
     setLoading(true);
-    apiFetch(`/analytics?department=${department}`, token)
+    const params = new URLSearchParams({ department });
+    if (range !== 'all') {
+      params.set('dateFrom', new Date(Date.now() - Number(range) * 86400000).toISOString());
+    }
+    apiFetch(`/analytics?${params}`, token)
       .then(r => setData(r.data))
       .catch(err => { toast.error(err.message); setData(null); })
       .finally(() => setLoading(false));
-  }, [token, department]);
+  }, [token, department, range]);
 
-  const Chart = ({ title, rows, keyField = '_id', valueField = 'count', colorFn }) => {
-    const max = Math.max(...(rows||[]).map(r => r[valueField]), 1);
-    return (
-      <SectionCard title={title} icon="bar_chart" loading={loading} empty={!loading && !rows?.length} emptyTitle="No data yet" skeletonRows={4}>
-        <div className="space-y-2.5">
-          {(rows||[]).slice(0,10).map((r,i) => (
-            <div key={r[keyField]||i} className="flex items-center gap-3">
-              <span className="w-32 shrink-0 truncate text-sm text-neutral-600 dark:text-neutral-400 capitalize">{String(r[keyField]||'—').replace(/_/g,' ')}</span>
-              <div className="flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" style={{ height:8 }}>
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width:`${(r[valueField]/max)*100}%`, background: colorFn ? colorFn(i) : 'var(--portal-accent)' }} />
-              </div>
-              <span className="w-8 text-right text-sm font-bold text-neutral-900 dark:text-neutral-100">{r[valueField]}</span>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-    );
+  const exportReport = () => {
+    if (!data) return;
+    const lines = [['Report','Category','Count']];
+    const push = (name, rows) => (rows || []).forEach(r => lines.push([name, prettyLabel(r._id), r.count]));
+    push('Clients by Department', data.clientsByDept);
+    push('Clients by Status', data.clientsByStatus);
+    push('Follow-ups by Status', data.followupsByStatus);
+    push('Communications by Type', data.commsByType);
+    const csv = lines.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8;' }));
+    const a = Object.assign(document.createElement('a'), { href:url, download:`crm-analytics-${department}-${new Date().toISOString().slice(0,10)}.csv` });
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const PALETTE = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#14b8a6'];
+  const rangeLabel = DATE_PRESETS.find(p => p.key === range)?.label.toLowerCase();
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-      <Chart title="Clients by Department" rows={data?.clientsByDept} colorFn={i => PALETTE[i%PALETTE.length]} />
-      <Chart title="Clients by Status"     rows={data?.clientsByStatus} colorFn={i => PALETTE[i%PALETTE.length]} />
-      <Chart title="Follow-ups by Status"  rows={data?.followupsByStatus} colorFn={i => PALETTE[(i+2)%PALETTE.length]} />
-      <Chart title="Communications by Type" rows={data?.commsByType} colorFn={i => PALETTE[(i+4)%PALETTE.length]} />
+    <div className="space-y-5">
+      {/* Report controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900"
+        style={{ boxShadow:'var(--erp-shadow-soft)' }}
+      >
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px] text-neutral-400">date_range</span>
+          <div className="flex rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-700 dark:bg-neutral-800">
+            {DATE_PRESETS.map(p => (
+              <button key={p.key} type="button" onClick={() => setRange(p.key)}
+                aria-pressed={range === p.key}
+                className={`rounded-md px-3 py-1 text-xs font-bold transition-colors ${
+                  range === p.key
+                    ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+                    : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400'
+                }`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Button variant="secondary" size="sm" onClick={exportReport} disabled={!data}
+          icon={<span className="material-symbols-outlined text-base">download</span>}>
+          Export CSV
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <SectionCard title="Clients by Department" icon="donut_small"
+          description="Share of the client base held by each department"
+          loading={loading} empty={!loading && !data?.clientsByDept?.length} emptyTitle="No client data yet" skeletonRows={4}>
+          <DonutChart rows={data?.clientsByDept || []} />
+        </SectionCard>
+
+        <SectionCard title="Clients by Status" icon="bar_chart"
+          description="Where the client base sits in the pipeline"
+          loading={loading} empty={!loading && !data?.clientsByStatus?.length} emptyTitle="No client data yet" skeletonRows={4}>
+          <BarList rows={data?.clientsByStatus || []} />
+        </SectionCard>
+
+        <SectionCard title="Follow-ups by Status" icon="event_available"
+          description="Task completion across the period"
+          loading={loading} empty={!loading && !data?.followupsByStatus?.length} emptyTitle="No follow-ups yet" skeletonRows={4}>
+          <BarList rows={data?.followupsByStatus || []} offset={2} />
+        </SectionCard>
+
+        <SectionCard title="Communications by Type" icon="forum"
+          description={`Interactions logged in the last ${rangeLabel}`}
+          loading={loading} empty={!loading && !data?.commsByType?.length} emptyTitle="No communications yet" skeletonRows={4}>
+          <BarList rows={data?.commsByType || []} offset={4} />
+        </SectionCard>
+      </div>
     </div>
   );
 }
@@ -1084,9 +1800,10 @@ function AnalyticsModule({ token, department }) {
 // ── CRM Settings ──────────────────────────────────────────────────────────────
 function SettingsModule() {
   const ENDPOINTS = [
-    '/api/v1/crm/dashboard','/api/v1/crm/clients','/api/v1/crm/contacts',
-    '/api/v1/crm/statuses','/api/v1/crm/email-templates','/api/v1/crm/followups',
-    '/api/v1/crm/communications','/api/v1/crm/vendors','/api/v1/crm/analytics',
+    '/api/v1/crm/dashboard','/api/v1/crm/clients','/api/v1/crm/clients/:id/overview',
+    '/api/v1/crm/pipeline','/api/v1/crm/contacts','/api/v1/crm/statuses',
+    '/api/v1/crm/email-templates','/api/v1/crm/followups','/api/v1/crm/communications',
+    '/api/v1/crm/vendors','/api/v1/crm/analytics','/api/v1/crm/users',
   ];
   const PERMISSIONS = [
     ['Super Admin / Admin', 'Full CRM access — all departments, all records, all settings'],
@@ -1111,12 +1828,14 @@ function SettingsModule() {
         </div>
       </SectionCard>
 
-      <SectionCard title="API Endpoints" icon="api" description="Internal REST endpoints — require Bearer token with CRM role">
-        <div className="space-y-1.5">
+      <SectionCard title="API Endpoints" icon="api" description="Internal REST endpoints — require a Bearer token with a CRM role">
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {ENDPOINTS.map(ep => (
-            <div key={ep} className="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800">
-              <StatusBadge tone="info" label="GET/POST" dot={false} />
-              <code className="text-xs text-neutral-700 dark:text-neutral-300">{ep}</code>
+            <div key={ep} className="flex items-center gap-2 rounded-lg border border-neutral-100 bg-neutral-50/70 px-2.5 py-2 font-mono text-xs transition-colors hover:border-neutral-200 dark:border-neutral-800 dark:bg-neutral-800/50">
+              <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                REST
+              </span>
+              <code className="min-w-0 truncate text-neutral-600 dark:text-neutral-400" title={ep}>{ep}</code>
             </div>
           ))}
         </div>
@@ -1143,10 +1862,43 @@ function SettingsModule() {
   );
 }
 
+// ── Pipeline module ───────────────────────────────────────────────────────────
+// Thin wrapper so the board can open the same Client 360 drawer the list uses.
+function PipelineModule({ token, department }) {
+  const [detailId, setDetailId] = useState(null);
+  const [statuses] = useStatusOptions(token, department);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  return (
+    <>
+      <ClientDetailDrawer
+        open={Boolean(detailId)}
+        clientId={detailId}
+        token={token}
+        statuses={statuses}
+        onClose={() => setDetailId(null)}
+        onChanged={() => setReloadKey(k => k + 1)}
+      />
+      <SectionCard
+        title="Relationship Pipeline"
+        icon="view_kanban"
+        description="Drag a client card between stages to move it through the pipeline"
+        noBodyPadding
+        bodyClassName="p-4"
+      >
+        <div className="p-4">
+          <PipelineBoard key={reloadKey} token={token} department={department} onOpenClient={setDetailId} />
+        </div>
+      </SectionCard>
+    </>
+  );
+}
+
 // ── Module registry ───────────────────────────────────────────────────────────
 const MODULES = [
   { id:'dashboard', label:'Dashboard',           icon:'dashboard',              Component: CRMDashboard },
   { id:'clients',   label:'Clients',              icon:'groups',                 Component: ClientsModule },
+  { id:'pipeline',  label:'Pipeline',             icon:'view_kanban',            Component: PipelineModule },
   { id:'contacts',  label:'Contacts',             icon:'contacts',               Component: ContactsModule },
   { id:'statuses',  label:'Status Management',    icon:'flag',                   Component: StatusModule },
   { id:'email',     label:'Email & Content',      icon:'email',                  Component: EmailModule },
@@ -1163,7 +1915,7 @@ const MODULES = [
 // are deliberately absent here rather than shown as dead links.
 const NAV_GROUPS = [
   { id:'overview',     label:'Overview',                      moduleIds:['dashboard'] },
-  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','contacts','statuses'] },
+  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','contacts','statuses'] },
   { id:'activities',   label:'Activities & Communication',    moduleIds:['followups','comms','email'] },
   { id:'network',      label:'Business Network',              moduleIds:['vendors'] },
   { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','settings'] },
@@ -1203,46 +1955,65 @@ export default function AdminCRMPage() {
 
   const { Component: ActiveComponent } = MODULES.find(m => m.id === activeId) || MODULES[0];
 
-  return (
-    <div className="flex h-full min-h-screen flex-col" style={{ '--portal-accent':'#6366f1', '--portal-accent-soft':'rgba(99,102,241,0.1)' }}>
-      {/* Portal header */}
-      <div className="px-4 pt-4 pb-0 lg:px-6 lg:pt-5">
-        <PortalHeader
-          title="CRM Management"
-          subtitle="Media & Marketing — Centralised Client Relationship Management"
-          icon="contact_page"
-          user={user}
-          showThemeToggle
-        >
-          {/* Department filter in header right slot */}
-          <div
-            role="group"
-            aria-label="Department filter"
-            className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-700 dark:bg-neutral-800"
-          >
-            {DEPT_TABS.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={department === key}
-                onClick={() => selectDepartment(key)}
-                className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 ${
-                  department === key
-                    ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
-                    : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </PortalHeader>
-      </div>
+  const activeModule = MODULE_BY_ID[activeId] || MODULES[0];
+  const activeGroup  = NAV_GROUPS_RESOLVED.find(g => g.modules.some(m => m.id === activeId));
 
-      <div className="flex min-h-0 flex-1">
-        {/* Desktop sidebar nav */}
-        <aside className="hidden w-56 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 lg:flex">
-          <nav className="flex flex-col gap-1 overflow-y-auto p-2">
+  // Sidebar badges. Only counts that mean "there is work here" are shown —
+  // a badge on every item would be noise rather than signal.
+  const [counts, setCounts] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(`/dashboard?department=${department}`, token)
+      .then(r => {
+        if (cancelled) return;
+        setCounts({ clients: r.data?.activeClients || 0, followups: r.data?.overdueFollowUps || 0 });
+      })
+      .catch(() => { if (!cancelled) setCounts({}); });
+    return () => { cancelled = true; };
+  }, [token, department, activeId]);
+
+  return (
+    <div className="min-w-0">
+      {/* Portal header */}
+      <PortalHeader
+        title="CRM Management"
+        subtitle="Media & Marketing — Centralised Client Relationship Management"
+        icon="contact_page"
+        user={user}
+        showThemeToggle
+      >
+        {/* Department filter in header right slot */}
+        <div
+          role="group"
+          aria-label="Department filter"
+          className="inline-flex rounded-xl border border-neutral-200 bg-neutral-100/80 p-1 dark:border-neutral-700 dark:bg-neutral-800"
+        >
+          {DEPT_TABS.map(({ key, label, short, icon }) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={department === key}
+              title={label}
+              onClick={() => selectDepartment(key)}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 ${
+                department === key
+                  ? 'bg-white text-neutral-900 shadow-sm ring-1 ring-black/5 dark:bg-neutral-700 dark:text-white dark:ring-white/10'
+                  : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[15px]">{icon}</span>
+              <span className="hidden sm:inline">{short}</span>
+            </button>
+          ))}
+        </div>
+      </PortalHeader>
+
+      <div className="flex items-start gap-5">
+        {/* Desktop sidebar nav — sticky so navigation stays reachable on long pages */}
+        <aside className="crm-scroll-thin sticky top-4 hidden max-h-[calc(100vh-2rem)] w-60 shrink-0 flex-col overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900 lg:flex"
+          style={{ boxShadow:'var(--erp-shadow-soft)' }}
+        >
+          <nav className="flex flex-col gap-1">
             {NAV_GROUPS_RESOLVED.map(({ id: groupId, label: groupLabel, modules }) => {
               const open = !collapsedGroups.includes(groupId);
               const groupHasActive = modules.some(m => m.id === activeId);
@@ -1273,17 +2044,31 @@ export default function AdminCRMPage() {
                             key={id}
                             type="button"
                             onClick={() => navigate(`/admin/crm/${id}`)}
-                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 ${
+                            className={`group relative flex w-full items-center gap-2.5 rounded-xl py-2 pl-3 pr-2.5 text-left text-[13px] transition-all focus:outline-none focus-visible:ring-2 ${
                               active
-                                ? 'bg-[var(--portal-accent-soft)] font-semibold'
-                                : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                                ? 'bg-[var(--portal-accent-soft)] font-bold'
+                                : 'font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'
                             }`}
                             style={active ? { color:'var(--portal-accent)' } : {}}
                             aria-current={active ? 'page' : undefined}
                           >
-                            <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                            <span className="truncate">{label}</span>
-                            {active && <span className="ml-auto h-1.5 w-1.5 rounded-full" style={{ background:'var(--portal-accent)' }} />}
+                            {/* Active rail — a clearer anchor than a trailing dot */}
+                            <span
+                              aria-hidden="true"
+                              className={`absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`}
+                              style={{ background:'var(--portal-accent)' }}
+                            />
+                            <span className="material-symbols-outlined text-[19px]">{icon}</span>
+                            <span className="min-w-0 flex-1 truncate">{label}</span>
+                            {counts[id] > 0 && (
+                              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                                active
+                                  ? 'bg-white/70 text-[var(--portal-accent)] dark:bg-neutral-900/50'
+                                  : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                              }`}>
+                                {counts[id] > 99 ? '99+' : counts[id]}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -1295,51 +2080,55 @@ export default function AdminCRMPage() {
           </nav>
         </aside>
 
-        {/* Mobile horizontal tab strip */}
-        <div className="flex w-full flex-col lg:hidden">
-          <div className="flex overflow-x-auto border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            {/* Same grouping as the desktop sidebar, flattened into a scrollable strip
-                with group labels acting as separators. */}
-            <div className="flex items-center gap-1 px-3 py-2">
-              {NAV_GROUPS_RESOLVED.map(({ id: groupId, label: groupLabel, modules }, groupIndex) => (
-                <React.Fragment key={groupId}>
-                  {groupIndex > 0 && (
-                    <span className="mx-1 h-5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-700" aria-hidden="true" />
-                  )}
-                  <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    {groupLabel}
-                  </span>
-                  {modules.map(({ id, label, icon }) => {
-                    const active = activeId === id;
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => navigate(`/admin/crm/${id}`)}
-                        className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
-                          active ? 'text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400'
-                        }`}
-                        style={active ? { background:'var(--portal-accent)' } : {}}
-                      >
-                        <span className="material-symbols-outlined text-[16px]">{icon}</span>
-                        {label}
-                      </button>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+        {/* Content column. One <main> for both breakpoints: rendering the active
+            module twice (once per breakpoint) mounted it twice and double-fetched. */}
+        <main className="min-w-0 flex-1">
+          {/* Mobile module switcher — a select beats a ten-item scroll strip on a phone */}
+          <div className="mb-4 lg:hidden">
+            <label className="sr-only" htmlFor="crm-module-switch">CRM module</label>
+            <div className="relative">
+              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px]" style={{ color:'var(--portal-accent)' }}>
+                {activeModule.icon}
+              </span>
+              <select
+                id="crm-module-switch"
+                value={activeId}
+                onChange={e => navigate(`/admin/crm/${e.target.value}`)}
+                className="h-11 w-full appearance-none rounded-xl border border-neutral-200 bg-white pl-10 pr-9 text-sm font-bold text-neutral-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                style={{ boxShadow:'var(--erp-shadow-soft)' }}
+              >
+                {NAV_GROUPS_RESOLVED.map(({ id: gid, label: glabel, modules }) => (
+                  <optgroup key={gid} label={glabel}>
+                    {modules.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+              <span className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[18px] text-neutral-400">expand_more</span>
             </div>
           </div>
 
-          {/* Mobile content */}
-          <main className="flex-1 overflow-y-auto p-4">
-            <ActiveComponent token={token} department={department} />
-          </main>
-        </div>
+          {/* Breadcrumb — says where you are inside a ten-module section */}
+          <nav aria-label="Breadcrumb" className="mb-3 hidden items-center gap-1.5 text-xs text-neutral-500 lg:flex">
+            <span className="font-medium">CRM</span>
+            {activeGroup && (
+              <>
+                <span className="material-symbols-outlined text-[14px] text-neutral-300 dark:text-neutral-600">chevron_right</span>
+                <span className="font-medium">{activeGroup.label}</span>
+              </>
+            )}
+            <span className="material-symbols-outlined text-[14px] text-neutral-300 dark:text-neutral-600">chevron_right</span>
+            <span className="font-bold text-neutral-800 dark:text-neutral-200">{activeModule.label}</span>
+            <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1 font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+              <span className="material-symbols-outlined text-[13px]">{DEPT_TABS.find(t => t.key === department)?.icon}</span>
+              {DEPT_TABS.find(t => t.key === department)?.label}
+            </span>
+          </nav>
 
-        {/* Desktop content */}
-        <main className="hidden flex-1 overflow-y-auto p-5 lg:block lg:p-6">
-          <ActiveComponent token={token} department={department} />
+          {/* Keyed on module + department so a switch remounts cleanly instead of
+              briefly showing the previous module's rows under the new heading. */}
+          <div key={`${activeId}-${department}`} className="crm-module-enter">
+            <ActiveComponent token={token} department={department} />
+          </div>
         </main>
       </div>
     </div>

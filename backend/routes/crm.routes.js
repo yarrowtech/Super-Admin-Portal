@@ -14,6 +14,8 @@ const CRMFollowUp = require('../models/crm/CRMFollowUp');
 const CRMCommunication = require('../models/crm/CRMCommunication');
 const CRMEmailTemplate = require('../models/crm/CRMEmailTemplate');
 const CRMVendor = require('../models/crm/CRMVendor');
+const { uploadSpreadsheet } = require('../middlewares/upload.middleware');
+const crmImport = require('../services/crmImport.service');
 
 const CRM_ROLES = ['admin', 'super_admin', 'superadmin', 'media_head', 'media_marketing', 'media_sales'];
 
@@ -88,7 +90,16 @@ router.get('/dashboard', requireCRM, async (req, res) => {
       // Overdue is derived, not stored: nothing writes status 'overdue', so counting
       // that literal always returned 0. Match how /followups?overdue=true computes it.
       CRMFollowUp.countDocuments({ ...deptFilter, status: 'pending', dueDate: { $lt: new Date() } }),
-      CRMCommunication.countDocuments({ ...deptFilter, createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }),
+      // Count by when the interaction HAPPENED, not when the row was typed. A call
+      // logged today for last Tuesday belongs to last Tuesday; filtering on createdAt
+      // made backdated entries invisible here while still listing them in the timeline
+      // below, so the KPI and the list disagreed about the same records.
+      CRMCommunication.countDocuments({
+        ...deptFilter,
+        $expr: {
+          $gte: [{ $ifNull: ['$occurredAt', '$createdAt'] }, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)],
+        },
+      }),
     ]);
 
     const statusBreakdown = await CRMClient.aggregate([
@@ -119,10 +130,14 @@ router.get('/dashboard', requireCRM, async (req, res) => {
 // ── Clients ───────────────────────────────────────────────────────────────────
 router.get('/clients', requireCRM, async (req, res) => {
   try {
-    const { department, status, priority, search, page = 1, limit = 20 } = req.query;
+    const { department, status, priority, search, projectId, importBatch, page = 1, limit = 20 } = req.query;
     const filter = { isActive: true, ...deptFilterFor(department) };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
+    // 'unassigned' selects the pre-project records, which a bare id cannot express.
+    if (projectId === 'unassigned') filter.project = null;
+    else if (projectId && mongoose.isValidObjectId(projectId)) filter.project = projectId;
+    if (importBatch) filter.importBatch = importBatch;
     if (search) filter.$or = [
       { name: { $regex: search, $options: 'i' } },
       { contactPerson: { $regex: search, $options: 'i' } },
@@ -639,6 +654,124 @@ router.get('/analytics', requireCRM, async (req, res) => {
     res.json({ success: true, data: { clientsByDept, clientsByStatus, followupsByStatus, commsByType } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Spreadsheet import (project-wise) ─────────────────────────────────────────
+// Two phases: /import/analyze reads and reports without writing; /import/commit
+// persists. The operator always sees counts and row-level issues before any
+// record is created.
+
+const sendImportError = (res, err) => res
+  .status(Number(err.statusCode) || 500)
+  .json({ success: false, error: err.message || 'Import failed' });
+
+/** Projects available to scope an import to. */
+router.get('/import/projects', requireCRM, async (req, res) => {
+  try {
+    const Project = mongoose.model('Project');
+    const projects = await Project.find({ isActive: { $ne: false } })
+      .select('name projectCode status themeColor')
+      .sort({ name: 1 })
+      .limit(500)
+      .lean();
+    res.json({ success: true, data: projects });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** A blank .xlsx with exactly the headers detection expects. */
+router.get('/import/template', requireCRM, (req, res) => {
+  try {
+    const buffer = crmImport.buildTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="crm-import-template.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** Phase 1 — parse, detect columns, validate. Writes nothing. */
+router.post('/import/analyze', requireCRM, uploadSpreadsheet('file'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ success: false, error: 'Attach a CSV, XLSX or XLS file.' });
+    }
+    // The mapping arrives as a JSON string in multipart form data.
+    let mapping;
+    if (req.body.mapping) {
+      try { mapping = JSON.parse(req.body.mapping); }
+      catch { return res.status(422).json({ success: false, error: 'Column mapping is not valid JSON.' }); }
+    }
+    const data = await crmImport.analyzeFile({
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      mapping,
+      sheet: req.body.sheet || undefined,
+      department: req.body.department || 'media',
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** Phase 2 — persist into the chosen project. */
+router.post('/import/commit', requireCRM, uploadSpreadsheet('file'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ success: false, error: 'Attach a CSV, XLSX or XLS file.' });
+    }
+    let mapping;
+    if (req.body.mapping) {
+      try { mapping = JSON.parse(req.body.mapping); }
+      catch { return res.status(422).json({ success: false, error: 'Column mapping is not valid JSON.' }); }
+    }
+    const data = await crmImport.commitImport({
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      mapping,
+      sheet: req.body.sheet || undefined,
+      projectId: req.body.projectId,
+      department: req.body.department || 'media',
+      mode: req.body.mode || 'skip',
+      actorId: req.user._id,
+    });
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** Import history. */
+router.get('/import/batches', requireCRM, async (req, res) => {
+  try {
+    const data = await crmImport.listBatches({ projectId: req.query.projectId, limit: req.query.limit });
+    res.json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** Undo an import. Admin-only: it deletes records. */
+router.delete('/import/batches/:batchId', requireAdmin, async (req, res) => {
+  try {
+    const data = await crmImport.revertBatch({ batchId: req.params.batchId, actorId: req.user._id });
+    res.json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** The project-wise CRM rollup. */
+router.get('/projects/breakdown', requireCRM, async (req, res) => {
+  try {
+    const data = await crmImport.getProjectBreakdown({ department: req.query.department });
+    res.json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
   }
 });
 

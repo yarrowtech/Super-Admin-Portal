@@ -18,6 +18,9 @@ const crmClientSchema = new mongoose.Schema({
   address:           { type: String, trim: true },
   // 'media' | 'marketing' | 'both'
   department:        { type: String, enum: ['media', 'marketing', 'both'], required: true },
+  // Hard link to a Project, so the CRM can be sliced project-wise. `relatedProject`
+  // below is the older free-text field and is kept for records that predate this.
+  project:           { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   relatedProject:    { type: String, trim: true },
   source:            { type: String, trim: true },
   owner:             { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -32,10 +35,15 @@ const crmClientSchema = new mongoose.Schema({
   campaignId:        { type: String },
   marketingChannel:  { type: String },
   isActive:          { type: Boolean, default: true },
+  // Import provenance. Set only on spreadsheet-imported records, so a batch can be
+  // reverted and a reviewer can tell an imported row from a hand-entered one.
+  importBatch:       { type: String, index: true },
+  importedAt:        { type: Date },
   createdBy:         { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
 crmClientSchema.index({ department: 1, status: 1 });
+crmClientSchema.index({ project: 1, isActive: 1 });
 crmClientSchema.index({ email: 1 });
 crmClientSchema.index({ clientId: 1 });
 

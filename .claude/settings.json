@@ -250,7 +250,11 @@
       "Bash(curl -s http://localhost:5199/src/components/admin/crm/AdminCRMPage.jsx -o /dev/null -w \"module transform: %{http_code}\\\\n\")",
       "Bash(curl -s http://localhost:5199/src/components/admin/crm/PipelineBoard.jsx -o /dev/null -w \"pipeline transform: %{http_code}\\\\n\")",
       "Bash(curl -s http://localhost:5199/src/components/admin/crm/ClientDetailDrawer.jsx -o /dev/null -w \"drawer transform: %{http_code}\\\\n\")",
-      "PowerShell(Get-NetTCPConnection -LocalPort 5199 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; \"dev server stopped\")"
+      "PowerShell(Get-NetTCPConnection -LocalPort 5199 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; \"dev server stopped\")",
+      "Bash(node --check services/crmImport.service.js)",
+      "Bash(node --check models/crm/CRMImportBatch.js)",
+      "Bash(sed -i \"s|let project = await Project.findOne\\({ name: /Brand Refresh 2026/ }\\).lean\\(\\);|let project = await Project.findOne\\({}\\).lean\\(\\);|; s|if \\(!project\\) {\\\\n    project = .*|if \\(!project\\) { console.log\\('NO PROJECTS'\\); process.exit\\(1\\); }|\" _e2e.js)",
+      "Bash(timeout 120 node _e2e.js)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

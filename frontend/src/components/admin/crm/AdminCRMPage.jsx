@@ -17,6 +17,8 @@ import Skeleton from '../../ui/Skeleton';
 import EmptyState from '../../ui/EmptyState';
 import ClientDetailDrawer from './ClientDetailDrawer';
 import PipelineBoard from './PipelineBoard';
+import ImportModule from './ImportModule';
+import ProjectsModule from './ProjectsModule';
 import {
   apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, PRIORITY_RAIL, DEPT_OPTIONS, SINGLE_DEPT_OPTIONS,
   PRIORITY_OPTIONS, fmt, fmtDateTime, relativeDue, userLabel, toDateInput,
@@ -37,6 +39,7 @@ const DEPT_STORAGE_KEY = 'crm.department';
 const VALID_DEPTS = DEPT_TABS.map(t => t.key);
 
 const NAV_GROUPS_STORAGE_KEY = 'crm.collapsedNavGroups';
+const NAV_COLLAPSED_KEY = 'crm.navCollapsed';
 
 const readCollapsedGroups = () => {
   try {
@@ -106,48 +109,92 @@ function CRMDashboard({ token, department }) {
   // Headline metrics: the four an operator acts on. The departmental splits are
   // supporting detail and render smaller below, so the row has a clear ranking
   // instead of seven tiles competing for attention.
+  // Overdue is a SUBSET of pending, so the two are phrased as a ratio rather than as
+  // competing peers — "10 / 10 overdue" reads as a real (alarming) state, where two
+  // separate tiles both showing 10 just looked like a bug.
+  const overdueShare = data?.pendingFollowUps
+    ? Math.round((data.overdueFollowUps / data.pendingFollowUps) * 100)
+    : 0;
+
   const headlineKpis = data ? [
-    { title: 'Active Relationships', value: data.activeClients,        icon: 'handshake',       tone: 'accent',
-      context: 'Live client records', action: { label: 'View clients →', onClick: () => navigate('/admin/crm/clients') } },
-    { title: 'Overdue Follow-ups',   value: data.overdueFollowUps,     icon: 'event_busy',      tone: 'danger',
-      tooltip: 'Pending follow-ups whose due date has passed',
-      context: data.overdueFollowUps ? 'Needs attention today' : 'All on schedule',
-      action: { label: 'Resolve →', onClick: () => navigate('/admin/crm/followups') } },
-    { title: 'Pending Follow-ups',   value: data.pendingFollowUps,     icon: 'event_available', tone: 'warning',
-      context: 'Scheduled and open', action: { label: 'View all →', onClick: () => navigate('/admin/crm/followups') } },
-    { title: 'Activity (7 days)',    value: data.recentCommunications, icon: 'forum',           tone: 'info',
-      context: 'Interactions logged', action: { label: 'Timeline →', onClick: () => navigate('/admin/crm/comms') } },
+    { title: 'Active Clients', value: data.activeClients, icon: 'handshake', tone: 'accent',
+      context: `${data.totalMedia} media · ${data.totalMarketing} marketing`,
+      action: { label: 'View clients →', onClick: () => navigate('/admin/crm/clients') } },
+
+    { title: 'Overdue', value: data.overdueFollowUps, icon: 'event_busy',
+      tone: data.overdueFollowUps ? 'danger' : 'success',
+      tooltip: 'Pending follow-ups whose due date has already passed',
+      context: data.pendingFollowUps
+        ? `${overdueShare}% of ${data.pendingFollowUps} open tasks`
+        : 'No open tasks',
+      action: data.overdueFollowUps
+        ? { label: 'Resolve →', onClick: () => navigate('/admin/crm/followups') }
+        : undefined },
+
+    { title: 'Open Tasks', value: data.pendingFollowUps, icon: 'event_available', tone: 'warning',
+      tooltip: 'All pending follow-ups, overdue ones included',
+      context: data.pendingFollowUps
+        ? `${Math.max(0, data.pendingFollowUps - data.overdueFollowUps)} still on schedule`
+        : 'Nothing scheduled',
+      action: { label: 'View all →', onClick: () => navigate('/admin/crm/followups') } },
+
+    { title: 'Activity', value: data.recentCommunications, icon: 'forum', tone: 'info',
+      tooltip: 'Client interactions that took place in the last 7 days',
+      context: 'Last 7 days',
+      action: { label: 'Timeline →', onClick: () => navigate('/admin/crm/comms') } },
   ] : [];
 
-  const splitKpis = data ? [
-    { title: 'Media Clients',     value: data.totalMedia,     icon: 'movie',    tone: 'info',    tooltip: 'Active clients associated with Media' },
-    { title: 'Marketing Clients', value: data.totalMarketing, icon: 'campaign', tone: 'success', tooltip: 'Active clients associated with Marketing' },
-    { title: 'Shared Clients',    value: data.totalBoth,      icon: 'hub',      tone: 'neutral', tooltip: 'Clients linked to both departments' },
+  // The departmental split used to be three more KPI cards — a whole row of vertical
+  // space for three numbers, pushing the action lists below the fold. It is now one
+  // compact bar: same figures, a proportional strip, and a quarter of the height.
+  const totalAll = (data?.totalMedia || 0) + (data?.totalMarketing || 0);
+  const splits = data ? [
+    { key: 'media',     label: 'Media',     value: data.totalMedia,     color: '#0ea5e9' },
+    { key: 'marketing', label: 'Marketing', value: data.totalMarketing, color: '#10b981' },
+    { key: 'both',      label: 'Shared',    value: data.totalBoth,      color: '#8b5cf6' },
   ] : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Headline KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-2xl" />)
+          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)
           : headlineKpis.map(k => (
+              // compact: the default p-5/lg:p-6 tile pushed the action lists below the
+              // fold. KPICard is shared across every portal, so this is a per-call
+              // choice rather than a change to its defaults.
               <KPICard key={k.title} title={k.title} value={k.value ?? 0} icon={k.icon} tone={k.tone}
-                tooltip={k.tooltip} context={k.context} action={k.action} />
+                compact tooltip={k.tooltip} context={k.context} action={k.action} />
             ))
         }
       </div>
 
-      {/* Departmental split — supporting detail, visually subordinate */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {loading
-          ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)
-          : splitKpis.map(k => (
-              <KPICard key={k.title} title={k.title} value={k.value ?? 0} icon={k.icon} tone={k.tone}
-                tooltip={k.tooltip} priority="secondary" variant="minimal" />
-            ))
-        }
-      </div>
+      {/* Departmental split — one compact strip, not three cards */}
+      {loading ? (
+        <Skeleton className="h-14 w-full rounded-xl" />
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900"
+          style={{ boxShadow: 'var(--erp-shadow-soft)' }}>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Client mix</span>
+          {splits.map(s => (
+            <span key={s.key} className="flex items-center gap-1.5 text-sm">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+              <span className="text-neutral-600 dark:text-neutral-400">{s.label}</span>
+              <span className="font-black tabular-nums text-neutral-900 dark:text-neutral-100">{s.value ?? 0}</span>
+            </span>
+          ))}
+          {/* Proportional strip, so the mix is readable without comparing digits */}
+          {totalAll > 0 && (
+            <div className="ml-auto flex h-2 min-w-[8rem] flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+              {splits.filter(s => s.value > 0).map(s => (
+                <div key={s.key} style={{ width: `${(s.value / totalAll) * 100}%`, background: s.color }}
+                  title={`${s.label}: ${s.value}`} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action lists */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -255,9 +302,9 @@ function CRMDashboard({ token, department }) {
 }
 
 // ── Client form modal ─────────────────────────────────────────────────────────
-const BLANK_CLIENT = { name:'', contactPerson:'', email:'', phone:'', website:'', address:'', department:'media', priority:'medium', status:'', relatedProject:'', source:'', owner:'', campaignSource:'', marketingChannel:'', notes:'' };
+const BLANK_CLIENT = { name:'', contactPerson:'', email:'', phone:'', website:'', address:'', department:'media', priority:'medium', status:'', project:'', relatedProject:'', source:'', owner:'', campaignSource:'', marketingChannel:'', notes:'' };
 
-function ClientFormModal({ open, onClose, onSaved, token, editData, statuses, users }) {
+function ClientFormModal({ open, onClose, onSaved, token, editData, statuses, users, projects = [] }) {
   const toast = useToast();
   const [form, setForm] = useState(BLANK_CLIENT);
   const [saving, setSaving] = useState(false);
@@ -270,6 +317,7 @@ function ClientFormModal({ open, onClose, onSaved, token, editData, statuses, us
         ...editData,
         // Populated refs arrive as objects; the <select> needs the id.
         owner: editData.owner?._id || editData.owner || '',
+        project: editData.project?._id || editData.project || '',
       });
     } else {
       // Default a new client to the first configured stage of its pipeline
@@ -342,7 +390,18 @@ function ClientFormModal({ open, onClose, onSaved, token, editData, statuses, us
           />
           <StatusPicker statuses={statuses} value={form.status} onChange={set('status')} label="Pipeline Status" />
           <UserPicker users={users} value={form.owner} onChange={set('owner')} label="Relationship Owner" name="owner" />
-          <Input label="Related Project" name="relatedProject" value={form.relatedProject} onChange={set('relatedProject')} />
+          <Select
+            label="Project"
+            name="project"
+            value={form.project}
+            onChange={set('project')}
+            options={[
+              { value:'', label:'— No project —' },
+              ...projects.map(p => ({ value:p._id, label:p.projectCode ? `${p.name} (${p.projectCode})` : p.name })),
+            ]}
+            helperText="Groups this client in the CRM by Project view"
+          />
+          <Input label="Related Project (free text)" name="relatedProject" value={form.relatedProject} onChange={set('relatedProject')} />
           <Input label="Client Source" name="source" value={form.source} onChange={set('source')} placeholder="e.g. Referral, Website, Campaign" />
           <Input label="Campaign Source" name="campaignSource" value={form.campaignSource} onChange={set('campaignSource')} placeholder="e.g. Q4 Brand Push" />
           <Input label="Marketing Channel" name="marketingChannel" value={form.marketingChannel} onChange={set('marketingChannel')} placeholder="e.g. LinkedIn, Email, Events" />
@@ -376,6 +435,13 @@ function ClientsModule({ token, department }) {
 
   const [statuses] = useStatusOptions(token, department);
   const users = useUserOptions(token);
+  const [projects, setProjects] = useState([]);
+
+  useEffect(() => {
+    apiFetch('/import/projects', token)
+      .then(r => setProjects(r.data || []))
+      .catch(() => setProjects([]));
+  }, [token]);
 
   // Debounce the search box: typing previously fired one request per keystroke.
   useEffect(() => {
@@ -479,6 +545,7 @@ function ClientsModule({ token, department }) {
         editData={editTarget}
         statuses={statuses}
         users={users}
+        projects={projects}
       />
 
       <ClientDetailDrawer
@@ -1899,6 +1966,8 @@ const MODULES = [
   { id:'dashboard', label:'Dashboard',           icon:'dashboard',              Component: CRMDashboard },
   { id:'clients',   label:'Clients',              icon:'groups',                 Component: ClientsModule },
   { id:'pipeline',  label:'Pipeline',             icon:'view_kanban',            Component: PipelineModule },
+  { id:'projects',  label:'CRM by Project',       icon:'folder_special',         Component: ProjectsModule },
+  { id:'import',    label:'Import from Excel',    icon:'upload_file',            Component: ImportModule },
   { id:'contacts',  label:'Contacts',             icon:'contacts',               Component: ContactsModule },
   { id:'statuses',  label:'Status Management',    icon:'flag',                   Component: StatusModule },
   { id:'email',     label:'Email & Content',      icon:'email',                  Component: EmailModule },
@@ -1915,10 +1984,10 @@ const MODULES = [
 // are deliberately absent here rather than shown as dead links.
 const NAV_GROUPS = [
   { id:'overview',     label:'Overview',                      moduleIds:['dashboard'] },
-  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','contacts','statuses'] },
+  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','projects','contacts','statuses'] },
   { id:'activities',   label:'Activities & Communication',    moduleIds:['followups','comms','email'] },
   { id:'network',      label:'Business Network',              moduleIds:['vendors'] },
-  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','settings'] },
+  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','import','settings'] },
 ];
 
 const MODULE_BY_ID = Object.fromEntries(MODULES.map(m => [m.id, m]));
@@ -1960,6 +2029,20 @@ export default function AdminCRMPage() {
 
   // Sidebar badges. Only counts that mean "there is work here" are shown —
   // a badge on every item would be noise rather than signal.
+  // The CRM nav sits beside the portal's own sidebar, so on a narrower desktop the
+  // page carries two nav columns before any content. Collapsing to an icon rail
+  // gives the content back ~190px; the choice persists like the group state.
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try { return localStorage.getItem(NAV_COLLAPSED_KEY) === '1'; } catch { return false; }
+  });
+  const toggleNav = useCallback(() => {
+    setNavCollapsed(v => {
+      const next = !v;
+      try { localStorage.setItem(NAV_COLLAPSED_KEY, next ? '1' : '0'); } catch { /* private mode */ }
+      return next;
+    });
+  }, []);
+
   const [counts, setCounts] = useState({});
   useEffect(() => {
     let cancelled = false;
@@ -2010,30 +2093,52 @@ export default function AdminCRMPage() {
 
       <div className="flex items-start gap-5">
         {/* Desktop sidebar nav — sticky so navigation stays reachable on long pages */}
-        <aside className="crm-scroll-thin sticky top-4 hidden max-h-[calc(100vh-2rem)] w-60 shrink-0 flex-col overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900 lg:flex"
+        <aside className={`crm-scroll-thin sticky top-4 hidden max-h-[calc(100vh-2rem)] shrink-0 flex-col overflow-y-auto overflow-x-hidden rounded-2xl border border-neutral-200 bg-white p-2 transition-[width] duration-200 dark:border-neutral-800 dark:bg-neutral-900 lg:flex ${
+          navCollapsed ? 'w-[60px]' : 'w-60'
+        }`}
           style={{ boxShadow:'var(--erp-shadow-soft)' }}
         >
+          {/* Collapse toggle */}
+          <button
+            type="button"
+            onClick={toggleNav}
+            aria-label={navCollapsed ? 'Expand CRM navigation' : 'Collapse CRM navigation'}
+            title={navCollapsed ? 'Expand' : 'Collapse'}
+            className="mb-1 flex items-center gap-2 self-stretch rounded-lg px-2 py-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 focus:outline-none focus-visible:ring-2 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              {navCollapsed ? 'right_panel_open' : 'left_panel_close'}
+            </span>
+            {!navCollapsed && <span className="text-[11px] font-bold uppercase tracking-wider">Collapse</span>}
+          </button>
+
           <nav className="flex flex-col gap-1">
             {NAV_GROUPS_RESOLVED.map(({ id: groupId, label: groupLabel, modules }) => {
-              const open = !collapsedGroups.includes(groupId);
+              // A collapsed rail has no room for group headers, so every group renders
+              // its items; the headers and their toggles return when it expands.
+              const open = navCollapsed || !collapsedGroups.includes(groupId);
               const groupHasActive = modules.some(m => m.id === activeId);
               return (
                 <div key={groupId} className="flex flex-col">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(groupId)}
-                    aria-expanded={open}
-                    className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-neutral-400 transition-colors hover:text-neutral-600 focus:outline-none focus-visible:ring-2 dark:hover:text-neutral-300"
-                  >
-                    <span className="truncate">{groupLabel}</span>
-                    {/* A collapsed group still signals that something inside it is active. */}
-                    {!open && groupHasActive && (
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background:'var(--portal-accent)' }} />
-                    )}
-                    <span className={`material-symbols-outlined ml-auto text-[16px] transition-transform ${open ? '' : '-rotate-90'}`}>
-                      expand_more
-                    </span>
-                  </button>
+                  {navCollapsed ? (
+                    <span className="mx-2 my-1 h-px bg-neutral-100 dark:bg-neutral-800" aria-hidden="true" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(groupId)}
+                      aria-expanded={open}
+                      className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-neutral-400 transition-colors hover:text-neutral-600 focus:outline-none focus-visible:ring-2 dark:hover:text-neutral-300"
+                    >
+                      <span className="truncate">{groupLabel}</span>
+                      {/* A collapsed group still signals that something inside it is active. */}
+                      {!open && groupHasActive && (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background:'var(--portal-accent)' }} />
+                      )}
+                      <span className={`material-symbols-outlined ml-auto text-[16px] transition-transform ${open ? '' : '-rotate-90'}`}>
+                        expand_more
+                      </span>
+                    </button>
+                  )}
 
                   {open && (
                     <div className="flex flex-col gap-0.5 pb-1">
@@ -2044,7 +2149,10 @@ export default function AdminCRMPage() {
                             key={id}
                             type="button"
                             onClick={() => navigate(`/admin/crm/${id}`)}
-                            className={`group relative flex w-full items-center gap-2.5 rounded-xl py-2 pl-3 pr-2.5 text-left text-[13px] transition-all focus:outline-none focus-visible:ring-2 ${
+                            title={navCollapsed ? label : undefined}
+                            className={`group relative flex w-full items-center rounded-xl py-2 text-left text-[13px] transition-all focus:outline-none focus-visible:ring-2 ${
+                              navCollapsed ? 'justify-center px-0' : 'gap-2.5 pl-3 pr-2.5'
+                            } ${
                               active
                                 ? 'bg-[var(--portal-accent-soft)] font-bold'
                                 : 'font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'
@@ -2058,16 +2166,32 @@ export default function AdminCRMPage() {
                               className={`absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`}
                               style={{ background:'var(--portal-accent)' }}
                             />
-                            <span className="material-symbols-outlined text-[19px]">{icon}</span>
-                            <span className="min-w-0 flex-1 truncate">{label}</span>
-                            {counts[id] > 0 && (
-                              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
-                                active
-                                  ? 'bg-white/70 text-[var(--portal-accent)] dark:bg-neutral-900/50'
-                                  : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                              }`}>
-                                {counts[id] > 99 ? '99+' : counts[id]}
-                              </span>
+                            <span className="relative material-symbols-outlined text-[19px]">
+                              {icon}
+                              {/* Collapsed, the count has nowhere to sit inline — it
+                                  becomes a dot so "there is work here" still reads. */}
+                              {navCollapsed && id === 'followups' && counts.followups > 0 && (
+                                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-white dark:ring-neutral-900"
+                                  style={{ background:'#e11d48' }} />
+                              )}
+                            </span>
+                            {!navCollapsed && (
+                              <>
+                                <span className="min-w-0 flex-1 truncate">{label}</span>
+                                {counts[id] > 0 && (
+                                  // The follow-ups badge is an OVERDUE count, so it reads
+                                  // red; the clients badge is a neutral total.
+                                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                                    id === 'followups'
+                                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                                      : active
+                                        ? 'bg-white/70 text-[var(--portal-accent)] dark:bg-neutral-900/50'
+                                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                                  }`}>
+                                    {counts[id] > 99 ? '99+' : counts[id]}
+                                  </span>
+                                )}
+                              </>
                             )}
                           </button>
                         );
@@ -2107,22 +2231,19 @@ export default function AdminCRMPage() {
             </div>
           </div>
 
-          {/* Breadcrumb — says where you are inside a ten-module section */}
-          <nav aria-label="Breadcrumb" className="mb-3 hidden items-center gap-1.5 text-xs text-neutral-500 lg:flex">
-            <span className="font-medium">CRM</span>
-            {activeGroup && (
-              <>
-                <span className="material-symbols-outlined text-[14px] text-neutral-300 dark:text-neutral-600">chevron_right</span>
-                <span className="font-medium">{activeGroup.label}</span>
-              </>
-            )}
-            <span className="material-symbols-outlined text-[14px] text-neutral-300 dark:text-neutral-600">chevron_right</span>
-            <span className="font-bold text-neutral-800 dark:text-neutral-200">{activeModule.label}</span>
-            <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1 font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-              <span className="material-symbols-outlined text-[13px]">{DEPT_TABS.find(t => t.key === department)?.icon}</span>
-              {DEPT_TABS.find(t => t.key === department)?.label}
+          {/* Module title row. Replaces the old breadcrumb: the sidebar already shows
+              the group and the active item, so "CRM › Group › Module" restated what was
+              visible two columns to the left. The department chip lived here too and
+              duplicated the header's own filter — dropped for the same reason. */}
+          <div className="mb-3 hidden items-center gap-2 lg:flex">
+            <span className="material-symbols-outlined text-[20px]" style={{ color:'var(--portal-accent)' }}>
+              {activeModule.icon}
             </span>
-          </nav>
+            <h2 className="text-base font-black text-neutral-900 dark:text-neutral-100">{activeModule.label}</h2>
+            {activeGroup && (
+              <span className="hidden text-xs text-neutral-400 xl:inline">{activeGroup.label}</span>
+            )}
+          </div>
 
           {/* Keyed on module + department so a switch remounts cleanly instead of
               briefly showing the previous module's rows under the new heading. */}

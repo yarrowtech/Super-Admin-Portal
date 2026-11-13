@@ -6,6 +6,9 @@ import DropdownMenu from './DropdownMenu';
 /**
  * Generic table. New optional props (all default off, so existing callers are unaffected):
  * - selectable: adds a checkbox column + "select all" header; onSelectionChange(keys[]) fires on change.
+ * - selectionResetKey: change it to clear the selection without replacing `rows`.
+ * - onRowHover(row): fires on mouse-enter. Intended for prefetching the detail
+ *   view a click would open, so the drawer/page renders populated.
  * - rowActions(row): if provided, returns DropdownMenu `items` rendered as a trailing kebab-menu cell.
  */
 const DataTable = ({
@@ -17,8 +20,10 @@ const DataTable = ({
   emptyDescription,
   emptyAction,
   onRowClick,
+  onRowHover,
   selectable = false,
   onSelectionChange,
+  selectionResetKey,
   rowActions,
 }) => {
   const [selected, setSelected] = useState([]);
@@ -27,9 +32,14 @@ const DataTable = ({
   // so stale ids from a previous list never leak into a bulk action. Adjusted during
   // render (React's recommended pattern) rather than in an effect, to avoid an extra
   // render pass.
+  // `selectionResetKey` lets a caller clear the selection without refetching:
+  // changing it is treated exactly like a new row set. Used by bulk-action bars
+  // for their "Clear" control, which would otherwise need a pointless round trip.
   const [prevRows, setPrevRows] = useState(rows);
-  if (rows !== prevRows) {
+  const [prevResetKey, setPrevResetKey] = useState(selectionResetKey);
+  if (rows !== prevRows || selectionResetKey !== prevResetKey) {
     setPrevRows(rows);
+    setPrevResetKey(selectionResetKey);
     if (selected.length) setSelected([]);
   }
 
@@ -110,6 +120,7 @@ const DataTable = ({
               <tr
                 key={key}
                 onClick={() => onRowClick?.(row)}
+                onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
                 className={`h-14 ${onRowClick ? 'cursor-pointer' : ''} transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60 ${isSelected ? 'bg-(--portal-accent-soft,var(--color-primary-50))' : ''}`}
               >
                 {selectable && (

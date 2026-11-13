@@ -151,6 +151,35 @@ export const QK = {
     },
   },
 
+  // ── CRM (Media & Marketing) ───────────────────────────────────────────
+  // Every list key carries its full filter object, so changing a filter is a
+  // different cache entry rather than a refetch into the same one — paging back
+  // to a previous filter is then instant and served from cache.
+  crm: {
+    root:        ()                       => ['crm'],
+    dashboard:   (department = 'all')     => ['crm', 'dashboard', department],
+    clients:     (params = {})            => ['crm', 'clients', 'list', params],
+    client:      (id)                     => ['crm', 'clients', 'detail', id],
+    // The 360 view: one round trip for the record plus contacts, follow-ups and
+    // communications. Keyed apart from `client` because it holds far more.
+    clientOverview: (id)                  => ['crm', 'clients', 'overview', id],
+    clientOptions:  (department = 'all')  => ['crm', 'clients', 'options', department],
+    contacts:    (params = {})            => ['crm', 'contacts', params],
+    statuses:    (department = 'all')     => ['crm', 'statuses', department],
+    pipeline:    (department = 'all')     => ['crm', 'pipeline', department],
+    followups:   (params = {})            => ['crm', 'followups', params],
+    reminders:   (params = {})            => ['crm', 'reminders', params],
+    communications: (params = {})         => ['crm', 'communications', params],
+    activity:    (params = {})            => ['crm', 'activity', params],
+    emailTemplates: (department = 'all')  => ['crm', 'emailTemplates', department],
+    vendors:     (params = {})            => ['crm', 'vendors', params],
+    analytics:   (params = {})            => ['crm', 'analytics', params],
+    users:       ()                       => ['crm', 'users'],
+    projects:    ()                       => ['crm', 'projects'],
+    projectBreakdown: (department = 'all') => ['crm', 'projects', 'breakdown', department],
+    importBatches: (params = {})          => ['crm', 'import', 'batches', params],
+  },
+
   // ── Finance ───────────────────────────────────────────────────────────
   finance: {
     root:      ()                         => ['finance'],

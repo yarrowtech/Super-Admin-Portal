@@ -16,6 +16,8 @@ const CRMEmailTemplate = require('../models/crm/CRMEmailTemplate');
 const CRMVendor = require('../models/crm/CRMVendor');
 const { uploadSpreadsheet } = require('../middlewares/upload.middleware');
 const crmImport = require('../services/crmImport.service');
+const crmExport = require('../services/crmExport.service');
+const crmBulk = require('../services/crmBulk.service');
 
 const CRM_ROLES = ['admin', 'super_admin', 'superadmin', 'media_head', 'media_marketing', 'media_sales'];
 
@@ -772,6 +774,179 @@ router.get('/projects/breakdown', requireCRM, async (req, res) => {
     res.json({ success: true, data });
   } catch (err) {
     sendImportError(res, err);
+  }
+});
+
+// ── Export ────────────────────────────────────────────────────────────────────
+// Server-side so an export covers the whole filtered set, not just the page the
+// browser happens to be holding, and so refs (owner, project) resolve to names.
+
+const sendFile = (res, { buffer, filename, contentType }) => {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
+};
+
+router.get('/export/clients', requireCRM, async (req, res) => {
+  try {
+    sendFile(res, await crmExport.exportClients(req.query));
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+router.get('/export/followups', requireCRM, async (req, res) => {
+  try {
+    sendFile(res, await crmExport.exportFollowUps(req.query));
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+// ── Bulk actions ──────────────────────────────────────────────────────────────
+// Each takes an explicit `ids` array. There is no filter-based bulk write by
+// design — see services/crmBulk.service.js.
+
+/** Wraps a bulk handler so every one reports errors the same way. */
+const bulkRoute = (handler) => async (req, res) => {
+  try {
+    const data = await handler({ ...req.body, actorId: req.user._id });
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(Number(err.statusCode) || 500).json({ success: false, error: err.message });
+  }
+};
+
+router.post('/clients/bulk/status',     requireCRM,   bulkRoute(crmBulk.bulkStatus));
+router.post('/clients/bulk/owner',      requireCRM,   bulkRoute(crmBulk.bulkOwner));
+router.post('/clients/bulk/priority',   requireCRM,   bulkRoute(crmBulk.bulkPriority));
+router.post('/clients/bulk/project',    requireCRM,   bulkRoute(crmBulk.bulkProject));
+router.post('/clients/bulk/department', requireCRM,   bulkRoute(crmBulk.bulkDepartment));
+// Deactivation is admin-only, matching DELETE /clients/:id.
+router.post('/clients/bulk/deactivate', requireAdmin, bulkRoute(crmBulk.bulkDeactivate));
+
+// ── Activity feed ─────────────────────────────────────────────────────────────
+/**
+ * Cross-client activity, newest first.
+ *
+ * The client 360 already shows one client's timeline. This is the other view an
+ * operator needs: what has happened across the whole desk today, so handovers
+ * and stand-ups do not require opening records one at a time.
+ */
+router.get('/activity', requireCRM, async (req, res) => {
+  try {
+    const { department, type, clientId, userId, days, page = 1, limit = 30 } = req.query;
+
+    const filter = {};
+    if (department && department !== 'all') filter.department = department;
+    if (type) filter.type = type;
+    if (clientId && mongoose.isValidObjectId(clientId)) filter.client = clientId;
+    if (userId && mongoose.isValidObjectId(userId)) filter.createdBy = userId;
+    if (days) {
+      const n = Math.min(Number(days) || 7, 365);
+      filter.occurredAt = { $gte: new Date(Date.now() - n * 24 * 60 * 60 * 1000) };
+    }
+
+    const capped = Math.min(Number(limit) || 30, 100);
+    const skip = (Math.max(Number(page), 1) - 1) * capped;
+
+    const [items, total] = await Promise.all([
+      CRMCommunication.find(filter)
+        .populate('client', 'name clientId status department')
+        .populate('createdBy', 'firstName lastName email')
+        .sort({ occurredAt: -1 })
+        .skip(skip)
+        .limit(capped)
+        .lean(),
+      CRMCommunication.countDocuments(filter),
+    ]);
+
+    res.json({ success: true, data: items, total, page: Number(page), pages: Math.ceil(total / capped) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Reminders ─────────────────────────────────────────────────────────────────
+/**
+ * The follow-up workload, bucketed by urgency.
+ *
+ * Buckets are computed server-side from one query rather than letting the UI
+ * fetch everything and slice it: "overdue" and "today" depend on the current
+ * time, and a browser with a skewed clock or a stale tab would put tasks in the
+ * wrong bucket — the one thing a reminder list must never do.
+ */
+router.get('/reminders', requireCRM, async (req, res) => {
+  try {
+    const { department, assignedTo } = req.query;
+
+    const filter = { status: 'pending' };
+    if (department && department !== 'all') filter.department = department;
+    if (assignedTo && mongoose.isValidObjectId(assignedTo)) filter.assignedTo = assignedTo;
+
+    const now = new Date();
+    const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
+    const endOfWeek = new Date(endOfToday.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const items = await CRMFollowUp.find(filter)
+      .populate('client', 'name clientId status department priority')
+      .populate('assignedTo', 'firstName lastName email')
+      .sort({ dueDate: 1 })
+      .limit(500)
+      .lean();
+
+    const buckets = { overdue: [], today: [], thisWeek: [], later: [] };
+    for (const f of items) {
+      const due = f.dueDate ? new Date(f.dueDate) : null;
+      if (!due) { buckets.later.push(f); continue; }
+      if (due < now) buckets.overdue.push(f);
+      else if (due <= endOfToday) buckets.today.push(f);
+      else if (due <= endOfWeek) buckets.thisWeek.push(f);
+      else buckets.later.push(f);
+    }
+
+    res.json({
+      success: true,
+      data: buckets,
+      counts: {
+        overdue: buckets.overdue.length,
+        today: buckets.today.length,
+        thisWeek: buckets.thisWeek.length,
+        later: buckets.later.length,
+        total: items.length,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/** Snooze a follow-up by pushing its due date out. */
+router.put('/followups/:id/snooze', requireCRM, async (req, res) => {
+  try {
+    const days = Math.min(Math.max(Number(req.body.days) || 1, 1), 90);
+    const followup = await CRMFollowUp.findById(req.params.id);
+    if (!followup) return res.status(404).json({ success: false, error: 'Follow-up not found' });
+    if (followup.status !== 'pending') {
+      return res.status(409).json({ success: false, error: 'Only a pending follow-up can be snoozed.' });
+    }
+
+    // Snooze from today, not from the original due date: a task three weeks
+    // overdue snoozed "by 1 day" must land tomorrow, not three weeks ago.
+    const base = new Date();
+    base.setDate(base.getDate() + days);
+    followup.dueDate = base;
+    await followup.save();
+
+    if (followup.client) await syncNextFollowUp(followup.client);
+
+    const populated = await CRMFollowUp.findById(followup._id)
+      .populate('client', 'name clientId')
+      .populate('assignedTo', 'firstName lastName')
+      .lean();
+    res.json({ success: true, data: populated });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 

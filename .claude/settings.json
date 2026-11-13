@@ -254,7 +254,14 @@
       "Bash(node --check services/crmImport.service.js)",
       "Bash(node --check models/crm/CRMImportBatch.js)",
       "Bash(sed -i \"s|let project = await Project.findOne\\({ name: /Brand Refresh 2026/ }\\).lean\\(\\);|let project = await Project.findOne\\({}\\).lean\\(\\);|; s|if \\(!project\\) {\\\\n    project = .*|if \\(!project\\) { console.log\\('NO PROJECTS'\\); process.exit\\(1\\); }|\" _e2e.js)",
-      "Bash(timeout 120 node _e2e.js)"
+      "Bash(timeout 120 node _e2e.js)",
+      "Bash(node -e \"require\\('./services/crmExport.service'\\); require\\('./services/crmBulk.service'\\); console.log\\('services OK'\\);\")",
+      "Bash(node -e \"require\\('./routes/crm.routes'\\); console.log\\('routes OK'\\);\")",
+      "Bash(grep -vE \"react-refresh/only-export-components|set-state-in-effect|^$\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\);const m={};r.forEach\\(f=>f.messages.forEach\\(x=>{m[x.ruleId]=\\(m[x.ruleId]||0\\)+1}\\)\\);console.log\\(m\\)}\\)\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{JSON.parse\\(s\\).forEach\\(f=>f.messages.filter\\(x=>x.ruleId==='react-hooks/immutability'||x.ruleId==='no-empty'\\).forEach\\(x=>console.log\\(f.filePath.split\\('crm\\\\\\\\\\\\\\\\'\\).pop\\(\\),x.line,x.ruleId,x.message.split\\('\\\\n'\\)[0]\\)\\)\\)}\\)\")",
+      "Bash(npx eslint *)",
+      "Bash(rm -f lint.tmp.json)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

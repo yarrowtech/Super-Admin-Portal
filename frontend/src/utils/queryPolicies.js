@@ -25,6 +25,29 @@ export const cachePolicyFor = (queryKey) => {
   const segments = Array.isArray(queryKey) ? queryKey.map((part) => String(part || '').toLowerCase()) : [String(queryKey || '').toLowerCase()];
   const seg = segments.join(':');
 
+  // ── CRM ───────────────────────────────────────────────────────────────────
+  // Resolved before the generic matchers below, which mis-assign three CRM
+  // surfaces on substrings alone:
+  //   - 'crm:clients:overview:<id>' hits the `overview` keyword and would be
+  //     PERSISTED to sessionStorage. That payload is the client 360 — names,
+  //     emails, phone numbers and the full contact list. Customer PII must stay
+  //     in memory, so this is pinned to a non-persisting policy.
+  //   - 'crm:statuses:*' matches 'stat' inside "statuses" and lands on
+  //     `analytics`. Pipeline stages are reference data that changes rarely.
+  //   - follow-ups and reminders are a task list people act on, so the 90s
+  //     `default` is too stale: a completed task should not linger.
+  if (segments[0] === 'crm') {
+    if (matchesAny(seg, ['statuses', 'emailtemplates'])) return CACHE_POLICIES.reference;
+    if (matchesAny(seg, ['followup', 'reminder', 'pipeline', 'activity'])) return CACHE_POLICIES.operational;
+    // Everything client-shaped (list, detail, overview, options) and the
+    // project rollup: fresh-ish, never written to storage.
+    if (matchesAny(seg, ['client', 'contact', 'communication', 'vendor', 'project', 'import'])) {
+      return CACHE_POLICIES.lists;
+    }
+    if (matchesAny(seg, ['dashboard', 'analytic'])) return CACHE_POLICIES.analytics;
+    return CACHE_POLICIES.default;
+  }
+
   if (matchesAny(seg, ['chat', 'typing', 'presence'])) return CACHE_POLICIES.realtime;
   if (matchesAny(seg, ['notification'])) return CACHE_POLICIES.notifications;
   if (matchesAny(seg, ['approval', 'activity', 'attention', 'deadline'])) return CACHE_POLICIES.operational;

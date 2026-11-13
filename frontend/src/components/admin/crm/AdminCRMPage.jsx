@@ -19,11 +19,15 @@ import ClientDetailDrawer from './ClientDetailDrawer';
 import PipelineBoard from './PipelineBoard';
 import ImportModule from './ImportModule';
 import ProjectsModule from './ProjectsModule';
+import ClientFormModal from './ClientFormModal';
+import RemindersModule from './RemindersModule';
+import ActivityModule from './ActivityModule';
+import BulkActionBar from './BulkActionBar';
 import {
   apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, PRIORITY_RAIL, DEPT_OPTIONS, SINGLE_DEPT_OPTIONS,
   PRIORITY_OPTIONS, fmt, fmtDateTime, relativeDue, userLabel, toDateInput,
   useClientOptions, useUserOptions, useStatusOptions,
-  ClientPicker, UserPicker, StatusPicker, TextArea,
+  ClientPicker, UserPicker, TextArea,
 } from './crmShared';
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -301,122 +305,6 @@ function CRMDashboard({ token, department }) {
   );
 }
 
-// ── Client form modal ─────────────────────────────────────────────────────────
-const BLANK_CLIENT = { name:'', contactPerson:'', email:'', phone:'', website:'', address:'', department:'media', priority:'medium', status:'', project:'', relatedProject:'', source:'', owner:'', campaignSource:'', marketingChannel:'', notes:'' };
-
-function ClientFormModal({ open, onClose, onSaved, token, editData, statuses, users, projects = [] }) {
-  const toast = useToast();
-  const [form, setForm] = useState(BLANK_CLIENT);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    if (editData) {
-      setForm({
-        ...BLANK_CLIENT,
-        ...editData,
-        // Populated refs arrive as objects; the <select> needs the id.
-        owner: editData.owner?._id || editData.owner || '',
-        project: editData.project?._id || editData.project || '',
-      });
-    } else {
-      // Default a new client to the first configured stage of its pipeline
-      // rather than a hardcoded string that may not exist as a status.
-      const defaultStage = statuses.find(s => s.isDefault)?.name || statuses[0]?.name || 'New Enquiry';
-      setForm({ ...BLANK_CLIENT, status: defaultStage });
-    }
-  }, [editData, open, statuses]);
-
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      if (editData?._id) {
-        await apiFetch(`/clients/${editData._id}`, token, { method:'PUT', body: JSON.stringify(form) });
-        toast.success('Client updated');
-      } else {
-        await apiFetch('/clients', token, { method:'POST', body: JSON.stringify(form) });
-        toast.success('Client created');
-      }
-      onSaved();
-      onClose();
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open={open}
-      title={editData ? 'Edit Client' : 'Add New Client'}
-      description="Client or organisation managed by the Media / Marketing CRM"
-      onClose={onClose}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="accent" type="submit" form="crm-client-form" loading={saving}>
-            {editData ? 'Save Changes' : 'Create Client'}
-          </Button>
-        </div>
-      }
-    >
-      <form id="crm-client-form" onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Input label="Client / Organisation Name *" name="name" required value={form.name} onChange={set('name')} placeholder="e.g. Acme Media Ltd" />
-          </div>
-          <Input label="Contact Person" name="contactPerson" value={form.contactPerson} onChange={set('contactPerson')} />
-          <Input label="Email" name="email" type="email" value={form.email} onChange={set('email')} />
-          <Input label="Phone" name="phone" type="tel" value={form.phone} onChange={set('phone')} />
-          <Input label="Website" name="website" value={form.website} onChange={set('website')} />
-          <Select
-            label="Department *"
-            name="department"
-            required
-            value={form.department}
-            onChange={set('department')}
-            options={DEPT_OPTIONS}
-          />
-          <Select
-            label="Priority"
-            name="priority"
-            value={form.priority}
-            onChange={set('priority')}
-            options={PRIORITY_OPTIONS}
-          />
-          <StatusPicker statuses={statuses} value={form.status} onChange={set('status')} label="Pipeline Status" />
-          <UserPicker users={users} value={form.owner} onChange={set('owner')} label="Relationship Owner" name="owner" />
-          <Select
-            label="Project"
-            name="project"
-            value={form.project}
-            onChange={set('project')}
-            options={[
-              { value:'', label:'— No project —' },
-              ...projects.map(p => ({ value:p._id, label:p.projectCode ? `${p.name} (${p.projectCode})` : p.name })),
-            ]}
-            helperText="Groups this client in the CRM by Project view"
-          />
-          <Input label="Related Project (free text)" name="relatedProject" value={form.relatedProject} onChange={set('relatedProject')} />
-          <Input label="Client Source" name="source" value={form.source} onChange={set('source')} placeholder="e.g. Referral, Website, Campaign" />
-          <Input label="Campaign Source" name="campaignSource" value={form.campaignSource} onChange={set('campaignSource')} placeholder="e.g. Q4 Brand Push" />
-          <Input label="Marketing Channel" name="marketingChannel" value={form.marketingChannel} onChange={set('marketingChannel')} placeholder="e.g. LinkedIn, Email, Events" />
-          <div className="sm:col-span-2">
-            <Input label="Address" name="address" value={form.address} onChange={set('address')} />
-          </div>
-          <div className="sm:col-span-2">
-            <TextArea label="Notes" name="notes" rows={3} value={form.notes} onChange={set('notes')} />
-          </div>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 // ── Clients module ────────────────────────────────────────────────────────────
 function ClientsModule({ token, department }) {
   const toast = useToast();
@@ -436,6 +324,14 @@ function ClientsModule({ token, department }) {
   const [statuses] = useStatusOptions(token, department);
   const users = useUserOptions(token);
   const [projects, setProjects] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  // Bumped to clear the table's selection without refetching.
+  const [resetKey, setResetKey] = useState(0);
+
+  const { user } = useAuth();
+  // Deactivation is admin-only server-side; mirror that so the bulk control is
+  // absent rather than present-and-rejected.
+  const isAdmin = ['admin', 'super_admin', 'superadmin'].includes(user?.role);
 
   useEffect(() => {
     apiFetch('/import/projects', token)
@@ -475,15 +371,36 @@ function ClientsModule({ token, department }) {
     } catch (err) { toast.error(err.message); }
   };
 
-  const exportCsv = () => {
-    if (!clients.length) return;
-    const cols = ['clientId','name','contactPerson','email','phone','department','status','priority','source','lastContactedAt','nextFollowUpAt'];
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const csv = [cols.join(','), ...clients.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: `crm-clients-${department}-${new Date().toISOString().slice(0,10)}.csv` });
-    a.click();
-    URL.revokeObjectURL(url);
+  /**
+   * Export via the server, so the file covers every row matching the current
+   * filters rather than the single page the browser is holding, and so owner and
+   * project read as names instead of ids.
+   */
+  const exportFile = async (format) => {
+    try {
+      const q = new URLSearchParams({
+        format, department,
+        ...(search ? { search } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(priorityFilter ? { priority: priorityFilter } : {}),
+      }).toString();
+
+      const res = await fetch(`${API_BASE_URL}/api/v1/crm/export/clients?${q}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Export failed (HTTP ${res.status})`);
+      }
+
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const filename = /filename="?([^"]+)"?/.exec(disposition)?.[1]
+        || `crm-clients-${department}-${new Date().toISOString().slice(0, 10)}.${format}`;
+      const url = URL.createObjectURL(await res.blob());
+      Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported as ${format.toUpperCase()}`);
+    } catch (err) { toast.error(err.message); }
   };
 
   const columns = [
@@ -597,8 +514,11 @@ function ClientsModule({ token, department }) {
               <option value="">All priorities</option>
               {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
-            <Button variant="secondary" size="sm" onClick={exportCsv} disabled={!clients.length} icon={<span className="material-symbols-outlined text-base">download</span>}>
+            <Button variant="secondary" size="sm" onClick={() => exportFile('csv')} disabled={!clients.length} icon={<span className="material-symbols-outlined text-base">download</span>}>
               CSV
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => exportFile('xlsx')} disabled={!clients.length} icon={<span className="material-symbols-outlined text-base">table_view</span>}>
+              Excel
             </Button>
             <Button variant="accent" size="sm" icon={<span className="material-symbols-outlined text-base">add</span>} onClick={() => { setEditTarget(null); setModalOpen(true); }}>
               Add Client
@@ -611,9 +531,23 @@ function ClientsModule({ token, department }) {
           columns={columns}
           rows={clients}
           rowKey="_id"
+          selectable
+          onSelectionChange={setSelectedIds}
+          selectionResetKey={resetKey}
           onRowClick={r => setDetailId(r._id)}
           rowActions={rowActions}
           emptyTitle="No clients"
+        />
+
+        <BulkActionBar
+          ids={selectedIds}
+          token={token}
+          statuses={statuses}
+          users={users}
+          projects={projects}
+          canDeactivate={isAdmin}
+          onClear={() => setResetKey(k => k + 1)}
+          onDone={load}
         />
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-neutral-100 px-4 py-3 dark:border-neutral-800">
@@ -1972,7 +1906,9 @@ const MODULES = [
   { id:'statuses',  label:'Status Management',    icon:'flag',                   Component: StatusModule },
   { id:'email',     label:'Email & Content',      icon:'email',                  Component: EmailModule },
   { id:'followups', label:'Follow-ups',           icon:'event_available',        Component: FollowUpsModule },
+  { id:'reminders', label:'Reminders',            icon:'notifications_active',   Component: RemindersModule },
   { id:'comms',     label:'Communication History',icon:'forum',                  Component: CommunicationsModule },
+  { id:'activity',  label:'Activity Feed',        icon:'history',                Component: ActivityModule },
   { id:'vendors',   label:'Vendors & 3rd Parties',icon:'store',                  Component: VendorsModule },
   { id:'analytics', label:'Reports & Analytics',  icon:'bar_chart',              Component: AnalyticsModule },
   { id:'settings',  label:'CRM Settings',         icon:'settings',               Component: SettingsModule },

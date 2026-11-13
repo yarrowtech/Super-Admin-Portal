@@ -16,6 +16,7 @@ const queryRoots = [
   QK.employee.root(),
   QK.ceo.root(),
   QK.admin.root(),
+  QK.crm.root(),
   QK.finance.root(),
   QK.it.root(),
   QK.law.root(),
@@ -80,6 +81,25 @@ const queryBranches = [
   QK.mediaHead.dashboard(),
   QK.ceo.analytics(),
   QK.hr.analytics(),
+  // CRM branches. `['crm']` alone carries no keyword, so the root resolves to
+  // `default`; each surface below is registered so it gets the policy its own
+  // name implies — reference for the config lists, operational for the task and
+  // activity feeds, lists for anything client-shaped.
+  QK.crm.statuses(),
+  QK.crm.emailTemplates(),
+  QK.crm.pipeline(),
+  QK.crm.followups(),
+  QK.crm.reminders(),
+  QK.crm.activity(),
+  QK.crm.dashboard(),
+  QK.crm.analytics(),
+  QK.crm.users(),
+  QK.crm.projects(),
+  ['crm', 'clients'],
+  ['crm', 'contacts'],
+  ['crm', 'communications'],
+  ['crm', 'vendors'],
+  ['crm', 'import'],
 ];
 
 queryBranches.forEach((queryKey) => {

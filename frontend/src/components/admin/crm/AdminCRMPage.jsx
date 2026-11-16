@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
@@ -314,6 +314,9 @@ function ClientsModule({ token, department }) {
   const [search, setSearch]     = useState('');
   const [statusFilter, setStatusFilter]     = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  // '' = every project; 'unassigned' selects the pre-project records, which a
+  // bare id cannot express. The backend already understands both.
+  const [projectFilter, setProjectFilter]   = useState('');
   const [page, setPage]         = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal]       = useState(0);
@@ -352,14 +355,25 @@ function ClientsModule({ token, department }) {
       ...(search ? { search } : {}),
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(priorityFilter ? { priority: priorityFilter } : {}),
+      ...(projectFilter ? { projectId: projectFilter } : {}),
     }).toString();
     apiFetch(`/clients?${q}`, token)
       .then(r => { setClients(r.data || []); setTotal(r.total || 0); setTotalPages(r.pages || 1); })
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, search, page, statusFilter, priorityFilter]);
+  }, [token, department, search, page, statusFilter, priorityFilter, projectFilter]);
 
-  useEffect(() => { setPage(1); }, [department, search, statusFilter, priorityFilter]);
+  // Changing a filter or page swaps out the visible rows, so a selection made
+  // against the old list must not survive: holding it would let a bulk action
+  // delete or reassign records the operator can no longer see on screen.
+  useEffect(() => { setPage(1); }, [department, search, statusFilter, priorityFilter, projectFilter]);
+
+  // See the BulkActionBar below: only ids still present in the loaded rows may
+  // reach a bulk write.
+  const visibleSelectedIds = useMemo(() => {
+    const onScreen = new Set(clients.map(c => c._id));
+    return selectedIds.filter(id => onScreen.has(id));
+  }, [selectedIds, clients]);
   useEffect(() => { load(); }, [load]);
 
   const handleDelete = async (row) => {
@@ -383,6 +397,9 @@ function ClientsModule({ token, department }) {
         ...(search ? { search } : {}),
         ...(statusFilter ? { status: statusFilter } : {}),
         ...(priorityFilter ? { priority: priorityFilter } : {}),
+        // The export covers what the screen is showing, so the project filter
+        // has to travel with it or the file contradicts the list above it.
+        ...(projectFilter ? { projectId: projectFilter } : {}),
       }).toString();
 
       const res = await fetch(`${API_BASE_URL}/api/v1/crm/export/clients?${q}`, {
@@ -478,7 +495,11 @@ function ClientsModule({ token, department }) {
       <SectionCard
         title={`Clients${total ? ` (${total})` : ''}`}
         icon="groups"
-        description="All Media & Marketing client relationships"
+        description={
+          projectFilter
+            ? `${projectFilter === 'unassigned' ? 'Unassigned' : projects.find(p => p._id === projectFilter)?.name || 'Project'} — client relationships`
+            : 'All Media & Marketing client relationships'
+        }
         loading={loading}
         empty={!loading && clients.length === 0}
         emptyTitle="No clients yet"
@@ -493,7 +514,7 @@ function ClientsModule({ token, department }) {
                 onChange={e => setSearchInput(e.target.value)}
                 placeholder="Search clients…"
                 aria-label="Search clients"
-                className="h-9 w-44 rounded-lg border border-neutral-200 bg-white pl-8 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                className="h-9 w-full min-w-[9rem] rounded-lg border border-neutral-200 bg-white pl-8 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 sm:w-44"
               />
             </div>
             <select
@@ -513,6 +534,21 @@ function ClientsModule({ token, department }) {
             >
               <option value="">All priorities</option>
               {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+            {/* Clients are imported project-wise, so the list needs to narrow the
+                same way. 'Unassigned' reaches the records created before project
+                linkage existed, which would otherwise be unreachable here. */}
+            <select
+              value={projectFilter}
+              onChange={e => setProjectFilter(e.target.value)}
+              aria-label="Filter by project"
+              className="h-9 max-w-[11rem] rounded-lg border border-neutral-200 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            >
+              <option value="">All projects</option>
+              {projects.map(p => (
+                <option key={p._id} value={p._id}>{p.name}</option>
+              ))}
+              <option value="unassigned">— Unassigned —</option>
             </select>
             <Button variant="secondary" size="sm" onClick={() => exportFile('csv')} disabled={!clients.length} icon={<span className="material-symbols-outlined text-base">download</span>}>
               CSV
@@ -539,8 +575,12 @@ function ClientsModule({ token, department }) {
           emptyTitle="No clients"
         />
 
+        {/* Derived, not stored: a filter or page change swaps out the rows while
+            selectedIds still holds the old ones, so a bulk action could hit
+            records the operator can no longer see. Intersecting with the visible
+            rows makes that impossible without an effect that fights the table. */}
         <BulkActionBar
-          ids={selectedIds}
+          ids={visibleSelectedIds}
           token={token}
           statuses={statuses}
           users={users}
@@ -1900,7 +1940,7 @@ const MODULES = [
   { id:'dashboard', label:'Dashboard',           icon:'dashboard',              Component: CRMDashboard },
   { id:'clients',   label:'Clients',              icon:'groups',                 Component: ClientsModule },
   { id:'pipeline',  label:'Pipeline',             icon:'view_kanban',            Component: PipelineModule },
-  { id:'projects',  label:'CRM by Project',       icon:'folder_special',         Component: ProjectsModule },
+  { id:'projects',  label:'Import Data',          icon:'folder_special',         Component: ProjectsModule },
   { id:'import',    label:'Import from Excel',    icon:'upload_file',            Component: ImportModule },
   { id:'contacts',  label:'Contacts',             icon:'contacts',               Component: ContactsModule },
   { id:'statuses',  label:'Status Management',    icon:'flag',                   Component: StatusModule },
@@ -1920,10 +1960,10 @@ const MODULES = [
 // are deliberately absent here rather than shown as dead links.
 const NAV_GROUPS = [
   { id:'overview',     label:'Overview',                      moduleIds:['dashboard'] },
-  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','projects','contacts','statuses'] },
+  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','contacts','statuses'] },
   { id:'activities',   label:'Activities & Communication',    moduleIds:['followups','comms','email'] },
   { id:'network',      label:'Business Network',              moduleIds:['vendors'] },
-  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','import','settings'] },
+  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','projects','import','settings'] },
 ];
 
 const MODULE_BY_ID = Object.fromEntries(MODULES.map(m => [m.id, m]));

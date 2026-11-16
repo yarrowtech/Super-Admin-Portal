@@ -87,7 +87,9 @@ function SummaryTiles({ summary }) {
     { label: 'Rows in file', value: summary.total,          tone: 'neutral', icon: 'table_rows' },
     { label: 'Will import',  value: summary.valid,          tone: 'success', icon: 'check_circle' },
     { label: 'Need attention', value: summary.needsAttention, tone: 'warning', icon: 'warning' },
-    { label: 'Duplicates',   value: summary.duplicates,     tone: 'info',    icon: 'content_copy' },
+    // Duplicates are merged into the row that named the client first, so they
+    // are reported as recovered detail rather than as a loss.
+    { label: 'Merged dupes', value: summary.merged ?? summary.duplicates, tone: 'info', icon: 'merge' },
     { label: 'Skipped',      value: summary.skipped,        tone: 'danger',  icon: 'block' },
   ];
   const TONE = {

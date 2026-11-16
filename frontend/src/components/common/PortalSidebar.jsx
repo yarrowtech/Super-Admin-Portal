@@ -299,9 +299,16 @@ const PortalSidebar = ({
                   />
                 )}
 
-                {/* Children (only when expanded sidebar) */}
-                {hasChildren && isOpen && !collapsed && (
-                  <div className="mb-0.5 ml-3 mt-0.5 space-y-0.5 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
+                {/* Children (only when expanded sidebar). The wrapper animates its
+                    own height via grid-template-rows, which transitions cleanly
+                    where `height: auto` cannot, so a group eases open instead of
+                    snapping and shoving the rest of the nav down in one frame. */}
+                {hasChildren && !collapsed && (
+                  <div
+                    className={`grid transition-[grid-template-rows] duration-200 ease-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                  >
+                   <div className="overflow-hidden">
+                    <div className="mb-0.5 ml-3 mt-0.5 space-y-0.5 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
                     {item.children.map((child) => {
                       const childHasChildren = Array.isArray(child.children) && child.children.length > 0;
                       const childActive = isChildActive(child, item.children) || isGroupActive(child);
@@ -312,6 +319,7 @@ const PortalSidebar = ({
                           <button
                             type="button"
                             onClick={() => toggleGroup(child.path)}
+                            aria-expanded={childOpen}
                             className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all ${
                               childActive
                                 ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]'
@@ -324,7 +332,8 @@ const PortalSidebar = ({
                               expand_more
                             </span>
                           </button>
-                          {childOpen && (
+                          <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${childOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                           <div className="overflow-hidden">
                             <div className="ml-2 mt-0.5 space-y-0.5 border-l-2 border-neutral-100 pl-3 dark:border-neutral-800">
                               {child.children.map((sub) => (
                                 <NavLink
@@ -343,7 +352,8 @@ const PortalSidebar = ({
                                 </NavLink>
                               ))}
                             </div>
-                          )}
+                           </div>
+                          </div>
                         </div>
                       ) : (
                         <NavLink
@@ -360,6 +370,8 @@ const PortalSidebar = ({
                         </NavLink>
                       );
                     })}
+                    </div>
+                   </div>
                   </div>
                 )}
               </div>

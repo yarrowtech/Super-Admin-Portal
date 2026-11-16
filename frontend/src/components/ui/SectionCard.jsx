@@ -44,16 +44,20 @@ const SectionCard = React.forwardRef(({
       className={`overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 ${className}`}
       style={{ boxShadow: 'var(--erp-shadow-soft)' }}
     >
+      {/* flex-wrap, not a rigid two-column row: a header whose action slot holds a
+          whole toolbar used to crush the title column until the description wrapped
+          one word per line. The title now keeps a sane minimum and the toolbar drops
+          to its own line when there is no room beside it. */}
       {(title || action) && (
-        <div className="flex items-center justify-between gap-3 border-b border-neutral-100 px-4 py-3.5 dark:border-neutral-800 lg:px-5">
-          <div className="min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-neutral-100 px-4 py-3.5 dark:border-neutral-800 lg:px-5">
+          <div className="min-w-0 flex-1 basis-48">
             <h2 className="flex items-center gap-2 text-sm font-black text-neutral-900 dark:text-neutral-100">
               {icon && (
-                <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--portal-accent)' }}>
+                <span className="material-symbols-outlined shrink-0 text-[18px]" style={{ color: 'var(--portal-accent)' }}>
                   {icon}
                 </span>
               )}
-              {title}
+              <span className="min-w-0 break-words">{title}</span>
             </h2>
             {description && <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>}
           </div>
@@ -61,7 +65,7 @@ const SectionCard = React.forwardRef(({
               else is treated as a node and rendered as-is, so a section can put a count,
               an export button or several controls in the same slot. */}
           {action && (React.isValidElement(action) || !action.label ? (
-            <div className="flex shrink-0 items-center gap-3">{action}</div>
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">{action}</div>
           ) : (
             <button
               type="button"

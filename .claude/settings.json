@@ -261,7 +261,14 @@
       "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\);const m={};r.forEach\\(f=>f.messages.forEach\\(x=>{m[x.ruleId]=\\(m[x.ruleId]||0\\)+1}\\)\\);console.log\\(m\\)}\\)\")",
       "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{JSON.parse\\(s\\).forEach\\(f=>f.messages.filter\\(x=>x.ruleId==='react-hooks/immutability'||x.ruleId==='no-empty'\\).forEach\\(x=>console.log\\(f.filePath.split\\('crm\\\\\\\\\\\\\\\\'\\).pop\\(\\),x.line,x.ruleId,x.message.split\\('\\\\n'\\)[0]\\)\\)\\)}\\)\")",
       "Bash(npx eslint *)",
-      "Bash(rm -f lint.tmp.json)"
+      "Bash(rm -f lint.tmp.json)",
+      "Bash(ls \"/c/Users/EEC/Downloads\" 2>/dev/null | grep -i insta; ls \"/c/Users/EEC/Desktop\" 2>/dev/null | grep -i insta; ls \"/c/Users/EEC/OneDrive/Desktop\" 2>/dev/null | grep -i insta)",
+      "Read(//c/Users/EEC/OneDrive/**)",
+      "Bash(cd /d/SANTU/Super-Admin-Portal && rm -f backend/_an_tmp.js && sed -n '1,120p' frontend/src/components/admin/crm/ImportModule.jsx)",
+      "Bash(node --test __tests__/crmImport.test.js)",
+      "Bash(grep -o \"MONGO[A-Z_]*=.\\\\{0,25\\\\}\" .env)",
+      "Bash(npx vite *)",
+      "Bash(npx esbuild *)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

@@ -111,6 +111,96 @@ test('duplicates within the file are flagged once and imported once', () => {
   assert.equal(records.length, 2);
 });
 
+test('a duplicate row fills blanks on the record that named the client first', () => {
+  // The repeat row is the one carrying the email and phone. Discarding it, as
+  // the import once did, lost the only contact details in the file.
+  const rows = [
+    { 'Client Name': 'Acme', Email: '', Phone: '' },
+    { 'Client Name': 'Acme', Email: 'a@acme.test', Phone: '9988776655' },
+  ];
+  const mapping = service.detectColumns(Object.keys(rows[0]));
+  const { records, summary } = service.validateRows(rows, mapping, PIPELINE);
+
+  assert.equal(records.length, 1);
+  assert.equal(summary.duplicates, 1);
+  assert.equal(summary.merged, 1);
+  // Merged rows are not lost rows, so nothing is reported as skipped.
+  assert.equal(summary.skipped, 0);
+  assert.equal(records[0].email, 'a@acme.test');
+  assert.equal(records[0].phone, '9988776655');
+});
+
+test('the same handle with and without a leading @ is one client', () => {
+  const rows = [
+    { 'Client Name': '@kothin_chele' },
+    { 'Client Name': 'kothin chele' },
+    { 'Client Name': 'kothin.chele' },
+  ];
+  const mapping = service.detectColumns(['Client Name']);
+  const { records, summary } = service.validateRows(rows, mapping, PIPELINE);
+
+  assert.equal(records.length, 1);
+  assert.equal(summary.duplicates, 2);
+});
+
+test('notes from duplicate rows accumulate instead of overwriting', () => {
+  const rows = [
+    { 'Client Name': 'Acme', Notes: 'first remark' },
+    { 'Client Name': 'Acme', Notes: 'second remark' },
+    // An identical remark must not be appended twice.
+    { 'Client Name': 'Acme', Notes: 'second remark' },
+  ];
+  const mapping = service.detectColumns(Object.keys(rows[0]));
+  const { records } = service.validateRows(rows, mapping, PIPELINE);
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].notes, 'first remark\nsecond remark');
+});
+
+test('a social-outreach sheet maps its creator, handle URL and content columns', () => {
+  const headers = ['Sl No', 'Account / Creator', 'Instagram Reel / Post URL', 'Email ID', 'Phone / WhatsApp', 'Mail Content', 'Status'];
+  const mapping = service.detectColumns(headers);
+
+  assert.equal(mapping.name, 'Account / Creator');
+  assert.equal(mapping.website, 'Instagram Reel / Post URL');
+  assert.equal(mapping.email, 'Email ID');
+  assert.equal(mapping.phone, 'Phone / WhatsApp');
+  assert.equal(mapping.notes, 'Mail Content');
+});
+
+test('a URL pasted into the phone column moves to website, not into phone', () => {
+  const rows = [{ 'Client Name': 'Biennale', Phone: 'https://indiabiennale.example/?utm_source=ig', Website: '' }];
+  const mapping = service.detectColumns(['Client Name', 'Phone', 'Website']);
+  const { records } = service.validateRows(rows, mapping, PIPELINE);
+
+  assert.equal(records[0].phone, '');
+  assert.equal(records[0].website, 'https://indiabiennale.example/?utm_source=ig');
+});
+
+test('a stray phone cell never overwrites a real website', () => {
+  const rows = [{ 'Client Name': 'Acme', Phone: 'www.stray.example', Website: 'acme.example' }];
+  const mapping = service.detectColumns(['Client Name', 'Phone', 'Website']);
+  const { records } = service.validateRows(rows, mapping, PIPELINE);
+
+  assert.equal(records[0].website, 'https://acme.example');
+});
+
+test('Excel quoting is stripped so a leading-zero number stays dialable', () => {
+  const rows = [{ 'Client Name': 'Acme', Phone: '"09292927892' }];
+  const mapping = service.detectColumns(['Client Name', 'Phone']);
+  const { records } = service.validateRows(rows, mapping, PIPELINE);
+
+  assert.equal(records[0].phone, '09292927892');
+});
+
+test('padding spaces inside a pasted name are collapsed', () => {
+  const rows = [{ 'Client Name': 'indiabiennale          (4 Dec 26)' }];
+  const mapping = service.detectColumns(['Client Name']);
+  const { records } = service.validateRows(rows, mapping, PIPELINE);
+
+  assert.equal(records[0].name, 'indiabiennale (4 Dec 26)');
+});
+
 test('rows without a client name are skipped, not imported blank', () => {
   const rows = [
     { 'Client Name': 'Acme' },

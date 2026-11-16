@@ -39,11 +39,11 @@ const MAX_ISSUES = 100;
 // Order matters: the most specific alias wins, so a sheet with both "Client Name"
 // and "Name" maps the former.
 const COLUMN_ALIASES = {
-  name:           ['client name', 'company name', 'organisation name', 'organization name', 'account name', 'client', 'company', 'organisation', 'organization', 'account', 'name'],
+  name:           ['client name', 'company name', 'organisation name', 'organization name', 'account name', 'account / creator', 'account creator', 'creator name', 'influencer name', 'blogger name', 'handle', 'username', 'client', 'company', 'organisation', 'organization', 'account', 'creator', 'influencer', 'blogger', 'name'],
   contactPerson:  ['contact person', 'contact name', 'primary contact', 'poc', 'point of contact', 'contact'],
-  email:          ['email address', 'e-mail address', 'email id', 'email', 'e-mail', 'mail'],
-  phone:          ['phone number', 'mobile number', 'contact number', 'phone', 'mobile', 'contact no', 'telephone'],
-  website:        ['website url', 'website', 'url', 'site', 'web'],
+  email:          ['email address', 'e-mail address', 'email id', 'mail id', 'email', 'e-mail', 'mail'],
+  phone:          ['phone number', 'mobile number', 'contact number', 'phone / whatsapp', 'phone whatsapp', 'whatsapp', 'phone', 'mobile', 'contact no', 'telephone'],
+  website:        ['website url', 'website', 'profile url', 'profile link', 'instagram reel / post url', 'instagram url', 'instagram link', 'post url', 'reel url', 'social link', 'link', 'url', 'site', 'web'],
   address:        ['address', 'location', 'city', 'area'],
   department:     ['department', 'dept', 'vertical', 'division', 'team'],
   status:         ['status', 'stage', 'pipeline stage', 'lead status', 'crm status'],
@@ -51,7 +51,7 @@ const COLUMN_ALIASES = {
   projectName:    ['project name', 'project', 'campaign name', 'campaign'],
   source:         ['source', 'lead source', 'client source', 'referral source', 'channel'],
   campaignSource: ['campaign source', 'utm source', 'campaign id'],
-  notes:          ['notes', 'remarks', 'comments', 'description', 'note'],
+  notes:          ['notes', 'remarks', 'comments', 'description', 'mail content', 'message', 'content', 'note'],
 };
 
 // Fields that must be mapped before an import can proceed. Everything else is
@@ -160,13 +160,32 @@ const normalizePriority = (raw) => {
   return null;
 };
 
-/** Excel often stores phone numbers as floats ("9.19876e+11"); keep the digits. */
+/** A cell holding a link, not a number — these turn up in phone columns. */
+const looksLikeUrl = (text) => /^(https?:\/\/|www\.)/i.test(text);
+
+/**
+ * Excel often stores phone numbers as floats ("9.19876e+11"); keep the digits.
+ * Stray quotes and the apostrophe Excel uses to force a leading zero are
+ * stripped, so '"09292927892' is stored as a dialable number.
+ */
 const normalizePhone = (raw) => {
-  const text = String(raw ?? '').trim();
+  const text = String(raw ?? '').trim().replace(/^['"]+|["]+$/g, '').trim();
   if (!text) return '';
   if (/e\+/i.test(text) && Number.isFinite(Number(text))) return Number(text).toFixed(0);
-  return text.slice(0, 40);
+  // A cell with no digits at all is not a phone number; reporting it beats
+  // storing a truncated URL that nobody can dial.
+  if (!/\d/.test(text) || looksLikeUrl(text)) return '';
+  return text.slice(0, 60);
 };
+
+/**
+ * Dedupe key for a client name. Social sheets list the same creator as
+ * "@handle" on one row and "handle" on the next; treating those as two clients
+ * would import the same person twice, so the key strips the leading @ and
+ * collapses the separators handles are written with inconsistently.
+ */
+const dedupeName = (name) => String(name || '')
+  .trim().toLowerCase().replace(/^@+/, '').replace(/[\s._-]+/g, '');
 
 const normalizeWebsite = (raw) => {
   const text = String(raw ?? '').trim();
@@ -198,7 +217,9 @@ function validateRows(rows, mapping, { fallbackDepartment, statusNames = [], def
     const rowNumber = index + 2;
     const rowIssues = [];
 
-    const name = cell(row, 'name');
+    // Pasted cells carry runs of padding spaces and line breaks; collapsing them
+    // keeps the name readable in the CRM and keeps dedupe honest.
+    const name = cell(row, 'name').replace(/\s+/g, ' ').trim();
     if (!name) rowIssues.push('Client name is empty');
 
     const email = cell(row, 'email').toLowerCase();
@@ -229,41 +250,84 @@ function validateRows(rows, mapping, { fallbackDepartment, statusNames = [], def
       else rowIssues.push(`Priority "${rawPriority}" not recognised — using "medium"`);
     }
 
-    // Dedupe within the file. Name alone is too blunt (two branches of one group
-    // are distinct clients), so email joins the key when present.
-    const dedupeKey = `${name.toLowerCase()}|${email}`;
-    const isDuplicate = Boolean(name) && seen.has(dedupeKey);
-    if (isDuplicate) {
-      duplicates += 1;
-      rowIssues.push(`Duplicate of row ${seen.get(dedupeKey)} in this file`);
-    } else if (name) {
-      seen.set(dedupeKey, rowNumber);
+    // A link pasted into the phone column is still useful data, so it is moved
+    // to the website field rather than dropped — but only into an empty one, so
+    // a real website is never overwritten by a stray cell.
+    const rawPhone = mapping.phone ? String(row[mapping.phone] ?? '').trim() : '';
+    const phone = normalizePhone(rawPhone);
+    let website = normalizeWebsite(cell(row, 'website'));
+    if (rawPhone && !phone) {
+      if (looksLikeUrl(rawPhone) && !website) website = normalizeWebsite(rawPhone);
+      else rowIssues.push(`Phone "${rawPhone.slice(0, 40)}" is not a usable number — left blank`);
     }
 
-    const importable = Boolean(name) && !isDuplicate;
+    const candidate = {
+      name,
+      contactPerson:  cell(row, 'contactPerson'),
+      email,
+      phone,
+      website,
+      address:        cell(row, 'address'),
+      department,
+      status,
+      priority,
+      source:         cell(row, 'source'),
+      campaignSource: cell(row, 'campaignSource'),
+      notes:          cell(row, 'notes'),
+      // Free-text project label from the sheet. The authoritative link is the
+      // Project id chosen at commit; this records what the file itself said.
+      relatedProject: cell(row, 'projectName'),
+      _row: rowNumber,
+    };
+
+    // Dedupe within the file. Two records collide when the normalised names
+    // match AND their emails do not contradict each other: a blank email cannot
+    // contradict anything, so the row that finally supplies an address merges
+    // into the earlier bare one, while two genuinely different addresses under
+    // one company name stay apart as two real branches.
+    const key = dedupeName(name);
+    const bucket = name ? (seen.get(key) || []) : [];
+    const firstIndex = bucket.find((i) => !email || !records[i].email || records[i].email === email);
+    const isDuplicate = firstIndex !== undefined;
+
+    if (isDuplicate) {
+      // Merge, do not discard. Repeat rows in these sheets are usually the same
+      // creator captured again with *more* detail — one row carries the email,
+      // a later one the phone or status. Dropping the later rows silently threw
+      // that away, so each blank field on the kept record is filled from the
+      // duplicate and the row numbers are recorded for the operator.
+      const kept = records[firstIndex];
+      const filled = [];
+      for (const field of ['contactPerson', 'email', 'phone', 'website', 'address', 'source', 'campaignSource', 'relatedProject']) {
+        if (!kept[field] && candidate[field]) { kept[field] = candidate[field]; filled.push(field); }
+      }
+      // Notes accumulate rather than overwrite: two rows can carry two genuinely
+      // different remarks about the same creator.
+      if (candidate.notes && !String(kept.notes || '').includes(candidate.notes)) {
+        kept.notes = kept.notes ? `${kept.notes}\n${candidate.notes}` : candidate.notes;
+        filled.push('notes');
+      }
+      // A row that names a real pipeline stage beats the default the kept row fell back to.
+      if (rawStatus && status !== defaultStatus && kept.status === defaultStatus) {
+        kept.status = status; filled.push('status');
+      }
+      kept._mergedRows.push(rowNumber);
+
+      duplicates += 1;
+      rowIssues.push(
+        filled.length
+          ? `Duplicate of row ${kept._row} — merged, filling ${filled.join(', ')}`
+          : `Duplicate of row ${kept._row} — merged, no new details`
+      );
+    } else if (name) {
+      candidate._mergedRows = [];
+      bucket.push(records.length);
+      seen.set(key, bucket);
+      records.push(candidate);
+    }
 
     if (rowIssues.length) {
       issues.push({ row: rowNumber, name: name || '—', email: email || '—', issues: rowIssues });
-    }
-    if (importable) {
-      records.push({
-        name,
-        contactPerson:  cell(row, 'contactPerson'),
-        email,
-        phone:          normalizePhone(mapping.phone ? row[mapping.phone] : ''),
-        website:        normalizeWebsite(cell(row, 'website')),
-        address:        cell(row, 'address'),
-        department,
-        status,
-        priority,
-        source:         cell(row, 'source'),
-        campaignSource: cell(row, 'campaignSource'),
-        notes:          cell(row, 'notes'),
-        // Free-text project label from the sheet. The authoritative link is the
-        // Project id chosen at commit; this records what the file itself said.
-        relatedProject: cell(row, 'projectName'),
-        _row: rowNumber,
-      });
     }
   });
 
@@ -278,7 +342,10 @@ function validateRows(rows, mapping, { fallbackDepartment, statusNames = [], def
       valid: records.length,
       needsAttention: issues.length,
       duplicates,
-      skipped: rows.length - records.length,
+      // Duplicates are merged into a kept record, so they are not skipped. The
+      // only rows that reach nothing are those with no client name at all.
+      merged: duplicates,
+      skipped: rows.length - records.length - duplicates,
       byDepartment,
     },
     issues: issues.slice(0, MAX_ISSUES),
@@ -338,7 +405,8 @@ async function analyzeFile({ buffer, filename, mapping, sheet, department = 'med
     summary: validation.summary,
     issues: validation.issues,
     issuesTruncated: validation.issuesTruncated,
-    preview: validation.records.slice(0, PREVIEW_ROWS).map(({ _row, ...r }) => ({ row: _row, ...r })),
+    preview: validation.records.slice(0, PREVIEW_ROWS)
+      .map(({ _row, _mergedRows, ...r }) => ({ row: _row, mergedRows: _mergedRows || [], ...r })),
   };
 }
 
@@ -378,7 +446,7 @@ async function commitImport({ buffer, filename, mapping, sheet, projectId, depar
   let skipped = 0;
   const failures = [];
 
-  for (const { _row, ...record } of validation.records) {
+  for (const { _row, _mergedRows, ...record } of validation.records) {
     try {
       // Match within the project only: the same client name under two projects
       // is two separate relationships, not a collision.

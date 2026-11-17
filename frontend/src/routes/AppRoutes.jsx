@@ -183,7 +183,9 @@ const hrJobsApi = {
 };
 
 const adminRoles = ['admin', 'super_admin', 'superadmin'];
-const MODULES_CRM = ['dashboard','clients','pipeline','projects','import','contacts','statuses','email','followups','comms','vendors','analytics','settings'];
+// Must stay in step with the MODULES registry in AdminCRMPage: an id missing
+// here has a sidebar entry but no route, so opening it lands on nothing.
+const MODULES_CRM = ['dashboard','clients','influencers','pipeline','projects','import','contacts','statuses','email','followups','reminders','comms','activity','vendors','analytics','settings'];
 // No backend role is literally 'manager' (User.role enum has no such value —
 // see backend/config/roles.js) — the Manager portal is IT-manager-only today.
 const managerRoles = ['it_manager', ...adminRoles];

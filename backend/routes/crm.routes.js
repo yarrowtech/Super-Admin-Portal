@@ -14,8 +14,11 @@ const CRMFollowUp = require('../models/crm/CRMFollowUp');
 const CRMCommunication = require('../models/crm/CRMCommunication');
 const CRMEmailTemplate = require('../models/crm/CRMEmailTemplate');
 const CRMVendor = require('../models/crm/CRMVendor');
+const CRMInfluencer = require('../models/crm/CRMInfluencer');
+const CRMInfluencerPost = require('../models/crm/CRMInfluencerPost');
 const { uploadSpreadsheet } = require('../middlewares/upload.middleware');
 const crmImport = require('../services/crmImport.service');
+const crmInfluencerImport = require('../services/crmInfluencerImport.service');
 const crmExport = require('../services/crmExport.service');
 const crmBulk = require('../services/crmBulk.service');
 
@@ -945,6 +948,253 @@ router.put('/followups/:id/snooze', requireCRM, async (req, res) => {
       .populate('assignedTo', 'firstName lastName')
       .lean();
     res.json({ success: true, data: populated });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ── Influencers ───────────────────────────────────────────────────────────────
+// Creators are a separate collection from clients (reach/rate-card fields a
+// client record has no place for), so they carry their own CRUD and their own
+// import endpoints rather than overloading /clients with a type flag.
+
+router.get('/influencers', requireCRM, async (req, res) => {
+  try {
+    const { department, status, platform, tier, category, search, projectId, importBatch,
+            page = 1, limit = 20 } = req.query;
+
+    const filter = { isActive: true, ...deptFilterFor(department) };
+    if (status) filter.status = status;
+    if (platform) filter.platform = platform;
+    if (tier) filter.tier = tier;
+    if (category) filter.category = { $regex: `^${category}$`, $options: 'i' };
+    if (projectId === 'unassigned') filter.project = null;
+    else if (projectId && mongoose.isValidObjectId(projectId)) filter.project = projectId;
+    if (importBatch) filter.importBatch = importBatch;
+    if (search) filter.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { handle: { $regex: search, $options: 'i' } },
+      { email: { $regex: search, $options: 'i' } },
+      { category: { $regex: search, $options: 'i' } },
+      { influencerId: { $regex: search, $options: 'i' } },
+    ];
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [influencers, total] = await Promise.all([
+      CRMInfluencer.find(filter)
+        .sort({ followers: -1, updatedAt: -1 })
+        .skip(skip).limit(Number(limit))
+        .populate('owner', 'firstName lastName email')
+        .populate('project', 'name projectCode')
+        .lean(),
+      CRMInfluencer.countDocuments(filter),
+    ]);
+
+    // Post counts for the visible page only — one grouped query rather than a
+    // lookup per row, so the roster cost does not grow with the roster.
+    const counts = await CRMInfluencerPost.aggregate([
+      { $match: { influencer: { $in: influencers.map(i => i._id) }, isActive: true } },
+      { $group: { _id: '$influencer', count: { $sum: 1 } } },
+    ]);
+    const byId = Object.fromEntries(counts.map(c => [String(c._id), c.count]));
+    const rows = influencers.map(i => ({ ...i, postCount: byId[String(i._id)] || 0 }));
+
+    res.json({ success: true, data: rows, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/** Headline reach/engagement figures for the Influencers dashboard tiles. */
+router.get('/influencers/stats', requireCRM, async (req, res) => {
+  try {
+    const filter = { isActive: true, ...deptFilterFor(req.query.department) };
+    const [totals] = await CRMInfluencer.aggregate([
+      { $match: filter },
+      { $group: {
+        _id: null,
+        total: { $sum: 1 },
+        // $avg and $sum ignore nulls, so creators whose metrics were never
+        // captured do not drag the averages toward zero.
+        totalReach: { $sum: '$followers' },
+        avgEngagement: { $avg: '$engagementRate' },
+        withMetrics: { $sum: { $cond: [{ $ne: ['$followers', null] }, 1, 0] } },
+      } },
+    ]);
+
+    const [byTier, byPlatform, byStatus] = await Promise.all([
+      CRMInfluencer.aggregate([{ $match: filter }, { $group: { _id: '$tier', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
+      CRMInfluencer.aggregate([{ $match: filter }, { $group: { _id: '$platform', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
+      CRMInfluencer.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
+    ]);
+
+    const totalPosts = await CRMInfluencerPost.countDocuments({ isActive: true });
+
+    res.json({ success: true, data: {
+      total: totals?.total || 0,
+      totalPosts,
+      totalReach: totals?.totalReach || 0,
+      avgEngagement: totals?.avgEngagement ?? null,
+      withMetrics: totals?.withMetrics || 0,
+      byTier, byPlatform, byStatus,
+    } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Influencer spreadsheet import ─────────────────────────────────────────────
+// Same two-phase contract as the client importer: /analyze writes nothing.
+
+router.get('/influencers/import/template', requireCRM, (req, res) => {
+  try {
+    const buffer = crmInfluencerImport.buildTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="crm-influencer-template.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+router.post('/influencers/import/analyze', requireCRM, uploadSpreadsheet('file'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ success: false, error: 'Attach a CSV, XLSX or XLS file.' });
+    }
+    let mapping;
+    if (req.body.mapping) {
+      try { mapping = JSON.parse(req.body.mapping); }
+      catch { return res.status(422).json({ success: false, error: 'Column mapping is not valid JSON.' }); }
+    }
+    const data = await crmInfluencerImport.analyzeFile({
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      mapping,
+      sheet: req.body.sheet || undefined,
+      department: req.body.department || 'marketing',
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+router.post('/influencers/import/commit', requireCRM, uploadSpreadsheet('file'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ success: false, error: 'Attach a CSV, XLSX or XLS file.' });
+    }
+    let mapping;
+    if (req.body.mapping) {
+      try { mapping = JSON.parse(req.body.mapping); }
+      catch { return res.status(422).json({ success: false, error: 'Column mapping is not valid JSON.' }); }
+    }
+    const data = await crmInfluencerImport.commitImport({
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      mapping,
+      sheet: req.body.sheet || undefined,
+      projectId: req.body.projectId,
+      department: req.body.department || 'marketing',
+      mode: req.body.mode || 'skip',
+      actorId: req.user._id,
+    });
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+router.get('/influencers/import/batches', requireCRM, async (req, res) => {
+  try {
+    const data = await crmInfluencerImport.listBatches({
+      projectId: req.query.projectId, limit: req.query.limit,
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** Undo an influencer import. Admin-only: it deletes records. */
+router.delete('/influencers/import/batches/:batchId', requireAdmin, async (req, res) => {
+  try {
+    const data = await crmInfluencerImport.revertBatch({
+      batchId: req.params.batchId, actorId: req.user._id,
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+/** The content filed against one creator, newest first. */
+router.get('/influencers/:id/posts', requireCRM, async (req, res) => {
+  try {
+    const posts = await CRMInfluencerPost.find({ influencer: req.params.id, isActive: true })
+      .sort({ postedAt: -1, createdAt: -1 })
+      .limit(500)
+      .lean();
+    res.json({ success: true, data: posts, total: posts.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/influencers/:id', requireCRM, async (req, res) => {
+  try {
+    const influencer = await CRMInfluencer.findById(req.params.id)
+      .populate('owner', 'firstName lastName email')
+      .populate('project', 'name projectCode')
+      .lean();
+    if (!influencer) return res.status(404).json({ success: false, error: 'Influencer not found' });
+    res.json({ success: true, data: influencer });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/influencers', requireCRM, async (req, res) => {
+  try {
+    const influencer = await new CRMInfluencer({ ...req.body, createdBy: req.user._id }).save();
+    res.status(201).json({ success: true, data: influencer });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.put('/influencers/:id', requireCRM, async (req, res) => {
+  try {
+    const existing = await CRMInfluencer.findById(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Influencer not found' });
+
+    // A stage change is recorded on the timeline rather than silently replacing
+    // the previous value, matching how client status moves are tracked.
+    if (req.body.status && req.body.status !== existing.status) {
+      existing.statusHistory.push({
+        fromStatus: existing.status,
+        toStatus: req.body.status,
+        changedBy: req.user._id,
+        reason: req.body.statusReason || undefined,
+      });
+    }
+    Object.assign(existing, req.body);
+    await existing.save();
+    res.json({ success: true, data: existing });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/** Soft delete, so an archived creator keeps their history and import lineage. */
+router.delete('/influencers/:id', requireAdmin, async (req, res) => {
+  try {
+    const influencer = await CRMInfluencer.findByIdAndUpdate(
+      req.params.id, { isActive: false }, { new: true },
+    );
+    if (!influencer) return res.status(404).json({ success: false, error: 'Influencer not found' });
+    res.json({ success: true, data: influencer });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }

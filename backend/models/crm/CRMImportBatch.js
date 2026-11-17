@@ -9,6 +9,12 @@ const mongoose = require('mongoose');
  */
 const crmImportBatchSchema = new mongoose.Schema({
   batchId:      { type: String, required: true, unique: true, index: true },
+
+  // Which collection this batch wrote into. Defaults to 'client' so batches
+  // recorded before influencer imports existed keep their meaning and stay in
+  // the client history rather than disappearing from both.
+  entity:       { type: String, enum: ['client', 'influencer'], default: 'client', index: true },
+
   fileName:     { type: String, trim: true },
   // The project every client in this batch belongs to. Imports are project-wise:
   // a batch without a project would pollute every project's CRM rollup.

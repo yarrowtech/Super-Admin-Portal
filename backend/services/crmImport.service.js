@@ -520,7 +520,9 @@ async function commitImport({ buffer, filename, mapping, sheet, projectId, depar
  * deleting them would destroy data the import did not create.
  */
 async function revertBatch({ batchId, actorId }) {
-  const batch = await CRMImportBatch.findOne({ batchId });
+  // Scoped to client batches: an influencer batch id must not resolve here, or
+  // the revert would mark it done having deleted none of its rows.
+  const batch = await CRMImportBatch.findOne({ batchId, entity: { $ne: 'influencer' } });
   if (!batch) fail(404, 'Import batch not found.');
   if (batch.revertedAt) fail(409, 'That import has already been reverted.');
 
@@ -534,7 +536,9 @@ async function revertBatch({ batchId, actorId }) {
 
 /** Import history, newest first — optionally for one project. */
 async function listBatches({ projectId, limit = 25 } = {}) {
-  const filter = {};
+  // Client history only. Influencer imports keep their own history, so a mixed
+  // list would offer an undo that silently targets the wrong collection.
+  const filter = { entity: { $ne: 'influencer' } };
   if (projectId && mongoose.isValidObjectId(projectId)) filter.project = projectId;
   return CRMImportBatch.find(filter)
     .populate('importedBy', 'firstName lastName email')

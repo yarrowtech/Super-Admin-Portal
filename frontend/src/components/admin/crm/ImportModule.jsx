@@ -18,23 +18,7 @@ import Select from '../../ui/Select';
 import Skeleton from '../../ui/Skeleton';
 import EmptyState from '../../ui/EmptyState';
 import { apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, SINGLE_DEPT_OPTIONS, fmtDateTime, userLabel } from './crmShared';
-
-// Field labels for the mapping step, in the order they read on screen.
-const FIELDS = [
-  { key: 'name',           label: 'Client Name', required: true },
-  { key: 'contactPerson',  label: 'Contact Person' },
-  { key: 'email',          label: 'Email' },
-  { key: 'phone',          label: 'Phone' },
-  { key: 'website',        label: 'Website' },
-  { key: 'address',        label: 'Address' },
-  { key: 'department',     label: 'Department' },
-  { key: 'status',         label: 'Status / Stage' },
-  { key: 'priority',       label: 'Priority' },
-  { key: 'projectName',    label: 'Project Name' },
-  { key: 'source',         label: 'Source' },
-  { key: 'campaignSource', label: 'Campaign Source' },
-  { key: 'notes',          label: 'Notes' },
-];
+import { CLIENT_IMPORT, plural } from './importConfigs';
 
 const STEPS = ['Upload', 'Map columns', 'Review', 'Done'];
 
@@ -114,16 +98,21 @@ function SummaryTiles({ summary }) {
   );
 }
 
-export default function ImportModule({ token, department }) {
+/**
+ * `config` selects which entity is being imported (see importConfigs.js). It
+ * defaults to clients so existing mounts of this module are unaffected.
+ */
+export default function ImportModule({ token, department, config = CLIENT_IMPORT }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
+  const FIELDS = config.fields;
 
   const [step, setStep]         = useState(0);
   const [file, setFile]         = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState('');
-  const [importDept, setImportDept] = useState(department === 'all' ? 'media' : department);
+  const [importDept, setImportDept] = useState(department === 'all' ? config.defaultDepartment : department);
   const [mode, setMode]         = useState('skip');
   const [sheet, setSheet]       = useState('');
 
@@ -133,7 +122,9 @@ export default function ImportModule({ token, department }) {
   const [result, setResult]     = useState(null);
   const [batches, setBatches]   = useState([]);
 
-  useEffect(() => { setImportDept(department === 'all' ? 'media' : department); }, [department]);
+  useEffect(() => {
+    setImportDept(department === 'all' ? config.defaultDepartment : department);
+  }, [department, config.defaultDepartment]);
 
   useEffect(() => {
     apiFetch('/import/projects', token)
@@ -142,10 +133,10 @@ export default function ImportModule({ token, department }) {
   }, [token]);
 
   const loadBatches = useCallback(() => {
-    apiFetch('/import/batches?limit=10', token)
+    apiFetch(`${config.basePath}/batches?limit=10`, token)
       .then(r => setBatches(r.data || []))
       .catch(() => setBatches([]));
-  }, [token]);
+  }, [token, config.basePath]);
 
   useEffect(() => { loadBatches(); }, [loadBatches]);
 
@@ -166,7 +157,7 @@ export default function ImportModule({ token, department }) {
       if (overrides.sheet ?? sheet) fd.append('sheet', overrides.sheet ?? sheet);
       if (overrides.mapping) fd.append('mapping', JSON.stringify(overrides.mapping));
 
-      const { data } = await postFile('/import/analyze', token, fd);
+      const { data } = await postFile(`${config.basePath}/analyze`, token, fd);
       setAnalysis(data);
       setMapping(data.mapping || {});
       if (data.file?.sheetName) setSheet(data.file.sheetName);
@@ -201,10 +192,10 @@ export default function ImportModule({ token, department }) {
       if (sheet) fd.append('sheet', sheet);
       fd.append('mapping', JSON.stringify(mapping));
 
-      const { data } = await postFile('/import/commit', token, fd);
+      const { data } = await postFile(`${config.basePath}/commit`, token, fd);
       setResult(data);
       setStep(3);
-      toast.success(`Imported ${data.created} client${data.created === 1 ? '' : 's'}`);
+      toast.success(`Imported ${plural(data.created, config.noun, config.nounPlural)}`);
       loadBatches();
     } catch (err) {
       toast.error(err.message);
@@ -214,10 +205,10 @@ export default function ImportModule({ token, department }) {
   };
 
   const revert = async (batchId) => {
-    if (!window.confirm('Undo this import? Clients it created will be permanently deleted. Records it only updated stay as they are.')) return;
+    if (!window.confirm(`Undo this import? ${config.nounPlural} it created will be permanently deleted. Records it only updated stay as they are.`)) return;
     try {
-      const { data } = await apiFetch(`/import/batches/${batchId}`, token, { method: 'DELETE' });
-      toast.success(`Removed ${data.removed} imported client${data.removed === 1 ? '' : 's'}`);
+      const { data } = await apiFetch(`${config.basePath}/batches/${batchId}`, token, { method: 'DELETE' });
+      toast.success(`Removed ${plural(data.removed ?? data.deleted ?? 0, `imported ${config.noun}`, `imported ${config.nounPlural}`)}`);
       loadBatches();
       if (result?.batchId === batchId) reset();
     } catch (err) {
@@ -227,12 +218,12 @@ export default function ImportModule({ token, department }) {
 
   const downloadTemplate = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/crm/import/template`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/crm${config.basePath}/template`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Could not download the template');
       const url = URL.createObjectURL(await res.blob());
-      const a = Object.assign(document.createElement('a'), { href: url, download: 'crm-import-template.xlsx' });
+      const a = Object.assign(document.createElement('a'), { href: url, download: config.templateFile });
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -248,9 +239,9 @@ export default function ImportModule({ token, department }) {
   return (
     <div className="space-y-5">
       <SectionCard
-        title="Import CRM Data from Excel"
+        title={config.title}
         icon="upload_file"
-        description="Upload an .xlsx, .xls or .csv file. Clients are created project-wise under Media or Marketing."
+        description={config.description}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" size="sm" onClick={downloadTemplate}
@@ -274,7 +265,7 @@ export default function ImportModule({ token, department }) {
                   value={projectId}
                   onChange={e => setProjectId(e.target.value)}
                   options={projectOptions}
-                  helperText={projects.length ? 'Every imported client is filed under this project' : 'No projects found — create one first'}
+                  helperText={projects.length ? config.projectHelper : 'No projects found — create one first'}
                 />
                 <Select
                   label="Department *"
@@ -390,7 +381,7 @@ export default function ImportModule({ token, department }) {
                     <table className="w-full min-w-[46rem] text-left text-sm">
                       <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500 dark:bg-neutral-800">
                         <tr>
-                          {['Row','Client','Contact','Email','Dept','Status','Priority'].map(h => (
+                          {['Row', ...config.preview.map(c => c.label)].map(h => (
                             <th key={h} className="px-3 py-2 font-bold">{h}</th>
                           ))}
                         </tr>
@@ -399,12 +390,28 @@ export default function ImportModule({ token, department }) {
                         {analysis.preview.map(r => (
                           <tr key={r.row}>
                             <td className="px-3 py-2 font-mono text-xs text-neutral-400">{r.row}</td>
-                            <td className="px-3 py-2 font-semibold text-neutral-900 dark:text-neutral-100">{r.name}</td>
-                            <td className="px-3 py-2 text-neutral-600 dark:text-neutral-400">{r.contactPerson || '—'}</td>
-                            <td className="px-3 py-2 text-neutral-600 dark:text-neutral-400">{r.email || '—'}</td>
-                            <td className="px-3 py-2"><StatusBadge tone={DEPT_BADGE_TONE[r.department] || 'neutral'} label={r.department} dot={false} /></td>
-                            <td className="px-3 py-2 text-neutral-600 dark:text-neutral-400">{r.status}</td>
-                            <td className="px-3 py-2"><StatusBadge tone={PRIORITY_TONE[r.priority] || 'neutral'} label={r.priority} dot={false} /></td>
+                            {config.preview.map((col, i) => {
+                              const value = col.get(r);
+                              if (col.kind === 'dept') return (
+                                <td key={col.label} className="px-3 py-2">
+                                  <StatusBadge tone={DEPT_BADGE_TONE[value] || 'neutral'} label={value} dot={false} />
+                                </td>
+                              );
+                              if (col.kind === 'priority') return (
+                                <td key={col.label} className="px-3 py-2">
+                                  <StatusBadge tone={PRIORITY_TONE[value] || 'neutral'} label={value} dot={false} />
+                                </td>
+                              );
+                              // The first column is the record's identity, so it
+                              // carries the emphasis the rest of the row does not.
+                              return (
+                                <td key={col.label} className={i === 0
+                                  ? 'px-3 py-2 font-semibold text-neutral-900 dark:text-neutral-100'
+                                  : 'px-3 py-2 text-neutral-600 dark:text-neutral-400'}>
+                                  {value || '—'}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
                       </tbody>
@@ -438,24 +445,24 @@ export default function ImportModule({ token, department }) {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Select label="Import into project *" name="projectId" value={projectId}
                     onChange={e => setProjectId(e.target.value)} options={projectOptions} />
-                  <Select label="If a client already exists" name="mode" value={mode}
+                  <Select label={`If a ${config.noun} already exists`} name="mode" value={mode}
                     onChange={e => setMode(e.target.value)}
                     options={[
                       { value: 'skip',   label: 'Skip it (leave existing data alone)' },
                       { value: 'update', label: 'Update it with values from the file' },
                     ]}
-                    helperText={mode === 'update' ? 'Only non-empty cells overwrite existing values' : 'Existing clients are left untouched'}
+                    helperText={mode === 'update' ? 'Only non-empty cells overwrite existing values' : `Existing ${config.nounPlural} are left untouched`}
                   />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-neutral-500">
                     {analysis.summary?.valid
-                      ? <>Ready to import <strong className="text-neutral-900 dark:text-neutral-100">{analysis.summary.valid}</strong> client{analysis.summary.valid === 1 ? '' : 's'}.</>
+                      ? <>Ready to import <strong className="text-neutral-900 dark:text-neutral-100">{analysis.summary.valid}</strong> {analysis.summary.valid === 1 ? config.noun : config.nounPlural}.</>
                       : 'No importable rows in this file.'}
                   </p>
                   <Button variant="accent" loading={busy} disabled={!analysis.summary?.valid || !projectId} onClick={runCommit}
                     icon={<span className="material-symbols-outlined text-base">publish</span>}>
-                    Import {analysis.summary?.valid || 0} client{analysis.summary?.valid === 1 ? '' : 's'}
+                    Import {plural(analysis.summary?.valid || 0, config.noun, config.nounPlural)}
                   </Button>
                 </div>
               </div>

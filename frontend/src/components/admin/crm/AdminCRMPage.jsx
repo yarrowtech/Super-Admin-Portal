@@ -18,6 +18,7 @@ import EmptyState from '../../ui/EmptyState';
 import ClientDetailDrawer from './ClientDetailDrawer';
 import PipelineBoard from './PipelineBoard';
 import ImportModule from './ImportModule';
+import InfluencersModule from './InfluencersModule';
 import ProjectsModule from './ProjectsModule';
 import ClientFormModal from './ClientFormModal';
 import RemindersModule from './RemindersModule';
@@ -1940,6 +1941,7 @@ const MODULES = [
   { id:'dashboard', label:'Dashboard',           icon:'dashboard',              Component: CRMDashboard },
   { id:'clients',   label:'Clients',              icon:'groups',                 Component: ClientsModule },
   { id:'pipeline',  label:'Pipeline',             icon:'view_kanban',            Component: PipelineModule },
+  { id:'influencers', label:'Influencers',        icon:'diversity_3',            Component: InfluencersModule },
   { id:'projects',  label:'Projects',             icon:'folder_special',         Component: ProjectsModule },
   { id:'import',    label:'Import from Excel',    icon:'upload_file',            Component: ImportModule },
   { id:'contacts',  label:'Contacts',             icon:'contacts',               Component: ContactsModule },
@@ -1960,7 +1962,7 @@ const MODULES = [
 // are deliberately absent here rather than shown as dead links.
 const NAV_GROUPS = [
   { id:'overview',     label:'Overview',                      moduleIds:['dashboard'] },
-  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','projects','contacts','statuses'] },
+  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','influencers','pipeline','projects','contacts','statuses'] },
   { id:'activities',   label:'Activities & Communication',    moduleIds:['followups','comms','email'] },
   { id:'network',      label:'Business Network',              moduleIds:['vendors'] },
   { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','import','settings'] },

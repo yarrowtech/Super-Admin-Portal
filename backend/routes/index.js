@@ -40,3 +40,7 @@ exports.policyRoutes = require("./policy.routes");
 exports.policyPublicRoutes = require("./policy.public.routes");
 exports.organizationWorkspaceRoutes = require("./organizationWorkspace.routes");
 exports.crmRoutes = require("./crm.routes");
+exports.mcpRoutes = require("./mcp.routes");
+exports.mcpAdminRoutes = require("./mcpAdmin.routes");
+exports.ceoAgentRoutes = require("./ceoAgent.routes");
+exports.erpDataRoutes = require("./erpData.routes");

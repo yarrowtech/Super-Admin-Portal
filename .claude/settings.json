@@ -268,7 +268,15 @@
       "Bash(node --test __tests__/crmImport.test.js)",
       "Bash(grep -o \"MONGO[A-Z_]*=.\\\\{0,25\\\\}\" .env)",
       "Bash(npx vite *)",
-      "Bash(npx esbuild *)"
+      "Bash(npx esbuild *)",
+      "Bash(node /c/Users/EEC/AppData/Local/Temp/claude/53e66101ea764779/de26cc15-3ca5-415d-b0fc-817142a1fc9b/scratchpad/auditCrm.js)",
+      "Bash(node _purgeCrm.tmp.js \"/c/Users/EEC/AppData/Local/Temp/claude/53e66101ea764779/de26cc15-3ca5-415d-b0fc-817142a1fc9b/scratchpad/crm-demo-backup.json\" --apply)",
+      "Bash(sed -i 's#const C=require\\(\"./models/crm/CRMClient\"\\);#const C=require\\(\"./models/crm/CRMClient\"\\);require\\(\"./models/Project\"\\);#' _testid.tmp.js)",
+      "Bash(node _testid.tmp.js)",
+      "Bash(sed -i 's#require\\(\"./models/Project\"\\)#require\\(\"./models/common/Project\"\\)#' _testid.tmp.js)",
+      "Bash(grep -rln 'findOneAndUpdate.*$inc\\\\|Counter' models/)",
+      "Bash(node --test __tests__/crmImport.test.js __tests__/crmBulk.test.js __tests__/crmExport.test.js)",
+      "Bash(node _b.tmp.js)"
     ],
     "additionalDirectories": [
       "e:\\Super-Admin-Portal\\backend\\controllers\\finance",

@@ -31,6 +31,7 @@
     "test:serial": "node --test --test-concurrency=1 __tests__/*.test.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.10.0",
     "compression": "^1.8.1",
@@ -53,7 +54,8 @@
     "puppeteer": "^24.43.1",
     "redis": "^6.2.1",
     "socket.io": "^4.7.5",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "mongodb-memory-server": "^10.4.3",

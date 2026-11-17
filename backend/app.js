@@ -65,6 +65,25 @@ connectDB().then(async () => {
 });
 
 app.set("trust proxy", 1);
+
+// --- MCP endpoint -----------------------------------------------------------
+// Mounted ahead of the portal CORS policy and the session-auth stack: MCP
+// clients are server-side agents authenticated by access key, not browser
+// sessions, so the portal origin allow-list does not apply to them. The route
+// carries its own key auth, rate limit and JSON parser.
+app.use(
+  "/mcp",
+  cors({
+    origin: true,
+    credentials: false,
+    methods: ["POST", "GET", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-mcp-key", "mcp-session-id", "mcp-protocol-version", "accept"],
+    exposedHeaders: ["mcp-session-id"],
+  }),
+  express.json({ limit: constants.REQUEST_BODY_LIMIT }),
+  routes.mcpRoutes
+);
+
 app.use(cors({
   origin: corsConfig.origin,
   credentials: corsConfig.credentials,
@@ -218,6 +237,12 @@ app.use("/api/v1", routes.policyRoutes);
 app.use("/api/v1", require('./routes/yarrowtech.routes'));
 app.use("/api/v1", routes.organizationWorkspaceRoutes);
 app.use("/api/v1/crm", routes.crmRoutes);
+// Super-admin management of MCP access keys (issue / list / revoke).
+app.use("/api/v1/mcp-keys", routes.mcpAdminRoutes);
+// CEO Agent integration: SSO launch button (portal session auth) and the ERP
+// data sync API (ERP_DATA_API_KEY auth) that CEO Agent polls.
+app.use("/api/ceo-agent", routes.ceoAgentRoutes);
+app.use("/api", routes.erpDataRoutes);
 // Public EFNBMMS policy consumer API (OAuth2 client-credentials auth, not portal
 // session auth) — kept off "/api/v1" since that prefix already serves the
 // authenticated admin routes above.

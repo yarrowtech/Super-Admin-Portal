@@ -702,7 +702,7 @@ export default function ProjectsModule({ token, department }) {
   // deactivated or moved — falls back to the index rather than a blank screen.
   if (selectedId && !selected && !loading) {
     return (
-      <SectionCard title="Import Data" icon="folder_special">
+      <SectionCard title="Projects" icon="folder_special">
         <EmptyState
           icon="folder_off"
           title="This project is no longer in the CRM"
@@ -743,7 +743,7 @@ export default function ProjectsModule({ token, department }) {
       />
 
       <SectionCard
-        title="Import Data"
+        title="Projects"
         icon="folder_special"
         description="Every client grouped under the project it belongs to. Open a project to manage its clients or upload a spreadsheet."
         loading={loading}

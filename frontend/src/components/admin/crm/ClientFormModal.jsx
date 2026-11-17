@@ -149,7 +149,7 @@ export default function ClientFormModal({
                 { value: '', label: '— No project —' },
                 ...projects.map(p => ({ value: p._id, label: p.projectCode ? `${p.name} (${p.projectCode})` : p.name })),
               ]}
-              helperText="Groups this client in the Import Data view"
+              helperText="Groups this client in the Projects view"
             />
           )}
 

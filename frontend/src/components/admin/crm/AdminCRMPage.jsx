@@ -1940,7 +1940,7 @@ const MODULES = [
   { id:'dashboard', label:'Dashboard',           icon:'dashboard',              Component: CRMDashboard },
   { id:'clients',   label:'Clients',              icon:'groups',                 Component: ClientsModule },
   { id:'pipeline',  label:'Pipeline',             icon:'view_kanban',            Component: PipelineModule },
-  { id:'projects',  label:'Import Data',          icon:'folder_special',         Component: ProjectsModule },
+  { id:'projects',  label:'Projects',             icon:'folder_special',         Component: ProjectsModule },
   { id:'import',    label:'Import from Excel',    icon:'upload_file',            Component: ImportModule },
   { id:'contacts',  label:'Contacts',             icon:'contacts',               Component: ContactsModule },
   { id:'statuses',  label:'Status Management',    icon:'flag',                   Component: StatusModule },
@@ -1960,10 +1960,10 @@ const MODULES = [
 // are deliberately absent here rather than shown as dead links.
 const NAV_GROUPS = [
   { id:'overview',     label:'Overview',                      moduleIds:['dashboard'] },
-  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','contacts','statuses'] },
+  { id:'relationship', label:'Relationship Management',       moduleIds:['clients','pipeline','projects','contacts','statuses'] },
   { id:'activities',   label:'Activities & Communication',    moduleIds:['followups','comms','email'] },
   { id:'network',      label:'Business Network',              moduleIds:['vendors'] },
-  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','projects','import','settings'] },
+  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','import','settings'] },
 ];
 
 const MODULE_BY_ID = Object.fromEntries(MODULES.map(m => [m.id, m]));

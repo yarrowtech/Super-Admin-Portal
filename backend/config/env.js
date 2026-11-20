@@ -33,40 +33,40 @@ const env = Object.freeze({
   EEC_PORTAL_URL: process.env.EEC_PORTAL_URL || "",
   EHC_PORTAL_URL: process.env.EHC_PORTAL_URL || "",
   RMS_PORTAL_URL: process.env.RMS_PORTAL_URL || "",
-  EFNBMMS_ADMIN_MANAGEMENT_API_URL:
+  get EFNBMMS_ADMIN_MANAGEMENT_API_URL() { return (
     process.env.EFNBMMS_ADMIN_MANAGEMENT_API_URL ||
     process.env.EFMBMMS_ADMIN_MANAGEMENT_API_URL ||
-    "",
-  EDIFYEIGHT_API_URL:
+    ""); },
+  get EDIFYEIGHT_API_URL() { return (
     process.env.EDIFYEIGHT_API_URL ||
     process.env.EFNBMMS_API_URL ||
     process.env.EFMBMMS_API_URL ||
-    "",
-  EDIFYEIGHT_TEACHER_API_URL:
+    ""); },
+  get EDIFYEIGHT_TEACHER_API_URL() { return (
     process.env.EDIFYEIGHT_TEACHER_API_URL ||
     process.env.EFNBMMS_TEACHER_API_URL ||
     process.env.EFMBMMS_TEACHER_API_URL ||
-    "",
-  EDIFYEIGHT_STUDY_MATERIAL_API_URL:
+    ""); },
+  get EDIFYEIGHT_STUDY_MATERIAL_API_URL() { return (
     process.env.EDIFYEIGHT_STUDY_MATERIAL_API_URL ||
-    "",
-  EDIFYEIGHT_API_TOKEN:
+    ""); },
+  get EDIFYEIGHT_API_TOKEN() { return (
     process.env.EDIFYEIGHT_API_TOKEN ||
     process.env.EFNBMMS_API_TOKEN ||
     process.env.EFMBMMS_API_TOKEN ||
-    "",
-  EFNBMMS_API_URL:
+    ""); },
+  get EFNBMMS_API_URL() { return (
     process.env.EFNBMMS_API_URL ||
     process.env.EFMBMMS_API_URL ||
-    "",
-  EFNBMMS_TEACHER_API_URL:
+    ""); },
+  get EFNBMMS_TEACHER_API_URL() { return (
     process.env.EFNBMMS_TEACHER_API_URL ||
     process.env.EFMBMMS_TEACHER_API_URL ||
-    "",
-  EFNBMMS_API_TOKEN:
+    ""); },
+  get EFNBMMS_API_TOKEN() { return (
     process.env.EFNBMMS_API_TOKEN ||
     process.env.EFMBMMS_API_TOKEN ||
-    "",
+    ""); },
   ESPORTSM_PORTAL_URL: process.env.ESPORTSM_PORTAL_URL || "",
   SMARTFARMING_PORTAL_URL: process.env.SMARTFARMING_PORTAL_URL || "",
   ENABLE_SELF_REGISTRATION: parseBoolean(process.env.ENABLE_SELF_REGISTRATION, false),

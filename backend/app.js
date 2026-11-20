@@ -191,6 +191,10 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.use('/api/api-management', require('./routes/apiManagement.routes').router);
+app.use('/api/v1/projects', require('./routes/apiManagement.routes').gateway);
+app.use('/api/api-management-webhooks', require('./routes/apiManagement.routes').webhooks);
+app.use('/api/api-management-mcp', require('./routes/apiManagement.mcp'));
 app.use("/api/auth", routes.authRoutes);
 app.use("/api/attendance", routes.attendanceRoutes);
 app.use("/api/dept/admin", routes.adminRoutes);

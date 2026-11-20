@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Loader from '../components/common/Loader';
+const ApiManagementPage = lazy(() => import('../components/admin/ApiManagement'));
 import {
   LoginPage,
   NotFoundPage,
@@ -1022,6 +1023,16 @@ export default function AppRoutes() {
           }
         />
         {/* CRM Management — Media & Marketing only, centralized under Admin */}
+        <Route
+          path="/admin/api-management/*"
+          element={
+            <PortalRoute portal={PORTALS.ADMIN}>
+              <PrivateRoute roles={adminRoles}>
+                {withPortal(AdminLayout, ApiManagementPage)}
+              </PrivateRoute>
+            </PortalRoute>
+          }
+        />
         <Route
           path="/admin/crm"
           element={

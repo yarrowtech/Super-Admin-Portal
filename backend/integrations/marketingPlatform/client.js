@@ -6,20 +6,18 @@
 // /api/ceo/marketing-analytics, which calls this, so the platform token never leaves the
 // server. `isConfigured()` is the switch the rest of the stack reads — with no base URL or
 // token set, the API answers with a "not configured" state rather than inventing data.
-const BASE_URL = process.env.MARKETING_PLATFORM_BASE_URL || '';
-const API_KEY = process.env.MARKETING_PLATFORM_API_KEY || '';
-const API_TOKEN = process.env.MARKETING_PLATFORM_TOKEN || '';
+const configuration = () => ({ BASE_URL: process.env.MARKETING_PLATFORM_BASE_URL || '', API_KEY: process.env.MARKETING_PLATFORM_API_KEY || '', API_TOKEN: process.env.MARKETING_PLATFORM_TOKEN || '' });
 const TIMEOUT_MS = Number(process.env.MARKETING_PLATFORM_TIMEOUT_MS || 12000);
 
-const isConfigured = () => Boolean(BASE_URL && (API_KEY || API_TOKEN));
+const isConfigured = () => { const { BASE_URL, API_KEY, API_TOKEN } = configuration(); return Boolean(BASE_URL && (API_KEY || API_TOKEN)); };
 
 // What the platform is reachable as, for diagnostics. Deliberately returns no secret —
 // only whether one is present, so an operator can tell configuration from connectivity.
-const describe = () => ({
+const describe = () => { const { BASE_URL, API_KEY, API_TOKEN } = configuration(); return ({
   configured: isConfigured(),
   baseUrl: BASE_URL ? BASE_URL.replace(/\/+$/, '') : null,
   credential: API_TOKEN ? 'bearer-token' : API_KEY ? 'api-key' : null,
-});
+}); };
 
 class MarketingPlatformError extends Error {
   constructor(message, { statusCode = 502, cause = null, retryable = true } = {}) {
@@ -37,6 +35,7 @@ const NOT_CONFIGURED = 'MARKETING_PLATFORM_NOT_CONFIGURED';
 // "not set up" from "set up but unreachable" from "rejected our credentials" — three very
 // different operator problems that a single 502 would flatten.
 async function request(path, params = {}) {
+  const { BASE_URL, API_KEY, API_TOKEN } = configuration();
   if (!isConfigured()) {
     throw new MarketingPlatformError('The external marketing platform is not configured', {
       statusCode: 503, retryable: false, cause: NOT_CONFIGURED,

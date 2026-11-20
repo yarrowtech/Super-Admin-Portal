@@ -69,6 +69,12 @@ const navItems = [
     description: 'Project allocation and access'
   },
   {
+    label: 'API Management',
+    icon: 'api',
+    path: '/admin/api-management',
+    description: 'Project APIs and portal permissions'
+  },
+  {
     label: 'CRM Management',
     icon: 'contact_page',
     path: '/admin/crm',

@@ -28,6 +28,7 @@ const httpServer = server.listen(PORT, () => {
   // failure can never stop the API from coming up.
   startOverdueEscalationJob();
   workspaceSyncJob.start();
+  require('./services/apiManagement.sync').start();
   logService.fireAndForget({
     level: "info",
     event: "SERVER_STARTED",
@@ -48,6 +49,7 @@ const shutdown = async (signal) => {
   // database that is already going away.
   stopOverdueEscalationJob();
   workspaceSyncJob.stop();
+  require('./services/apiManagement.sync').stop();
   const forceExitTimer = setTimeout(() => {
     process.exit(1);
   }, 10000);

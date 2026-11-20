@@ -62,7 +62,7 @@ const sanitizeForLog = (value, depth = 0) => {
   }
 
   return Object.entries(value).reduce((acc, [key, item]) => {
-    if (SENSITIVE_KEYS.has(normalizeKey(key))) {
+    if (SENSITIVE_KEYS.has(normalizeKey(key)) || /(?:_TOKEN|_SECRET|_API_KEY|_PASSWORD)$/i.test(key)) {
       acc[key] = "[Redacted]";
       return acc;
     }

@@ -171,6 +171,16 @@ test('management HTTP, gateway isolation, granular permissions, credentials, syn
     const rotated = (await call(`/manage/portals/${portal._id}/rotate`, 'POST', {})).body.token;
     assert.notEqual(rotated, portalToken);
     assert.equal((await call(uri, 'GET', undefined, portalToken)).status, 401);
+    assert.equal((await call(`/manage/sync-jobs/${job._id}`, 'DELETE', undefined, readerToken)).status, 403);
+    assert.equal((await call(`/manage/connections/${connection._id}`, 'DELETE')).status, 409);
+    assert.equal((await call(`/manage/connections/${connection._id}/status`, 'POST', { active: false })).status, 200);
+    const blocked = await call(`/manage/connections/${connection._id}`, 'DELETE');
+    assert.equal(blocked.status, 409);
+    assert.match(blocked.body.error, /synchronization jobs/);
+    assert.equal((await call(`/manage/sync-jobs/${job._id}`, 'DELETE')).status, 200);
+    assert.equal((await call(`/manage/connections/${connection._id}`, 'DELETE')).status, 200);
+    assert.equal((await call(`/manage/endpoints/${endpoint._id}`, 'DELETE')).status, 200);
+    assert.equal((await call('/projects/YARROWTECH/products')).body.existing, true);
   } finally {
     security.request = originalRequest;
     if (server) await new Promise(resolve => server.close(resolve));

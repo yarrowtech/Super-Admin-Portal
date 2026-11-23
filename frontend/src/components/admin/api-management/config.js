@@ -4,7 +4,7 @@ export const NAV_GROUPS = [
   ['Portal Connections', [['Connected Portals', 'devices'], ['Portal API Mapping', 'hub'], ['Connection Configuration', 'settings_input_component']]],
   ['Access Control', [['Authentication', 'verified_user'], ['API Credentials', 'key'], ['Permission Manager', 'admin_panel_settings']]],
   ['Data Management', [['Data Fetching', 'download'], ['Data Push', 'upload'], ['Synchronization', 'sync'], ['Webhooks', 'webhook']]],
-  ['Monitoring', [['API Logs', 'list_alt'], ['Connection Health', 'monitor_heart'], ['Error Monitoring', 'error_outline'], ['Audit History', 'history']]],
+  ['Monitoring', [['API Logs', 'list_alt'], ['Connection Health', 'monitor_heart'], ['Error Monitoring', 'error'], ['Audit History', 'history']]],
   ['Advanced', [['MCP Management', 'smart_toy'], ['API Configuration', 'tune']]],
 ];
 export const SECTION_DESCRIPTIONS = {

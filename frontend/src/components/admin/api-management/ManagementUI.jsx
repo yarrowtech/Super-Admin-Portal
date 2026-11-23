@@ -41,7 +41,7 @@ export function DataTable({ columns, rows, emptyTitle = 'No activity yet', empty
   return <div className="max-w-full overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800"><table className="w-full text-left text-sm"><thead className="bg-neutral-50 dark:bg-neutral-950"><tr>{columns.map(column => <th key={column} scope="col" className="whitespace-nowrap border-b border-neutral-200 px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">{column}</th>)}</tr></thead><tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">{rows.map((row, index) => <tr key={row.key ?? index} className="transition-colors hover:bg-neutral-50/70 dark:hover:bg-neutral-800/30">{(row.cells || row).map((cell, cellIndex) => <td key={cellIndex} className="max-w-sm px-4 py-3.5 align-top [overflow-wrap:anywhere]">{cell ?? <span className="text-neutral-400">—</span>}</td>)}</tr>)}</tbody></table></div>;
 }
 export function Notice({ children, tone = 'info' }) {
-  return <div className={`flex items-start gap-2 rounded-xl border p-3 text-sm leading-relaxed ${tone === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200' : 'border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400'}`}><Icon name={tone === 'warning' ? 'info' : 'info_outline'} className="mt-0.5 shrink-0" /><div className="min-w-0">{children}</div></div>;
+  return <div className={`flex items-start gap-2 rounded-xl border p-3 text-sm leading-relaxed ${tone === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200' : 'border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400'}`}><Icon name="info" className="mt-0.5 shrink-0" /><div className="min-w-0">{children}</div></div>;
 }
 export function CopyValue({ value, label = 'Copy', secret = false }) {
   const [copied, setCopied] = useState(false);
@@ -56,6 +56,18 @@ export function ConfirmDialog({ title, description, confirmLabel, onConfirm, onC
     catch { setError('The change could not be saved. Please try again.'); }
   };
   return <Modal open title={title} description={description} onClose={busy ? () => {} : onClose} footer={<div className="flex justify-end gap-2"><Action disabled={busy} onClick={onClose}>Cancel</Action><Action variant="accent" loading={busy} onClick={confirm}>{confirmLabel}</Action></div>}><div className="space-y-4">{error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}{children}</div></Modal>;
+}
+export function RemoveAction({ label, description, path, busy, run, send }) {
+  const [open, setOpen] = useState(false);
+  return <>
+    <Action disabled={busy} icon="delete" onClick={() => setOpen(true)}>Remove</Action>
+    {open && <ConfirmDialog title={`Remove ${label}?`} description={description} confirmLabel="Remove" busy={busy}
+      onClose={() => setOpen(false)} onConfirm={async () => {
+        const result = await run(() => send(path, undefined, 'delete'), 'Removed from API Management');
+        if (result.ok) setOpen(false);
+        return result;
+      }} />}
+  </>;
 }
 export function SecretDialog({ value, onClose, title = 'New server credential' }) {
   return <Modal open title={title} description="This credential is shown only once." onClose={onClose} footer={<div className="flex justify-end"><Action variant="accent" onClick={onClose}>I have saved this credential</Action></div>}><div className="space-y-4"><Notice tone="warning">Save this value in the destination server's secret store. Keep it out of frontend code and browser storage.</Notice><CopyValue value={value} secret /></div></Modal>;

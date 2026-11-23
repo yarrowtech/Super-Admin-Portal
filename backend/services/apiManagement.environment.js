@@ -63,15 +63,16 @@ function createStore(filePath, runtime = process.env) {
       if (expectedRevision && expectedRevision !== hash(before)) fail('Environment changed. Refresh before saving.', 409);
       let after = before; const eol = before.includes('\r\n') ? '\r\n' : '\n';
       for (const [key, value] of Object.entries(updates)) {
-        if (!/^[A-Z][A-Z0-9_]+$/.test(key) || typeof value !== 'string' || value.length > 4096 || /[\x00-\x1f\x7f]/.test(value) || (value.includes("'") && value.includes('"'))) fail('Invalid project environment value');
-        const quoted = value.includes("'") ? `"${value}"` : `'${value}'`;
+        if (!/^[A-Z][A-Z0-9_]+$/.test(key) || (value !== null && (typeof value !== 'string' || value.length > 4096 || /[\x00-\x1f\x7f]/.test(value) || (value.includes("'") && value.includes('"'))))) fail('Invalid project environment value');
+        const quoted = value === null ? '' : value.includes("'") ? `"${value}"` : `'${value}'`;
         // Replace duplicate definitions consistently; retain all unrelated bytes.
         const pattern = new RegExp(`^(?:[ \\t]*export[ \\t]+)?[ \\t]*${key}[ \\t]*=[^\\r\\n]*`, 'gm');
         for (const match of after.matchAll(pattern)) {
           const previous = match[0].slice(match[0].indexOf('=') + 1).trim();
           if (["'", '"', '`'].includes(previous[0]) && previous.indexOf(previous[0], 1) === -1) fail('Multi-line environment values require server-side migration before editing', 409);
         }
-        if (pattern.test(after)) after = after.replace(pattern, () => `${key}=${quoted}`);
+        if (value === null) after = after.replace(new RegExp(pattern.source + '(?:\\r?\\n|$)', 'gm'), '');
+        else if (pattern.test(after)) after = after.replace(pattern, () => `${key}=${quoted}`);
         else after += `${after && !after.endsWith('\n') ? eol : ''}${key}=${quoted}${eol}`;
       }
       if (after !== before) {
@@ -81,7 +82,10 @@ function createStore(filePath, runtime = process.env) {
         if (read() !== before) fail('Environment changed. Refresh before saving.', 409);
         fs.renameSync(temp, filePath); temp = null;
       }
-      for (const [key, value] of Object.entries(updates)) runtime[key] = value;
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null) delete runtime[key];
+        else runtime[key] = value;
+      }
       return hash(after);
     } catch (error) {
       if (error.status) throw error;
@@ -160,7 +164,12 @@ function writeApi(api, { url, token }) {
   if (token !== undefined) changes[keys.token] = token;
   return store.update(changes);
 }
-module.exports = { definitions, byId, ownsProject, inventory, updateExisting, writeApi, keysForApi, gatewayConfiguration, createStore,
+function clearApi(api) {
+  if (api.environmentIntegrationId || !api.environmentManaged) return;
+  const { url, token } = keysForApi(api);
+  store.update({ [url]: null, [token]: null });
+}
+module.exports = { clearApi, definitions, byId, ownsProject, inventory, updateExisting, writeApi, keysForApi, gatewayConfiguration, createStore,
   fingerprint(api, integrationId) { const config = gatewayConfiguration(api, integrationId); return config ? hash(JSON.stringify(config)) : null; },
   setStoreForTests(next) { if (process.env.NODE_ENV !== 'test') throw new Error('Test-only injection'); store = next; },
 };

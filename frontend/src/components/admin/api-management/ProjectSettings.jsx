@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ExistingProjectApis from '../ExistingProjectApis';
 import { INPUT } from './config';
-import { Action, Badge, CopyValue, Empty, Field, Notice, Panel } from './ManagementUI';
+import { RemoveAction, Action, Badge, CopyValue, Empty, Field, Notice, Panel } from './ManagementUI';
 
 export function ProviderSettings({ registry, project, api, editable, busy, run, send, chooseProject }) {
   const [draftUrl, setUrl] = useState(null);
@@ -11,8 +11,9 @@ export function ProviderSettings({ registry, project, api, editable, busy, run, 
     <Panel title="Primary provider" description="The default upstream connection for this project's endpoints." icon="settings_input_component" action={<Badge tone={api?.enabled ? 'info' : 'neutral'}>{api?.enabled ? 'Enabled' : 'Disabled'}</Badge>}>
       {!api ? <Empty title="Register this project's API first" description="Create a gateway identity using the project bar above, or register one of the existing integrations." /> : <form className="space-y-5" onSubmit={async event => { event.preventDefault(); const result = await run(() => send(`/apis/${api._id}`, { baseUrl: url, enabled: true }, 'patch'), 'Provider URL saved and enabled'); if (result.ok) setUrl(null); }}>
         <Field label="Provider URL" hint="Use the public HTTPS base URL. Endpoint paths are configured separately."><input type="url" required className={INPUT} value={url} onChange={event => setUrl(event.target.value)} placeholder="https://provider.example.com/api/v1" disabled={!editable || busy} /></Field>
+        {editable && !api.enabled && api.environmentIntegrationId && <Action disabled={busy} onClick={() => run(() => send(`/apis/${api._id}`, { enabled: true }, 'patch'), 'Gateway provider enabled')}>Enable gateway</Action>}
         <Notice>Saving updates the backend environment and applies the new configuration immediately. Connection changes require a new test before activation.</Notice>
-        {editable && <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-4 dark:border-neutral-800"><Action type="submit" variant="accent" icon="save" loading={busy} disabled={!url.trim()}>Save and enable</Action><Action disabled={busy || !api.enabled} onClick={() => run(() => send(`/apis/${api._id}`, { enabled: false }, 'patch'), 'Gateway provider disabled')}>Disable gateway provider</Action><span className="text-xs text-neutral-500">Existing legacy routes retain their own access controls.</span></div>}
+        {editable && <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-4 dark:border-neutral-800"><Action type="submit" variant="accent" icon="save" loading={busy} disabled={!url.trim()}>Save and enable</Action><Action disabled={busy || !api.enabled} onClick={() => run(() => send(`/apis/${api._id}`, { enabled: false }, 'patch'), 'Gateway provider disabled')}>Disable gateway provider</Action>{!api.enabled && <RemoveAction label="gateway registration" description="Removes the managed registration and any generated provider settings. Existing project routes keep their live configuration." path={`/apis/${api._id}`} {...{ busy, run, send }} />}</div>}
       </form>}
     </Panel>
     {api && <Panel title="Gateway identity" description="Use this namespace when connecting an authorized portal backend." icon="fingerprint"><div className="space-y-4"><Field label="Project gateway path"><CopyValue value={`/api/v1/projects/${api.namespace}`} /></Field><details className="text-xs text-neutral-500"><summary className="cursor-pointer font-semibold">Technical identifiers</summary><dl className="mt-3 grid gap-2"><div><dt>API ID</dt><dd className="break-all font-mono">{api._id}</dd></div><div><dt>Project ID</dt><dd className="break-all font-mono">{api.projectId}</dd></div><div><dt>API version</dt><dd>{api.version}</dd></div></dl></details></div></Panel>}

@@ -32,6 +32,13 @@ test('environment writes preserve unrelated bytes, reject injection and conflict
     assert.throws(() => environment.updateExisting('edifyeight-teachers', { JWT_SECRET: 'forbidden' }, store.revision()), { status: 403 });
     assert.throws(() => environment.updateExisting('edifyeight-teachers', { EDIFYEIGHT_API_TOKEN: 'token\nJWT_SECRET=injected' }, store.revision()), { status: 400 });
     assert.equal(fs.readFileSync(file, 'utf8'), after);
+    const api = { _id: '0123456789abcdef01234567', environmentManaged: true };
+    environment.writeApi(api, { url: 'https://provider.example', token: 'fixture-managed-token' });
+    environment.clearApi({ ...api, environmentIntegrationId: 'edifyeight-teachers' });
+    assert.equal(runtime[environment.keysForApi(api).token], 'fixture-managed-token');
+    environment.clearApi(api);
+    assert.equal(runtime[environment.keysForApi(api).token], undefined);
+    assert.equal(fs.readFileSync(file, 'utf8'), after);
     fs.writeFileSync(file + '.api-management.lock', '');
     assert.throws(() => store.update({ EDIFYEIGHT_API_TOKEN: 'locked-out' }), { status: 409 });
     fs.unlinkSync(file + '.api-management.lock');

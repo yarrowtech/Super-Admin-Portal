@@ -177,7 +177,7 @@ router.post('/portals/:id/rotate', wrap(async (req, res) => {
   res.json({ token, warning: 'Copy to the portal server secret store. This value will not be shown again.' });
 }));
 router.patch('/portals/:id', wrap(async (req, res) => {
-  const body = z.object({ enabled: z.boolean().optional(), mcpEnabled: z.boolean().optional() }).strict().parse(req.body);
+  const body = z.object({ name: z.string().trim().min(1).max(100).optional(), enabled: z.boolean().optional(), mcpEnabled: z.boolean().optional() }).strict().parse(req.body);
   const portal = await get(Portal, req.params.id); await audit(req, 'portal.configure', { portalId: portal._id });
   portal.set(body); await portal.save(); res.json({ success: true });
 }));
@@ -194,8 +194,13 @@ router.post('/connections/:id/test', wrap(async (req, res) => {
   const api = await get(ProjectApi, String(connection.apiId), '+credential');
   const portal = await get(Portal, String(connection.portalId), '+tokenHash');
   const endpoints = await validateGrants(api._id, connection.grants);
-  const providerConfiguration = environment.gatewayConfiguration(api);
-  if (!api.enabled || !(providerConfiguration?.baseUrl || api.baseUrl) || !(providerConfiguration ? providerConfiguration.bearer && providerConfiguration.token : api.credentialConfigured) || !portal.enabled || !portal.tokenHash) fail('Enable and configure provider and portal credentials before testing');
+  if (!api.enabled || !portal.enabled || !portal.tokenHash) fail('Enable the project API and configure the portal credential before testing');
+  for (const grant of connection.grants) {
+    const endpoint = endpoints.find(item => item.id === String(grant.endpointId));
+    const config = environment.gatewayConfiguration(api, endpoint.providerIntegrationId);
+    const configured = config ? config.baseUrl && config.bearer && config.token : api.baseUrl && api.credentialConfigured;
+    if (!configured) fail(`Configure a supported provider for ${endpoint.name} before testing`);
+  }
   const readGrants = connection.grants.filter(g => endpoints.find(e => e.id === String(g.endpointId))?.method === 'GET');
   if (!readGrants.length) fail('Register a permitted GET endpoint for a non-mutating connection test');
   try {
@@ -223,6 +228,33 @@ router.post('/connections/:id/status', wrap(async (req, res) => {
   await audit(req, active ? 'connection.activate' : 'connection.disable', { connectionId: connection._id });
   connection.status = active ? 'Connected' : 'Disabled'; await connection.save(); res.json(connection);
 }));
+const removable = [
+  { route: 'sync-jobs', model: SyncJob, action: 'sync.remove', refs: job => ({ connectionId: job.connectionId, endpointId: job.endpointId }) },
+  { route: 'connections', model: Connection, action: 'connection.remove', refs: connection => ({ apiId: connection.apiId, portalId: connection.portalId, connectionId: connection._id }),
+    dependencies: connection => [[SyncJob, { connectionId: connection._id }, 'Remove its synchronization jobs first.']] },
+  { route: 'endpoints', model: Endpoint, action: 'endpoint.remove', refs: endpoint => ({ apiId: endpoint.apiId, endpointId: endpoint._id }),
+    dependencies: endpoint => [[Connection, { apiId: endpoint.apiId, status: 'Connected' }, 'Disable active mappings for this API before removing an endpoint.'], [Connection, { 'grants.endpointId': endpoint._id }, 'Remove this endpoint from all portal mappings first.'], [SyncJob, { endpointId: endpoint._id }, 'Remove its synchronization jobs first.']] },
+  { route: 'portals', model: Portal, action: 'portal.remove', refs: portal => ({ portalId: portal._id }),
+    dependencies: portal => [[Connection, { portalId: portal._id }, 'Remove its project connections first.']] },
+  { route: 'apis', model: ProjectApi, action: 'project-api.remove', refs: api => ({ apiId: api._id }),
+    dependencies: api => [[Endpoint, { apiId: api._id }, 'Remove its endpoint registrations first.'], [Connection, { apiId: api._id }, 'Remove its portal mappings first.']] },
+];
+
+for (const { route, model, action, refs, dependencies } of removable) {
+  router.delete(`/${route}/:id`, wrap(async (req, res) => {
+    const record = await get(model, req.params.id);
+    if (record.status === 'Connected' || (model === ProjectApi && record.enabled)) fail('Disable this resource before removing it.', 409);
+    for (const [Dependent, filter, message] of dependencies?.(record) || []) {
+      if (await Dependent.exists(filter)) fail(message, 409);
+    }
+    await audit(req, action, refs(record));
+    if (model === ProjectApi) environment.clearApi(record);
+    const result = await model.deleteOne({ _id: record._id, updatedAt: record.updatedAt });
+    if (!result.deletedCount) fail('Resource changed. Refresh before removing it.', 409);
+    res.json({ success: true });
+  }));
+}
+
 router.get('/apis/:id/documentation', wrap(async (req, res) => {
   const api = await get(ProjectApi, req.params.id); const endpoints = await Endpoint.find({ apiId: api._id }).lean();
   res.json({ openapi: '3.1.0', info: { title: api.name, version: api.version },
@@ -312,7 +344,7 @@ webhooks.post('/:id', wrap(async (req, res) => {
 const errors = (error, req, res, next) => {
   if (res.headersSent) return next(error);
   const status = error instanceof z.ZodError ? 400 : error.code === 11000 ? 409 : error.status || 500;
-  res.status(status).json({ error: error instanceof z.ZodError ? 'Invalid configuration: ' + error.issues.map(i => i.path.join('.') + ' ' + i.message).join('; ') : status === 409 ? 'This registration already exists' : status >= 500 ? 'API Management request failed. Check provider availability and infrastructure configuration.' : error.message });
+  res.status(status).json({ error: error instanceof z.ZodError ? 'Invalid configuration: ' + error.issues.map(i => i.path.join('.') + ' ' + i.message).join('; ') : error.code === 11000 ? 'This registration already exists' : status >= 500 ? 'API Management request failed. Check provider availability and infrastructure configuration.' : error.message });
 };
 router.use(errors); gateway.use(errors); webhooks.use(errors);
 module.exports = { router, gateway, webhooks, validateGrants, digest, endpointBody, executeGateway };

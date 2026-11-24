@@ -1,6 +1,6 @@
 const { ROLES } = require('../config/roles');
 
-const PRIVILEGED_ROLES = new Set([ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.FREELANCER]);
+const PRIVILEGED_ROLES = new Set([ROLES.ADMIN, ROLES.SUPER_ADMIN]);
 
 const getProjectPermissions = (user = {}, projectCode = '') => {
   const assignments = Array.isArray(user.assignedProjects)
@@ -10,7 +10,7 @@ const getProjectPermissions = (user = {}, projectCode = '') => {
       : [];
 
   return assignments
-    .filter((assignment) => String(assignment?.projectCode || '').toUpperCase() === String(projectCode || '').toUpperCase())
+    .filter((assignment) => assignment && String(assignment.projectCode || '').toUpperCase() === String(projectCode || '').toUpperCase())
     .flatMap((assignment) => (Array.isArray(assignment.permissions) ? assignment.permissions : []));
 };
 

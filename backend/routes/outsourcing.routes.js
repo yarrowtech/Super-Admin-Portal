@@ -15,6 +15,7 @@ const {
 } = require('../middlewares/validate.middleware');
 const { ROLES } = require('../config/roles');
 const User = require('../models/auth/User');
+const PortalAccess = require('../models/superAdmin/PortalAccess');
 const hrController = require('../controllers/hr/hrDashboard.controller');
 const { departmentScope, mountDepartmentModules } = require('../middlewares/departmentScope.middleware');
 const { denyLawEmployee } = require('../middlewares/lawTaskLinks');
@@ -36,6 +37,18 @@ const normalizeDepartment = (value) =>
     .replace(/[\s&-]+/g, '_');
 
 router.use(authenticate);
+
+// Staff also use associated-freelancer APIs here from their own departments.
+// Preserve those role checks below, while honoring an explicit portal denial.
+router.use(async (req, res, next) => {
+  try {
+    const rule = await PortalAccess.findOne({ role: req.user.role, portal: 'outsourcing' }).select('canAccess');
+    if (rule && rule.canAccess === false) {
+      return res.status(403).json({ success: false, error: 'Outsourcing portal access denied', code: 'PORTAL_ACCESS_DENIED' });
+    }
+    return next();
+  } catch (error) { return next(error); }
+});
 
 router.use(async (req, res, next) => {
   try {

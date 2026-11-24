@@ -1,3 +1,4 @@
+const { defaultPortalAccess } = require('../services/portalAccessPolicy.service');
 const logger = require('../utils/logger');
 const { createTimer, setRequestContext } = require('../logger/context');
 // backend/middleware/auth.js
@@ -12,38 +13,10 @@ const constants = require('../config/constants');
 const { getRolePermissions } = require('../config/roles');
 const env = require('../config/env');
 
-const DEFAULT_IT_MANAGER_PORTALS = new Set(['manager']);
-const DEFAULT_IT_EMPLOYEE_PORTALS = new Set(['it']);
-const DEFAULT_IT_HR_PORTALS = new Set(['hr']);
-const DEFAULT_CEO_PORTALS = new Set(['ceo', 'media']);
-const DEFAULT_EMPLOYEE_PORTAL_ROLES = new Set([
-  'employee',
-  'it_employee',
-  'finance_employee',
-  'law_employee',
-]);
-
 const toLogId = (value) => {
   if (!value) return null;
   if (typeof value.toHexString === 'function') return value.toHexString();
   return String(value);
-};
-
-// Department-scoped roles no longer share a literal string with their portal
-// (e.g. role 'it_manager' vs portal 'it'), unlike the old flat roles. This maps
-// each new role to the portal it belongs to, for the same-role/portal fallback below.
-const DEPARTMENT_ROLE_PORTAL = {
-  it_manager: 'manager',
-  it_admin: 'it',
-  it_employee: 'it',
-  it_hr: 'hr',
-  finance_manager: 'finance',
-  finance_employee: 'finance',
-  media_head: 'media',
-  media_sales: 'media',
-  media_marketing: 'media',
-  law_head: 'law',
-  law_employee: 'law',
 };
 
 const normalizeProjectAssignments = (metadata = {}) => {
@@ -330,7 +303,8 @@ const authorize = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    const superAdminOverride = req.user.role === 'super_admin' && roles.includes('admin');
+    if (!roles.includes(req.user.role) && !superAdminOverride) {
       logger.warn({
         event: 'rbac.access.denied',
         category: 'RBAC',
@@ -448,29 +422,7 @@ const authorizePortalAccess = (portal) => {
         }, 'Portal access lookup completed');
       }
 
-      if (!rule && req.user.role === 'admin') return next();
-      if (!rule && req.user.role === 'it_manager' && DEFAULT_IT_MANAGER_PORTALS.has(portal)) {
-        return next();
-      }
-      if (!rule && req.user.role === 'it_employee' && DEFAULT_IT_EMPLOYEE_PORTALS.has(portal)) {
-        return next();
-      }
-      if (!rule && portal === 'employee' && DEFAULT_EMPLOYEE_PORTAL_ROLES.has(req.user.role)) {
-        return next();
-      }
-      if (!rule && req.user.role === 'it_hr' && DEFAULT_IT_HR_PORTALS.has(portal)) {
-        return next();
-      }
-      if (!rule && req.user.role === 'ceo' && DEFAULT_CEO_PORTALS.has(portal)) {
-        return next();
-      }
-      if (!rule && req.user.role === 'hr' && portal === 'admin') {
-        return next();
-      }
-      // Fail-open for first-party same-role portal access when rule seeding is missing.
-      // Explicit stored deny rules still take precedence.
-      if (!rule && req.user.role === portal) return next();
-      if (!rule && DEPARTMENT_ROLE_PORTAL[req.user.role] === portal) return next();
+      if (!rule && defaultPortalAccess(req.user, portal)) return next();
       if (!rule) {
         logger.warn({
           event: 'rbac.access.denied',

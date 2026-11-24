@@ -1,0 +1,20 @@
+{
+  "admin": ["admin", "ceo", "hr", "manager", "employee", "it", "law", "media", "finance", "outsourcing"],
+  "super_admin": ["admin", "super-admin", "ceo", "hr", "manager", "employee", "it", "law", "media", "finance", "outsourcing"],
+  "superadmin": ["admin", "super-admin", "ceo", "hr", "manager", "employee", "it", "law", "media", "finance", "outsourcing"],
+  "ceo": ["ceo", "media"],
+  "hr": ["hr", "admin"],
+  "it_manager": ["manager"],
+  "it_admin": ["it"],
+  "it_employee": ["it", "employee"],
+  "it_hr": ["hr"],
+  "finance_manager": ["finance"],
+  "finance_employee": ["finance", "employee"],
+  "law_head": ["law"],
+  "law_employee": ["law", "employee"],
+  "media_head": ["media"],
+  "media_sales": ["media"],
+  "media_marketing": ["media"],
+  "employee": ["employee"],
+  "freelancer": ["outsourcing"]
+}

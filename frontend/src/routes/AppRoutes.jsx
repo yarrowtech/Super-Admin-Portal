@@ -1,12 +1,13 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Loader from '../components/common/Loader';
+import AccessDenied from '../components/common/AccessDenied';
 const ApiManagementPage = lazy(() => import('../components/admin/ApiManagement'));
 import {
   LoginPage,
   NotFoundPage,
   AdminDashboardPage,
-  SuperAdminControlCenterPage,
+  SuperAdminDashboardPage,
   AdminProjectsPage,
   HostedProjectWorkspacePage,
   AdminDepartmentsPage,
@@ -353,6 +354,7 @@ export default function AppRoutes() {
         </div>
       }>
       <Routes>
+        <Route path="/access-denied" element={user ? <AccessDenied /> : <Navigate to="/login" replace />} />
         <Route
           path="/login"
           element={
@@ -757,7 +759,7 @@ export default function AppRoutes() {
           element={
             <PortalRoute portal={PORTALS.SUPER_ADMIN}>
               <PrivateRoute roles={['super_admin', 'superadmin']}>
-                {withPortal(AdminLayout, SuperAdminControlCenterPage)}
+                {withPortal(AdminLayout, SuperAdminDashboardPage)}
               </PrivateRoute>
             </PortalRoute>
           }

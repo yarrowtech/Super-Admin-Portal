@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { useId } from 'react';
 
 /**
  * `prefix` / `suffix` accept a Material Symbol name string (e.g. "search")
@@ -6,7 +7,9 @@ import { cn } from '../../lib/cn';
  * at the left / right edge and shift the input's padding to avoid overlap.
  */
 const Input = ({ label, error, helperText, className, id, prefix, suffix, ...props }) => {
-  const inputId = id || props.name;
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const messageId = `${inputId}-message`;
   const hasPrefix = Boolean(prefix);
   const hasSuffix = Boolean(suffix);
 
@@ -21,6 +24,8 @@ const Input = ({ label, error, helperText, className, id, prefix, suffix, ...pro
         className,
       )}
       {...props}
+      aria-invalid={error ? true : props['aria-invalid']}
+      aria-describedby={[props['aria-describedby'], (error || helperText) && messageId].filter(Boolean).join(' ') || undefined}
     />
   );
 
@@ -49,7 +54,7 @@ const Input = ({ label, error, helperText, className, id, prefix, suffix, ...pro
         </div>
       ) : inputEl}
       {(error || helperText) && (
-        <span className={cn('mt-1 block text-xs', error ? 'text-red-600' : 'text-neutral-500 dark:text-neutral-400')}>
+        <span id={messageId} role={error ? 'alert' : undefined} className={cn('mt-1 block text-xs', error ? 'text-red-600 dark:text-red-400' : 'text-neutral-500 dark:text-neutral-400')}>
           {error || helperText}
         </span>
       )}

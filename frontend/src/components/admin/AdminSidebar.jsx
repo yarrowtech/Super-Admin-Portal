@@ -4,6 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import PortalSidebar from '../common/PortalSidebar';
+import Drawer from '../ui/Drawer';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { canAccessPortal, PORTALS } from '../../utils/rbac';
 import { useSidebar } from '../../context/SidebarContext';
 import { createLogger } from '../../utils/logger';
@@ -147,6 +149,8 @@ const AdminSidebar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [supportBadge, setSupportBadge] = useState(0);
   const role = String(user?.role || '').toLowerCase();
+  const mobileViewport = useMediaQuery('(max-width: 1023px)');
+  const portalTitle = role === 'admin' ? 'Admin Portal' : 'Super Admin Portal';
 
   // Real-time badge: count new support tickets while away from support-center
   useEffect(() => {
@@ -160,9 +164,7 @@ const AdminSidebar = () => {
   }, [token, role]);
 
   // Clear badge when admin navigates to support center
-  useEffect(() => {
-    if (location.pathname.startsWith('/admin/support-center')) setSupportBadge(0);
-  }, [location.pathname]);
+  if (location.pathname.startsWith('/admin/support-center') && supportBadge !== 0) setSupportBadge(0);
 
   const resolvedNavItems = useMemo(() => {
     const items = menuConfig[role] || navItems;
@@ -193,11 +195,12 @@ const AdminSidebar = () => {
           onClick={() => setMobileOpen(true)}
           className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:text-neutral-200 dark:hover:bg-neutral-800"
           aria-label="Open navigation"
+          aria-expanded={mobileOpen}
         >
           <span className="material-symbols-outlined">menu</span>
         </button>
         <div className="min-w-0 text-center">
-          <p className="truncate text-sm font-bold leading-tight text-neutral-900 dark:text-neutral-100">Admin Portal</p>
+          <p className="truncate text-sm font-bold leading-tight text-neutral-900 dark:text-neutral-100">{portalTitle}</p>
           <p className="truncate text-xs leading-tight text-neutral-500 dark:text-neutral-400">{user?.firstName} {user?.lastName}</p>
         </div>
         <button
@@ -212,7 +215,7 @@ const AdminSidebar = () => {
 
       <div className={`fixed left-0 top-0 z-[1000] hidden h-screen shadow-lg lg:block ${collapsed ? 'w-16' : 'w-[250px]'}`}>
         <PortalSidebar
-          brandingTitle="Super Admin Portal"
+          brandingTitle={portalTitle}
           brandingIcon="admin_panel_settings"
           user={user}
           navItems={resolvedNavItems}
@@ -224,17 +227,9 @@ const AdminSidebar = () => {
         />
       </div>
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/50 animate-in fade-in duration-200"
-            onClick={() => setMobileOpen(false)}
-            aria-label="Close navigation overlay"
-          />
-          <div className="animate-in slide-in-from-left relative h-full w-[min(280px,86vw)] shadow-2xl duration-300 ease-out">
+      <Drawer open={mobileOpen && mobileViewport} onClose={closeMobile} title={`${portalTitle} navigation`} side="left" hideHeader closeOnBackdrop className="!w-[min(280px,86vw)]">
             <PortalSidebar
-              brandingTitle="Super Admin Portal"
+              brandingTitle={portalTitle}
               brandingIcon="admin_panel_settings"
               user={user}
               navItems={resolvedNavItems}
@@ -247,9 +242,7 @@ const AdminSidebar = () => {
                 { path: '/admin/settings', label: 'Settings', icon: 'settings' },
               ]}
             />
-          </div>
-        </div>
-      )}
+      </Drawer>
     </>
   );
 };

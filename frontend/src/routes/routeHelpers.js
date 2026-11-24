@@ -1,6 +1,6 @@
-import { EMPLOYEE_PORTAL_ROLES, MEDIA_PORTAL_ROLES } from '../utils/rbac';
+import { MEDIA_PORTAL_ROLES, canEnterPortal, PORTALS } from '../utils/rbac';
 
-export const getDefaultRoute = (user) => {
+const preferredRoleRoute = (user) => {
   const role = user?.role;
   const outsourcingType = String(user?.metadata?.outsourcingType || '')
     .trim()
@@ -39,9 +39,11 @@ export const getDefaultRoute = (user) => {
     it_employee: '/employee/dashboard',
     it_hr: '/hr/dashboard',
     law: '/law/dashboard',
+    law_head: '/law/dashboard',
     law_employee: '/law/dashboard',
     finance: '/finance/dashboard',
-    finance_employee: '/employee/dashboard',
+    finance_manager: '/finance/dashboard',
+    finance_employee: '/finance/dashboard',
     media: '/media/dashboard',
     media_marketing: '/media/dashboard',
     marketing_head: '/media/dashboard',
@@ -56,7 +58,6 @@ export const getDefaultRoute = (user) => {
     department_head: '/media/dashboard',
     client_viewer: '/media/dashboard',
     sales: '/sales/dashboard',
-    research_operator: '/research/dashboard',
   };
 
   if (role === 'media_head') {
@@ -65,14 +66,34 @@ export const getDefaultRoute = (user) => {
   if (role === 'media_sales') {
     return '/media/sales/dashboard';
   }
-  if (EMPLOYEE_PORTAL_ROLES.includes(role)) {
-    return '/employee/dashboard';
-  }
   if (MEDIA_PORTAL_ROLES.includes(role)) {
     return '/media/dashboard';
   }
 
   return roleRoutes[role] || '/hr/dashboard';
+};
+
+// A revoked default portal must not redirect back to itself indefinitely.
+const portalPaths = {
+  [PORTALS.SUPER_ADMIN]: '/admin/super-admin',
+  [PORTALS.ADMIN]: '/admin/dashboard',
+  [PORTALS.CEO]: '/ceo/dashboard',
+  [PORTALS.HR]: '/hr/dashboard',
+  [PORTALS.MANAGER]: '/manager/dashboard',
+  [PORTALS.EMPLOYEE]: '/employee/dashboard',
+  [PORTALS.IT]: '/it/dashboard',
+  [PORTALS.LAW]: '/law/dashboard',
+  [PORTALS.MEDIA]: '/media/dashboard',
+  [PORTALS.FINANCE]: '/finance/dashboard',
+  [PORTALS.OUTSOURCING]: '/outsourcing/dashboard',
+};
+
+export const getDefaultRoute = (user) => {
+  const preferred = preferredRoleRoute(user);
+  const portal = preferred === '/admin/super-admin' ? PORTALS.SUPER_ADMIN : preferred.split('/')[1];
+  if (canEnterPortal(user, portal)) return preferred;
+  const fallback = Object.entries(portalPaths).find(([key]) => canEnterPortal(user, key));
+  return fallback?.[1] || '/access-denied';
 };
 
 export const allowWithAdmin = (role) => [role, 'admin', 'super_admin', 'superadmin'];

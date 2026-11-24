@@ -37,6 +37,7 @@ const EmployeePortal = () => {
   return (
     <AppLayout
       sidebar={sidebar}
+      theme="employee"
       title="Employee Portal"
       subtitle="Employee workspace"
       mobileIcon="badge"

@@ -1,76 +1,11 @@
+/* eslint-disable react-refresh/only-export-components -- Compatibility module exports route components and shared guard helpers. */
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { canAccessPortal, IT_PORTAL_ROLES, HR_PORTAL_ROLES, FINANCE_PORTAL_ROLES, MEDIA_PORTAL_ROLES, LAW_PORTAL_ROLES, EMPLOYEE_PORTAL_ROLES } from '../utils/rbac';
+import { canAccessPortal, canEnterPortal, IT_PORTAL_ROLES, HR_PORTAL_ROLES, FINANCE_PORTAL_ROLES, MEDIA_PORTAL_ROLES, LAW_PORTAL_ROLES, EMPLOYEE_PORTAL_ROLES } from '../utils/rbac';
 import Loader from '../components/common/Loader';
 
-const normalizeOutsourcingType = (value) =>
-  String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-
-const normalizeDepartment = (value) =>
-  String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s&-]+/g, '_');
-
-export const defaultRolePath = (user) => {
-  const role = user?.role;
-  const userMeta = user?.metadata || {};
-  const outsourcingType = normalizeOutsourcingType(userMeta.outsourcingType);
-  const department = normalizeDepartment(user?.department);
-
-  if (
-    role === 'freelancer' ||
-    department === 'outsourcing' ||
-    department === 'outsource' ||
-    department === 'external_workforce' ||
-    outsourcingType === 'third_party_worker' ||
-    outsourcingType === '3rd_party_worker' ||
-    outsourcingType === 'thirdpartyworker' ||
-    outsourcingType === 'freelancer' ||
-    outsourcingType === 'freelaner'
-  ) {
-    return '/outsourcing/dashboard';
-  }
-
-  switch (role) {
-    case 'ceo':
-      return '/ceo/dashboard';
-    case 'super_admin':
-    case 'superadmin':
-      return '/admin/super-admin';
-    case 'admin':
-      return '/admin/dashboard';
-    case 'manager':
-    case 'it_manager':
-      return '/manager/dashboard';
-    case 'it_admin':
-      return '/it/dashboard';
-    case 'it_employee':
-      return '/employee/dashboard';
-    case 'employee':
-      return '/employee/dashboard';
-    case 'it_hr':
-      return '/hr/dashboard';
-    case 'law_employee':
-    case 'law_head':
-      return '/law/dashboard';
-    case 'finance_employee':
-    case 'finance_manager':
-      return '/finance/dashboard';
-    case 'media_marketing':
-      return '/media/dashboard';
-    case 'media_head':
-      return '/media/head/dashboard';
-    case 'media_sales':
-      return '/media/sales/dashboard';
-    case 'hr':
-    default:
-      return '/hr/dashboard';
-  }
-};
+export { getDefaultRoute as defaultRolePath } from '../routes/routeHelpers';
+import { getDefaultRoute as defaultRolePath } from '../routes/routeHelpers';
 
 export const LoadingScreen = ({ label = 'Loading...' }) => (
   <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-neutral-50 px-6 text-center dark:bg-neutral-950">
@@ -118,21 +53,7 @@ export const OutsourcingRoute = ({ children }) => {
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/outsourcing/login" replace />;
-
-  const type = normalizeOutsourcingType(user?.metadata?.outsourcingType);
-  const department = normalizeDepartment(user?.department);
-  if (
-    user.role !== 'admin' &&
-    user.role !== 'freelancer' &&
-    department !== 'outsourcing' &&
-    department !== 'outsource' &&
-    department !== 'external_workforce' &&
-    type !== 'third_party_worker' &&
-    type !== '3rd_party_worker' &&
-    type !== 'thirdpartyworker' &&
-    type !== 'freelancer' &&
-    type !== 'freelaner'
-  ) {
+  if (!canEnterPortal(user, 'outsourcing')) {
     return <Navigate to={defaultRolePath(user)} replace />;
   }
 

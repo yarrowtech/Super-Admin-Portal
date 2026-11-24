@@ -1,3 +1,5 @@
+import baseRoleAccess from '../../../backend/config/portalAccessPolicy.json';
+
 export const PORTALS = {
   ADMIN: 'admin',
   SUPER_ADMIN: 'super-admin',
@@ -23,26 +25,6 @@ export const EMPLOYEE_PORTAL_ROLES = [
   'finance_employee',
 ];
 
-const baseRoleAccess = {
-  admin: [PORTALS.ADMIN, PORTALS.CEO, PORTALS.HR, PORTALS.MANAGER, PORTALS.EMPLOYEE, PORTALS.IT, PORTALS.LAW, PORTALS.MEDIA, PORTALS.FINANCE, PORTALS.OUTSOURCING],
-  super_admin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
-  superadmin: [PORTALS.ADMIN, PORTALS.SUPER_ADMIN],
-  ceo: [PORTALS.CEO],
-  hr: [PORTALS.HR],
-  it_manager: [PORTALS.MANAGER],
-  it_admin: [PORTALS.IT],
-  it_employee: [PORTALS.IT, PORTALS.EMPLOYEE],
-  it_hr: [PORTALS.HR],
-  finance_manager: [PORTALS.FINANCE],
-  finance_employee: [PORTALS.FINANCE, PORTALS.EMPLOYEE],
-  law_head: [PORTALS.LAW],
-  law_employee: [PORTALS.LAW],
-  media_head: [PORTALS.MEDIA],
-  media_sales: [PORTALS.MEDIA],
-  media_marketing: [PORTALS.MEDIA],
-  employee: [PORTALS.EMPLOYEE],
-};
-
 const normalizeOutsourcingType = (value) =>
   String(value || '')
     .trim()
@@ -55,13 +37,7 @@ const normalizeDepartment = (value) =>
     .toLowerCase()
     .replace(/[\s&-]+/g, '_');
 
-export const canAccessPortal = (user, portal) => {
-  if (!user || !portal) return false;
-  const role = String(user.role || '').toLowerCase();
-  const allowed = baseRoleAccess[role] || [];
-  if (allowed.includes(portal)) return true;
-
-  if (portal === PORTALS.OUTSOURCING) {
+const isOutsourcingUser = (user) => {
     const type = normalizeOutsourcingType(user?.metadata?.outsourcingType);
     const role = String(user?.role || '').trim().toLowerCase();
     const department = normalizeDepartment(user?.department);
@@ -76,6 +52,39 @@ export const canAccessPortal = (user, portal) => {
       type === 'freelancer' ||
       type === 'freelaner'
     );
+};
+
+export const canAccessPortal = (user, portal) => {
+  if (!user || !portal) return false;
+  const role = String(user.role || '').toLowerCase();
+  // Server-resolved rules include explicit denials. A portal grant never replaces
+  // the action/record authorization performed by routes and owning services.
+  if (Object.prototype.hasOwnProperty.call(user.portalAccess || {}, portal)) {
+    return user.portalAccess[portal] === true;
   }
+  const allowed = baseRoleAccess[role] || [];
+  if (allowed.includes(portal)) return true;
+
+  if (portal === PORTALS.OUTSOURCING) return isOutsourcingUser(user);
   return false;
+};
+
+// Portal settings cannot grant a different job role. Match the role gates on
+// the actual portal entry routes before choosing a navigation destination.
+export const canEnterPortal = (user, portal) => {
+  if (!canAccessPortal(user, portal)) return false;
+  if (['super_admin', 'superadmin'].includes(user?.role)) return true;
+  if (user?.role === 'admin') return portal !== PORTALS.SUPER_ADMIN;
+  const entryRoles = {
+    [PORTALS.CEO]: ['ceo'],
+    [PORTALS.HR]: HR_PORTAL_ROLES,
+    [PORTALS.MANAGER]: ['it_manager'],
+    [PORTALS.EMPLOYEE]: EMPLOYEE_PORTAL_ROLES,
+    [PORTALS.IT]: IT_PORTAL_ROLES,
+    [PORTALS.FINANCE]: FINANCE_PORTAL_ROLES,
+    [PORTALS.LAW]: LAW_PORTAL_ROLES,
+    [PORTALS.MEDIA]: MEDIA_PORTAL_ROLES,
+  };
+  if (portal === PORTALS.OUTSOURCING) return isOutsourcingUser(user);
+  return (entryRoles[portal] || []).includes(user?.role);
 };

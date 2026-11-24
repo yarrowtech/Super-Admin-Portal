@@ -40,14 +40,12 @@ export const portalMenuConfig = {
   manager: [
     { label: 'Dashboard',    icon: 'dashboard',    path: '/manager/dashboard',    description: 'Operations overview' },
     { label: 'Project Overview', icon: 'folder_copy', path: '/manager/project-overview', description: 'Read-only project plan visibility' },
-    { label: 'Work Board',   icon: 'work_history', path: '/manager/work-board',   description: 'Execution board' },
+    { label: 'Projects',     icon: 'folder_open', path: '/manager/projects',     description: 'Assigned project delivery' },
     { label: 'Tasks',        icon: 'task_alt',     path: '/manager/tasks',        description: 'Task operations' },
-    { label: 'Outsourcing',  icon: 'handshake',    path: '/manager/outsourcing',  description: 'Freelancer work tracking' },
-    { label: 'Products',     icon: 'inventory_2',  path: '/manager/products',     description: 'Product operations' },
+    { label: 'Work Reviews', icon: 'fact_check',  path: '/manager/work-reviews', description: 'Review submitted work' },
     { label: 'Team',         icon: 'group',        path: '/manager/team',         description: 'Team management' },
     { label: 'Leave',        icon: 'event_note',   path: '/manager/leave',        description: 'Leave approvals' },
-    { label: 'Reports',      icon: 'assessment',   path: '/manager/reports',      description: 'Operational reports' },
-    { label: 'Chat',         icon: 'forum',        path: '/manager/chat',         description: 'Team chat' },
+    { label: 'Attendance',   icon: 'calendar_month', path: '/manager/attendance', description: 'Team attendance' },
   ],
   ceo: [
     { label: 'Dashboard', icon: 'dashboard', path: '/ceo/dashboard', description: 'Executive overview' },

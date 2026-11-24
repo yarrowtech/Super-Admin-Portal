@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import Modal from '../ui/Modal';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Outlet } from 'react-router-dom';
 import OutsourcingSidebar from './OutsourcingSidebar';
 import { useSidebar } from '../../context/SidebarContext';
 import { useAuth } from '../../context/AuthContext';
@@ -43,29 +44,11 @@ const QuickLogModal = ({ onClose, token }) => {
   const inputCls = 'w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-800 placeholder-neutral-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
 
   return (
-    <div className="fixed inset-0 z-9990 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div className="w-full max-w-md overflow-hidden rounded-t-3xl bg-white dark:bg-neutral-950 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4 dark:border-neutral-800">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/30">
-              <span className="material-symbols-outlined text-[18px] text-indigo-600">schedule</span>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Log Time</h3>
-              <p className="text-xs text-neutral-400">Quick time entry</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <span className="material-symbols-outlined text-[20px] text-neutral-400">close</span>
-          </button>
-        </div>
-
-        {/* Form */}
+    <Modal open onClose={onClose} title="Log time" description="Record work against an active contract." className="sm:max-w-md">
         <form onSubmit={submit} className="space-y-3 p-5">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Contract <span className="text-rose-500">*</span></label>
-            <select value={form.contractId} onChange={fld('contractId')} required className={inputCls}>
+            <label htmlFor="quick-log-contractId" className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Contract <span className="text-rose-500">*</span></label>
+            <select id="quick-log-contractId" value={form.contractId} onChange={fld('contractId')} required className={inputCls}>
               <option value="">Select active contract…</option>
               {contracts.map((c) => (
                 <option key={c._id} value={c._id}>{c?.job?.title || 'Contract'} ({c.paymentType})</option>
@@ -74,21 +57,21 @@ const QuickLogModal = ({ onClose, token }) => {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Date</label>
-              <input type="date" value={form.logDate} onChange={fld('logDate')} className={inputCls} />
+              <label htmlFor="quick-log-logDate" className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Date</label>
+              <input type="date" id="quick-log-logDate" value={form.logDate} onChange={fld('logDate')} className={inputCls} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hours <span className="text-rose-500">*</span></label>
-              <input type="number" min="0.5" max="24" step="0.5" placeholder="e.g. 4" value={form.hours} onChange={fld('hours')} className={inputCls} />
+              <label htmlFor="quick-log-hours" className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Hours <span className="text-rose-500">*</span></label>
+              <input type="number" min="0.5" max="24" step="0.5" placeholder="e.g. 4" id="quick-log-hours" value={form.hours} onChange={fld('hours')} className={inputCls} />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Work Summary</label>
-            <input placeholder="What did you work on?" value={form.workSummary} onChange={fld('workSummary')} className={inputCls} />
+            <label htmlFor="quick-log-workSummary" className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Work Summary</label>
+            <input placeholder="What did you work on?" id="quick-log-workSummary" value={form.workSummary} onChange={fld('workSummary')} className={inputCls} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Notes <span className="font-normal text-neutral-400">(optional)</span></label>
-            <textarea rows={2} placeholder="Any additional notes…" value={form.note} onChange={fld('note')} className={`${inputCls} resize-none`} />
+            <label htmlFor="quick-log-note" className="mb-1 block text-xs font-semibold text-neutral-500 dark:text-neutral-400">Notes <span className="font-normal text-neutral-400">(optional)</span></label>
+            <textarea rows={2} placeholder="Any additional notes…" id="quick-log-note" value={form.note} onChange={fld('note')} className={`${inputCls} resize-none`} />
           </div>
           {msg && (
             <p className={`rounded-lg px-3 py-2 text-sm font-semibold ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400'}`}>
@@ -104,8 +87,7 @@ const QuickLogModal = ({ onClose, token }) => {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -144,7 +126,8 @@ const OutsourcingPortal = () => {
       <button
         onClick={() => setShowQuickLog(true)}
         title="Log Time"
-        className="fixed bottom-6 right-6 z-9980 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-xl active:translate-y-0"
+        aria-label="Log time"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-xl active:translate-y-0"
       >
         <span className="material-symbols-outlined text-[22px]">add</span>
         <span className="material-symbols-outlined absolute -top-1.5 -right-1.5 text-[14px] rounded-full bg-white text-indigo-600 shadow">schedule</span>

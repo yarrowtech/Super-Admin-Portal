@@ -8,20 +8,20 @@ const getProjectPermissions = (user = {}) => {
       : [];
 
   return assignments
-    .filter((assignment) => String(assignment?.projectCode || '').toUpperCase() === 'EEC')
+    .filter((assignment) => assignment && String(assignment.projectCode || '').toUpperCase() === 'EEC')
     .flatMap((assignment) => (Array.isArray(assignment.permissions) ? assignment.permissions : []));
 };
 
 export const hasUserPermission = (user, permission) => {
   if (!user || !permission) return false;
-  if (['admin', 'super_admin', 'superadmin', 'freelancer'].includes(user.role)) return true;
+  if (['admin', 'super_admin', 'superadmin'].includes(user.role)) return true;
 
   const permissions = new Set([
     ...(Array.isArray(user.permissions) ? user.permissions : []),
     ...getProjectPermissions(user),
   ]);
 
-  return permissions.has(permission);
+  return permissions.has(permission) || permissions.has('edifyeight:*') || permissions.has('*');
 };
 
 export const useEdifyEightTeacherPermissions = (user) =>

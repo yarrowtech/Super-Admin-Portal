@@ -1,6 +1,7 @@
 import React from 'react';
 import ThemeToggleButton from './ThemeToggleButton';
 import Button from './Button';
+import WorkspaceNavigator from './WorkspaceNavigator';
 
 /**
  * dateRange: { value, options: [{key,label}], onChange } — renders a segmented
@@ -26,11 +27,6 @@ const PortalHeader = ({
   primaryAction,
   secondaryAction,
   className = '',
-  // Legacy props accepted but no-op
-  showSearch,
-  showNotifications,
-  onSearchChange,
-  searchPlaceholder,
 }) => {
   const getGreeting = () => {
     const h = new Date().getHours();
@@ -49,13 +45,13 @@ const PortalHeader = ({
   const hasMetaRow = Boolean(lastUpdated || onRefresh || dateRange || primaryAction || secondaryAction);
 
   return (
-    <header className={`mb-5 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 ${className}`.trim()}>
+    <header className={`portal-header mb-6 rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 ${className}`.trim()}>
       {/* Accent top bar */}
-      <div className="h-1 w-full" style={{ background: 'var(--portal-accent)' }} />
+      <div className="h-1 w-full rounded-t-2xl" style={{ background: 'var(--portal-accent)' }} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6 md:py-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 md:px-6 2xl:grid-cols-[minmax(16rem,1fr)_minmax(0,1.5fr)] 2xl:items-center">
         {/* Left — icon + title */}
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm"
             style={{ background: 'var(--portal-accent)' }}
@@ -63,10 +59,10 @@ const PortalHeader = ({
             <span className="material-symbols-outlined text-[22px] text-white">{icon}</span>
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-[17px] font-black leading-tight text-neutral-900 dark:text-neutral-100">
+            <h1 className="break-words text-xl font-bold leading-tight tracking-tight text-neutral-900 dark:text-neutral-100 md:text-2xl">
               {title}
             </h1>
-            <p className="truncate text-[12px] text-neutral-500 dark:text-neutral-400">
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
               {subtitle
                 ? subtitle
                 : user
@@ -77,7 +73,8 @@ const PortalHeader = ({
         </div>
 
         {/* Right — actions + theme toggle */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+          <WorkspaceNavigator />
           {children}
           {actions}
           {showThemeToggle && <ThemeToggleButton />}

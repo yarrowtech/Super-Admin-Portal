@@ -194,10 +194,11 @@ const isValidRole = (role) => Object.values(ROLES).includes(role);
 const hasHigherOrEqualHierarchy = (userRole, targetRole) =>
   ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[targetRole];
 
-const hasPermission = (userRole, permission) =>
-  ROLE_PERMISSIONS[userRole]?.includes(permission) || false;
+const getRolePermissions = (role) => role === ROLES.SUPER_ADMIN
+  ? [...new Set([...ROLE_PERMISSIONS[ROLES.ADMIN], ...ROLE_PERMISSIONS[ROLES.SUPER_ADMIN]])]
+  : ROLE_PERMISSIONS[role] || [];
 
-const getRolePermissions = (role) => ROLE_PERMISSIONS[role] || [];
+const hasPermission = (userRole, permission) => getRolePermissions(userRole).includes(permission);
 
 module.exports = {
   ROLES,

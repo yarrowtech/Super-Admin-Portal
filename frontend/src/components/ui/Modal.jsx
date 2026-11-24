@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
 import Button from './Button';
+import { lockBodyScroll, registerDialog } from '../../utils/scrollLock';
 
 const Modal = ({ open, title, description, children, onClose, footer, className }) => {
   const titleId = useId();
@@ -16,15 +17,18 @@ const Modal = ({ open, title, description, children, onClose, footer, className 
   useEffect(() => {
     if (!open) return undefined;
     const previouslyFocused = document.activeElement;
+    const unlock = lockBodyScroll();
+    const dialog = registerDialog(dialogRef.current);
     const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
     // Start in the first form field (not the header's close button) so users can type right away.
     const focusFirst = () => {
       const root = dialogRef.current;
       if (!root || root.contains(document.activeElement)) return;
       const field = root.querySelector('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])');
-      (field || root.querySelector(focusableSelector))?.focus?.();
+      (field || root.querySelector(focusableSelector) || root)?.focus?.();
     };
     const handleKeyDown = (event) => {
+      if (!dialog.isTop()) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onCloseRef.current?.();
@@ -44,11 +48,14 @@ const Modal = ({ open, title, description, children, onClose, footer, className 
         first.focus();
       }
     };
-    window.setTimeout(focusFirst, 0);
+    const timer = window.setTimeout(focusFirst, 0);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      previouslyFocused?.focus?.();
+      window.clearTimeout(timer);
+      dialog.release();
+      unlock();
+      if (previouslyFocused?.isConnected) previouslyFocused.focus?.();
     };
   }, [open]);
 
@@ -60,7 +67,7 @@ const Modal = ({ open, title, description, children, onClose, footer, className 
   // page-enter animation), leaving the modal mis-anchored on a scrolled page.
   return createPortal(
     <div
-      className="modal-backdrop-anim fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      className="modal-backdrop-anim fixed inset-0 z-[2000] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       style={{ animation: 'modal-backdrop-in 200ms ease-out backwards' }}
       role="dialog"
       aria-modal="true"
@@ -69,6 +76,7 @@ const Modal = ({ open, title, description, children, onClose, footer, className 
     >
       <div
         ref={dialogRef}
+        tabIndex={-1}
         style={{ animation: 'modal-panel-in 240ms cubic-bezier(0.34,1.56,0.64,1) backwards' }}
         className={cn('modal-panel-anim flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:max-w-2xl sm:rounded-2xl', className)}
       >

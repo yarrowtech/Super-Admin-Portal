@@ -24,6 +24,7 @@
   --surface-3: #f1f5f9;
   --surface-border: rgba(15, 23, 42, 0.08);
   --surface-border-hover: rgba(15, 23, 42, 0.14);
+  --focus-ring: #4f46e5;
 }
 
 .dark {
@@ -35,11 +36,57 @@
   --surface-3: #242932;
   --surface-border: rgba(255, 255, 255, 0.08);
   --surface-border-hover: rgba(255, 255, 255, 0.16);
+  --focus-ring: #a5b4fc;
 }
 
+/* Shared interaction rules apply to every portal without changing business data. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+button:not(:disabled), summary, select:not(:disabled) { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+.portal-header {
+  background: var(--surface-1);
+  border-color: var(--surface-border);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.025);
+}
+
+.portal-header > div:first-child { height: 3px; }
+.app-table-wrap { border-radius: 12px; overscroll-behavior-x: contain; }
+.app-table { font-variant-numeric: tabular-nums; }
+.app-table thead th { white-space: nowrap; }
+.app-table tbody td { line-height: 1.5; }
+.app-table tbody tr:focus-visible { outline-offset: -2px; }
+
+/* Nested page wrappers previously doubled horizontal spacing on every screen. */
+.portal-content:has(> .portal-page > .portal-page-inner) {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 767px) {
+  /* Custom Admin/CEO/Media Head shells put the top offset on portal-content.
+     Its unlayered padding must not override the mobile bar clearance. */
+  .portal-content.pt-16 { padding-top: 80px; }
+  /* Prevent iOS focus zoom while retaining compact desktop fields. */
+  input:not([type='checkbox']):not([type='radio']), select, textarea { font-size: 16px; }
+  .portal-header > div { min-width: 0; }
+  .portal-header button { min-height: 44px; }
+  .app-table-wrap { scrollbar-width: auto; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .portal-shell[data-role='admin'] > .portal-content.pt-16 { padding-top: 80px; }
+}
+
+@layer base {
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   font-size: 24px;
+}
 }
 
 body {
@@ -91,6 +138,8 @@ html, body, #root {
   }
 }
 
+@layer base {
+
 h1 {
   font-size: clamp(1.3rem, 2.2vw, 2rem);
   line-height: 1.2;
@@ -105,6 +154,8 @@ h2 {
 
 p, li, label, input, select, textarea, button {
   font-size: clamp(0.88rem, 1.2vw, 1rem);
+}
+
 }
 
 button,
@@ -126,11 +177,15 @@ table {
   border-collapse: collapse;
 }
 
+@layer base {
+
 input,
 select,
 textarea,
 button {
   font: inherit;
+}
+
 }
 
 @layer components {
@@ -143,12 +198,12 @@ button {
   }
 
   .app-card {
-    @apply rounded-2xl border border-neutral-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 dark:border-neutral-800 dark:bg-neutral-900;
+    @apply rounded-2xl border border-neutral-200 bg-white shadow-sm transition-shadow duration-200 dark:border-neutral-800 dark:bg-neutral-900;
     box-shadow: var(--erp-shadow-soft);
   }
 
   .app-card-pad {
-    @apply rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 dark:border-neutral-800 dark:bg-neutral-900 lg:p-6;
+    @apply rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition-shadow duration-200 dark:border-neutral-800 dark:bg-neutral-900 lg:p-6;
     box-shadow: var(--erp-shadow-soft);
   }
 

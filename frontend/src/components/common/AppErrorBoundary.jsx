@@ -31,16 +31,17 @@ export default class AppErrorBoundary extends React.Component {
       return (
         <main className="flex min-h-screen items-center justify-center bg-neutral-50 p-4 dark:bg-neutral-950">
           <section className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <h1 className="text-lg font-bold text-neutral-900 dark:text-white">UI crashed</h1>
+            <h1 className="text-lg font-bold text-neutral-900 dark:text-white">We couldn't open this page</h1>
             <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
-              {this.state.message}
+              Try reloading the page. If the problem continues, contact your administrator.
             </p>
+            {import.meta.env.DEV && <details className="mt-4 text-sm"><summary className="cursor-pointer text-neutral-500">Developer details</summary><p className="mt-2 break-words text-neutral-600 dark:text-neutral-300">{this.state.message}</p></details>}
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="mt-4 min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white"
             >
-              Reload App
+              Reload page
             </button>
           </section>
         </main>

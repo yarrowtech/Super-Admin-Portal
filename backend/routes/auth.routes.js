@@ -39,6 +39,7 @@ router.post('/verify-token', authController.verifyToken);
 
 // Protected routes (require authentication)
 router.get('/me', authenticate, refreshToken, authController.getMe);
+router.get('/portal-access', authenticate, require('../services/portalAccessPolicy.service').getMyPortalAccess);
 router.get('/profile/me', authenticate, refreshToken, authController.getMe);
 router.put('/profile', authenticate, updateProfileValidation, validate, authController.updateProfile);
 router.patch('/profile', authenticate, updateProfileValidation, validate, authController.updateProfile);

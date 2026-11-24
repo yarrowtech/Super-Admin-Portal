@@ -39,13 +39,13 @@ const Button = ({
     success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm',
     outline: 'bg-transparent text-primary border-2 border-primary hover:bg-primary/10 focus:ring-primary/50',
     ghost: 'bg-transparent text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-300 dark:text-neutral-300 dark:hover:bg-neutral-800',
-    warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-400 shadow-sm',
+    warning: 'bg-amber-400 text-amber-950 hover:bg-amber-500 focus:ring-amber-500 shadow-sm',
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm gap-1.5',
-    md: 'px-4 py-2.5 text-sm gap-2',
-    lg: 'px-6 py-3 text-base gap-2.5',
+    sm: 'min-h-9 px-3 py-1.5 text-sm gap-1.5',
+    md: 'min-h-11 px-4 py-2.5 text-sm gap-2',
+    lg: 'min-h-12 px-6 py-3 text-base gap-2.5',
   };
 
   const widthClass = fullWidth ? 'w-full' : '';
@@ -57,6 +57,7 @@ const Button = ({
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       className={buttonClasses}
       {...props}
     >

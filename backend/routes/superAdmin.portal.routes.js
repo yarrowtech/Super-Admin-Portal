@@ -1,12 +1,13 @@
 const express = require('express');
 const controller = require('../controllers/superAdmin/superAdminPortal.controller');
-const { authenticate, authorize } = require('../middlewares/auth.middleware');
+const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { ROLES } = require('../config/roles');
 
 const router = express.Router();
 
 router.use(authenticate);
 router.use(authorize(ROLES.SUPER_ADMIN));
+router.use(authorizePortalAccess('super-admin'));
 
 router.get('/overview', controller.getOverview);
 router.get('/metrics', controller.getMetrics);

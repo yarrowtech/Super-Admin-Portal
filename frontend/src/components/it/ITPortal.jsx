@@ -21,7 +21,10 @@ const ITPortal = () => {
     return () => socket.disconnect();
   }, [token]);
 
-  const itMobileItems = resolvePortalMenu('it').map(({ label, icon, path }) => ({ label, icon, path }));
+  const itMobileItems = resolvePortalMenu('it', user).map(({ label, icon, path }) => ({ label, icon, path })).concat([
+    { label: 'Settings', icon: 'settings', path: '/it/dashboard/settings' },
+    { label: 'Support', icon: 'support_agent', path: '/it/dashboard/support' },
+  ]);
 
   return (
     <AppLayout
@@ -35,7 +38,7 @@ const ITPortal = () => {
       mobileItems={itMobileItems}
       user={user}
       showHeader={false}
-      showMobileNav={false}
+      showMobileNav
     >
       <Outlet />
     </AppLayout>

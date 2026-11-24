@@ -10,7 +10,7 @@ const SidebarPortalIdentity = ({ icon = 'dashboard', title, collapsed = false, o
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--portal-accent)] to-[var(--portal-accent)]/70 text-white shadow-md">
           <span className="material-symbols-outlined text-[20px]">{icon}</span>
         </div>
-        <p className="min-w-0 truncate text-[15px] font-semibold leading-none text-neutral-900 dark:text-neutral-100">{title}</p>
+        <p title={title} className="min-w-0 line-clamp-2 text-sm font-semibold leading-snug text-neutral-900 dark:text-neutral-100">{title}</p>
       </div>
     )}
     <button

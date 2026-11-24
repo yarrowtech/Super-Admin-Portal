@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
 import Button from './Button';
+import { lockBodyScroll, registerDialog } from '../../utils/scrollLock';
 
-const Drawer = ({ open, title, children, onClose, side = 'right', className }) => {
+const Drawer = ({ open, title, children, onClose, side = 'right', className, closeOnBackdrop = false, hideHeader = false }) => {
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -11,6 +12,8 @@ const Drawer = ({ open, title, children, onClose, side = 'right', className }) =
   useEffect(() => {
     if (!open) return undefined;
     const previouslyFocused = document.activeElement;
+    const unlock = lockBodyScroll();
+    const dialog = registerDialog(panelRef.current);
     const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
     const focusFirst = () => {
@@ -18,9 +21,10 @@ const Drawer = ({ open, title, children, onClose, side = 'right', className }) =
       if (!root || root.contains(document.activeElement)) return;
       root.querySelector(focusableSelector)?.focus?.();
     };
-    window.setTimeout(focusFirst, 0);
+    const timer = window.setTimeout(focusFirst, 0);
 
     const handleKeyDown = (e) => {
+      if (!dialog.isTop()) return;
       if (e.key === 'Escape') { e.preventDefault(); onCloseRef.current?.(); return; }
       if (e.key !== 'Tab') return;
       const focusable = Array.from(panelRef.current?.querySelectorAll(focusableSelector) || [])
@@ -34,7 +38,10 @@ const Drawer = ({ open, title, children, onClose, side = 'right', className }) =
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      previouslyFocused?.focus?.();
+      window.clearTimeout(timer);
+      dialog.release();
+      unlock();
+      if (previouslyFocused?.isConnected) previouslyFocused.focus?.();
     };
   }, [open]);
 
@@ -49,23 +56,25 @@ const Drawer = ({ open, title, children, onClose, side = 'right', className }) =
   // viewport, never a transformed ancestor (see Modal.jsx).
   return createPortal(
     <div
-      className={cn('modal-backdrop-anim fixed inset-0 z-50 flex bg-black/50', placement)}
+      className={cn('modal-backdrop-anim fixed inset-0 z-[2000] flex bg-slate-950/50 backdrop-blur-sm', placement)}
       style={{ animation: 'modal-backdrop-in 200ms ease-out backwards' }}
       role="dialog"
       aria-modal="true"
+      aria-label={title || 'Details'}
+      onClick={closeOnBackdrop ? event => { if (event.target === event.currentTarget) onClose?.(); } : undefined}
     >
       <aside
         ref={panelRef}
         style={{ animation: panelAnimation }}
         className={cn('drawer-panel-anim h-full w-full max-w-md overflow-y-auto bg-white shadow-2xl dark:bg-neutral-900', className)}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+        {!hideHeader && <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
           <h2 className="text-lg font-black text-neutral-900 dark:text-neutral-100">{title}</h2>
           <Button variant="ghost" size="sm" className="h-9 w-9 px-0" onClick={onClose} aria-label="Close drawer">
             <span className="material-symbols-outlined text-lg">close</span>
           </Button>
-        </div>
-        <div className="p-4">{children}</div>
+        </div>}
+        <div className={hideHeader ? 'h-full' : 'p-4'}>{children}</div>
       </aside>
     </div>,
     document.body,

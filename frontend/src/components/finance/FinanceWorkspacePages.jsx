@@ -976,6 +976,7 @@ export const FinanceOverviewPage = () => {
               <FinanceNotificationBell token={token} />
               <select
                 value={departmentScope}
+                aria-label="Filter finance by department"
                 onChange={(event) => setDepartmentScope(event.target.value)}
                 className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
               >

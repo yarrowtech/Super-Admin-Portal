@@ -1,0 +1,22 @@
+[
+  {
+    "width": 360,
+    "labelsAndErrors": true,
+    "uniqueFieldIds": true,
+    "rowKeyboardActivation": true,
+    "partialSelection": true,
+    "modalFocusAndEscape": true,
+    "scrollRestored": true,
+    "noPageOverflow": true
+  },
+  {
+    "width": 1440,
+    "labelsAndErrors": true,
+    "uniqueFieldIds": true,
+    "rowKeyboardActivation": true,
+    "partialSelection": true,
+    "modalFocusAndEscape": true,
+    "scrollRestored": true,
+    "noPageOverflow": true
+  }
+]

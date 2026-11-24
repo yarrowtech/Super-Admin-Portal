@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../common/Button';
 import PortalHeader from '../common/PortalHeader';
+import BusinessEcosystem from './BusinessEcosystem';
 import WarmGreeting from '../common/WarmGreeting';
 import StatsCard from '../common/StatsCard';
 import { superAdminApi } from '../../services/superAdmin';
@@ -10,6 +11,7 @@ import { QK } from '../../utils/queryKeys';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
+  { id: 'workspaces', label: 'Workspaces', icon: 'apps' },
   { id: 'users', label: 'Users', icon: 'group' },
   { id: 'sessions', label: 'Sessions', icon: 'schedule' },
   { id: 'audit', label: 'Audit', icon: 'fact_check' },
@@ -123,20 +125,13 @@ export default function SuperAdminDashboard() {
   const usersTotal = usersPayload.total || 0;
   const usersLoading = usersQuery.isLoading;
 
-  // Auto-select the first user once the list loads, if nothing is selected yet.
-  // This is a side effect, not a computed value: it returned nothing and only called
-  // setState. In useMemo that runs during render, which React warns can loop — the memo
-  // sets state, the re-render re-evaluates the memo, and so on. useEffect runs after
-  // commit, which is where a state update belongs.
-  useEffect(() => {
-    if (!selectedUserKey && users[0]) {
-      const first = users[0];
-      setSelectedUser(first);
-      setSelectedUserId(first._id || first.id || '');
-      setUserDraft(buildUserDraft(first));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users]);
+  // Initialize selection once a real user arrives; the key guards the next render.
+  if (!selectedUserKey && (users[0]?._id || users[0]?.id)) {
+    const first = users[0];
+    setSelectedUser(first);
+    setSelectedUserId(first._id || first.id);
+    setUserDraft(buildUserDraft(first));
+  }
 
   const userDetailQuery = useQuery({
     queryKey: QK.admin.superAdmin.user(selectedUserKey),
@@ -329,7 +324,7 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const overviewStats = useMemo(() => {
+  const overviewStats = (() => {
     const metricsObject = normalizeEntity(metrics);
     const overviewObject = normalizeEntity(overview);
     return [
@@ -339,7 +334,7 @@ export default function SuperAdminDashboard() {
       { label: 'Audit', value: metricsObject.auditEvents ?? overviewObject.audit?.total ?? audit.length, icon: 'fact_check', colorScheme: 'orange' },
       { label: 'Health', value: metricsObject.systemHealth ?? overviewObject.health?.status ?? health?.status ?? 'ok', icon: 'monitor_heart', colorScheme: 'indigo' },
     ];
-  }, [activeSessionCount, audit.length, health, metrics, overview, usersTotal]);
+  })();
 
   const healthRows = useMemo(() => [
     { label: 'Portal', value: health?.status || health?.overall || 'unknown', detail: health?.message || health?.summary || '' },
@@ -380,12 +375,13 @@ export default function SuperAdminDashboard() {
         {notice ? <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-200">{notice}</div> : null}
 
         <section className={`${panel} mb-4 p-3 md:p-4`}>
-          <div className="flex flex-wrap items-center gap-2">
+          <nav aria-label="Super Admin sections" className="portal-tab-strip !pb-0">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
+                aria-pressed={activeTab === tab.id}
                 className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                   activeTab === tab.id
                     ? 'border-primary bg-primary text-white'
@@ -396,7 +392,7 @@ export default function SuperAdminDashboard() {
                 {tab.label}
               </button>
             ))}
-          </div>
+          </nav>
         </section>
 
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -404,6 +400,8 @@ export default function SuperAdminDashboard() {
             <StatsCard key={stat.label} {...stat} size="lg" className="justify-between" />
           ))}
         </section>
+
+        {activeTab === 'workspaces' && <BusinessEcosystem />}
 
         {activeTab === 'overview' ? (
           <div className="grid gap-4 xl:grid-cols-2">
@@ -464,7 +462,7 @@ export default function SuperAdminDashboard() {
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">Search, inspect, update, and sync user records.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input value={usersSearch} onChange={(e) => setUsersSearch(e.target.value)} placeholder="Search name or email" className="h-11 min-w-[16rem] rounded-xl border border-neutral-300 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" />
+                  <input aria-label="Search users by name or email" value={usersSearch} onChange={(e) => setUsersSearch(e.target.value)} placeholder="Search name or email" className="h-11 min-w-0 w-full sm:w-64 rounded-xl border border-neutral-300 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" />
                   <Button variant="secondary" size="sm" onClick={() => refreshUserList(1, usersSearch)} loading={usersLoading} icon={<span className="material-symbols-outlined text-lg">search</span>}>Search</Button>
                 </div>
               </div>
@@ -550,7 +548,7 @@ export default function SuperAdminDashboard() {
             <section className={`${panel} p-4`}>
               <div className="mb-3"><h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Per-user sessions</h2><p className="text-sm text-neutral-500 dark:text-neutral-400">List and revoke sessions for a specific user.</p></div>
               <div className="flex flex-wrap gap-2">
-                <input value={sessionUserId} onChange={(e) => setSessionUserId(e.target.value)} placeholder={selectedUserKey || 'User ID'} className="h-11 min-w-[18rem] flex-1 rounded-xl border border-neutral-300 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" />
+                <input aria-label="User ID for session lookup" value={sessionUserId} onChange={(e) => setSessionUserId(e.target.value)} placeholder={selectedUserKey || 'User ID'} className="h-11 min-w-0 w-full sm:w-auto flex-1 rounded-xl border border-neutral-300 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" />
                 <Button variant="secondary" size="sm" onClick={() => loadUserSessions(sessionUserId || selectedUserKey)} loading={sessionsLoading} icon={<span className="material-symbols-outlined text-lg">search</span>}>Load</Button>
                 <Button variant="warning" size="sm" onClick={revokeAll} loading={sessionBusy === 'all'} icon={<span className="material-symbols-outlined text-lg">block</span>}>Revoke all</Button>
               </div>

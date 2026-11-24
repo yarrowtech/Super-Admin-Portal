@@ -7,7 +7,7 @@ const Session = require('../../models/auth/Session');
 const ActivityLog = require('../../models/auth/ActivityLog');
 const { getCache, setCache } = require('../../services/cache.service');
 const logService = require('../../services/log.service');
-const { ROLES, isValidRole } = require('../../config/roles');
+const { ROLES, isValidRole, getRolePermissions } = require('../../config/roles');
 const env = require('../../config/env');
 const jwtConfig = require('../../config/jwt');
 const { createTimer, setRequestContext } = require('../../logger/context');
@@ -735,6 +735,7 @@ exports.login = async (req, res) => {
           lastName: user.lastName,
           department: user.department,
           metadata: user.metadata || {},
+          permissions: [...new Set([...(user.permissions || []), ...getRolePermissions(user.role)])],
           assignedProjects: normalizeProjectAssignments(user.metadata || {}),
           lastLogin: user.lastLogin
         },
@@ -860,6 +861,7 @@ exports.outsourcingLogin = async (req, res) => {
           lastName: user.lastName,
           department: user.department,
           metadata: user.metadata || {},
+          permissions: [...new Set([...(user.permissions || []), ...getRolePermissions(user.role)])],
           assignedProjects: normalizeProjectAssignments(user.metadata || {}),
           lastLogin: user.lastLogin
         },
@@ -1050,6 +1052,7 @@ exports.getMe = async (req, res) => {
           department: user.department,
           profileImage: user.profileImage,
           metadata,
+          permissions: [...new Set([...(user.permissions || []), ...getRolePermissions(user.role)])],
           assignedProjects: normalizeProjectAssignments(metadata),
           profile: {
             basic: profile.basic || {},

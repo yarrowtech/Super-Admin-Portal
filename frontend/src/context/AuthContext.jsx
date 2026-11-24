@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+/* eslint-disable react-refresh/only-export-components -- Auth context intentionally exports its provider and hook. */
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/client';
 import { createLogger, emitFrontendEvent } from '../utils/logger';
@@ -21,54 +22,7 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [authMode, setAuthMode] = useState(() => initialSession.authMode || 'default');
 
-  useEffect(() => {
-    let cancelled = false;
-    const bootstrap = async () => {
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-      if (profileToken.current === token) return;
-      setUser(null);
-      setLoading(true);
-      try {
-        const profile = await apiClient.get('/api/auth/me', token, { cache: false });
-        if (cancelled || readAuthSession().token !== token) return;
-        profileToken.current = token;
-        setUser(profile?.data?.user || null);
-      } catch (err) {
-        if (cancelled || readAuthSession().token !== token) return;
-        authLogger.warn({ err }, 'Auth bootstrap failed');
-        clearAuth();
-      } finally {
-        if (!cancelled && readAuthSession().token === token) setLoading(false);
-      }
-    };
-    bootstrap();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  useEffect(() => {
-    return subscribeAuthSession(() => {
-      const session = readAuthSession();
-      if (profileToken.current !== session.token) {
-        profileToken.current = null;
-        setUser(null);
-        setLoading(Boolean(session.token));
-        queryClient.clear();
-      }
-      setToken(session.token);
-      setRefreshToken(session.refreshToken);
-      setAuthMode(session.authMode || 'default');
-      if (!session.token) {
-        setUser(null);
-      }
-    });
-  }, []);
-
-  const clearAuth = () => {
+  const clearAuth = useCallback(() => {
     profileToken.current = null;
     queryClient.clear();
     setLoading(false);
@@ -88,20 +42,91 @@ export const AuthProvider = ({ children }) => {
     } catch {
       // ignore cache cleanup errors
     }
-  };
+  }, [queryClient]);
 
-  const login = async (email, password, mode = 'default') => {
+  // Refresh the navigation snapshot when returning to the app. API middleware
+  // always checks current database rules independently of this UI snapshot.
+  useEffect(() => {
+    if (!token) return undefined;
+    let active = true;
+    const refreshAccess = async () => {
+      try {
+        const access = await apiClient.get('/api/auth/portal-access', token, { cache: false });
+        if (active && readAuthSession().token === token) {
+          setUser(current => current ? { ...current, portalAccess: access.data.portalAccess } : current);
+        }
+      } catch {
+        // A transient refresh failure preserves the last snapshot; APIs still deny revoked access.
+      }
+    };
+    window.addEventListener('focus', refreshAccess);
+    return () => { active = false; window.removeEventListener('focus', refreshAccess); };
+  }, [token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const bootstrap = async () => {
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      if (profileToken.current === token) return;
+      setUser(null);
+      setLoading(true);
+      try {
+        const [profile, access] = await Promise.all([
+          apiClient.get('/api/auth/me', token, { cache: false }),
+          apiClient.get('/api/auth/portal-access', token, { cache: false }),
+        ]);
+        if (cancelled || readAuthSession().token !== token) return;
+        profileToken.current = token;
+        setUser(profile?.data?.user ? { ...profile.data.user, portalAccess: access.data.portalAccess } : null);
+      } catch (err) {
+        if (cancelled || readAuthSession().token !== token) return;
+        authLogger.warn({ err }, 'Auth bootstrap failed');
+        clearAuth();
+      } finally {
+        if (!cancelled && readAuthSession().token === token) setLoading(false);
+      }
+    };
+    bootstrap();
+    return () => { cancelled = true; };
+  }, [token, clearAuth]);
+
+  useEffect(() => {
+    return subscribeAuthSession(() => {
+      const session = readAuthSession();
+      if (profileToken.current !== session.token) {
+        profileToken.current = null;
+        setUser(null);
+        setLoading(Boolean(session.token));
+        queryClient.clear();
+      }
+      setToken(session.token);
+      setRefreshToken(session.refreshToken);
+      setAuthMode(session.authMode || 'default');
+      if (!session.token) {
+        setUser(null);
+      }
+    });
+  }, [queryClient]);
+
+  const login = useCallback(async (email, password, mode = 'default') => {
     setError(null);
     try {
       const path = mode === 'outsourcing' ? '/api/auth/outsourcing/login' : '/api/auth/login';
       const res = await apiClient.post(path, { email, password });
       const authToken = res?.data?.token;
       const authRefresh = res?.data?.refreshToken;
-      const authedUser = res?.data?.user;
+      let authedUser = res?.data?.user;
 
       if (!authToken || !authedUser) {
         throw new Error('Invalid login response');
       }
+
+      const access = await apiClient.get('/api/auth/portal-access', authToken, { cache: false });
+      authedUser = { ...authedUser, portalAccess: access.data.portalAccess };
 
       queryClient.clear();
       profileToken.current = authToken;
@@ -132,9 +157,9 @@ export const AuthProvider = ({ children }) => {
       setError(err.message || 'Login failed');
       throw err;
     }
-  };
+  }, [queryClient]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const currentToken = token;
     const currentRefreshToken = refreshToken;
     try {
@@ -154,7 +179,7 @@ export const AuthProvider = ({ children }) => {
         status: 'success',
       }, 'Frontend logout completed');
     }
-  };
+  }, [token, refreshToken, clearAuth]);
 
   const value = useMemo(
     () => ({
@@ -167,7 +192,7 @@ export const AuthProvider = ({ children }) => {
       logout,
       authMode,
     }),
-    [user, token, refreshToken, loading, error, authMode]
+    [user, token, refreshToken, loading, error, authMode, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

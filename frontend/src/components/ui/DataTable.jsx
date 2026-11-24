@@ -25,6 +25,7 @@ const DataTable = ({
   onSelectionChange,
   selectionResetKey,
   rowActions,
+  ariaLabel = 'Records',
 }) => {
   const [selected, setSelected] = useState([]);
 
@@ -57,8 +58,8 @@ const DataTable = ({
   const totalColumns = columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0);
 
   return (
-    <div className="app-table-wrap">
-      <table className="app-table">
+    <div className="app-table-wrap" role="region" aria-label={ariaLabel} tabIndex={0}>
+      <table className="app-table" aria-busy={loading || undefined}>
         <thead>
           <tr>
             {selectable && (
@@ -66,14 +67,16 @@ const DataTable = ({
                 <input
                   type="checkbox"
                   checked={allSelected}
+                  ref={node => { if (node) node.indeterminate = selected.length > 0 && !allSelected; }}
+                  disabled={loading || rows.length === 0}
                   onChange={toggleAll}
-                  aria-label="Select all rows"
+                  aria-label="Select all rows on this page"
                   className="h-4 w-4 rounded border-neutral-300 accent-(--portal-accent,var(--color-primary))"
                 />
               </th>
             )}
             {columns.map((column) => (
-              <th key={column.key} className="px-4 py-3">
+              <th key={column.key} scope="col" className="px-4 py-3">
                 {column.header ?? column.label}
               </th>
             ))}
@@ -120,6 +123,14 @@ const DataTable = ({
               <tr
                 key={key}
                 onClick={() => onRowClick?.(row)}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? event => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onRowClick(row);
+                  }
+                } : undefined}
                 onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
                 className={`h-14 ${onRowClick ? 'cursor-pointer' : ''} transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60 ${isSelected ? 'bg-(--portal-accent-soft,var(--color-primary-50))' : ''}`}
               >

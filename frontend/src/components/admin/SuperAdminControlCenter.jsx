@@ -46,7 +46,11 @@ export default function SuperAdminControlCenter() {
         superAdminApi.getCompanyControls(token),
         superAdminApi.getProjectAllocations(token),
       ]);
-      setDashboard(d.status === 'fulfilled' ? d.value?.data || {} : {});
+      const results = [d, f, p, s, c, a];
+      const names = ['Dashboard', 'Feature flags', 'Portal access', 'System health', 'Company controls', 'Project allocations'];
+      const failed = names.filter((_, index) => results[index].status === 'rejected');
+      if (failed.length) setError(`Unavailable: ${failed.join(', ')}. Some data could not be loaded. Apply again to retry.`);
+      setDashboard(d.status === 'fulfilled' ? d.value?.data || {} : null);
       setFeatureFlags(f.status === 'fulfilled' ? f.value?.data || [] : []);
       setPortalAccess(p.status === 'fulfilled' ? p.value?.data || [] : []);
       setSystemHealth(s.status === 'fulfilled' ? s.value?.data || { summary: {}, checks: [] } : { summary: {}, checks: [] });
@@ -74,12 +78,12 @@ export default function SuperAdminControlCenter() {
   useEffect(() => { if (token) load(); }, [token]);
 
   const kpis = useMemo(() => [
-    { label: 'Users', value: dashboard?.users?.total ?? 0 },
-    { label: 'Active Users', value: dashboard?.users?.active ?? 0 },
-    { label: 'Projects', value: dashboard?.projects?.total ?? 0 },
-    { label: 'Open Tasks', value: dashboard?.tasks?.open ?? 0 },
-    { label: 'Enabled Flags', value: dashboard?.featureFlags?.enabled ?? 0 },
-    { label: 'Health', value: dashboard?.systemHealth?.overall ?? 'healthy' }
+    { label: 'Users', value: dashboard?.users?.total ?? 'Unavailable' },
+    { label: 'Active Users', value: dashboard?.users?.active ?? 'Unavailable' },
+    { label: 'Projects', value: dashboard?.projects?.total ?? 'Unavailable' },
+    { label: 'Open Tasks', value: dashboard?.tasks?.open ?? 'Unavailable' },
+    { label: 'Enabled Flags', value: dashboard?.featureFlags?.enabled ?? 'Unavailable' },
+    { label: 'Health', value: dashboard?.systemHealth?.overall ?? 'Unknown' }
   ], [dashboard]);
 
   const toggleFlag = async (item) => {

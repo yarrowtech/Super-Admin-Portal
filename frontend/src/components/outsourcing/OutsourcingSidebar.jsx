@@ -1,3 +1,5 @@
+import Drawer from '../ui/Drawer';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import React, { useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -33,6 +35,7 @@ const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { collapsed } = useSidebar();
+  const mobileViewport = useMediaQuery('(max-width: 767px)');
   const isStaff = STAFF_ROLES.includes(String(user?.role || '').toLowerCase());
   const sidebarProps = {
     brandingTitle: 'Outsourcing Portal',
@@ -61,28 +64,11 @@ const OutsourcingSidebar = ({ isOpen = false, onClose = () => {} }) => {
         />
       </div>
 
-      {/* Mobile overlay */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/40 transition-opacity md:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Mobile drawer */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[84%] max-w-75 overflow-hidden transition-transform duration-300 md:hidden ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-        aria-label="Outsourcing navigation"
-      >
-        <PortalSidebar
-          {...sidebarProps}
-          user={user}
-          currentPath={location.pathname}
-          onLogout={handleLogout}
-          onNavigate={onClose}
-        />
-      </aside>
+      <Drawer open={isOpen && mobileViewport} onClose={onClose} title="Outsourcing navigation" side="left" hideHeader closeOnBackdrop className="!w-[min(300px,88vw)]">
+        <div className="portal-shell h-full" data-role="outsourcing">
+          <PortalSidebar {...sidebarProps} user={user} currentPath={location.pathname} onLogout={handleLogout} onNavigate={onClose} forceExpanded onClose={onClose} />
+        </div>
+      </Drawer>
     </>
   );
 };

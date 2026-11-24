@@ -1,7 +1,10 @@
 import { cn } from '../../lib/cn';
+import { useId } from 'react';
 
 const Select = ({ label, error, helperText, options = [], className, id, ...props }) => {
-  const inputId = id || props.name;
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const messageId = `${inputId}-message`;
 
   return (
     <label className="block" htmlFor={inputId}>
@@ -14,6 +17,8 @@ const Select = ({ label, error, helperText, options = [], className, id, ...prop
           className
         )}
         {...props}
+        aria-invalid={error ? true : props['aria-invalid']}
+        aria-describedby={[props['aria-describedby'], (error || helperText) && messageId].filter(Boolean).join(' ') || undefined}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -22,7 +27,7 @@ const Select = ({ label, error, helperText, options = [], className, id, ...prop
         ))}
       </select>
       {(error || helperText) && (
-        <span className={cn('mt-1 block text-xs', error ? 'text-red-600' : 'text-neutral-500 dark:text-neutral-400')}>
+        <span id={messageId} role={error ? 'alert' : undefined} className={cn('mt-1 block text-xs', error ? 'text-red-600 dark:text-red-400' : 'text-neutral-500 dark:text-neutral-400')}>
           {error || helperText}
         </span>
       )}

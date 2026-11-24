@@ -28,8 +28,8 @@ for (const [label, router] of [
   });
 }
 test('frontend finance policy rejects IT managers, regardless of department metadata', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../../frontend/src/utils/rbac.js'), 'utf8').replace(/export /g, '');
-  const context = {};
+  const source = fs.readFileSync(path.join(__dirname, '../../frontend/src/utils/rbac.js'), 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/export /g, '');
+  const context = { baseRoleAccess: require('../config/portalAccessPolicy.json') };
   vm.createContext(context);
   vm.runInContext(source + '\nthis.check = canAccessPortal;', context);
   assert.equal(context.check({ role: 'it_manager', department: 'Finance' }, 'finance'), false);

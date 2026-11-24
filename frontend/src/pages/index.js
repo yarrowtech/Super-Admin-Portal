@@ -25,7 +25,7 @@ export const DepartmentJobsPage       = lazy(() => import('../components/shared/
 
 // ── Admin portal ─────────────────────────────────────────────────────────────
 export const AdminDashboardPage          = lazy(() => import('../components/admin/AdminDashboardEnterprise'));
-export const SuperAdminControlCenterPage = lazy(() => import('../components/admin/SuperAdminDashboard'));
+export const SuperAdminDashboardPage = lazy(() => import('../components/admin/SuperAdminDashboard'));
 export const AdminProjectsPage           = lazy(() => import('../components/admin/AdminProjectsPage'));
 export const AdminPortfolioPage          = lazy(() => import('../components/admin/AdminPortfolioPage'));
 export const AdminCRMPage                = lazy(() => import('../components/admin/crm/AdminCRMPage'));

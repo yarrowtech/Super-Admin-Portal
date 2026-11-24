@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useSidebar } from '../../context/SidebarContext';
 import SidebarPortalIdentity from './SidebarPortalIdentity';
@@ -30,6 +30,8 @@ const NavItem = memo(({ item, collapsed, isActive, onClick, suffix }) => {
           : 'text-neutral-600 hover:translate-x-0.5 hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-accent)] dark:text-neutral-400'
       } ${collapsed ? 'justify-center px-0' : ''}`}
       aria-label={collapsed ? item.label : undefined}
+      aria-current={isActive ? 'page' : undefined}
+      title={collapsed ? item.label : undefined}
     >
       {isActive && !collapsed && (
         <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-[var(--portal-accent)]" aria-hidden="true" />
@@ -119,6 +121,7 @@ const PortalSidebar = ({
   const { collapsed: collapsedState, toggle } = useSidebar();
   const collapsed = forceExpanded ? false : collapsedState;
   const [openGroups, setOpenGroups] = useState({});
+  const [previousPath, setPreviousPath] = useState(null);
   const resolvedNavItems = useMemo(() => navItems, [navItems]);
 
   const footerItems = footerItemsProp ?? [];
@@ -169,8 +172,9 @@ const PortalSidebar = ({
   };
   const isGroupActive = (item) => Boolean(item?.children?.some((c) => isPathActive(c.path) || isGroupActive(c)));
 
-  // Auto-open the active group on mount / path change
-  useEffect(() => {
+  // Adjust expansion once per route change so navigation never flashes closed.
+  if (previousPath !== currentPath) {
+    setPreviousPath(currentPath);
     const autoOpen = {};
     const collectActive = (items) => {
       items.forEach((item) => {
@@ -181,7 +185,7 @@ const PortalSidebar = ({
     };
     collectActive(resolvedNavItems);
     setOpenGroups((prev) => ({ ...prev, ...autoOpen }));
-  }, [currentPath]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   const toggleGroup = (path) => setOpenGroups((prev) => ({ ...prev, [path]: !prev[path] }));
 
@@ -259,6 +263,7 @@ const PortalSidebar = ({
 
       {/* ── Navigation ── */}
       <nav
+        aria-label={`${brandingTitle || 'Portal'} navigation`}
         className="flex-1 overflow-y-auto px-2 pb-2 pt-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-200 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700"
       >
         <div className="space-y-0.5">

@@ -319,7 +319,7 @@ export default function ImportModule({ token, department, config = CLIENT_IMPORT
                 <strong>Map the required columns.</strong> We could not detect:{' '}
                 {analysis.missingRequired.map(f => FIELDS.find(x => x.key === f)?.label || f).join(', ')}.
               </div>
-              <MappingGrid analysis={analysis} mapping={mapping} setMapping={setMapping} />
+              <MappingGrid fields={FIELDS} analysis={analysis} mapping={mapping} setMapping={setMapping} />
               <div className="flex justify-end gap-2">
                 <Button variant="secondary" onClick={reset}>Cancel</Button>
                 <Button variant="accent" loading={busy} onClick={applyMapping}>Continue</Button>
@@ -364,7 +364,7 @@ export default function ImportModule({ token, department, config = CLIENT_IMPORT
                   Column mapping ({Object.values(mapping).filter(Boolean).length} of {FIELDS.length} mapped)
                 </summary>
                 <div className="border-t border-neutral-200 p-3 dark:border-neutral-700">
-                  <MappingGrid analysis={analysis} mapping={mapping} setMapping={setMapping} />
+                  <MappingGrid fields={FIELDS} analysis={analysis} mapping={mapping} setMapping={setMapping} />
                   <div className="mt-3 flex justify-end">
                     <Button variant="secondary" size="sm" loading={busy} onClick={applyMapping}>Re-check with this mapping</Button>
                   </div>
@@ -562,14 +562,14 @@ export default function ImportModule({ token, department, config = CLIENT_IMPORT
 }
 
 /** The header -> field grid, shared by the map step and the review step's details panel. */
-function MappingGrid({ analysis, mapping, setMapping }) {
+function MappingGrid({ fields, analysis, mapping, setMapping }) {
   const headerOptions = [
     { value: '', label: '— Not mapped —' },
     ...(analysis.headers || []).map(h => ({ value: h, label: h })),
   ];
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {FIELDS.map(f => (
+      {fields.map(f => (
         <div key={f.key}>
           <Select
             label={

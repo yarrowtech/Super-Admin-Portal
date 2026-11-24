@@ -28,20 +28,14 @@ import {
   apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, PRIORITY_RAIL, DEPT_OPTIONS, SINGLE_DEPT_OPTIONS,
   PRIORITY_OPTIONS, fmt, fmtDateTime, relativeDue, userLabel, toDateInput,
   useClientOptions, useUserOptions, useStatusOptions,
+  ProjectScopeProvider, useProjectScope, useProjectOptions, withProject,
   ClientPicker, UserPicker, TextArea,
 } from './crmShared';
 
 // ── Shared constants ──────────────────────────────────────────────────────────
-const DEPT_TABS = [
-  { key: 'all',       label: 'All Media & Marketing', short: 'All',       icon: 'hub' },
-  { key: 'media',     label: 'Media',                 short: 'Media',     icon: 'movie' },
-  { key: 'marketing', label: 'Marketing',             short: 'Marketing', icon: 'campaign' },
-];
-
-// The department selector is a working context, not a per-visit choice — persist it
-// so an operator returning to the CRM stays in the department they were working in.
-const DEPT_STORAGE_KEY = 'crm.department';
-const VALID_DEPTS = DEPT_TABS.map(t => t.key);
+// The project selector is a working context, not a per-visit choice — persist it
+// so an operator returning to the CRM stays in the project they were working in.
+const PROJECT_STORAGE_KEY = 'crm.projectId';
 
 const NAV_GROUPS_STORAGE_KEY = 'crm.collapsedNavGroups';
 const NAV_COLLAPSED_KEY = 'crm.navCollapsed';
@@ -55,10 +49,9 @@ const readCollapsedGroups = () => {
   }
 };
 
-const readStoredDepartment = () => {
+const readStoredProject = () => {
   try {
-    const stored = localStorage.getItem(DEPT_STORAGE_KEY);
-    return VALID_DEPTS.includes(stored) ? stored : 'all';
+    return localStorage.getItem(PROJECT_STORAGE_KEY) || 'all';
   } catch {
     return 'all';
   }
@@ -77,6 +70,7 @@ function CRMDashboard({ token, department }) {
   const [recent, setRecent]   = useState([]);
   const [listsLoading, setListsLoading] = useState(true);
   const [statuses] = useStatusOptions(token, department);
+  const { projectId, project } = useProjectScope();
 
   // Stage name -> configured colour, so the dashboard, pipeline board and client
   // table all render a given stage in the same colour.
@@ -87,11 +81,11 @@ function CRMDashboard({ token, department }) {
 
   useEffect(() => {
     setLoading(true);
-    apiFetch(`/dashboard?department=${department}`, token)
+    apiFetch(withProject(`/dashboard?department=${department}`, projectId), token)
       .then(r => setData(r.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [token, department]);
+  }, [token, department, projectId]);
 
   // The action lists are what make the dashboard a starting point rather than a
   // scoreboard: what is late, and what just happened.
@@ -99,8 +93,8 @@ function CRMDashboard({ token, department }) {
     let cancelled = false;
     setListsLoading(true);
     Promise.all([
-      apiFetch(`/followups?department=${department}&overdue=true`, token).catch(() => ({ data: [] })),
-      apiFetch(`/communications?department=${department}&page=1&limit=6`, token).catch(() => ({ data: [] })),
+      apiFetch(withProject(`/followups?department=${department}&overdue=true`, projectId), token).catch(() => ({ data: [] })),
+      apiFetch(withProject(`/communications?department=${department}&page=1&limit=6`, projectId), token).catch(() => ({ data: [] })),
     ])
       .then(([f, c]) => {
         if (cancelled) return;
@@ -109,7 +103,7 @@ function CRMDashboard({ token, department }) {
       })
       .finally(() => { if (!cancelled) setListsLoading(false); });
     return () => { cancelled = true; };
-  }, [token, department]);
+  }, [token, department, projectId]);
 
   // Headline metrics: the four an operator acts on. The departmental splits are
   // supporting detail and render smaller below, so the row has a clear ranking
@@ -161,6 +155,20 @@ function CRMDashboard({ token, department }) {
 
   return (
     <div className="space-y-5">
+      {/* Active scope. Every figure below is filtered, so the dashboard says so
+          rather than leaving an operator to wonder why the totals moved. */}
+      {projectId !== 'all' && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[color:var(--portal-accent)]/25 bg-[var(--portal-accent-soft)] px-4 py-2.5">
+          <span className="material-symbols-outlined text-[18px]" style={{ color:'var(--portal-accent)' }}>filter_alt</span>
+          <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+            {projectId === 'unassigned' ? 'Unassigned records' : (project?.name || 'Selected project')}
+          </span>
+          <span className="text-xs text-neutral-500">
+            Every figure and list on this page is scoped to this project
+          </span>
+        </div>
+      )}
+
       {/* Headline KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {loading
@@ -315,9 +323,6 @@ function ClientsModule({ token, department }) {
   const [search, setSearch]     = useState('');
   const [statusFilter, setStatusFilter]     = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
-  // '' = every project; 'unassigned' selects the pre-project records, which a
-  // bare id cannot express. The backend already understands both.
-  const [projectFilter, setProjectFilter]   = useState('');
   const [page, setPage]         = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal]       = useState(0);
@@ -327,7 +332,11 @@ function ClientsModule({ token, department }) {
 
   const [statuses] = useStatusOptions(token, department);
   const users = useUserOptions(token);
-  const [projects, setProjects] = useState([]);
+  // The project filter is the page-wide scope now, set in the header — this
+  // module reads it rather than carrying a second, competing dropdown.
+  // 'all' is every project; 'unassigned' reaches the pre-project records.
+  const { projectId, project, projects } = useProjectScope();
+  const projectFilter = projectId === 'all' ? '' : projectId;
   const [selectedIds, setSelectedIds] = useState([]);
   // Bumped to clear the table's selection without refetching.
   const [resetKey, setResetKey] = useState(0);
@@ -336,12 +345,6 @@ function ClientsModule({ token, department }) {
   // Deactivation is admin-only server-side; mirror that so the bulk control is
   // absent rather than present-and-rejected.
   const isAdmin = ['admin', 'super_admin', 'superadmin'].includes(user?.role);
-
-  useEffect(() => {
-    apiFetch('/import/projects', token)
-      .then(r => setProjects(r.data || []))
-      .catch(() => setProjects([]));
-  }, [token]);
 
   // Debounce the search box: typing previously fired one request per keystroke.
   useEffect(() => {
@@ -498,8 +501,8 @@ function ClientsModule({ token, department }) {
         icon="groups"
         description={
           projectFilter
-            ? `${projectFilter === 'unassigned' ? 'Unassigned' : projects.find(p => p._id === projectFilter)?.name || 'Project'} — client relationships`
-            : 'All Media & Marketing client relationships'
+            ? `${projectFilter === 'unassigned' ? 'Unassigned' : project?.name || 'Project'} — client relationships`
+            : 'All client relationships'
         }
         loading={loading}
         empty={!loading && clients.length === 0}
@@ -535,21 +538,6 @@ function ClientsModule({ token, department }) {
             >
               <option value="">All priorities</option>
               {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
-            {/* Clients are imported project-wise, so the list needs to narrow the
-                same way. 'Unassigned' reaches the records created before project
-                linkage existed, which would otherwise be unreachable here. */}
-            <select
-              value={projectFilter}
-              onChange={e => setProjectFilter(e.target.value)}
-              aria-label="Filter by project"
-              className="h-9 max-w-[11rem] rounded-lg border border-neutral-200 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-            >
-              <option value="">All projects</option>
-              {projects.map(p => (
-                <option key={p._id} value={p._id}>{p.name}</option>
-              ))}
-              <option value="unassigned">— Unassigned —</option>
             </select>
             <Button variant="secondary" size="sm" onClick={() => exportFile('csv')} disabled={!clients.length} icon={<span className="material-symbols-outlined text-base">download</span>}>
               CSV
@@ -608,6 +596,7 @@ function ClientsModule({ token, department }) {
 const BLANK_CONTACT = { client:'', firstName:'', lastName:'', title:'', email:'', phone:'', department:'media', role:'', isPrimary:false, notes:'' };
 
 function ContactsModule({ token, department }) {
+  const { projectId } = useProjectScope();
   const toast = useToast();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -628,11 +617,11 @@ function ContactsModule({ token, department }) {
   const load = useCallback(() => {
     setLoading(true);
     const q = new URLSearchParams({ department, ...(search ? { search } : {}) }).toString();
-    apiFetch(`/contacts?${q}`, token)
+    apiFetch(withProject(`/contacts?${q}`, projectId), token)
       .then(r => setContacts(r.data || []))
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, search]);
+  }, [token, department, search, projectId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -964,6 +953,7 @@ function StatusModule({ token, department }) {
 const BLANK_FOLLOWUP = { client:'', department:'media', type:'call', priority:'medium', notes:'', dueDate:'', nextAction:'', assignedTo:'', outcome:'' };
 
 function FollowUpsModule({ token, department }) {
+  const { projectId } = useProjectScope();
   const toast = useToast();
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -984,11 +974,11 @@ function FollowUpsModule({ token, department }) {
       status: statusFilter,
       ...(assigneeFilter ? { assignedTo: assigneeFilter } : {}),
     }).toString();
-    apiFetch(`/followups?${q}`, token)
+    apiFetch(withProject(`/followups?${q}`, projectId), token)
       .then(r => setItems(r.data || []))
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, statusFilter, assigneeFilter]);
+  }, [token, department, statusFilter, assigneeFilter, projectId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1189,6 +1179,7 @@ function FollowUpsModule({ token, department }) {
 const BLANK_COMM = { client:'', department:'media', type:'note', direction:'outbound', subject:'', body:'', isInternal:false, outcome:'', occurredAt:'' };
 
 function CommunicationsModule({ token, department }) {
+  const { projectId } = useProjectScope();
   const toast = useToast();
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -1210,13 +1201,13 @@ function CommunicationsModule({ token, department }) {
       ...(typeFilter ? { type: typeFilter } : {}),
       ...(clientFilter ? { clientId: clientFilter } : {}),
     }).toString();
-    apiFetch(`/communications?${q}`, token)
+    apiFetch(withProject(`/communications?${q}`, projectId), token)
       .then(r => { setItems(r.data || []); setTotal(r.total||0); setTotalPages(r.pages||1); })
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, page, typeFilter, clientFilter]);
+  }, [token, department, page, typeFilter, clientFilter, projectId]);
 
-  useEffect(() => { setPage(1); }, [department, typeFilter, clientFilter]);
+  useEffect(() => { setPage(1); }, [department, typeFilter, clientFilter, projectId]);
   useEffect(() => { load(); }, [load]);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
@@ -1748,6 +1739,7 @@ const DATE_PRESETS = [
 ];
 
 function AnalyticsModule({ token, department }) {
+  const { projectId } = useProjectScope();
   const toast = useToast();
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1759,11 +1751,11 @@ function AnalyticsModule({ token, department }) {
     if (range !== 'all') {
       params.set('dateFrom', new Date(Date.now() - Number(range) * 86400000).toISOString());
     }
-    apiFetch(`/analytics?${params}`, token)
+    apiFetch(withProject(`/analytics?${params}`, projectId), token)
       .then(r => setData(r.data))
       .catch(err => { toast.error(err.message); setData(null); })
       .finally(() => setLoading(false));
-  }, [token, department, range]);
+  }, [token, department, range, projectId]);
 
   const exportReport = () => {
     if (!data) return;
@@ -1888,6 +1880,7 @@ function SettingsModule() {
           {[
             'This CRM serves ONLY Media and Marketing departments.',
             'Every record carries a department field: "media", "marketing", or "both".',
+            'The CRM is browsed project-wise: the header picker scopes every module to one project.',
             'Shared clients (both) are visible to authorised users of either department.',
             'Finance, HR, IT, LAW, and YarrowTech records are never imported here.',
             'No separate CRM exists inside the Media or Marketing portal — this is the single source.',
@@ -1907,6 +1900,7 @@ function SettingsModule() {
 // ── Pipeline module ───────────────────────────────────────────────────────────
 // Thin wrapper so the board can open the same Client 360 drawer the list uses.
 function PipelineModule({ token, department }) {
+  const { projectId } = useProjectScope();
   const [detailId, setDetailId] = useState(null);
   const [statuses] = useStatusOptions(token, department);
   const [reloadKey, setReloadKey] = useState(0);
@@ -1929,7 +1923,7 @@ function PipelineModule({ token, department }) {
         bodyClassName="p-4"
       >
         <div className="p-4">
-          <PipelineBoard key={reloadKey} token={token} department={department} onOpenClient={setDetailId} />
+          <PipelineBoard key={`${reloadKey}-${projectId}`} token={token} department={department} onOpenClient={setDetailId} />
         </div>
       </SectionCard>
     </>
@@ -1983,12 +1977,41 @@ export default function AdminCRMPage() {
 
   const urlSegment   = location.pathname.split('/').pop();
   const activeId     = MODULES.find(m => m.id === urlSegment)?.id ?? 'dashboard';
-  const [department, setDepartment] = useState(readStoredDepartment);
 
-  const selectDepartment = useCallback((key) => {
-    setDepartment(key);
-    try { localStorage.setItem(DEPT_STORAGE_KEY, key); } catch {}
+  // Media / Marketing is no longer an operator-facing switch. The CRM still
+  // stores a department on each record (the models and the forms are unchanged),
+  // but slicing the whole desk by it was the wrong axis: the work is organised
+  // project-wise, so that is what the header now filters on. 'all' keeps every
+  // request department-agnostic.
+  const department = 'all';
+
+  // The active project is the page-wide scope — persisted like the old
+  // department choice was, so returning to the CRM lands in the same project.
+  const [projectId, setProjectId] = useState(readStoredProject);
+  const { projects, unassignedClients, loading: projectsLoading } = useProjectOptions(token);
+
+  const selectProject = useCallback((id) => {
+    setProjectId(id);
+    try { localStorage.setItem(PROJECT_STORAGE_KEY, id); } catch { /* private mode */ }
   }, []);
+
+  // A stored project that has since been deleted or deactivated would silently
+  // filter everything to nothing, so fall back to 'all' once the list is known.
+  useEffect(() => {
+    if (projectsLoading) return;
+    if (projectId === 'all' || projectId === 'unassigned') return;
+    if (!projects.some(p => p._id === projectId)) selectProject('all');
+  }, [projectsLoading, projects, projectId, selectProject]);
+
+  const activeProject = useMemo(
+    () => projects.find(p => p._id === projectId) || null,
+    [projects, projectId],
+  );
+
+  const scope = useMemo(
+    () => ({ projectId, project: activeProject, projects, unassignedClients }),
+    [projectId, activeProject, projects, unassignedClients],
+  );
 
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
 
@@ -2024,48 +2047,70 @@ export default function AdminCRMPage() {
   const [counts, setCounts] = useState({});
   useEffect(() => {
     let cancelled = false;
-    apiFetch(`/dashboard?department=${department}`, token)
+    apiFetch(withProject(`/dashboard?department=${department}`, projectId), token)
       .then(r => {
         if (cancelled) return;
         setCounts({ clients: r.data?.activeClients || 0, followups: r.data?.overdueFollowUps || 0 });
       })
       .catch(() => { if (!cancelled) setCounts({}); });
     return () => { cancelled = true; };
-  }, [token, department, activeId]);
+  }, [token, department, activeId, projectId]);
 
   return (
+    <ProjectScopeProvider value={scope}>
     <div className="min-w-0">
       {/* Portal header */}
       <PortalHeader
         title="CRM Management"
-        subtitle="Media & Marketing — Centralised Client Relationship Management"
+        subtitle={
+          projectId === 'all'
+            ? 'Centralised Client Relationship Management'
+            : `${projectId === 'unassigned' ? 'Unassigned records' : activeProject?.name || 'Project'} — Client Relationship Management`
+        }
         icon="contact_page"
         user={user}
         showThemeToggle
       >
-        {/* Department filter in header right slot */}
-        <div
-          role="group"
-          aria-label="Department filter"
-          className="inline-flex rounded-xl border border-neutral-200 bg-neutral-100/80 p-1 dark:border-neutral-700 dark:bg-neutral-800"
-        >
-          {DEPT_TABS.map(({ key, label, short, icon }) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={department === key}
-              title={label}
-              onClick={() => selectDepartment(key)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 ${
-                department === key
-                  ? 'bg-white text-neutral-900 shadow-sm ring-1 ring-black/5 dark:bg-neutral-700 dark:text-white dark:ring-white/10'
-                  : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+        {/* Project scope. A <select> rather than a tab strip: the list is as long
+            as the project roster, which a segmented control cannot hold. */}
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px] text-neutral-400">folder_special</span>
+          <label className="sr-only" htmlFor="crm-project-scope">Filter the CRM by project</label>
+          <div className="relative">
+            <select
+              id="crm-project-scope"
+              value={projectId}
+              onChange={e => selectProject(e.target.value)}
+              className={`h-9 max-w-[16rem] appearance-none rounded-xl border bg-white pl-3 pr-8 text-xs font-bold text-neutral-900 focus:outline-none focus-visible:ring-2 dark:bg-neutral-800 dark:text-neutral-100 ${
+                projectId === 'all'
+                  ? 'border-neutral-200 dark:border-neutral-700'
+                  : 'border-[color:var(--portal-accent)]'
               }`}
             >
-              <span className="material-symbols-outlined text-[15px]">{icon}</span>
-              <span className="hidden sm:inline">{short}</span>
+              <option value="all">All projects</option>
+              {projects.map(p => (
+                <option key={p._id} value={p._id}>
+                  {p.name}{p.clientCount ? ` (${p.clientCount})` : ''}
+                </option>
+              ))}
+              <option value="unassigned">
+                — Unassigned{unassignedClients ? ` (${unassignedClients})` : ''} —
+              </option>
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">
+              expand_more
+            </span>
+          </div>
+          {projectId !== 'all' && (
+            <button
+              type="button"
+              onClick={() => selectProject('all')}
+              title="Clear the project filter"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-neutral-200 text-neutral-400 transition-colors hover:text-neutral-700 focus:outline-none focus-visible:ring-2 dark:border-neutral-700 dark:hover:text-neutral-200"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
-          ))}
+          )}
         </div>
       </PortalHeader>
 
@@ -2225,11 +2270,12 @@ export default function AdminCRMPage() {
 
           {/* Keyed on module + department so a switch remounts cleanly instead of
               briefly showing the previous module's rows under the new heading. */}
-          <div key={`${activeId}-${department}`} className="crm-module-enter">
+          <div key={`${activeId}-${projectId}`} className="crm-module-enter">
             <ActiveComponent token={token} department={department} />
           </div>
         </main>
       </div>
     </div>
+    </ProjectScopeProvider>
   );
 }

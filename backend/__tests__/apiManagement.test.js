@@ -160,6 +160,19 @@ test('management HTTP, gateway isolation, granular permissions, credentials, syn
     assert.ok(!scoped.events.some(e => e.apiId === secondApi._id));
     assert.deepEqual(scopeApiManagement(state.body, String(secondProject._id)).endpoints, []);
     assert.deepEqual(scopeApiManagement(state.body, String(secondProject._id)).connections, []);
+    await models.Event.insertMany(Array.from({ length: 101 }, () => ({
+      kind: 'request', apiId: secondApi._id, action: 'other-project', createdAt: new Date(Date.now() + 60_000),
+    })));
+    const selectedState = await call(`/manage/state?project=${project._id}`, 'GET', undefined, readerToken);
+    assert.equal(selectedState.status, 200);
+    for (const key of ['apis', 'endpoints', 'connections', 'syncJobs', 'events']) {
+      assert.deepEqual(new Set(selectedState.body[key].map(item => item._id)), new Set(scoped[key].map(item => item._id)));
+    }
+    assert.ok(selectedState.body.existingIntegrations.every(item => item.projectId === api.projectId || (!item.projectId && !item.projectCode)));
+    assert.equal((await call('/manage/state?project=invalid')).status, 400);
+    assert.equal((await call('/manage/state?project=ffffffffffffffffffffffff')).status, 404);
+    assert.equal((await call('/manage/apis', 'POST', { projectId: String(project._id) })).status, 409);
+
     const serialized = JSON.stringify(state.body);
     assert.ok(!serialized.includes('provider-secret-value')); assert.ok(!serialized.includes(portalToken));
     assert.ok(!serialized.includes('existing-token-do-not-return'));

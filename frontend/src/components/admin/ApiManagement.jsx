@@ -5,9 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../services/client';
 import PortalHeader from '../common/PortalHeader';
 import ExistingProjectApis from './ExistingProjectApis';
-import { scopeApiManagement } from './apiManagementScope';
-import { GLOBAL_SECTIONS, NAV_GROUPS, SECTION_DESCRIPTIONS, slug } from './api-management/config';
-import { Action, Badge, Empty, Field, Icon, Notice, Panel, Select } from './api-management/ManagementUI';
+import { NAV_GROUPS, SECTION_DESCRIPTIONS, slug } from './api-management/config';
+import { Action, Badge, Empty, Icon, Notice, Panel, Select } from './api-management/ManagementUI';
 import ManagementNavigation from './api-management/ManagementNavigation';
 import { Overview, ProjectDirectory } from './api-management/ProjectOverview';
 import { Documentation, ProviderCredential, ProviderSettings } from './api-management/ProjectSettings';
@@ -19,7 +18,9 @@ export default function ApiManagement() {
   const { user, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const projectId = new URLSearchParams(location.search).get('project') || '';
+  const requestedProject = new URLSearchParams(location.search).get('project') || '';
+  const projectId = requestedProject.toLowerCase();
+  const invalidProjectId = Boolean(projectId) && !/^[a-f0-9]{24}$/.test(projectId);
   const connectionId = new URLSearchParams(location.search).get('connection') || '';
   const section = NAV_GROUPS.flatMap(([, items]) => items.map(([name]) => name)).find(name => slug(name) === location.pathname.split('/')[3]) || 'API Dashboard';
   const [busy, setBusy] = useState(false);
@@ -32,14 +33,35 @@ export default function ApiManagement() {
     return () => clearTimeout(timer);
   }, [feedback]);
   const query = useQuery({
-    queryKey: ['api-management', 'registry', user?._id || user?.id || user?.role],
-    queryFn: ({ signal }) => apiClient.get('/api/api-management/state', token, { cache: false, forceRefresh: true, signal }),
+    queryKey: ['api-management', 'registry', user?._id || user?.id || user?.role, projectId],
+    queryFn: async ({ signal }) => {
+      const load = (id = '') => apiClient.get(`/api/api-management/state${id ? `?project=${id}` : ''}`, token, { cache: false, forceRefresh: true, signal });
+      if (!projectId) return load();
+      if (!invalidProjectId) {
+        try {
+          return await load(projectId);
+        } catch (error) {
+          if (error.status !== 404) throw error;
+        }
+      }
+      return apiClient.get('/api/api-management/projects', token, { cache: false, forceRefresh: true, signal });
+    },
     enabled: Boolean(token), staleTime: 0, refetchOnWindowFocus: false, retry: 1,
   });
+  const directory = useQuery({
+    queryKey: ['api-management', 'projects', user?._id || user?.id || user?.role],
+    queryFn: ({ signal }) => apiClient.get('/api/api-management/projects', token, { cache: false, signal }),
+    enabled: Boolean(token),
+    staleTime: 30_000,
+  });
   const registry = query.data;
-  const state = scopeApiManagement(registry, projectId);
+  const projects = registry?.projects ?? directory.data?.projects ?? [];
+  const projectOptions = projects.map(item => ({
+    value: item._id, label: item.projectCode && item.projectCode !== item.name ? `${item.name} (${item.projectCode})` : item.name,
+  }));
+  const state = registry;
   const project = registry?.projects.find(item => item._id === projectId);
-  const api = state?.apis.find(item => item.projectId === projectId);
+  const api = state?.apis?.find(item => item.projectId === projectId);
   const send = (path, data, method = 'post') => {
     const url = `/api/api-management${path}`;
     return method === 'delete' ? apiClient.delete(url, token) : apiClient[method](url, data, token);
@@ -72,20 +94,28 @@ export default function ApiManagement() {
   };
   const context = { registry, state, project, api, editable, busy, run, send, chooseProject, navigateSection, openConnection };
   const renderSection = () => {
+    if (projectId && !project) return <Panel title="Project unavailable" icon="folder_off">
+      <Empty icon="folder_off" title={invalidProjectId ? 'Invalid project ID' : 'Project not found'}
+        description="Select an available project from the Project filter in the header."
+        action={<Action onClick={() => navigateSection('Registered Project APIs', '')}>Browse project APIs</Action>} />
+    </Panel>;
     if (section === 'API Dashboard') return <><Overview {...context} /><ExistingProjectApis integrations={registry.existingIntegrations || []} projects={registry.projects} projectId={projectId} {...context} /></>;
     if (section === 'Registered Project APIs') return <><ProjectDirectory {...context} /><ExistingProjectApis integrations={registry.existingIntegrations || []} projects={registry.projects} projectId={projectId} {...context} /></>;
-    if (['Connected Portals', 'Authentication'].includes(section)) return <PortalClients {...context} />;
-    if (section === 'MCP Management') return <McpPanel {...context} />;
-    if (!project) return <Panel title="Choose a project" icon="folder_open" description={`“${section}” is configured inside a single project.`}>
-      <Empty icon="folder_open"
-        title={projectId ? 'This project is unavailable' : 'Select a project to continue'}
-        description={projectId ? 'The project may have been removed. Choose another project below.' : 'Endpoints, credentials, sharing rules and connections are managed within their owning project.'}
-        action={registry.projects.length
-          ? <div className="mx-auto w-full max-w-xs space-y-3">
-            <Select value="" options={registry.projects} placeholder="Choose a project…" disabled={busy} onChange={event => event.target.value && navigateSection(section, event.target.value)} />
-            <Action icon="folder_open" disabled={busy} onClick={() => navigateSection('Registered Project APIs', '')}>Browse all project APIs</Action>
-          </div>
-          : <Action icon="arrow_forward" onClick={() => navigate('/admin/projects')}>Create a project first</Action>} />
+    if (section === 'Connected Portals' && project) return <Panel title="Project portal connections" icon="devices"
+      action={editable && <Action onClick={() => navigateSection('Connection Configuration')} disabled={!api || busy}>Configure connection</Action>}>
+      <ConnectionList {...context} />
+    </Panel>;
+    if (['Connected Portals', 'Authentication', 'MCP Management'].includes(section)) {
+      const portalIds = new Set(state.connections.map(connection => connection.portalId));
+      const portalContext = project ? { ...context, registry: { ...registry, portals: registry.portals.filter(portal => portalIds.has(portal._id)) } } : context;
+      return section === 'MCP Management' ? <McpPanel {...portalContext} /> : <PortalClients {...portalContext} projectFiltered={Boolean(project)} />;
+    }
+    if (!project) return <Panel title="Choose a project" icon="folder_open">
+      <Empty icon="folder_open" title="Select a project to continue"
+        description="Use the Project filter in the header to open this section for a project."
+        action={projects.length
+          ? <Action icon="folder_open" onClick={() => navigateSection('Registered Project APIs', '')}>Browse project APIs</Action>
+          : <Action icon="arrow_forward" onClick={() => navigate('/admin/projects')}>Open Projects</Action>} />
     </Panel>;
     if (section === 'API Configuration') return <ProviderSettings {...context} />;
     if (section === 'API Credentials') return <ProviderCredential {...context} />;
@@ -102,7 +132,17 @@ export default function ApiManagement() {
   };
 
   return <div className="min-w-0 pt-14 lg:pt-0">
-    <PortalHeader title="API Management" subtitle="Project connections & controlled data sharing" icon="api" user={user} onRefresh={() => query.refetch()} refreshing={query.isFetching || busy} />
+    <PortalHeader title="API Management" subtitle="Project connections & controlled data sharing" icon="api" user={user}
+      onRefresh={() => { query.refetch(); directory.refetch(); }} refreshing={query.isFetching || busy} />
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <label className="grid min-w-0 max-w-full grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+        <Icon name="filter_alt" className="text-neutral-500" />
+        <span className="font-semibold">Project</span>
+        <Select aria-label="Project" value={projects.some(item => item._id === projectId) ? projectId : ''} options={projectOptions}
+          placeholder={directory.isPending && !projects.length ? 'Loading projects' : 'All projects'}
+          disabled={busy || !projects.length} onChange={event => navigateSection(section, event.target.value)} />
+      </label>
+    </div>
     <div className="lg:flex lg:items-start lg:gap-5">
       <ManagementNavigation section={section} onNavigate={navigateSection} disabled={busy} hasProject={Boolean(project)} />
       <main className="min-w-0 flex-1" aria-busy={busy || query.isPending}>
@@ -110,14 +150,15 @@ export default function ApiManagement() {
         {feedback && <div id="api-management-feedback" role={feedback.tone === 'error' ? 'alert' : 'status'} className={`sticky top-20 z-30 lg:top-3 mb-4 flex items-start gap-3 rounded-xl border p-3 text-sm ${feedback.tone === 'error' ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300' : feedback.tone === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200' : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'}`}><Icon name={feedback.tone === 'error' ? 'error' : feedback.tone === 'warning' ? 'warning' : 'check_circle'} className="shrink-0" /><p className="min-w-0 flex-1">{feedback.text}</p><button aria-label="Dismiss notification" className="shrink-0 rounded focus-visible:outline-2" onClick={() => setFeedback(null)}><Icon name="close" /></button></div>}
         {query.isPending ? <div role="status" aria-label="Loading API registry" className="space-y-4"><div className="h-32 animate-pulse rounded-2xl bg-neutral-200/60 dark:bg-neutral-800" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[0, 1, 2, 3].map(index => <div key={index} className="h-24 animate-pulse rounded-2xl bg-neutral-200/60 dark:bg-neutral-800" />)}</div><div className="h-64 animate-pulse rounded-2xl bg-neutral-200/60 dark:bg-neutral-800" /><span className="sr-only">Loading project APIs</span></div> : !registry ? <Panel title="Unable to load API Management"><Empty icon="cloud_off" title="The registry could not be loaded" description={query.error?.message || 'Check your connection and try again.'} action={<Action variant="accent" onClick={() => query.refetch()} loading={query.isFetching}>Retry</Action>} /></Panel> : <>
           {query.error && <div className="mb-4"><Notice tone="warning">The latest refresh failed. Showing the last loaded state. Use Refresh to retry.</Notice></div>}
-          <Panel title="Project workspace" icon="folder_open" action={project && <Badge>{project.projectCode || project.name}</Badge>}>
-            <div className="grid items-end gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
-              <Field label="Source project" hint={project ? 'All project data and connection settings below belong to this project.' : 'Choose a project to configure its APIs and sharing permissions.'}><Select value={projectId} options={registry.projects} placeholder="All projects · overview" disabled={busy} onChange={event => navigateSection(section, event.target.value)} /></Field>
-              {project && !api && editable && <Action variant="accent" icon="add_link" loading={busy} onClick={() => run(() => send('/apis', { projectId }), 'Project API identity registered')}>Register project API</Action>}
-              {project && api && <div className="flex flex-wrap gap-2 pb-1"><Badge tone={api.enabled ? 'info' : 'neutral'}>{api.enabled ? 'Provider enabled' : 'Provider disabled'}</Badge><Badge>{state.endpoints.length} endpoints</Badge><Badge>{state.connections.length} portal mappings</Badge></div>}
-            </div>
-            {!project && GLOBAL_SECTIONS.has(section) && <p className="mt-3 text-xs text-neutral-500">Portal clients are organization-wide. Access to each project is configured independently.</p>}
-          </Panel>
+          {project && <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+            <span className="break-all">Project ID <code>{project._id}</code></span>
+            {api ? <><Badge tone={api.enabled ? 'info' : 'neutral'}>{api.enabled ? 'Provider enabled' : 'Provider disabled'}</Badge><Badge>{state.endpoints.length} endpoints</Badge><Badge>{state.connections.length} portal mappings</Badge></>
+              : <Badge tone="warning">No managed API registered</Badge>}
+            {!api && editable && <Action variant="accent" icon="add_link" loading={busy} onClick={() => run(() => send('/apis', { projectId }), 'Project API identity registered')}>Register project API</Action>}
+          </div>}
+          {['Authentication', 'MCP Management'].includes(section) && <div className="mb-4">
+            <Notice>{project ? 'Showing portal clients mapped to this project. Changes to a portal client apply across all its projects.' : 'Portal client settings apply across all projects mapped to each client.'}</Notice>
+          </div>}
           <div key={`${section}:${projectId}:${api?._id || 'unregistered'}:${connectionId}`}>{renderSection()}</div>
         </>}
       </main>

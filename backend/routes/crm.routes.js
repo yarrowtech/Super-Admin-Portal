@@ -38,6 +38,36 @@ const deptFilterFor = (department, sharedValue = 'both') =>
     : {};
 
 /**
+ * Project scoping.
+ *
+ * Only CRMClient and CRMInfluencer carry a hard `project` link. Everything else
+ * in the CRM (follow-ups, communications, contacts) hangs off a client, so a
+ * project filter on those collections has to be resolved through the clients
+ * that belong to the project.
+ *
+ * Returns:
+ *   null                      — no project filter requested, query unchanged
+ *   { client: { $in: [...] }} — the records belonging to that project's clients
+ *
+ * An empty id list is deliberately kept (`$in: []`) rather than dropped: a
+ * project with no clients must show zero rows, not every row.
+ */
+const projectMatch = (projectId) => {
+  if (!projectId || projectId === 'all') return null;
+  if (projectId === 'unassigned') return { project: null };
+  if (mongoose.isValidObjectId(projectId)) return { project: new mongoose.Types.ObjectId(projectId) };
+  return null;
+};
+
+/** Client ids inside a project, for the collections that only reference a client. */
+const clientScopeFor = async (projectId) => {
+  const match = projectMatch(projectId);
+  if (!match) return null;
+  const ids = await CRMClient.find(match).select('_id').lean();
+  return { client: { $in: ids.map(c => c._id) } };
+};
+
+/**
  * Recompute a client's nextFollowUpAt from its earliest pending follow-up.
  * Derived rather than hand-maintained, so completing or deleting a task can
  * never leave a stale (and wrongly "overdue") date on the client row.
@@ -77,6 +107,10 @@ router.get('/users', requireCRM, async (req, res) => {
 router.get('/dashboard', requireCRM, async (req, res) => {
   try {
     const deptFilter = deptFilterFor(req.query.department);
+    // The dashboard is the one place every project-wise number is read from, so
+    // the scope is resolved once here and applied to all seven counts.
+    const projFilter   = projectMatch(req.query.projectId) || {};
+    const clientScope  = (await clientScopeFor(req.query.projectId)) || {};
 
     const [
       totalMedia,
@@ -87,20 +121,21 @@ router.get('/dashboard', requireCRM, async (req, res) => {
       overdueFollowUps,
       recentCommunications,
     ] = await Promise.all([
-      CRMClient.countDocuments({ department: { $in: ['media', 'both'] }, isActive: true }),
-      CRMClient.countDocuments({ department: { $in: ['marketing', 'both'] }, isActive: true }),
-      CRMClient.countDocuments({ department: 'both', isActive: true }),
-      CRMClient.countDocuments({ ...deptFilter, isActive: true }),
-      CRMFollowUp.countDocuments({ ...deptFilter, status: 'pending' }),
+      CRMClient.countDocuments({ ...projFilter, department: { $in: ['media', 'both'] }, isActive: true }),
+      CRMClient.countDocuments({ ...projFilter, department: { $in: ['marketing', 'both'] }, isActive: true }),
+      CRMClient.countDocuments({ ...projFilter, department: 'both', isActive: true }),
+      CRMClient.countDocuments({ ...deptFilter, ...projFilter, isActive: true }),
+      CRMFollowUp.countDocuments({ ...deptFilter, ...clientScope, status: 'pending' }),
       // Overdue is derived, not stored: nothing writes status 'overdue', so counting
       // that literal always returned 0. Match how /followups?overdue=true computes it.
-      CRMFollowUp.countDocuments({ ...deptFilter, status: 'pending', dueDate: { $lt: new Date() } }),
+      CRMFollowUp.countDocuments({ ...deptFilter, ...clientScope, status: 'pending', dueDate: { $lt: new Date() } }),
       // Count by when the interaction HAPPENED, not when the row was typed. A call
       // logged today for last Tuesday belongs to last Tuesday; filtering on createdAt
       // made backdated entries invisible here while still listing them in the timeline
       // below, so the KPI and the list disagreed about the same records.
       CRMCommunication.countDocuments({
         ...deptFilter,
+        ...clientScope,
         $expr: {
           $gte: [{ $ifNull: ['$occurredAt', '$createdAt'] }, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)],
         },
@@ -108,7 +143,7 @@ router.get('/dashboard', requireCRM, async (req, res) => {
     ]);
 
     const statusBreakdown = await CRMClient.aggregate([
-      { $match: { ...deptFilter, isActive: true } },
+      { $match: { ...deptFilter, ...projFilter, isActive: true } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 },
@@ -126,6 +161,49 @@ router.get('/dashboard', requireCRM, async (req, res) => {
         recentCommunications,
         statusBreakdown,
       },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Projects ──────────────────────────────────────────────────────────────────
+/**
+ * Projects available to scope the whole CRM to, each with its live client and
+ * influencer counts so the picker can show where the records actually are.
+ */
+router.get('/projects/options', requireCRM, async (req, res) => {
+  try {
+    const Project = mongoose.model('Project');
+    const projects = await Project.find({ isActive: { $ne: false } })
+      .select('name projectCode status themeColor')
+      .sort({ name: 1 })
+      .limit(500)
+      .lean();
+
+    const [clientCounts, influencerCounts, unassignedClients] = await Promise.all([
+      CRMClient.aggregate([
+        { $match: { isActive: true, project: { $ne: null } } },
+        { $group: { _id: '$project', count: { $sum: 1 } } },
+      ]),
+      CRMInfluencer.aggregate([
+        { $match: { isActive: true, project: { $ne: null } } },
+        { $group: { _id: '$project', count: { $sum: 1 } } },
+      ]),
+      CRMClient.countDocuments({ isActive: true, project: null }),
+    ]);
+
+    const cBy = Object.fromEntries(clientCounts.map(c => [String(c._id), c.count]));
+    const iBy = Object.fromEntries(influencerCounts.map(c => [String(c._id), c.count]));
+
+    res.json({
+      success: true,
+      data: projects.map(p => ({
+        ...p,
+        clientCount: cBy[String(p._id)] || 0,
+        influencerCount: iBy[String(p._id)] || 0,
+      })),
+      unassignedClients,
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -169,7 +247,11 @@ router.get('/clients', requireCRM, async (req, res) => {
  */
 router.get('/clients/options', requireCRM, async (req, res) => {
   try {
-    const clients = await CRMClient.find({ isActive: true, ...deptFilterFor(req.query.department) })
+    const clients = await CRMClient.find({
+      isActive: true,
+      ...deptFilterFor(req.query.department),
+      ...(projectMatch(req.query.projectId) || {}),
+    })
       .select('name clientId department status')
       .sort({ name: 1 })
       .limit(2000)
@@ -281,9 +363,10 @@ router.delete('/clients/:id', requireAdmin, async (req, res) => {
 // ── Contacts ──────────────────────────────────────────────────────────────────
 router.get('/contacts', requireCRM, async (req, res) => {
   try {
-    const { department, clientId, search } = req.query;
+    const { department, clientId, search, projectId } = req.query;
     const filter = { isActive: true, ...deptFilterFor(department) };
     if (clientId) filter.client = clientId;
+    else Object.assign(filter, (await clientScopeFor(projectId)) || {});
     if (search) filter.$or = [
       { firstName: { $regex: search, $options: 'i' } },
       { lastName:  { $regex: search, $options: 'i' } },
@@ -366,10 +449,12 @@ router.delete('/statuses/:id', requireAdmin, async (req, res) => {
 // ── Follow-ups ────────────────────────────────────────────────────────────────
 router.get('/followups', requireCRM, async (req, res) => {
   try {
-    const { department, status, assignedTo, overdue, clientId } = req.query;
+    const { department, status, assignedTo, overdue, clientId, projectId } = req.query;
     const filter = {};
     if (department && department !== 'all') filter.department = department;
+    // An explicit client wins over the project scope — it is the narrower ask.
     if (clientId) filter.client = clientId;
+    else Object.assign(filter, (await clientScopeFor(projectId)) || {});
     if (assignedTo) filter.assignedTo = assignedTo;
     // 'overdue' is derived (pending + past due), not a stored status, so it must
     // override any status filter rather than sit alongside it.
@@ -456,10 +541,11 @@ router.delete('/followups/:id', requireAdmin, async (req, res) => {
 // ── Communications ────────────────────────────────────────────────────────────
 router.get('/communications', requireCRM, async (req, res) => {
   try {
-    const { department, clientId, type, page = 1, limit = 30 } = req.query;
+    const { department, clientId, type, projectId, page = 1, limit = 30 } = req.query;
     const filter = {};
     if (department && department !== 'all') filter.department = department;
     if (clientId) filter.client = clientId;
+    else Object.assign(filter, (await clientScopeFor(projectId)) || {});
     if (type) filter.type = type;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -508,10 +594,11 @@ router.delete('/communications/:id', requireAdmin, async (req, res) => {
  */
 router.get('/pipeline', requireCRM, async (req, res) => {
   try {
-    const { department } = req.query;
+    const { department, projectId } = req.query;
+    const projFilter = projectMatch(projectId) || {};
     const [stages, clients] = await Promise.all([
       CRMStatus.find({ isActive: true, ...deptFilterFor(department, 'shared') }).sort({ order: 1 }).lean(),
-      CRMClient.find({ isActive: true, ...deptFilterFor(department) })
+      CRMClient.find({ isActive: true, ...deptFilterFor(department), ...projFilter })
         .select('name clientId status priority department owner nextFollowUpAt lastContactedAt')
         .populate('owner', 'firstName lastName')
         .sort({ updatedAt: -1 })
@@ -628,8 +715,10 @@ router.delete('/vendors/:id', requireAdmin, async (req, res) => {
 // ── Analytics ─────────────────────────────────────────────────────────────────
 router.get('/analytics', requireCRM, async (req, res) => {
   try {
-    const { department, dateFrom, dateTo } = req.query;
+    const { department, dateFrom, dateTo, projectId } = req.query;
     const deptFilter = deptFilterFor(department);
+    const projFilter  = projectMatch(projectId) || {};
+    const clientScope = (await clientScopeFor(projectId)) || {};
     const dateFilter = {};
     if (dateFrom) dateFilter.$gte = new Date(dateFrom);
     if (dateTo) dateFilter.$lte = new Date(dateTo);
@@ -637,20 +726,20 @@ router.get('/analytics', requireCRM, async (req, res) => {
 
     const [clientsByDept, clientsByStatus, followupsByStatus, commsByType] = await Promise.all([
       CRMClient.aggregate([
-        { $match: { isActive: true } },
+        { $match: { ...projFilter, isActive: true } },
         { $group: { _id: '$department', count: { $sum: 1 } } },
       ]),
       CRMClient.aggregate([
-        { $match: { ...deptFilter, isActive: true } },
+        { $match: { ...deptFilter, ...projFilter, isActive: true } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
       CRMFollowUp.aggregate([
-        { $match: deptFilter },
+        { $match: { ...deptFilter, ...clientScope } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
       CRMCommunication.aggregate([
-        { $match: { ...deptFilter, ...createdFilter } },
+        { $match: { ...deptFilter, ...clientScope, ...createdFilter } },
         { $group: { _id: '$type', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
@@ -838,12 +927,13 @@ router.post('/clients/bulk/deactivate', requireAdmin, bulkRoute(crmBulk.bulkDeac
  */
 router.get('/activity', requireCRM, async (req, res) => {
   try {
-    const { department, type, clientId, userId, days, page = 1, limit = 30 } = req.query;
+    const { department, type, clientId, userId, days, projectId, page = 1, limit = 30 } = req.query;
 
     const filter = {};
     if (department && department !== 'all') filter.department = department;
     if (type) filter.type = type;
     if (clientId && mongoose.isValidObjectId(clientId)) filter.client = clientId;
+    else Object.assign(filter, (await clientScopeFor(projectId)) || {});
     if (userId && mongoose.isValidObjectId(userId)) filter.createdBy = userId;
     if (days) {
       const n = Math.min(Number(days) || 7, 365);
@@ -881,11 +971,12 @@ router.get('/activity', requireCRM, async (req, res) => {
  */
 router.get('/reminders', requireCRM, async (req, res) => {
   try {
-    const { department, assignedTo } = req.query;
+    const { department, assignedTo, projectId } = req.query;
 
     const filter = { status: 'pending' };
     if (department && department !== 'all') filter.department = department;
     if (assignedTo && mongoose.isValidObjectId(assignedTo)) filter.assignedTo = assignedTo;
+    Object.assign(filter, (await clientScopeFor(projectId)) || {});
 
     const now = new Date();
     const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
@@ -1008,7 +1099,7 @@ router.get('/influencers', requireCRM, async (req, res) => {
 /** Headline reach/engagement figures for the Influencers dashboard tiles. */
 router.get('/influencers/stats', requireCRM, async (req, res) => {
   try {
-    const filter = { isActive: true, ...deptFilterFor(req.query.department) };
+    const filter = { isActive: true, ...deptFilterFor(req.query.department), ...(projectMatch(req.query.projectId) || {}) };
     const [totals] = await CRMInfluencer.aggregate([
       { $match: filter },
       { $group: {
@@ -1028,7 +1119,14 @@ router.get('/influencers/stats', requireCRM, async (req, res) => {
       CRMInfluencer.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
     ]);
 
-    const totalPosts = await CRMInfluencerPost.countDocuments({ isActive: true });
+    // Posts belong to a creator, so the count has to follow the same scope the
+    // tiles above use — otherwise a project view shows its own creators beside a
+    // global post total.
+    const scopedIds = await CRMInfluencer.find(filter).select('_id').lean();
+    const totalPosts = await CRMInfluencerPost.countDocuments({
+      isActive: true,
+      influencer: { $in: scopedIds.map(i => i._id) },
+    });
 
     res.json({ success: true, data: {
       total: totals?.total || 0,

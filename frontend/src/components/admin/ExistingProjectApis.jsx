@@ -4,20 +4,30 @@ import { Action, Badge, Field, Icon, Notice, Panel } from './api-management/Mana
 
 export default function ExistingProjectApis({ integrations, projects, projectId, editable, busy, send, run, chooseProject }) {
   const [drafts, setDrafts] = useState({});
-  const items = integrations.filter(item => projectId ? item.projectId === projectId || (!item.projectId && !item.projectCode) : item.present || item.imported);
+  const items = integrations.filter(item => {
+    if (!projectId) return item.present || item.imported;
+    return item.projectId === projectId || (!item.projectId && !item.projectCode && item.present);
+  });
   if (!items.length) return null;
   const change = (integrationId, key, value) => setDrafts(previous => ({ ...previous, [integrationId]: { ...previous[integrationId], [key]: value } }));
-  return <Panel title="Existing integrations" description="Keep your existing project APIs and environment settings. Register an adapter before editing it here." icon="cable">
+  return <Panel title="Existing integrations" description="See which providers have backend settings and which are registered with API Management." icon="cable">
     <div className="space-y-3">{items.map(item => {
       const ownerId = item.projectId || (!item.projectCode ? projectId : '');
       const project = projects.find(row => row._id === ownerId);
       const draft = drafts[item.id] || {};
       const changes = Object.fromEntries(Object.entries(draft).filter(([key, value]) => value !== '' && (item.fields.find(field => field.key === key)?.type === 'secret' || value !== item.fields.find(field => field.key === key)?.value)));
       return <article key={item.id} className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
-        <div className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-800"><Icon name="cable" /></span><div className="min-w-0"><h3 className="text-sm font-bold">{item.name}</h3><p className="mt-1 text-xs text-neutral-500">{project?.name || (item.projectCode ? `Owning project: ${item.projectCode}` : 'Select an owning project')}</p></div></div><div className="flex flex-wrap gap-2"><Badge tone={item.configured ? 'info' : 'neutral'}>{item.configured ? 'Configured · unverified' : 'Not configured'}</Badge><Badge>{item.imported ? 'Registered' : 'Existing adapter'}</Badge></div></div>
+        <div className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-800"><Icon name="cable" /></span><div className="min-w-0"><h3 className="text-sm font-bold">{item.name}</h3><p className="mt-1 text-xs text-neutral-500">{project?.name || (item.projectCode ? `Owning project: ${item.projectCode}` : 'Select an owning project')}</p></div></div><div className="flex flex-wrap gap-2"><Badge tone={item.configured ? 'info' : 'neutral'}>{item.configured ? 'Backend settings detected' : 'Backend settings incomplete'}</Badge><Badge tone={item.imported ? 'success' : 'warning'}>{item.imported ? 'Registered in API Management' : 'Awaiting registration'}</Badge></div></div>
           <p className="mt-3 break-all font-mono text-xs leading-relaxed text-neutral-500">{item.baseUrl || 'Provider URL not configured'}</p>
+          {projectId && !item.imported && item.fields.length > 0 && <div className="mt-4 space-y-2">
+            <p className="text-xs font-semibold">Backend environment</p>
+            <dl className="grid gap-2 sm:grid-cols-2">{item.fields.map(field => <div key={field.key} className="flex items-center justify-between gap-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs dark:bg-neutral-900">
+              <dt>{field.label}</dt><dd><Badge tone={field.configured ? 'success' : 'neutral'}>{field.configured ? 'Set' : 'Missing'}</Badge></dd>
+            </div>)}</dl>
+            {item.configured && <p className="text-xs text-neutral-500">Live connection unverified.</p>}
+          </div>}
           {!projectId && item.projectId && <div className="mt-3"><Action icon="arrow_forward" disabled={busy} onClick={() => chooseProject(item.projectId)}>Manage project</Action></div>}
-          {editable && projectId && !item.imported && <div className="mt-3"><Action variant="accent" icon="add_link" disabled={busy || !ownerId} onClick={() => run(() => send(`/existing-integrations/${item.id}/import`, { projectId: ownerId }), 'Existing API registered. Current environment values were preserved.')}>Register existing API</Action></div>}
+          {editable && projectId && !item.imported && <div className="mt-3"><Action variant="accent" icon="add_link" disabled={busy || !ownerId} onClick={() => run(() => send(`/existing-integrations/${item.id}/import`, { projectId: ownerId }), 'Existing API registered. Current environment values were preserved.')}>Register with API Management</Action></div>}
         </div>
         {projectId && item.imported && <details className="group border-t border-neutral-100 dark:border-neutral-800"><summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-[var(--portal-accent)] focus-visible:outline-2 focus-visible:outline-offset-[-2px]"><span>{editable ? 'Edit connection settings' : 'View connection settings'}</span><Icon name="expand_more" className="transition-transform group-open:rotate-180" /></summary>
           <form className="space-y-4 border-t border-neutral-100 p-4 dark:border-neutral-800" onSubmit={async event => {

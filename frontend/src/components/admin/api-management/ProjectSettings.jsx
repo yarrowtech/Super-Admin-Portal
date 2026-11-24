@@ -6,10 +6,13 @@ import { RemoveAction, Action, Badge, CopyValue, Empty, Field, Notice, Panel } f
 export function ProviderSettings({ registry, project, api, editable, busy, run, send, chooseProject }) {
   const [draftUrl, setUrl] = useState(null);
   const url = draftUrl ?? api?.baseUrl ?? '';
+  const hasExistingProvider = registry.existingIntegrations?.some(item => item.projectId === project._id && item.present);
   return <>
     <ExistingProjectApis integrations={registry.existingIntegrations || []} projects={registry.projects} projectId={project._id} editable={editable} busy={busy} send={send} run={run} chooseProject={chooseProject} />
-    <Panel title="Primary provider" description="The default upstream connection for this project's endpoints." icon="settings_input_component" action={<Badge tone={api?.enabled ? 'info' : 'neutral'}>{api?.enabled ? 'Enabled' : 'Disabled'}</Badge>}>
-      {!api ? <Empty title="Register this project's API first" description="Create a gateway identity using the project bar above, or register one of the existing integrations." /> : <form className="space-y-5" onSubmit={async event => { event.preventDefault(); const result = await run(() => send(`/apis/${api._id}`, { baseUrl: url, enabled: true }, 'patch'), 'Provider URL saved and enabled'); if (result.ok) setUrl(null); }}>
+    <Panel title="Primary provider" description="The default upstream connection for this project's endpoints." icon="settings_input_component" action={<Badge tone={api?.enabled ? 'info' : 'neutral'}>{api ? (api.enabled ? 'Enabled' : 'Disabled') : 'Awaiting registration'}</Badge>}>
+      {!api ? <Empty title="No managed API registered" description={hasExistingProvider
+        ? 'Register the existing provider above to create this project?s gateway identity and start configuring endpoints and portal access.'
+        : 'Use Register project API to create a gateway identity for this project.'} /> : <form className="space-y-5" onSubmit={async event => { event.preventDefault(); const result = await run(() => send(`/apis/${api._id}`, { baseUrl: url, enabled: true }, 'patch'), 'Provider URL saved and enabled'); if (result.ok) setUrl(null); }}>
         <Field label="Provider URL" hint="Use the public HTTPS base URL. Endpoint paths are configured separately."><input type="url" required className={INPUT} value={url} onChange={event => setUrl(event.target.value)} placeholder="https://provider.example.com/api/v1" disabled={!editable || busy} /></Field>
         {editable && !api.enabled && api.environmentIntegrationId && <Action disabled={busy} onClick={() => run(() => send(`/apis/${api._id}`, { enabled: true }, 'patch'), 'Gateway provider enabled')}>Enable gateway</Action>}
         <Notice>Saving updates the backend environment and applies the new configuration immediately. Connection changes require a new test before activation.</Notice>

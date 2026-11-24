@@ -20,7 +20,7 @@ import { useToast } from '../../../context/ToastContext';
 import { useAuth } from '../../../context/AuthContext';
 import {
   apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, PRIORITY_OPTIONS,
-  SINGLE_DEPT_OPTIONS, TextArea, useStatusOptions,
+  SINGLE_DEPT_OPTIONS, TextArea, useStatusOptions, useProjectScope,
 } from './crmShared';
 import ImportModule from './ImportModule';
 import { INFLUENCER_IMPORT, compactNumber } from './importConfigs';
@@ -204,6 +204,7 @@ function StatTiles({ stats }) {
  * the roster sources its own pipeline stages and permission check.
  */
 export default function InfluencersModule({ token, department }) {
+  const { projectId } = useProjectScope();
   const toast = useToast();
   const { user } = useAuth();
   const isAdmin = ['admin', 'super_admin', 'superadmin'].includes(user?.role);
@@ -240,11 +241,18 @@ export default function InfluencersModule({ token, department }) {
       if (platformFilter) params.set('platform', platformFilter);
       if (tierFilter) params.set('tier', tierFilter);
       if (statusFilter) params.set('status', statusFilter);
+      if (projectId && projectId !== 'all') params.set('projectId', projectId);
 
-      const deptParam = department && department !== 'all' ? `?department=${department}` : '';
+      // The stats tiles must answer for the same set the table below lists, so
+      // they take the same department and project scope.
+      const statsParams = new URLSearchParams();
+      if (department && department !== 'all') statsParams.set('department', department);
+      if (projectId && projectId !== 'all') statsParams.set('projectId', projectId);
+      const statsQuery = statsParams.toString();
+
       const [list, s] = await Promise.all([
         apiFetch(`/influencers?${params}`, token),
-        apiFetch(`/influencers/stats${deptParam}`, token),
+        apiFetch(`/influencers/stats${statsQuery ? `?${statsQuery}` : ''}`, token),
       ]);
       setRows(list.data || []);
       setTotal(list.total || 0);
@@ -255,7 +263,7 @@ export default function InfluencersModule({ token, department }) {
     } finally {
       setLoading(false);
     }
-  }, [token, department, query, platformFilter, tierFilter, statusFilter, page, toast]);
+  }, [token, department, query, platformFilter, tierFilter, statusFilter, page, projectId, toast]);
 
   useEffect(() => { load(); }, [load]);
 

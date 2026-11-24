@@ -23,7 +23,7 @@ import {
   useCompleteCrmFollowUp, useSnoozeCrmFollowUp,
 } from '../../../hooks/useCrmQueries';
 import {
-  PRIORITY_TONE, PRIORITY_RAIL, fmt, relativeDue, userLabel,
+  PRIORITY_TONE, PRIORITY_RAIL, fmt, relativeDue, userLabel, useProjectScope,
 } from './crmShared';
 
 // Bucket order is urgency order — overdue first, because that is the list that
@@ -149,7 +149,12 @@ export default function RemindersModule({ department }) {
   const { data: users = [] } = useCrmUsers();
   const { data: statuses = [] } = useCrmStatuses(department);
 
-  const remindersQuery = useCrmReminders({ department, assignedTo: assignee });
+  const { projectId } = useProjectScope();
+  const remindersQuery = useCrmReminders({
+    department,
+    assignedTo: assignee,
+    projectId: projectId === 'all' ? '' : projectId,
+  });
   const buckets = remindersQuery.data?.data || null;
   const counts  = remindersQuery.data?.counts || null;
 

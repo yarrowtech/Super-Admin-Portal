@@ -9,6 +9,7 @@ const readCollapsed = () => {
 
 export default function ManagementNavigation({ section, onNavigate, disabled, hasProject = true }) {
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [closedGroups, setClosedGroups] = useState({});
   const [filter, setFilter] = useState('');
   const searchRef = useRef(null);
 
@@ -42,7 +43,7 @@ export default function ManagementNavigation({ section, onNavigate, disabled, ha
           onClick={() => { setCollapsed(value => !value); setFilter(''); }}
           className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-neutral-500 transition hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-neutral-800">
           <Icon name={collapsed ? 'right_panel_open' : 'left_panel_close'} />
-          {!collapsed && <span className="text-xs font-semibold">Workspace navigation</span>}
+          {!collapsed && <span className="text-xs font-semibold">Collapse</span>}
         </button>
         {!collapsed && <div className="relative mt-2">
           <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400"><Icon name="search" className="text-[17px]" /></span>
@@ -54,12 +55,20 @@ export default function ManagementNavigation({ section, onNavigate, disabled, ha
       <nav aria-label="API Management" className="min-h-0 flex-1 overflow-y-auto p-2 pt-3">
         {!groups.length
           ? <p className="px-3 py-6 text-center text-xs text-neutral-500">No section matches “{filter.trim()}”.</p>
-          : groups.map(([group, items]) => <div key={group} className="mb-3">
-            {!collapsed && <p className={`mb-1 px-3 text-[10px] font-bold uppercase tracking-wider ${group === activeGroup ? 'text-[var(--portal-accent)]' : 'text-neutral-400'}`}>{group}</p>}
+          : groups.map(([group, items]) => {
+            const expanded = collapsed || Boolean(term) || !closedGroups[group];
+            const groupId = `api-nav-${group.toLowerCase().replaceAll(' ', '-')}`;
+            return <div key={group} className="mb-3">
+            {!collapsed && <button type="button" aria-expanded={expanded} aria-controls={groupId} disabled={Boolean(term)}
+              onClick={() => setClosedGroups(previous => ({ ...previous, [group]: !previous[group] }))}
+              className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide ${group === activeGroup ? 'text-[var(--portal-accent)]' : 'text-neutral-500'}`}>
+              {group}<Icon name={expanded ? 'expand_more' : 'chevron_right'} />
+            </button>}
+            <div id={groupId} hidden={!expanded}>
             {items.map(([name, icon]) => {
               const current = section === name;
               const needsProject = !hasProject && !GLOBAL_SECTIONS.has(name);
-              return <button key={name} type="button" disabled={disabled} aria-current={current ? 'page' : undefined}
+              return <button key={name} type="button" disabled={disabled} aria-current={current ? 'page' : undefined} aria-label={name}
                 title={collapsed ? (needsProject ? `${name} · requires a project` : name) : undefined}
                 onClick={() => { setFilter(''); onNavigate(name); }}
                 className={`mb-0.5 flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 ${current ? 'bg-[var(--portal-accent-soft)] font-bold text-[var(--portal-accent)]' : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'}`}>
@@ -70,7 +79,8 @@ export default function ManagementNavigation({ section, onNavigate, disabled, ha
                 </>}
               </button>;
             })}
-          </div>)}
+            </div>
+          </div>; })}
       </nav>
       {!collapsed && (term
         ? <p aria-live="polite" className="shrink-0 border-t border-neutral-100 px-3 py-2 text-[10px] text-neutral-400 dark:border-neutral-800">{matches} section{matches === 1 ? '' : 's'} · press Enter to open the first</p>

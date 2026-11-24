@@ -44,14 +44,38 @@ router.use((req, res, next) => {
   if (!['GET', 'HEAD'].includes(req.method) && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Super Admin access required' });
   next();
 });
+const listProjects = () => Project.find().select('name projectCode').sort({ name: 1, _id: 1 }).lean();
+router.get('/projects', wrap(async (req, res) => {
+  res.json({ projects: await listProjects() });
+}));
 router.get('/state', wrap(async (req, res) => {
-  const [apis, endpoints, portals, connections, events, projects, portalOptions, syncJobs] = await Promise.all([
-    ProjectApi.find().lean(), Endpoint.find().lean(), Portal.find().lean(), Connection.find().lean(),
-    Event.find().sort({ createdAt: -1 }).limit(100).lean(), Project.find().select('name projectCode').lean(),
+  const projectId = req.query.project === undefined ? null : id.parse(req.query.project).toLowerCase();
+  const projects = await listProjects();
+  const project = projects.find(item => String(item._id) === projectId);
+  if (projectId && !project) fail('Project not found', 404);
+
+  const [apis, portals, portalOptions] = await Promise.all([
+    ProjectApi.find(project ? { projectId: project._id } : {}).lean(),
+    Portal.find().lean(),
     PortalAccess.distinct('portal'),
-    SyncJob.find().lean(),
   ]);
-  const existingIntegrations = environment.inventory(projects, apis);
+  const apiFilter = project ? { apiId: { $in: apis.map(api => api._id) } } : {};
+  const [endpoints, connections] = await Promise.all([
+    Endpoint.find(apiFilter).lean(), Connection.find(apiFilter).lean(),
+  ]);
+  const endpointIds = endpoints.map(endpoint => endpoint._id);
+  const connectionIds = connections.map(connection => connection._id);
+  const [events, syncJobs] = await Promise.all([
+    Event.find(project ? { $or: [apiFilter, { connectionId: { $in: connectionIds } }, { endpointId: { $in: endpointIds } }] } : {})
+      .sort({ createdAt: -1, _id: -1 }).limit(100).lean(),
+    SyncJob.find(project ? { connectionId: { $in: connectionIds }, endpointId: { $in: endpointIds } } : {}).lean(),
+  ]);
+  // Resolve legacy adapter ownership against the full registry before filtering.
+  const integrationOwners = project
+    ? await ProjectApi.find({ 'environmentIntegrationIds.0': { $exists: true } }).select('projectId environmentIntegrationIds').lean()
+    : apis;
+  const existingIntegrations = environment.inventory(projects, integrationOwners)
+    .filter(item => !project || String(item.projectId) === projectId || (!item.projectId && !item.projectCode));
   for (const api of apis) {
     const configuration = environment.gatewayConfiguration(api);
     if (configuration) { api.baseUrl = configuration.baseUrl; api.credentialConfigured = Boolean(configuration.bearer && configuration.token); }
@@ -99,8 +123,13 @@ router.post('/apis', wrap(async (req, res) => {
   const project = await get(Project, body.projectId);
   const namespace = `${(project.projectCode || project.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48)}-${crypto.randomUUID()}`;
   const api = new ProjectApi({ projectId: project._id, name: `${project.name} API`, namespace });
+  try {
+    await api.save();
+  } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.projectId) fail('This project already has a registered API', 409);
+    throw error;
+  }
   await audit(req, 'project-api.register', { apiId: api._id });
-  await api.save();
   res.status(201).json(api);
 }));
 router.patch('/apis/:id', wrap(async (req, res) => {

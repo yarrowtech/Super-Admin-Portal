@@ -9,10 +9,11 @@ import StatusBadge from '../../common/StatusBadge';
 import Skeleton from '../../ui/Skeleton';
 import EmptyState from '../../ui/EmptyState';
 import { useToast } from '../../../context/ToastContext';
-import { apiFetch, PRIORITY_TONE, PRIORITY_RAIL, userLabel, relativeDue } from './crmShared';
+import { apiFetch, PRIORITY_TONE, PRIORITY_RAIL, userLabel, relativeDue, useProjectScope, withProject } from './crmShared';
 
 export default function PipelineBoard({ token, department, onOpenClient }) {
   const toast = useToast();
+  const { projectId } = useProjectScope();
   const [columns, setColumns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dragging, setDragging] = useState(null);
@@ -20,11 +21,11 @@ export default function PipelineBoard({ token, department, onOpenClient }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`/pipeline?department=${department}`, token)
+    apiFetch(withProject(`/pipeline?department=${department}`, projectId), token)
       .then(r => setColumns(r.data || []))
       .catch(err => { toast.error(err.message); setColumns([]); })
       .finally(() => setLoading(false));
-  }, [token, department]);
+  }, [token, department, projectId]);
 
   useEffect(() => { load(); }, [load]);
 

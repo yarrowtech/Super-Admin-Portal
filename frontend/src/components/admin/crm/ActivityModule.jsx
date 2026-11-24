@@ -14,7 +14,7 @@ import SectionCard from '../../ui/SectionCard';
 import { useAuth } from '../../../context/AuthContext';
 import ClientDetailDrawer from './ClientDetailDrawer';
 import { useCrmActivity, useCrmUsers, useCrmStatuses } from '../../../hooks/useCrmQueries';
-import { fmtDateTime, userLabel } from './crmShared';
+import { fmtDateTime, userLabel, useProjectScope } from './crmShared';
 
 // Icon and tint per interaction type, so the feed is scannable by shape rather
 // than requiring every line to be read.
@@ -62,13 +62,17 @@ export default function ActivityModule({ department }) {
   const { data: users = [] } = useCrmUsers();
   const { data: statuses = [] } = useCrmStatuses(department);
 
-  useEffect(() => { setPage(1); }, [department, typeFilter, userFilter, range]);
+  const { projectId } = useProjectScope();
+
+  useEffect(() => { setPage(1); }, [department, typeFilter, userFilter, range, projectId]);
 
   const activityQuery = useCrmActivity({
     department, page, limit: 40,
     type: typeFilter,
     userId: userFilter,
     days: range,
+    // 'all' is dropped by the hook's `clean`, so an unscoped feed queries as before.
+    projectId: projectId === 'all' ? '' : projectId,
   });
 
   const items = activityQuery.data?.data || [];

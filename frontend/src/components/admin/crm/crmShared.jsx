@@ -5,9 +5,45 @@
  * same way. The pickers matter: CRMFollowUp and CRMCommunication both declare
  * `client` as required, so a form without a client selector could never submit.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { API_BASE_URL } from '../../../config/backend';
 import Select from '../../ui/Select';
+
+// ── Project scope ─────────────────────────────────────────────────────────────
+/**
+ * The active project filter, shared by every CRM module.
+ *
+ * A context rather than a prop: the scope has to reach sixteen modules and the
+ * drawers and modals they open, and threading `projectId` through each of them
+ * would mean every module signature changing for a filter most of them only
+ * forward verbatim to `apiFetch`.
+ */
+const ProjectScopeContext = React.createContext({ projectId: 'all', projects: [], project: null });
+
+export const ProjectScopeProvider = ProjectScopeContext.Provider;
+export const useProjectScope = () => useContext(ProjectScopeContext);
+
+/**
+ * Appends the active project to a CRM query string.
+ * 'all' is omitted so an unscoped request stays byte-identical to the old one.
+ */
+export const withProject = (path, projectId) => {
+  if (!projectId || projectId === 'all') return path;
+  return `${path}${path.includes('?') ? '&' : '?'}projectId=${encodeURIComponent(projectId)}`;
+};
+
+/** Projects available to scope the CRM to, with their record counts. */
+export function useProjectOptions(token) {
+  const [state, setState] = useState({ projects: [], unassignedClients: 0, loading: true });
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch('/projects/options', token)
+      .then(r => { if (!cancelled) setState({ projects: r.data || [], unassignedClients: r.unassignedClients || 0, loading: false }); })
+      .catch(() => { if (!cancelled) setState({ projects: [], unassignedClients: 0, loading: false }); });
+    return () => { cancelled = true; };
+  }, [token]);
+  return state;
+}
 
 // ── API helper ────────────────────────────────────────────────────────────────
 export const apiFetch = async (path, token, options = {}) => {
@@ -76,13 +112,14 @@ export const toDateInput = (d) => {
 /** Clients trimmed to picker fields. Unpaginated, so every client is selectable. */
 export function useClientOptions(token, department) {
   const [clients, setClients] = useState([]);
+  const { projectId } = useProjectScope();
   useEffect(() => {
     let cancelled = false;
-    apiFetch(`/clients/options?department=${department}`, token)
+    apiFetch(withProject(`/clients/options?department=${department}`, projectId), token)
       .then(r => { if (!cancelled) setClients(r.data || []); })
       .catch(() => { if (!cancelled) setClients([]); });
     return () => { cancelled = true; };
-  }, [token, department]);
+  }, [token, department, projectId]);
   return clients;
 }
 

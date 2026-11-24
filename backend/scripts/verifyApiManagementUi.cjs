@@ -24,7 +24,11 @@ const registry = {
   portals: [{ _id: portalId, name: 'Leadership Portal', slug: 'leadership', enabled: true, mcpEnabled: false }],
   connections: [{ _id: connectionId, apiId, portalId, status: 'Pending', testedAt: null, grants: [{ endpointId, fields: ['name'], operations: ['read'] }] }],
   syncJobs: [], events: [], portalOptions: ['ceo', 'finance'],
-  existingIntegrations: [{ id: 'fixture-adapter', name: 'Existing Learning API', projectId, imported: true, configured: true, present: true, bearer: true, baseUrl: 'https://provider.example.test/api', revision: '0'.repeat(64), note: 'This service token is shared with the learning adapter.', fields: [{ key: 'FIXTURE_API_URL', label: 'API URL', type: 'url', value: 'https://provider.example.test/api', configured: true }, { key: 'FIXTURE_API_TOKEN', label: 'Service token', type: 'secret', configured: true }] }],
+  existingIntegrations: [{
+    id: 'fixture-srs', name: 'Existing Beta SRS API', projectId: secondProjectId,
+    imported: false, configured: true, present: true, bearer: false, baseUrl: 'https://srs.example.test',
+    fields: [{ key: 'FIXTURE_SRS_SIGNING_SECRET', label: 'Signing secret', type: 'secret', configured: true }],
+  }, { id: 'fixture-adapter', name: 'Existing Learning API', projectId, imported: true, configured: true, present: true, bearer: true, baseUrl: 'https://provider.example.test/api', revision: '0'.repeat(64), note: 'This service token is shared with the learning adapter.', fields: [{ key: 'FIXTURE_API_URL', label: 'API URL', type: 'url', value: 'https://provider.example.test/api', configured: true }, { key: 'FIXTURE_API_TOKEN', label: 'Service token', type: 'secret', configured: true }] }],
   capabilities: { encryptionReady: true, mcp: true },
 };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
@@ -43,7 +47,8 @@ async function main() {
   const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage(); page.setDefaultTimeout(15000);
-    const requestedPaths = []; const failures = []; page.on('requestfailed', req => failures.push(req.failure()?.errorText));
+    const { scopeApiManagement } = await import('../../frontend/src/components/admin/apiManagementScope.js');
+  const requestedPaths = []; const failures = []; page.on('requestfailed', req => failures.push(req.failure()?.errorText));
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.setViewport({ width: 1440, height: 1000 });
     await page.evaluateOnNewDocument(() => { localStorage.setItem('sap_token', 'isolated-ui-fixture-session'); sessionStorage.setItem('dashboard_workflow_super_admin', '{}'); sessionStorage.setItem('dashboard_workflow_admin', '{}'); });
@@ -54,9 +59,13 @@ async function main() {
         if (url.pathname.startsWith('/api/')) {
           const user = { _id: `ui-${role}`, id: `ui-${role}`, firstName: 'UI', lastName: 'Reviewer', role, email: 'ui@example.test', status: 'active' };
           if (url.pathname === '/api/api-management/state') {
-            await request.respond({ status: failRegistry ? 503 : 200, contentType: 'application/json', headers: { 'access-control-allow-origin': request.headers().origin || origin, 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'authorization,content-type,x-request-id,x-project-id,x-client-source', 'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS', 'cache-control': 'no-store' }, body: JSON.stringify(failRegistry ? { error: 'Fixture registry unavailable' } : registry) }); return;
+            const selected = url.searchParams.get('project');
+            const status = request.method() === 'OPTIONS' ? 200 : failRegistry ? 503 : selected && !registry.projects.some(project => project._id === selected) ? 404 : 200;
+            const state = status === 200 ? scopeApiManagement(registry, selected) : { error: status === 404 ? 'Project not found' : 'Fixture registry unavailable' };
+            await request.respond({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': request.headers().origin || origin, 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'authorization,content-type,x-request-id,x-project-id,x-client-source', 'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS', 'cache-control': 'no-store' }, body: JSON.stringify(state) }); return;
           }
           let data = url.pathname === '/api/auth/me' ? { data: { user } } : { success: true, data: [] };
+          if (url.pathname === '/api/api-management/projects') data = { projects: registry.projects };
           if (!['GET', 'OPTIONS'].includes(request.method())) {
             const body = request.postData() ? JSON.parse(request.postData()) : {};
             submissions.push({ path: url.pathname, body });
@@ -93,8 +102,13 @@ async function main() {
     await page.$eval('input[aria-label="Search projects"]', element => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(element, ''); element.dispatchEvent(new Event('input', { bubbles: true })); });
     await page.evaluate(async () => { await document.fonts.ready; await document.fonts.load('24px "Material Symbols Outlined"'); });
     await page.screenshot({ path: path.join(output, 'desktop-overview.png'), fullPage: true });
-    await page.select(await field('Source project'), projectId);
-    await navigate('API Endpoints'); await click('Add endpoint');
+    const portalGroup = await page.$('button[aria-controls="api-nav-portal-connections"]');
+    await portalGroup.click();
+    assert.equal(await portalGroup.evaluate(button => button.getAttribute('aria-expanded')), 'false');
+    await portalGroup.click();
+    await page.select('select[aria-label="Project"]', projectId);
+    await page.waitForFunction(project => new URLSearchParams(location.search).get('project') === project, {}, projectId);
+    await navigate('API Endpoints'); await settled(); await click('Add endpoint');
     await page.type(await field('Endpoint name'), 'Draft endpoint');
     await page.type(await field('Module'), 'Customers');
     await page.type(await field('Dataset'), 'Draft profiles');
@@ -114,7 +128,9 @@ async function main() {
     assert.ok(await page.$eval('[role="dialog"]', element => element.textContent.includes('name')));
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('[role="dialog"]'));
-    await navigate('Connected Portals'); await click('Issue key');
+    await navigate('Connected Portals');
+    await page.waitForFunction(() => document.querySelector('main')?.textContent.includes('Project portal connections'));
+    await navigate('Authentication'); await click('Issue key');
     await click('Issue new credential', '[role="dialog"]'); await settled();
     await page.waitForFunction(() => document.querySelector('[role="dialog"]')?.textContent.includes('fixture-one-time-credential'));
     const stored = await page.evaluate(() => Object.values({ ...localStorage, ...sessionStorage }).join(' '));
@@ -140,10 +156,30 @@ async function main() {
     await page.evaluate(async () => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); await Promise.allSettled(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished)); });
     await page.screenshot({ path: path.join(output, 'mobile-dark-connection.png') });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Mobile form overflows horizontally');
+    await page.goto(origin + `/admin/api-management/api-configuration?project=${secondProjectId}`, { waitUntil: 'networkidle2' });
+    await page.waitForFunction(() => document.querySelector('main')?.textContent.includes('No managed API registered'));
+    const configuration = await page.$eval('main', element => element.innerText);
+    for (const label of ['Existing Beta SRS API', 'Backend settings detected', 'Signing secret', 'Live connection unverified', 'Register with API Management']) {
+      assert.ok(configuration.includes(label), `Missing configuration status: ${label}`);
+    }
+    assert.ok(!configuration.includes('Existing Learning API'));
+    assert.equal(await page.$('main input[type="password"]'), null);
+    const sidebarSections = await page.$$eval('nav[aria-label="API Management"] button[aria-label]', buttons => buttons.map(button => button.getAttribute('aria-label')));
+    for (const section of sidebarSections) {
+      await navigate(section);
+      await settled();
+      assert.equal(new URL(page.url()).searchParams.get('project'), secondProjectId);
+      assert.ok(!(await page.$eval('main', element => element.innerText)).includes('Alpha Learning API'));
+    }
     role = 'admin';
     await page.goto(origin + `/admin/api-management/connected-portals?project=${projectId}`, { waitUntil: 'networkidle2' });
     await page.waitForFunction(() => document.querySelector('main')?.textContent.includes('Administrator'));
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('main button')].filter(element => /Issue key|Register portal|Rotate key/.test(element.textContent)).length), 0);
+    await page.goto(origin + '/admin/api-management/api-configuration?project=invalid', { waitUntil: 'networkidle2' });
+    await page.waitForFunction(() => document.querySelector('main')?.textContent.includes('Invalid project ID'));
+    assert.equal(await page.$eval('select[aria-label="Project"]', select => select.options.length), 3);
+    await page.goto(origin + '/admin/api-management/api-configuration?project=ffffffffffffffffffffffff', { waitUntil: 'networkidle2' });
+    await page.waitForFunction(() => document.querySelector('main')?.textContent.includes('Project not found'));
     failRegistry = true;
     await page.reload({ waitUntil: 'networkidle2' });
     await page.waitForFunction(() => document.querySelector('main')?.textContent.includes('The registry could not be loaded'));
@@ -153,4 +189,4 @@ async function main() {
     console.log(`UI fixture screenshots: ${output}`);
   } finally { await browser.close(); }
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1; }).finally(() => server.close());
+main().catch(error => { console.error(error.stack); process.exitCode = 1; }).finally(() => server.close());

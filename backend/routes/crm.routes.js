@@ -40,10 +40,8 @@ const deptFilterFor = (department, sharedValue = 'both') =>
 /**
  * Project scoping.
  *
- * Only CRMClient and CRMInfluencer carry a hard `project` link. Everything else
- * in the CRM (follow-ups, communications, contacts) hangs off a client, so a
- * project filter on those collections has to be resolved through the clients
- * that belong to the project.
+ * Clients, influencers and vendors carry a direct `project` link.
+ * Follow-ups, communications and contacts are scoped through their clients.
  *
  * Returns:
  *   null                      — no project filter requested, query unchanged
@@ -169,8 +167,7 @@ router.get('/dashboard', requireCRM, async (req, res) => {
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 /**
- * Projects available to scope the whole CRM to, each with its live client and
- * influencer counts so the picker can show where the records actually are.
+ * Projects and active CRM record counts for the project picker.
  */
 router.get('/projects/options', requireCRM, async (req, res) => {
   try {
@@ -181,29 +178,28 @@ router.get('/projects/options', requireCRM, async (req, res) => {
       .limit(500)
       .lean();
 
-    const [clientCounts, influencerCounts, unassignedClients] = await Promise.all([
-      CRMClient.aggregate([
-        { $match: { isActive: true, project: { $ne: null } } },
+    const countByProject = async Model => {
+      const counts = await Model.aggregate([
+        { $match: { isActive: true } },
         { $group: { _id: '$project', count: { $sum: 1 } } },
-      ]),
-      CRMInfluencer.aggregate([
-        { $match: { isActive: true, project: { $ne: null } } },
-        { $group: { _id: '$project', count: { $sum: 1 } } },
-      ]),
-      CRMClient.countDocuments({ isActive: true, project: null }),
-    ]);
-
-    const cBy = Object.fromEntries(clientCounts.map(c => [String(c._id), c.count]));
-    const iBy = Object.fromEntries(influencerCounts.map(c => [String(c._id), c.count]));
+      ]);
+      return Object.fromEntries(counts.map(({ _id, count }) => [String(_id), count]));
+    };
+    const [clients, influencers, vendors] = await Promise.all(
+      [CRMClient, CRMInfluencer, CRMVendor].map(countByProject),
+    );
 
     res.json({
       success: true,
       data: projects.map(p => ({
         ...p,
-        clientCount: cBy[String(p._id)] || 0,
-        influencerCount: iBy[String(p._id)] || 0,
+        clientCount: clients[String(p._id)] || 0,
+        influencerCount: influencers[String(p._id)] || 0,
+        vendorCount: vendors[String(p._id)] || 0,
       })),
-      unassignedClients,
+      unassignedClients: clients.null || 0,
+      unassignedInfluencers: influencers.null || 0,
+      unassignedVendors: vendors.null || 0,
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -635,8 +631,14 @@ router.get('/pipeline', requireCRM, async (req, res) => {
 // ── Email Templates ───────────────────────────────────────────────────────────
 router.get('/email-templates', requireCRM, async (req, res) => {
   try {
-    const filter = { isActive: true, ...deptFilterFor(req.query.department, 'shared') };
-    const templates = await CRMEmailTemplate.find(filter).sort({ name: 1 }).lean();
+    const { projectId, department } = req.query;
+    const projectFilter = projectMatch(projectId);
+    if (projectId && projectId !== 'all' && !projectFilter) {
+      return res.status(400).json({ success: false, error: 'Invalid project filter.' });
+    }
+    const filter = { isActive: true, ...deptFilterFor(department, 'shared'), ...projectFilter };
+    const templates = await CRMEmailTemplate.find(filter).sort({ name: 1, _id: 1 })
+      .populate('project', 'name projectCode').lean();
     res.json({ success: true, data: templates });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -645,6 +647,10 @@ router.get('/email-templates', requireCRM, async (req, res) => {
 
 router.post('/email-templates', requireAdmin, async (req, res) => {
   try {
+    const { project } = req.body;
+    if (project != null && (!mongoose.isValidObjectId(project) || !await mongoose.model('Project').exists({ _id: project }))) {
+      return res.status(400).json({ success: false, error: 'Select an existing project.' });
+    }
     const template = await CRMEmailTemplate.create({ ...req.body, createdBy: req.user._id });
     res.status(201).json({ success: true, data: template });
   } catch (err) {
@@ -654,7 +660,11 @@ router.post('/email-templates', requireAdmin, async (req, res) => {
 
 router.put('/email-templates/:id', requireAdmin, async (req, res) => {
   try {
-    const template = await CRMEmailTemplate.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { project } = req.body;
+    if (project != null && (!mongoose.isValidObjectId(project) || !await mongoose.model('Project').exists({ _id: project }))) {
+      return res.status(400).json({ success: false, error: 'Select an existing project.' });
+    }
+    const template = await CRMEmailTemplate.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
     res.json({ success: true, data: template });
   } catch (err) {
@@ -674,10 +684,13 @@ router.delete('/email-templates/:id', requireAdmin, async (req, res) => {
 // ── Vendors & Third Parties ───────────────────────────────────────────────────
 router.get('/vendors', requireCRM, async (req, res) => {
   try {
-    const { department, entityType } = req.query;
-    const filter = { isActive: true, ...deptFilterFor(department) };
+    const { department, entityType, projectId } = req.query;
+    const filter = { isActive: true, ...deptFilterFor(department), ...projectMatch(projectId) };
     if (entityType) filter.entityType = entityType;
-    const vendors = await CRMVendor.find(filter).sort({ name: 1 }).lean();
+    const vendors = await CRMVendor.find(filter)
+      .sort({ name: 1, _id: 1 })
+      .populate('project', 'name projectCode')
+      .lean();
     res.json({ success: true, data: vendors });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

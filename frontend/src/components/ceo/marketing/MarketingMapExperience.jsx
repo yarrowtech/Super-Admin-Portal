@@ -35,7 +35,7 @@ const RecordRows = ({ rows, selectedId, onRecord, stages }) => <ul className="ma
 
 const Pagination = ({ page, totalPages, loading, onChange }) => totalPages > 1 && <div className="map-pagination"><MapButton icon="chevron_left" label="Previous page" disabled={loading || page <= 1} onClick={() => onChange(page - 1)} /><span>{page} / {totalPages}</span><MapButton icon="chevron_right" label="Next page" disabled={loading || page >= totalPages} onClick={() => onChange(page + 1)} /></div>;
 
-const MarketingMapExperience = () => {
+const MarketingMapExperience = ({ onShowCrm }) => {
   const { token } = useAuth();
   const navigate = useNavigate();
   const mapRef = useRef(null);
@@ -272,7 +272,7 @@ const MarketingMapExperience = () => {
 
     <header className="map-header map-surface">
       <MapButton icon="arrow_back" label="Back to Marketing Analytics" onClick={() => navigate('/ceo/marketing-analytics')} />
-      <div className="map-header-content"><h1>Marketing Map</h1><ProjectPicker options={projectOptions} placeholder={projectName} value={filters.projectId} onChange={changeProject} loading={loading} /></div>
+      <div className="map-header-content"><h1>Marketing Map</h1>{onShowCrm && <button type="button" className="map-primary" onClick={onShowCrm}>All CRM records</button>}<ProjectPicker options={projectOptions} placeholder={projectName} value={filters.projectId} onChange={changeProject} loading={loading} /></div>
     </header>
     <div className="map-toolbar-area">
       <nav className="map-toolbar map-surface" aria-label="Map controls">

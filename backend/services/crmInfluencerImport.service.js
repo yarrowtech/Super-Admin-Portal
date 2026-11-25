@@ -200,7 +200,7 @@ const dedupeKey = (value) => String(value || '')
  * Nothing here writes. Rows that cannot be identified are reported rather than
  * silently dropped, so the review screen accounts for every line in the file.
  */
-function validateRows(rows, mapping, { fallbackDepartment = 'marketing', statusNames = [], defaultStatus = 'Identified' } = {}) {
+function validateRows(rows, mapping, { fallbackDepartment = 'marketing', statusNames = [], defaultStatus = 'Email Sent' } = {}) {
   if (!mapping?.name && !mapping?.handle) {
     fail(422, 'Map an Influencer Name or Handle column before continuing.');
   }
@@ -266,6 +266,7 @@ function validateRows(rows, mapping, { fallbackDepartment = 'marketing', statusN
     // A status the pipeline does not define is flagged rather than written, so an
     // import cannot invent stages no board column will ever display.
     let status = String(cell(row, 'status') ?? '').trim() || defaultStatus;
+    if (canonical(status) === 'identified') status = 'Email Sent';
     if (knownStatuses.size && !knownStatuses.has(canonical(status))) {
       addIssue(`Status "${status}" is not a configured stage — set to "${defaultStatus}"`);
       status = defaultStatus;
@@ -504,7 +505,7 @@ function buildTemplate() {
     'Avg Views': '48K', 'Avg Likes': '6.2K', 'Engagement Rate': '4.9%',
     'Rate Per Post': '45000', 'Rate Per Story': '15000', 'Rate Per Reel': '60000',
     Currency: 'INR', Category: 'Food', Tier: 'Macro', Department: 'Marketing',
-    Status: 'Identified', Priority: 'High', 'Campaign Period': '4 Dec 26 to 21 Mar 27',
+    Status: 'Email Sent', Priority: 'High', 'Campaign Period': '4 Dec 26 to 21 Mar 27',
     Notes: 'Strong food audience in Mumbai',
   }];
 

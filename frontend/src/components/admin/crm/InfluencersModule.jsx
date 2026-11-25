@@ -57,23 +57,28 @@ const money = (value, currency = 'INR') => {
 };
 
 // ── Create / edit ───────────────────────────────────────────────────────────
+const DEFAULT_STATUS = 'Email Sent';
+
 const BLANK = {
   name: '', handle: '', platform: 'instagram', profileUrl: '', email: '', phone: '',
   location: '', followers: '', avgViews: '', avgLikes: '', engagementRate: '',
   ratePerPost: '', ratePerStory: '', ratePerReel: '', currency: 'INR',
-  category: '', tier: '', department: 'marketing', status: 'Identified',
+  category: '', tier: '', department: 'marketing', status: DEFAULT_STATUS,
   priority: 'medium', campaignPeriod: '', notes: '',
 };
 
 function InfluencerFormModal({ open, onClose, onSaved, token, editData, statuses }) {
   const toast = useToast();
+  const { projectId, projects } = useProjectScope();
   const [form, setForm] = useState(BLANK);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setForm(editData ? { ...BLANK, ...editData, tier: editData.tier || '' } : BLANK);
-  }, [open, editData]);
+    setForm(editData
+      ? { ...BLANK, ...editData, tier: editData.tier || '', project: editData.project?._id || '' }
+      : { ...BLANK, project: projectId === 'all' || projectId === 'unassigned' ? '' : projectId });
+  }, [open, editData, projectId]);
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
@@ -89,7 +94,7 @@ function InfluencerFormModal({ open, onClose, onSaved, token, editData, statuses
       // would be stored as a measured zero.
       const numeric = ['followers', 'avgViews', 'avgLikes', 'engagementRate',
                        'ratePerPost', 'ratePerStory', 'ratePerReel'];
-      const payload = { ...form };
+      const payload = { ...form, project: form.project || null };
       numeric.forEach(k => { payload[k] = payload[k] === '' || payload[k] === null ? null : Number(payload[k]); });
       if (!payload.tier) delete payload.tier;      // let the model derive it
 
@@ -149,10 +154,10 @@ function InfluencerFormModal({ open, onClose, onSaved, token, editData, statuses
 
         <div className="grid gap-3 sm:grid-cols-3">
           <Select label="Department" name="department" value={form.department} onChange={set('department')} options={SINGLE_DEPT_OPTIONS} />
+          <Select label="Project" name="project" value={form.project || ''} onChange={set('project')}
+            options={[{ value:'', label:'Unassigned' }, ...projects.map(p => ({ value:p._id, label:p.name }))]} />
           <Select label="Status" name="status" value={form.status} onChange={set('status')}
-            options={statuses?.length
-              ? statuses.map(s => ({ value: s.name, label: s.name }))
-              : [{ value: 'Identified', label: 'Identified' }]} />
+            options={statuses} />
           <Select label="Priority" name="priority" value={form.priority} onChange={set('priority')} options={PRIORITY_OPTIONS} />
         </div>
 
@@ -278,8 +283,10 @@ export default function InfluencersModule({ token, department }) {
     }
   };
 
-  const statusOptions = useMemo(
-    () => statuses.map(s => ({ value: s.name, label: s.name })), [statuses]);
+  const statusOptions = useMemo(() => {
+    const names = new Set([DEFAULT_STATUS, ...statuses.map(s => s.name)]);
+    return [...names].map(name => ({ value: name, label: name }));
+  }, [statuses]);
 
   if (view === 'import') {
     return (
@@ -301,7 +308,7 @@ export default function InfluencersModule({ token, department }) {
         onSaved={load}
         token={token}
         editData={editTarget}
-        statuses={statuses}
+        statuses={statusOptions}
       />
 
       <StatTiles stats={stats} />
@@ -363,7 +370,7 @@ export default function InfluencersModule({ token, department }) {
           <table className="w-full min-w-[56rem] text-left text-sm">
             <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500 dark:bg-neutral-800">
               <tr>
-                {['Influencer', 'Platform', 'Posts', 'Followers', 'ER %', 'Tier', 'Rate / Post', 'Dept', 'Status', ''].map(h => (
+                {['Influencer', 'Platform', 'Posts', 'Followers', 'ER %', 'Tier', 'Rate / Post', 'Dept', ...(projectId === 'all' ? ['Project'] : []), 'Status', ''].map(h => (
                   <th key={h} className="px-3 py-2 font-bold">{h}</th>
                 ))}
               </tr>
@@ -406,6 +413,7 @@ export default function InfluencersModule({ token, department }) {
                   <td className="px-3 py-2">
                     <StatusBadge tone={DEPT_BADGE_TONE[r.department] || 'neutral'} label={r.department} dot={false} />
                   </td>
+                  {projectId === 'all' && <td className="px-3 py-2">{r.project?.name || 'Unassigned'}</td>}
                   <td className="px-3 py-2">
                     <StatusBadge tone={PRIORITY_TONE[r.priority] || 'neutral'} label={r.status} dot={false} />
                   </td>

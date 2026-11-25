@@ -59,7 +59,7 @@ const crmInfluencerSchema = new mongoose.Schema({
   project:         { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   owner:           { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
-  status:          { type: String, default: 'Identified' },
+  status:          { type: String, default: 'Email Sent' },
   statusHistory:   [influencerStatusHistorySchema],
   priority:        { type: String, enum: ['low', 'medium', 'high', 'urgent'], default: 'medium' },
 

@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const crmEmailTemplateSchema = new mongoose.Schema({
   name:        { type: String, required: true, trim: true },
   department:  { type: String, enum: ['media', 'marketing', 'shared'], required: true },
+  project:     { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   subject:     { type: String, required: true },
   body:        { type: String, required: true },
   variables:   [{ name: String, placeholder: String }],
@@ -10,5 +11,7 @@ const crmEmailTemplateSchema = new mongoose.Schema({
   isActive:    { type: Boolean, default: true },
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
+
+crmEmailTemplateSchema.index({ project: 1, isActive: 1 });
 
 module.exports = mongoose.model('CRMEmailTemplate', crmEmailTemplateSchema);

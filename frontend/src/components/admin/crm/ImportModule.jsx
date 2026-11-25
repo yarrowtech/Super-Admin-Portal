@@ -17,7 +17,7 @@ import SectionCard from '../../ui/SectionCard';
 import Select from '../../ui/Select';
 import Skeleton from '../../ui/Skeleton';
 import EmptyState from '../../ui/EmptyState';
-import { apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, SINGLE_DEPT_OPTIONS, fmtDateTime, userLabel } from './crmShared';
+import { apiFetch, DEPT_BADGE_TONE, PRIORITY_TONE, SINGLE_DEPT_OPTIONS, fmtDateTime, userLabel, useProjectScope } from './crmShared';
 import { CLIENT_IMPORT, plural } from './importConfigs';
 
 const STEPS = ['Upload', 'Map columns', 'Review', 'Done'];
@@ -106,12 +106,13 @@ export default function ImportModule({ token, department, config = CLIENT_IMPORT
   const toast = useToast();
   const fileInputRef = useRef(null);
   const FIELDS = config.fields;
+  const { projectId: activeProjectId } = useProjectScope();
 
   const [step, setStep]         = useState(0);
   const [file, setFile]         = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState(activeProjectId === 'all' || activeProjectId === 'unassigned' ? '' : activeProjectId);
   const [importDept, setImportDept] = useState(department === 'all' ? config.defaultDepartment : department);
   const [mode, setMode]         = useState('skip');
   const [sheet, setSheet]       = useState('');

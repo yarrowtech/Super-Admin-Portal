@@ -7,6 +7,7 @@ const ceoChatController = require('../controllers/ceo/ceoChat.controller');
 const ceoSalesAnalyticsController = require('../controllers/ceo/ceoSalesAnalytics.controller');
 const marketingAnalyticsController = require('../controllers/ceo/marketingAnalytics.controller');
 const marketingImportController = require('../controllers/ceo/marketingImport.controller');
+const { getCrmMap } = require('../services/ceoCrmMap.service');
 const { uploadSpreadsheet } = require('../middlewares/upload.middleware');
 const { authenticate, authorize, authorizePortalAccess } = require('../middlewares/auth.middleware');
 const { cacheGetResponses, invalidateCacheAfterMutation } = require('../middlewares/cacheInvalidation.middleware');
@@ -49,6 +50,15 @@ router.get('/marketing-analytics/contacts/:contactId', marketingAnalyticsControl
 router.post('/marketing-analytics/import/analyze', uploadSpreadsheet('file'), marketingImportController.analyzeMarketingImport);
 router.post('/marketing-analytics/import', uploadSpreadsheet('file'), marketingImportController.commitMarketingImport);
 // This map is an EEC-B2B workspace; general marketing APIs retain their own project views.
+router.get('/marketing-analytics/map/crm', async (req, res) => {
+  try {
+    const data = await getCrmMap(req.query);
+    res.set('Cache-Control', 'private, no-store').json({ success: true, data });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    res.status(status).json({ success: false, message: status === 500 ? 'Unable to load CRM map records.' : err.message });
+  }
+});
 router.use('/marketing-analytics/map', marketingMapScope);
 router.get('/marketing-analytics/map/projects', (req, res) => res.json({ success: true, data: [req.marketingMapProject] }));
 router.get('/marketing-analytics/map/analytics', marketingAnalyticsController.getMarketingAnalytics);

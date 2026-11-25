@@ -1,6 +1,8 @@
 # EEC-B2B marketing map scope
 
-`/ceo/marketing-map` is an EEC-B2B workspace. Its selector lists only the actual EEC-B2B project returned by the server. There is no cross-project option on this page. General marketing analytics, imports, and other project workspaces retain their existing APIs and data.
+`/ceo/marketing-map` opens the read-only CRM map with All projects selected. It has project and record-type filters and lists records whose locations could not be resolved. The CRM endpoint is `GET /api/ceo/marketing-analytics/map/crm`.
+
+The **EEC-B2B outreach map** link opens the school marketing workspace. Its selector lists the EEC-B2B project returned by the server, and its journey controls apply only to that project.
 
 The server resolves the project from the Projects collection using its canonical `EEC_B2B` identity. Missing or ambiguous identities fail explicitly; no arbitrary project, fabricated dataset, or renamed EdifyEight data is substituted. A read-only audit on 8 October 2026 found EEC-B2B project `6a86f878c07bde7ef985eb4f`, with 5,998 imported records. Another 5,998 records were outside that project and are excluded from this map. These are audit-time counts, not UI constants.
 
@@ -8,7 +10,7 @@ The map uses `/api/ceo/marketing-analytics/map/*` endpoints. Each request is res
 
 Responses include project provenance. Individual records return their real database relationship; geographic points carry the project IDs of their underlying records. The client rejects missing or mismatched relationships before rendering points, details, search results, or analytics. Platform filtering gives an explicit identifier precedence over a project-name label, preventing a foreign ID with a matching name from entering the map. Map responses bypass the general response cache to avoid stale project context.
 
-The URL is normalized to `?projectId=<actual database ID>`. A bare route resolves EEC-B2B before any data fetch. Stale foreign project routes clear the previous selection, record, viewport, and filters while replacing the URL. A stale global `activeProjectId` in local storage cannot choose the map project. The UI gates retained data by its project ID, clears foreign markers immediately, and displays a loading state until the authorized project resolves.
+The URL is normalized to `?projectId=<actual database ID>`. An outreach link without a project ID resolves EEC-B2B before fetching outreach data. Stale foreign project routes clear the previous selection, record, viewport, and filters while replacing the URL. A stale global `activeProjectId` in local storage cannot choose the map project. The UI gates retained data by its project ID, clears foreign markers immediately, and displays a loading state until the authorized project resolves.
 
 Verification includes isolated API/database tests with the same school under EEC-B2B and EdifyEight, forbidden cross-project reads and status writes, unchanged foreign records, ambiguous-project rejection, platform filtering, defensive client rejection, and headless browser checks for default selection, stale storage/URLs, the restricted selector, project-aware requests, details, refresh, navigation, and mobile display.
 

@@ -34,12 +34,16 @@ export const withProject = (path, projectId) => {
 
 /** Projects available to scope the CRM to, with their record counts. */
 export function useProjectOptions(token) {
-  const [state, setState] = useState({ projects: [], unassignedClients: 0, loading: true });
+  const [state, setState] = useState({ projects: [], loading: true });
   useEffect(() => {
     let cancelled = false;
     apiFetch('/projects/options', token)
-      .then(r => { if (!cancelled) setState({ projects: r.data || [], unassignedClients: r.unassignedClients || 0, loading: false }); })
-      .catch(() => { if (!cancelled) setState({ projects: [], unassignedClients: 0, loading: false }); });
+      .then(({ data, unassignedClients, unassignedInfluencers, unassignedVendors }) => {
+        if (!cancelled) setState({
+          projects: data || [], unassignedClients, unassignedInfluencers, unassignedVendors, loading: false,
+        });
+      })
+      .catch(() => { if (!cancelled) setState({ projects: [], loading: false }); });
     return () => { cancelled = true; };
   }, [token]);
   return state;

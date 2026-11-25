@@ -6,6 +6,8 @@ const crmVendorSchema = new mongoose.Schema({
   // 'vendor' | 'third_party'
   entityType:  { type: String, enum: ['vendor', 'third_party'], default: 'vendor' },
   category:    { type: String, trim: true },
+  project:     { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+  importBatch: { type: String },
   contactPerson: { type: String, trim: true },
   email:       { type: String, trim: true, lowercase: true },
   phone:       { type: String, trim: true },
@@ -19,5 +21,6 @@ const crmVendorSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 crmVendorSchema.index({ department: 1, entityType: 1 });
+crmVendorSchema.index({ project: 1, isActive: 1 });
 
 module.exports = mongoose.model('CRMVendor', crmVendorSchema);

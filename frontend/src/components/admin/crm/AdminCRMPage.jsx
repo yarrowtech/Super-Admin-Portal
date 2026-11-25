@@ -1353,11 +1353,12 @@ function CommunicationsModule({ token, department }) {
 }
 
 // ── Email & Content ───────────────────────────────────────────────────────────
-const BLANK_TEMPLATE = { name:'', department:'shared', type:'other', subject:'', body:'' };
+const BLANK_TEMPLATE = { name:'', project:'', department:'shared', type:'other', subject:'', body:'' };
 const TEMPLATE_TYPE_OPTIONS = ['introduction','followup','proposal','meeting','delivery','outreach','update','other'].map(t => ({ value:t, label:t.charAt(0).toUpperCase()+t.slice(1) }));
 
 function EmailModule({ token, department }) {
   const toast = useToast();
+  const { projectId, projects } = useProjectScope();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -1368,28 +1369,38 @@ function EmailModule({ token, department }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`/email-templates?department=${department}`, token)
+    apiFetch(withProject(`/email-templates?department=${department}`, projectId), token)
       .then(r => setTemplates(r.data || []))
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department]);
+  }, [token, department, projectId, toast]);
 
   useEffect(() => { load(); }, [load]);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const openCreate = () => { setEditTarget(null); setForm(BLANK_TEMPLATE); setModalOpen(true); };
-  const openEdit   = (t) => { setEditTarget(t); setForm({ ...BLANK_TEMPLATE, ...t }); setViewModal(null); setModalOpen(true); };
+  const openCreate = () => {
+    setEditTarget(null);
+    setForm({ ...BLANK_TEMPLATE, project: projectId === 'all' || projectId === 'unassigned' ? '' : projectId });
+    setModalOpen(true);
+  };
+  const openEdit = template => {
+    setEditTarget(template);
+    setForm({ ...BLANK_TEMPLATE, ...template, project: template.project?._id || '' });
+    setViewModal(null);
+    setModalOpen(true);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
+      const body = JSON.stringify({ ...form, project: form.project || null });
       if (editTarget?._id) {
-        await apiFetch(`/email-templates/${editTarget._id}`, token, { method:'PUT', body: JSON.stringify(form) });
+        await apiFetch(`/email-templates/${editTarget._id}`, token, { method:'PUT', body });
         toast.success('Template updated');
       } else {
-        await apiFetch('/email-templates', token, { method:'POST', body: JSON.stringify(form) });
+        await apiFetch('/email-templates', token, { method:'POST', body });
         toast.success('Template created');
       }
       setModalOpen(false);
@@ -1439,6 +1450,8 @@ function EmailModule({ token, department }) {
             <Select label="Department" name="department" value={form.department} onChange={set('department')}
               options={[{ value:'media', label:'Media' }, { value:'marketing', label:'Marketing' }, { value:'shared', label:'Shared' }]} />
           </div>
+          <Select label="Project" name="project" value={form.project} onChange={set('project')}
+            options={[{ value:'', label:'Unassigned' }, ...projects.map(p => ({ value:p._id, label:p.name }))]} />
           <Input label="Subject *" required name="subject" value={form.subject} onChange={set('subject')} placeholder="e.g. Introduction — {{company_name}}" />
           <div>
             <label className="mb-1.5 block text-sm font-bold text-neutral-700 dark:text-neutral-200">Body *</label>
@@ -1468,6 +1481,7 @@ function EmailModule({ token, department }) {
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={DEPT_BADGE_TONE[viewModal.department]||'neutral'} label={viewModal.department} />
               <StatusBadge tone="neutral" label={viewModal.type} />
+              <StatusBadge tone="neutral" label={viewModal.project?.name || 'Unassigned'} />
             </div>
             <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-800">
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Subject</p>
@@ -1504,6 +1518,7 @@ function EmailModule({ token, department }) {
               <div className="flex flex-wrap gap-1 mt-auto">
                 <StatusBadge tone={DEPT_BADGE_TONE[t.department]||'neutral'} label={t.department} dot={false} />
                 <StatusBadge tone="neutral" label={t.type} dot={false} />
+                {projectId === 'all' && <StatusBadge tone="neutral" label={t.project?.name || 'Unassigned'} dot={false} />}
               </div>
             </button>
           ))}
@@ -1514,10 +1529,11 @@ function EmailModule({ token, department }) {
 }
 
 // ── Vendors & Third Parties ───────────────────────────────────────────────────
-const BLANK_VENDOR = { name:'', department:'media', entityType:'vendor', category:'', contactPerson:'', email:'', phone:'', website:'', notes:'' };
+const BLANK_VENDOR = { name:'', project:'', department:'media', entityType:'vendor', category:'', contactPerson:'', email:'', phone:'', website:'', notes:'' };
 
 function VendorsModule({ token, department }) {
   const toast = useToast();
+  const { projectId, projects } = useProjectScope();
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [entityFilter, setEntityFilter] = useState('vendor');
@@ -1528,18 +1544,27 @@ function VendorsModule({ token, department }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`/vendors?department=${department}&entityType=${entityFilter}`, token)
+    apiFetch(withProject(`/vendors?department=${department}&entityType=${entityFilter}`, projectId), token)
       .then(r => setItems(r.data || []))
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [token, department, entityFilter]);
+  }, [token, department, entityFilter, projectId, toast]);
 
   useEffect(() => { load(); }, [load]);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const openCreate = () => { setEditTarget(null); setForm({ ...BLANK_VENDOR, entityType: entityFilter }); setModalOpen(true); };
-  const openEdit   = (v)  => { setEditTarget(v); setForm({ ...BLANK_VENDOR, ...v }); setModalOpen(true); };
+  const openCreate = () => {
+    setEditTarget(null);
+    setForm({
+      ...BLANK_VENDOR,
+      department: department === 'all' ? BLANK_VENDOR.department : department,
+      entityType: entityFilter,
+      project: projectId === 'all' || projectId === 'unassigned' ? '' : projectId,
+    });
+    setModalOpen(true);
+  };
+  const openEdit   = (v)  => { setEditTarget(v); setForm({ ...BLANK_VENDOR, ...v, project: v.project?._id || '' }); setModalOpen(true); };
 
   const handleDelete = async (row) => {
     if (!window.confirm(`Remove “${row.name}”?`)) return;
@@ -1555,10 +1580,10 @@ function VendorsModule({ token, department }) {
     setSaving(true);
     try {
       if (editTarget?._id) {
-        await apiFetch(`/vendors/${editTarget._id}`, token, { method:'PUT', body: JSON.stringify(form) });
+        await apiFetch(`/vendors/${editTarget._id}`, token, { method:'PUT', body: JSON.stringify({ ...form, project: form.project || null }) });
         toast.success('Updated');
       } else {
-        await apiFetch('/vendors', token, { method:'POST', body: JSON.stringify(form) });
+        await apiFetch('/vendors', token, { method:'POST', body: JSON.stringify({ ...form, project: form.project || null }) });
         toast.success('Created');
       }
       setModalOpen(false);
@@ -1572,6 +1597,7 @@ function VendorsModule({ token, department }) {
 
   const columns = [
     { key:'name', header:'Name', render:r => <span className="font-semibold text-neutral-900 dark:text-neutral-100">{r.name}</span> },
+    ...(projectId === 'all' ? [{ key:'project', header:'Project', render:r => r.project?.name || 'Unassigned' }] : []),
     { key:'category', header:'Category', render:r => <span className="text-sm text-neutral-500">{r.category||'—'}</span> },
     { key:'contactPerson', header:'Contact', render:r => <span className="text-sm text-neutral-600 dark:text-neutral-400">{r.contactPerson||'—'}</span> },
     { key:'email', header:'Email', render:r => <span className="text-sm text-neutral-500">{r.email||'—'}</span> },
@@ -1595,6 +1621,8 @@ function VendorsModule({ token, department }) {
             <Input label="Name *" required name="name" value={form.name} onChange={set('name')} />
           </div>
           <Select label="Department" name="department" value={form.department} onChange={set('department')} options={DEPT_OPTIONS} />
+          <Select label="Project" name="project" value={form.project} onChange={set('project')}
+            options={[{ value:'', label:'Unassigned' }, ...projects.map(p => ({ value:p._id, label:p.name }))]} />
           <Select label="Entity Type" name="entityType" value={form.entityType} onChange={set('entityType')}
             options={[{ value:'vendor', label:'Vendor' }, { value:'third_party', label:'Third Party' }]} />
           <Input label="Category" name="category" value={form.category} onChange={set('category')} placeholder="e.g. Photography, Analytics" />
@@ -1612,7 +1640,7 @@ function VendorsModule({ token, department }) {
       </Modal>
 
       <SectionCard
-        title={entityLabel}
+        title={`${entityLabel} (${items.length})`}
         icon={entityFilter === 'vendor' ? 'store' : 'integration_instructions'}
         description={entityFilter === 'vendor' ? 'Media & Marketing service vendors' : 'Third-party integrations and partners'}
         loading={loading}
@@ -1957,9 +1985,9 @@ const MODULES = [
 const NAV_GROUPS = [
   { id:'overview',     label:'Overview',                      moduleIds:['dashboard'] },
   { id:'relationship', label:'Relationship Management',       moduleIds:['clients','influencers','pipeline','projects','contacts','statuses'] },
-  { id:'activities',   label:'Activities & Communication',    moduleIds:['followups','comms','email'] },
+  { id:'activities',   label:'Activities',                    moduleIds:['followups','comms','email'] },
   { id:'network',      label:'Business Network',              moduleIds:['vendors'] },
-  { id:'intelligence', label:'Intelligence & Configuration',  moduleIds:['analytics','import','settings'] },
+  { id:'intelligence', label:'Insights & Settings',           moduleIds:['analytics','import','settings'] },
 ];
 
 const MODULE_BY_ID = Object.fromEntries(MODULES.map(m => [m.id, m]));
@@ -1988,7 +2016,9 @@ export default function AdminCRMPage() {
   // The active project is the page-wide scope — persisted like the old
   // department choice was, so returning to the CRM lands in the same project.
   const [projectId, setProjectId] = useState(readStoredProject);
-  const { projects, unassignedClients, loading: projectsLoading } = useProjectOptions(token);
+  const {
+    projects, unassignedClients, unassignedInfluencers, unassignedVendors, loading: projectsLoading,
+  } = useProjectOptions(token);
 
   const selectProject = useCallback((id) => {
     setProjectId(id);
@@ -2026,6 +2056,8 @@ export default function AdminCRMPage() {
   const { Component: ActiveComponent } = MODULES.find(m => m.id === activeId) || MODULES[0];
 
   const activeModule = MODULE_BY_ID[activeId] || MODULES[0];
+  const projectCountKey = { clients: 'clientCount', influencers: 'influencerCount', vendors: 'vendorCount' }[activeId];
+  const unassignedCount = { clients: unassignedClients, influencers: unassignedInfluencers, vendors: unassignedVendors }[activeId];
   const activeGroup  = NAV_GROUPS_RESOLVED.find(g => g.modules.some(m => m.id === activeId));
 
   // Sidebar badges. Only counts that mean "there is work here" are shown —
@@ -2090,11 +2122,11 @@ export default function AdminCRMPage() {
               <option value="all">All projects</option>
               {projects.map(p => (
                 <option key={p._id} value={p._id}>
-                  {p.name}{p.clientCount ? ` (${p.clientCount})` : ''}
+                  {p.name}{projectCountKey && p[projectCountKey] != null ? ` (${p[projectCountKey]})` : ''}
                 </option>
               ))}
               <option value="unassigned">
-                — Unassigned{unassignedClients ? ` (${unassignedClients})` : ''} —
+                — Unassigned{unassignedCount != null ? ` (${unassignedCount})` : ''} —
               </option>
             </select>
             <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">
@@ -2150,14 +2182,15 @@ export default function AdminCRMPage() {
                       type="button"
                       onClick={() => toggleGroup(groupId)}
                       aria-expanded={open}
-                      className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-neutral-400 transition-colors hover:text-neutral-600 focus:outline-none focus-visible:ring-2 dark:hover:text-neutral-300"
+                      title={groupLabel}
+                      className="flex w-full items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.06em] text-neutral-400 transition-colors hover:text-neutral-600 focus:outline-none focus-visible:ring-2 dark:hover:text-neutral-300"
                     >
-                      <span className="truncate">{groupLabel}</span>
+                      <span className="min-w-0 flex-1 truncate text-left">{groupLabel}</span>
                       {/* A collapsed group still signals that something inside it is active. */}
                       {!open && groupHasActive && (
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background:'var(--portal-accent)' }} />
                       )}
-                      <span className={`material-symbols-outlined ml-auto text-[16px] transition-transform ${open ? '' : '-rotate-90'}`}>
+                      <span className={`material-symbols-outlined shrink-0 text-[16px] transition-transform ${open ? '' : '-rotate-90'}`}>
                         expand_more
                       </span>
                     </button>

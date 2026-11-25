@@ -56,6 +56,10 @@ const marketingImportSchema = new mongoose.Schema(
     // Groups every row from one upload, so an import can be reviewed or removed as a unit.
     batchId: { type: String, required: true, index: true },
     sourceFile: { type: String, trim: true, default: '', maxlength: 300 },
+    sourceDetails: {
+      type: [{ file: String, sheet: String, fields: mongoose.Schema.Types.Mixed, _id: false }],
+      default: undefined,
+    },
     importedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }
